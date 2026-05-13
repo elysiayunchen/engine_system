@@ -96,19 +96,19 @@ AI 动了不该动的东西                  AI 早就知道那里不能碰
 **macOS / Linux**
 
 ```bash
-bash <(curl -sSL https://raw.githubusercontent.com/YOUR_USERNAME/engine-system/main/install.sh)
+bash <(curl -sSL https://raw.githubusercontent.com/elysiayunchen/engine-system/main/install.sh)
 ```
 
 **Windows（PowerShell）**
 
 ```powershell
-irm https://raw.githubusercontent.com/YOUR_USERNAME/engine-system/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/elysiayunchen/engine-system/main/install.ps1 | iex
 ```
 
 **通过 degit**（不带 git 历史）
 
 ```bash
-npx degit YOUR_USERNAME/engine-system/plugin
+npx degit elysiayunchen/engine-system/plugin
 ```
 
 往你的项目根目录加这些文件——**原有代码一行不动：**

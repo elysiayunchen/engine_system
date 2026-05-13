@@ -1,12 +1,5 @@
 <div align="center">
 
-```
-╔═══════════════════════════════════════════════╗
-║           ENGINE SYSTEM                       ║
-║   给 vibe coding 项目的持久 AI 记忆层          ║
-╚═══════════════════════════════════════════════╝
-```
-
 **你的 AI 在你关掉标签页的瞬间忘掉了一切。**  
 **Engine System 不让这件事发生。**
 
@@ -15,6 +8,10 @@
 </div>
 
 ---
+
+## 顺带一提
+
+由于项目根植于无限降低开发门槛，因此考虑到部分用户尚且不明白应该如何下载安装**claude code**，这个可以稍后补习，如果想见识本项目的效用，可以在**web端**的任意AI平台直接以**ENGINE FILE SYSTEM.txt**作为prompt使用，然后在你的项目根文件夹下面添加**engine**文件夹，以放置AI生成的所有engine文件，之后每次需要在web端开发的时候，只需要把所有engine文件一股脑扔给web端的AI，然后每次项目结束后主动**让AI总结并更新engine文件**即可。————这也是这份engine文件的最初的使用方法，也是最不具门槛的使用方法。您只需要下载项目中的**ENGINE FILE SYSTEM.txt**即可
 
 ## 作为一个非专业开发者的vibe coding，严格来说只能算作架构师而不是开发者
 
@@ -99,19 +96,19 @@ AI 动了不该动的东西                  AI 早就知道那里不能碰
 **macOS / Linux**
 
 ```bash
-bash <(curl -sSL https://raw.githubusercontent.com/YOUR_USERNAME/engine-system/main/install.sh)
+bash <(curl -sSL https://raw.githubusercontent.com/elysiayunchen/engine-system/main/install.sh)
 ```
 
 **Windows（PowerShell）**
 
 ```powershell
-irm https://raw.githubusercontent.com/YOUR_USERNAME/engine-system/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/elysiayunchen/engine-system/main/install.ps1 | iex
 ```
 
 **通过 degit**（不带 git 历史）
 
 ```bash
-npx degit YOUR_USERNAME/engine-system/plugin
+npx degit elysiayunchen/engine-system/plugin
 ```
 
 往你的项目根目录加这些文件——**原有代码一行不动：**

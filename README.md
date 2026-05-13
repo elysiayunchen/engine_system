@@ -97,19 +97,19 @@ They're also the best project documentation you'll ever accidentally write.
 **macOS / Linux**
 
 ```bash
-bash <(curl -sSL https://raw.githubusercontent.com/YOUR_USERNAME/engine-system/main/install.sh)
+bash <(curl -sSL https://raw.githubusercontent.com/elysiayunchen/engine-system/main/install.sh)
 ```
 
 **Windows (PowerShell)**
 
 ```powershell
-irm https://raw.githubusercontent.com/YOUR_USERNAME/engine-system/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/elysiayunchen/engine-system/main/install.ps1 | iex
 ```
 
 **Via degit** (no git history baggage)
 
 ```bash
-npx degit YOUR_USERNAME/engine-system/plugin
+npx degit elysiayunchen/engine-system/plugin
 ```
 
 Adds to your project root — **nothing else is touched:**

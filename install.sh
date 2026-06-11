@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# engine-system installer
-# Usage: bash <(curl -sSL https://raw.githubusercontent.com/elysiayunchen/engine-system/main/install.sh)
+# Engine System installer
+# Usage: bash <(curl -sSL https://raw.githubusercontent.com/elysiayunchen/engine_system/main/install.sh)
 # Or:    bash install.sh [--update]
 
 set -e
 
-REPO="elysiayunchen/engine-system"
+REPO="elysiayunchen/engine_system"
 BRANCH="main"
 PLUGIN_DIR="plugin"
 UPDATE_MODE=false
@@ -24,7 +24,7 @@ CYAN='\033[0;36m'
 RESET='\033[0m'
 
 echo ""
-echo -e "${CYAN}engine-system installer${RESET}"
+echo -e "${CYAN}Engine System installer${RESET}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 # Check for required tools
@@ -50,9 +50,12 @@ BASE_URL="https://raw.githubusercontent.com/${REPO}/${BRANCH}/${PLUGIN_DIR}"
 FILES=(
   ".claude/commands/engine-init.md:.claude/commands/engine-init.md:true"
   ".claude/commands/engine-update.md:.claude/commands/engine-update.md:true"
-  ".claude/commands/add-pitfall.md:.claude/commands/add-pitfall.md:true"
   ".claude/commands/engine-status.md:.claude/commands/engine-status.md:true"
+  ".claude/commands/add-pitfall.md:.claude/commands/add-pitfall.md:true"
+  ".claude/commands/engine-ingest.md:.claude/commands/engine-ingest.md:true"
+  ".claude/commands/engine-reconcile.md:.claude/commands/engine-reconcile.md:true"
   "CLAUDE.md:CLAUDE.md:true"
+  "AGENTS.md:AGENTS.md:true"
   "engine/README.md:engine/README.md:false"
 )
 
@@ -73,7 +76,7 @@ for entry in "${FILES[@]}"; do
     continue
   fi
 
-  # In update mode, always overwrite plugin files (commands, CLAUDE.md)
+  # In update mode, always overwrite plugin files (commands, CLAUDE.md, AGENTS.md)
   if $UPDATE_MODE && [[ "$protect" == "true" ]]; then
     download "$url" "$dest"
     echo -e "  ${GREEN}updated${RESET} $dest"
@@ -105,14 +108,18 @@ else
   echo ""
   echo "  Option A — Claude Code (recommended):"
   echo "    Open Claude Code in this project, then type:  /engine-init"
+  echo "    Claude interviews you, picks a profile (WEB-FULL / CLI-LEAN),"
+  echo "    and writes engine/ENGINE_MAP.md + all engine files to disk."
   echo ""
   echo "  Option B — Web Claude:"
   echo "    Copy the contents of .claude/commands/engine-init.md"
   echo "    Paste into claude.ai to start the interview."
   echo ""
   echo "  After init, use these commands in Claude Code:"
-  echo "    /engine-update   — sync state after each session"
-  echo "    /add-pitfall     — record a bug or footgun immediately"
-  echo "    /engine-status   — print current project snapshot"
+  echo "    /engine-update     — sync state + handoff after each session"
+  echo "    /add-pitfall       — record a bug or footgun immediately"
+  echo "    /engine-status     — print current project snapshot"
+  echo "    /engine-ingest     — file a new plan (design doc) into engine/plans/"
+  echo "    /engine-reconcile  — audit engine files vs real code, fix drift"
 fi
 echo ""

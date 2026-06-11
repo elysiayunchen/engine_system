@@ -1,4 +1,9 @@
-﻿# ENGINE FILE SYSTEM — INITIALIZATION AGENT
+﻿# ⚠️ LEGACY (v4.0) — kept for historical reference only.
+# The current authoritative prompt is ENGINE_FILE_SYSTEM_v5.md (v5.1) in the repo root.
+# v4.0 has no ENGINE_MAP index layer, no profiles (WEB-FULL/CLI-LEAN), no anchor layer,
+# and no plan/spec-twin convention. For new projects, use v5.1.
+#
+# ENGINE FILE SYSTEM — INITIALIZATION AGENT
 # Version: 4.0 | Mode: Fully Autonomous | Vibe Coding Optimized
 
 

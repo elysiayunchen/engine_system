@@ -11,7 +11,7 @@
 
 ## 顺带一提
 
-由于项目根植于无限降低开发门槛，因此考虑到部分用户尚且不明白应该如何下载安装**claude code**，这个可以稍后补习，如果想见识本项目的效用，可以在**web端**的任意AI平台直接以**ENGINE FILE SYSTEM.txt**作为prompt使用，然后在你的项目根文件夹下面添加**engine**文件夹，以放置AI生成的所有engine文件，之后每次需要在web端开发的时候，只需要把所有engine文件一股脑扔给web端的AI，然后每次项目结束后主动**让AI总结并更新engine文件**即可。————这也是这份engine文件的最初的使用方法，也是最不具门槛的使用方法。您只需要下载项目中的**ENGINE FILE SYSTEM.txt**即可
+由于项目根植于无限降低开发门槛，因此考虑到部分用户尚且不明白应该如何下载安装**claude code**，这个可以稍后补习，如果想见识本项目的效用，可以在**web端**的任意AI平台直接以**`ENGINE_FILE_SYSTEM_v5.md`**作为prompt使用，然后在你的项目根文件夹下面添加**engine**文件夹，以放置AI生成的所有engine文件，之后每次需要在web端开发的时候，只需要把所有engine文件一股脑扔给web端的AI，然后每次项目结束后主动**让AI总结并更新engine文件**即可。————这也是这份engine文件的最初的使用方法，也是最不具门槛的使用方法。您只需要下载项目根目录里的**`ENGINE_FILE_SYSTEM_v5.md`**即可
 
 ## 作为一个非专业开发者的vibe coding，严格来说只能算作架构师而不是开发者
 
@@ -38,7 +38,7 @@
 
 ## Engine System 做的事
 
-Engine System 给你的项目加一个结构化记忆层：**八个 markdown 文件**，放在 `engine/` 目录里，在任何 AI 动你代码之前，让它先知道它需要知道的一切。
+Engine System 给你的项目加一个结构化记忆层：一组放在 `engine/` 目录里的 **markdown 文件**，在任何 AI 动你代码之前，让它先知道它需要知道的一切。其中有一个 `ENGINE_MAP.md` 是总目录——AI 每次会话最先读它，再据此决定该加载哪些文件。
 
 第一次，在 Claude Code 里运行 `/engine-init`。Claude 会用大约十分钟采访你，然后把文件直接写进你的项目。之后每次会话，文件自动加载。不用重新介绍，不用反复解释，不会上下文漂移。
 
@@ -61,21 +61,43 @@ AI 动了不该动的东西                  AI 早就知道那里不能碰
 
 ---
 
-## 八个引擎文件
+## 引擎文件
 
-| 文件              | 里面装着什么                                       |
-| ----------------- | -------------------------------------------------- |
-| `CONTEXT.md`      | 现在什么坏了，在做什么，卡在哪                     |
-| `SYSTEM.md`       | 你的协作规则——AI 必须做什么、不能做什么            |
-| `PITFALLS.md`     | 地雷登记册。踩过的坑、已知的危险操作、永远不做的事 |
-| `ARCHITECTURE.md` | 技术栈、目录结构、数据模型、关键决策及其理由       |
-| `SPRINT.md`       | 用人话写的当前任务和优先级                         |
-| `ROADMAP.md`      | 里程碑、计划功能、预料中将来要大改的东西           |
-| `HANDOFF.md`      | 会话历史——哪怕隔了两周，也能精准接回上次的断点     |
-| `SOURCEMAP.md`    | 代码 GPS：哪个文件管哪个功能，加新东西去哪里改     |
+这些文件都住在 `engine/` 目录里。第一个是索引——AI 在干别的之前，先读它。
+
+| 文件              | 里面装着什么                                                   |
+| ----------------- | -------------------------------------------------------------- |
+| `ENGINE_MAP.md`   | 总目录/索引。每次会话最先读它——它告诉 AI 接下来该加载哪些文件 |
+| `CONTEXT.md`      | 现在什么坏了，在做什么，卡在哪                                 |
+| `SYSTEM.md`       | 你的协作规则——AI 必须做什么、不能做什么                        |
+| `PITFALLS.md`     | 地雷登记册。踩过的坑、已知的危险操作、永远不做的事             |
+| `ARCHITECTURE.md` | 技术栈、目录结构、数据模型、关键决策及其理由                   |
+| `SPRINT.md`       | 用人话写的当前任务和优先级                                     |
+| `ROADMAP.md`      | 里程碑、计划功能、预料中将来要大改的东西                       |
+| `HANDOFF.md`      | 会话历史——哪怕隔了两周，也能精准接回上次的断点                 |
+| `SOURCEMAP.md`    | 代码 GPS：哪个文件管哪个功能，加新东西去哪里改                 |
 
 纯 markdown 文件。提交进 git，用 diff 追踪变化，自己也能读。  
 顺带一提，这也许是你这辈子无意间写出的最好的项目文档。
+
+**还有一层——锚点。** 像 `CLAUDE.md`、`AGENTS.md` 这样的文件不住在 `engine/` 里，而是放在各种 AI 工具一开机就会去看的位置。把它们想成一张「开机引导卡」：AI 工具一打开你的项目，先读这张卡，卡再把它指向 `ENGINE_MAP.md`。在更大的项目里，每个主要文件夹还可以放一个小小的 `README.md` 当「路标」。这些你都不用手写——Engine System 帮你保持同步。
+
+---
+
+## 它会根据你在哪儿干活自动适配
+
+Engine System 会留意你是在用**网页版 AI**（ChatGPT、网页里的 Claude），还是在用 **Claude Code**，并相应调整它存什么：
+
+- **网页版 AI 看不到你的代码**，所以引擎文件就成了代码的完整替身——连目录结构、技术栈都会完整写出来。
+- **Claude Code 能直接读你的代码**，所以它只存那些**没法从代码里重建**的东西：你的决策、你踩的坑、你定的规则。像目录结构这类信息就不重复存了——AI 需要时直接现读，这样它永远不会过期。
+
+这些你都不用配置。运行 `/engine-init` 时一次性选好，剩下的它替你处理。
+
+---
+
+## 想做个大功能？跟它聊一聊就行
+
+当你想做点大东西，你不需要写什么规格文档。就像平时那样，跟 AI 把设计思路聊一遍就好。Engine System 帮你把方案归档——存进 `engine/plans/`，还配上一份大白话的验收清单：「怎么算真的做完了」。格式你一点都不用碰。方案和它的验收清单是绑在一起走的，所以将来任何一次会话都同时知道你当初想做什么、以及做到什么程度才算完成。
 
 ---
 
@@ -96,32 +118,36 @@ AI 动了不该动的东西                  AI 早就知道那里不能碰
 **macOS / Linux**
 
 ```bash
-bash <(curl -sSL https://raw.githubusercontent.com/elysiayunchen/engine-system/main/install.sh)
+bash <(curl -sSL https://raw.githubusercontent.com/elysiayunchen/engine_system/main/install.sh)
 ```
 
 **Windows（PowerShell）**
 
 ```powershell
-irm https://raw.githubusercontent.com/elysiayunchen/engine-system/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/elysiayunchen/engine_system/main/install.ps1 | iex
 ```
 
 **通过 degit**（不带 git 历史）
 
 ```bash
-npx degit elysiayunchen/engine-system/plugin
+npx degit elysiayunchen/engine_system/plugin
 ```
 
 往你的项目根目录加这些文件——**原有代码一行不动：**
 
 ```
 你的项目/
-├── engine/                 ← 引擎文件住在这里（/engine-init 之前是空的）
+├── engine/                 ← 引擎文件住在这里
+│                             （/engine-init 之后会有 ENGINE_MAP.md 等文件，以及 plans/）
 ├── .claude/
 │   └── commands/           ← 自动变成 Claude Code 的斜杠命令
-│       ├── engine-init.md      →  /engine-init
-│       ├── engine-update.md    →  /engine-update
-│       ├── add-pitfall.md      →  /add-pitfall
-│       └── engine-status.md    →  /engine-status
+│       ├── engine-init.md       →  /engine-init
+│       ├── engine-update.md     →  /engine-update
+│       ├── engine-status.md     →  /engine-status
+│       ├── add-pitfall.md       →  /add-pitfall
+│       ├── engine-ingest.md     →  /engine-ingest
+│       └── engine-reconcile.md  →  /engine-reconcile
+├── AGENTS.md               ← 给 AI 工具的开机引导卡（把它指向 ENGINE_MAP.md）
 └── CLAUDE.md               ← 每次 Claude Code 启动自动加载
 ```
 
@@ -135,7 +161,7 @@ npx degit elysiayunchen/engine-system/plugin
 /engine-init
 ```
 
-Claude 会采访你：项目愿景、技术栈、当前状态、已知的坑、你希望怎么合作。大概十分钟。全部八个引擎文件直接写进 `engine/`。打开编辑器，文件就在那里。
+Claude 会采访你：项目愿景、技术栈、当前状态、已知的坑、你希望怎么合作。大概十分钟。引擎文件——`ENGINE_MAP.md` 和其余几份——直接写进 `engine/`。打开编辑器，文件就在那里。
 
 **没有 Claude Code？** 把 `.claude/commands/engine-init.md` 的内容复制到任意 Claude 会话（网页版、API 均可），把生成结果手动存进 `engine/`。其他一切功能完全一样。
 
@@ -168,6 +194,35 @@ Claude 会采访你：项目愿景、技术栈、当前状态、已知的坑、�
 ```
 
 当前状态、活跃任务、未解决的坑，一张快照。
+
+**刚设计完一个新功能：**
+
+```
+/engine-ingest
+```
+
+把你跟 AI 聊出来的一份设计/方案交给它，它会归档进 `engine/plans/`，并附上一份验收清单。没有格式要学。
+
+**怀疑文档跟真实代码对不上了：**
+
+```
+/engine-reconcile
+```
+
+对账一遍。它会检查引擎文件跟你代码库里实际的东西是否还一致，并修掉漂移。大改一轮之后跑一下。
+
+---
+
+## 六个命令
+
+| 命令                 | 它做的事                                                |
+| -------------------- | ------------------------------------------------------- |
+| `/engine-init`       | 首次初始化。采访你，然后把引擎文件写出来                |
+| `/engine-update`     | 会话结束。同步当前状态，写好交接笔记                    |
+| `/engine-status`     | 打印一张快照：当前状态、活跃任务、未解决的坑            |
+| `/add-pitfall`       | 立刻记下一个坑，趁你还没忘                              |
+| `/engine-ingest`     | 把一份新设计/方案归档进 `engine/plans/`，并配验收清单   |
+| `/engine-reconcile`  | 对账文档与真实代码，修掉任何漂移                        |
 
 ---
 

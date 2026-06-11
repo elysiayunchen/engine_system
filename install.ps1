@@ -32,6 +32,14 @@ foreach ($f in $FILES) {
   $url = "$BASE_URL/$($f.src)"
   $dest = $f.dest
 
+  # Root anchor files (CLAUDE.md / AGENTS.md): never clobber an existing one, in any mode.
+  # A brand-new project gets the starter bootloader; an existing file is preserved so that
+  # /engine-init can absorb its rules first, and /engine-reconcile keeps it in sync after.
+  if (($dest -eq "CLAUDE.md" -or $dest -eq "AGENTS.md") -and (Test-Path $dest)) {
+    Write-Host "  keep  $dest (已存在，保留；运行 /engine-init 吸收其规则后再改写)" -ForegroundColor Yellow
+    $skipped++; continue
+  }
+
   if ($Update -and -not $f.protect -and (Test-Path $dest)) {
     Write-Host "  skip  $dest (user data)" -ForegroundColor Yellow
     $skipped++; continue

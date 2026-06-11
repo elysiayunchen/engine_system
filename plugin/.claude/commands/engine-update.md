@@ -2,8 +2,9 @@
 
 You are updating the project's engine files at the end of a work session.
 
-## Step 1: Read Current State
-Use the Read tool to load:
+## Step 1: Read Current State (re-anchor before any write-back)
+Use the Read tool to load — re-reading guards against stale context from a long session:
+- `engine/ENGINE_MAP.md`  ← the index; read FIRST
 - `engine/CONTEXT.md`
 - `engine/HANDOFF.md`
 - `engine/PITFALLS.md`
@@ -12,7 +13,7 @@ Use the Read tool to load:
 
 1. "这次完成了什么？（一句话描述）"
 2. "现在正在做 / 下一步准备做什么？"
-3. "有没有新发现的坑、奇怪的行为、或者要提醒下一个 AI 的事？（没有就说"无"）"
+3. "有没有新发现的坑、奇怪的行为、或者要提醒下一个 AI 的事？（没有就说『无』）"
 
 ## Step 3: Write Updates
 
@@ -29,15 +30,48 @@ Add a new session entry at the TOP of the session history table (time-ordered):
 | [today's date] | [Q1 answer] | [Q2 answer] | [files touched this session if known] |
 ```
 
-### Append to engine/PITFALLS.md (only if Q3 has content)
-Add new pitfall row following insertion rules. Use next available P-ID.
+### Append to engine/PITFALLS.md (only if Q3 has real content)
+Record it as a FULL entry — match the structure `/engine-init` generates, not a bare row:
+
+1. Append a structured entry to the **条目** section, using the next P-ID (current max
+   across the 索引 table and 条目 section, + 1, zero-padded to three digits):
+   ```
+   ### P00X — [标题]
+   - **严重程度：** [🔴 CRITICAL / 🟠 HIGH / 🟡 MEDIUM / 🔵 INFO — infer from impact; ask if unclear]
+   - **类别：** [tooling / deps / arch / api / config / data / testing / security]
+   - **状态：** Active
+   - **你能观察到的现象：** [from Q3]
+   - **根因：** [if known, else TBD]
+   - **错误做法：** [if known, else TBD]
+   - **正确做法：** [the fix / workaround, if known, else TBD]
+   - **发现时间：** [today's date]
+   ```
+2. Append the matching row to the **索引** table:
+   `| P00X | [严重程度] | [标题] | [类别] | Active |`
+3. Bump the header 条目计数 and set its `Last updated` to today.
+
+### Update engine/ENGINE_MAP.md (the index — MUST NOT be skipped)
+The session ended, so the map's freshness metadata is now stale. You already re-anchored it
+in Step 1; now write back (metadata only — NEVER copy any file's body into the map):
+- **§1 文件注册表** — set `Last verified` = today's date for every file you touched this
+  session (CONTEXT, HANDOFF, and PITFALLS if a pitfall was added). If a pitfall was added,
+  also bump PITFALLS' per-file `Revision`.
+- **§4 完整性与新鲜度** — bump `全局 revision` by 1.
+- **Header** — set `Last updated` = today's date and mirror the new revision into `Revision:`.
+
+### Sync header dates
+Every engine file you wrote above MUST have its header `Last updated` date set to today.
 
 ## Step 4: Confirm
-Output:
+Output the change summary (for the architect's review), then the resume pointer:
 ```
-✓ engine/CONTEXT.md updated
-✓ engine/HANDOFF.md updated
-[✓ engine/PITFALLS.md updated — P00X added]  ← only if pitfall was recorded
+## 引擎文件变更摘要
+| 文件 | 变更类型 | 变更内容 |
+|------|---------|---------|
+| CONTEXT.md    | 修改 | 状态面板：上次完成 / 进行中 |
+| HANDOFF.md    | 追加 | 新会话交接行 |
+| PITFALLS.md   | 追加 | [P00X：一句话]  ← 仅当记录了坑 |
+| ENGINE_MAP.md | 修改 | §1 Last verified + §4 全局 revision → [新值] |
 
 引擎同步完成。下次会话直接继续：[Q2 answer]
 ```

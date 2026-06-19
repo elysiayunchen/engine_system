@@ -35,6 +35,9 @@ silently treat the script as legacy.
 12. Long verification evidence stays in spec twins or `engine/evidence/*`, not in MAP,
     HANDOFF, or CONTEXT prose.
 13. Recent write sessions should include `read-gate:` evidence in the final report or handoff.
+14. Multi-agent sessions should resolve shared-engine writes through a single final
+    writer; concurrent agents may prepare drafts/evidence, but only one agent may land
+    the shared engine-file merge for a given change set.
 
 ## Script Contract
 Preferred commands:

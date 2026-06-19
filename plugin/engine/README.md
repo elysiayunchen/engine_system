@@ -39,6 +39,8 @@ the rest on demand.
 - **Don't hand-maintain the structure.** The AI keeps them in sync. You mostly just talk:
   "update status, I just finished login" → it edits `CONTEXT.md`.
 - **Hit a bug?** Say "记住，改 X 时别动 Y" and the AI files it into `PITFALLS.md`.
+- **Running multiple agents?** Let them work in parallel on drafts or evidence, but
+  keep shared engine-file writes single-writer and merge them once at the end.
 - **End of a session?** Run `/engine-update` to sync state and write the handoff note.
 - **Need a new memory type?** Run `/engine-extend` to register it completely.
 - **Updating Engine System?** Run `/engine-sync`, then `/engine-doctor`.

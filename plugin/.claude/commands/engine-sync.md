@@ -36,8 +36,12 @@ updates the Engine System layer itself, then reconciles the local engine files.
    - plugin/tooling files updated
    - maintenance authority registered/migrated
    - Doctor failures/warnings
-   - engine files changed
-   - next recommended command
+  - engine files changed
+  - next recommended command
+
+During multi-agent work, `/engine-sync` is the merge point, not a parallel write path.
+Treat shared engine files as single-writer state: gather evidence in parallel if useful,
+then let one agent re-anchor, merge, write, and run Doctor after the write-back.
 
 ## Safety
 - Never overwrite existing `engine/*.md` project memory just because the plugin template

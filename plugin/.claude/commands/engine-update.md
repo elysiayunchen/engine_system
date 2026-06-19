@@ -13,6 +13,13 @@ file maintenance. Record read-gate evidence in the final summary.
 If `engine/ENGINE_DOCTOR.md` exists, read it so session updates preserve the current
 maintenance contract.
 
+When multiple agents are active, treat engine files as single-writer state: collect
+inputs in parallel if needed, but only one agent may perform the final write-back to
+`ENGINE_MAP.md`, `CONTEXT.md`, `HANDOFF.md`, `PITFALLS.md`, `SYSTEM.md`, `REPO_GUIDE.md`,
+anchors, or plan/spec twins for this change set. Re-anchor target files before writing,
+merge sibling-agent diffs first, then run `/engine-doctor` after the write-back if
+maintenance files changed.
+
 ## Step 2: Ask Three Questions (one at a time, wait for answer each time)
 
 1. "这次完成了什么？（一句话描述）"

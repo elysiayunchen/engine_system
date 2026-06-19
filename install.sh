@@ -81,14 +81,14 @@ for entry in "${FILES[@]}"; do
   # /engine-init can absorb its rules first, and /engine-reconcile keeps it in sync after.
   if { [[ "$dest" == "CLAUDE.md" ]] || [[ "$dest" == "AGENTS.md" ]]; } && [[ -f "$dest" ]]; then
     echo -e "  ${YELLOW}keep${RESET}  $dest (已存在，保留；运行 /engine-init 吸收其规则后再改写)"
-    ((skip_count++))
+    ((skip_count += 1))
     continue
   fi
 
   # In update mode, skip protected files if they already exist
   if $UPDATE_MODE && [[ "$protect" == "false" ]] && [[ -f "$dest" ]]; then
     echo -e "  ${YELLOW}skip${RESET}  $dest (user data, not overwritten)"
-    ((skip_count++))
+    ((skip_count += 1))
     continue
   fi
 
@@ -96,20 +96,20 @@ for entry in "${FILES[@]}"; do
   if $UPDATE_MODE && [[ "$protect" == "true" ]]; then
     download "$url" "$dest"
     echo -e "  ${GREEN}updated${RESET} $dest"
-    ((install_count++))
+    ((install_count += 1))
     continue
   fi
 
   # Fresh install: don't overwrite existing user engine files
   if [[ -f "$dest" ]] && [[ "$dest" == engine/*.md ]] && [[ "$dest" != "engine/README.md" ]]; then
     echo -e "  ${YELLOW}skip${RESET}  $dest (already exists)"
-    ((skip_count++))
+    ((skip_count += 1))
     continue
   fi
 
   download "$url" "$dest"
   echo -e "  ${GREEN}✓${RESET} $dest"
-  ((install_count++))
+  ((install_count += 1))
 done
 
 echo ""

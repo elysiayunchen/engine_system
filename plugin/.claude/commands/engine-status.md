@@ -17,11 +17,14 @@ Then output this snapshot — keep it short, scannable, no fluff:
 ### 当前状态
 构建：[✅ 正常 / ⚠️ 不稳定 / ❌ 损坏]
 上次完成：[item]
-进行中：[item]
+进行中：[主 lane + 并行 lanes]
 阻塞：[list or 无]
 
 ### 活跃任务 (SPRINT)
 [top 3 tasks with status, or "无 SPRINT 文件"]
+
+### 并行泳道
+[lane 列表：Lane / 目标 / 状态 / 交汇点；无并行时写“无”]
 
 ### 未解决的坑 (PITFALLS — Open)
 [list P-IDs and one-line descriptions, or "无"]

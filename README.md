@@ -129,8 +129,13 @@ bash <(curl -sSL https://raw.githubusercontent.com/elysiayunchen/engine_system/m
 **Windows (PowerShell)**
 
 ```powershell
-irm https://raw.githubusercontent.com/elysiayunchen/engine_system/main/install.ps1 | iex
+Invoke-WebRequest https://raw.githubusercontent.com/elysiayunchen/engine_system/main/install.ps1 -OutFile install.ps1
+powershell -NoProfile -File .\install.ps1
 ```
+
+The Windows installer is intentionally download-first so you can inspect it before
+running it. Avoid pipe-to-execute install snippets; antivirus tools commonly flag
+direct remote execution patterns even when the script is plain text.
 
 **Via degit** (no git history baggage)
 

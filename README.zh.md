@@ -128,8 +128,12 @@ bash <(curl -sSL https://raw.githubusercontent.com/elysiayunchen/engine_system/m
 **Windows（PowerShell）**
 
 ```powershell
-irm https://raw.githubusercontent.com/elysiayunchen/engine_system/main/install.ps1 | iex
+Invoke-WebRequest https://raw.githubusercontent.com/elysiayunchen/engine_system/main/install.ps1 -OutFile install.ps1
+powershell -NoProfile -File .\install.ps1
 ```
+
+Windows 安装器刻意采用“先下载、可检查、再运行”的方式。不要使用管道直接执行远程内容的安装片段，
+安全软件经常会把这种模式识别为木马行为。
 
 **通过 degit**（不带 git 历史）
 

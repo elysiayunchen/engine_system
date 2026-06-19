@@ -1,6 +1,10 @@
 # Engine System installer for Windows
-# Usage: irm https://raw.githubusercontent.com/elysiayunchen/engine_system/main/install.ps1 | iex
-# Or:    .\install.ps1 [-Update]
+# Usage:
+#   Invoke-WebRequest https://raw.githubusercontent.com/elysiayunchen/engine_system/main/install.ps1 -OutFile install.ps1
+#   powershell -NoProfile -File .\install.ps1 [-Update]
+#
+# Keep this installer file-download-first. Avoid pipe-to-execute examples:
+# security products often flag remote-content direct execution as malware-like.
 
 param([switch]$Update)
 

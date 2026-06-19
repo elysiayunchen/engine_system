@@ -8,6 +8,10 @@ Use the Read tool to load — re-reading guards against stale context from a lon
 - `engine/CONTEXT.md`
 - `engine/HANDOFF.md`
 - `engine/PITFALLS.md`
+Also read the relevant SYSTEM sections for session end, Engine Doctor Contract, and engine
+file maintenance. Record read-gate evidence in the final summary.
+If `engine/ENGINE_DOCTOR.md` exists, read it so session updates preserve the current
+maintenance contract.
 
 ## Step 2: Ask Three Questions (one at a time, wait for answer each time)
 
@@ -57,10 +61,18 @@ in Step 1; now write back (metadata only — NEVER copy any file's body into the
   session (CONTEXT, HANDOFF, and PITFALLS if a pitfall was added). If a pitfall was added,
   also bump PITFALLS' per-file `Revision`.
 - **§4 完整性与新鲜度** — bump `全局 revision` by 1.
+- **§4 完整性与新鲜度** — keep it to short freshness metadata, warning pointers, and
+  revision only; long session prose belongs in HANDOFF.
 - **Header** — set `Last updated` = today's date and mirror the new revision into `Revision:`.
 
 ### Sync header dates
 Every engine file you wrote above MUST have its header `Last updated` date set to today.
+
+### Run Doctor if maintenance files changed
+If this session touched `ENGINE_MAP.md`, `SYSTEM.md`, `REPO_GUIDE.md`, `ENGINE_DOCTOR.md`,
+`engine/agents/*`, anchors, plans, or any engine registration row, run `/engine-doctor`
+before final confirmation. If Doctor scripts are missing, note that `/engine-sync` is
+required.
 
 ## Step 4: Confirm
 Output the change summary (for the architect's review), then the resume pointer:
@@ -73,5 +85,7 @@ Output the change summary (for the architect's review), then the resume pointer:
 | PITFALLS.md   | 追加 | [P00X：一句话]  ← 仅当记录了坑 |
 | ENGINE_MAP.md | 修改 | §1 Last verified + §4 全局 revision → [新值] |
 
+read-gate: ENGINE_MAP, SYSTEM 会话结束/维护/Doctor, CONTEXT, HANDOFF, PITFALLS
+doctor: [not needed / passed / failed / missing scripts]
 引擎同步完成。下次会话直接继续：[Q2 answer]
 ```

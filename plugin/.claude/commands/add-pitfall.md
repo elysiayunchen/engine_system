@@ -16,7 +16,12 @@ If the user already described the pitfall before invoking this command, extract 
 gave and infer 严重程度 / 类别 from the impact — only ask back for fields you genuinely
 cannot determine.
 
-## Step 2: Read engine/PITFALLS.md (re-anchor)
+## Step 2: Read ENGINE_MAP + engine/PITFALLS.md (re-anchor)
+Read `engine/ENGINE_MAP.md` first, then `engine/PITFALLS.md`. If ENGINE_MAP defines a
+read-gate or pitfall maintenance rule in SYSTEM, read the relevant SYSTEM section too.
+Final confirmation should include:
+`read-gate: ENGINE_MAP, PITFALLS, SYSTEM pitfall/maintenance rules if present`
+
 Find the current maximum P-ID across the 索引 table and the 条目 section. Next ID = max + 1,
 zero-padded to three digits (P001, P002, …).
 
@@ -38,6 +43,8 @@ Match the structure `/engine-init` generates. Two writes plus a header bump:
 2. Append the matching row to the **索引** table:
    `| P00X | [严重程度] | [标题] | [类别] | Active |`
 3. Bump the header 条目计数 and set its `Last updated` to today.
+4. Update `engine/ENGINE_MAP.md`: bump PITFALLS revision/Last verified in §1 and bump §4
+   global revision. Keep §4 short; do not paste the pitfall body there.
 
 **Insertion rules:** append only — never reorder existing entries. Status starts as
 `Active` (not "Open"); a fixed pitfall later becomes `Resolved`, never deleted.
@@ -46,4 +53,6 @@ Match the structure `/engine-init` generates. Two writes plus a header bump:
 Output:
 ```
 ✓ engine/PITFALLS.md updated — [P00X] [严重程度] added: [标题]
+✓ engine/ENGINE_MAP.md updated — PITFALLS revision + global revision bumped
+read-gate: ENGINE_MAP, PITFALLS, [SYSTEM section if read]
 ```

@@ -1,0 +1,63 @@
+# ENGINE_DOCTOR — Engine System Maintenance Checker
+> Last updated: 2026-06-20 | Class: irreducible | This file is the authoritative maintenance spec for engine health checks.
+
+## Scope
+ENGINE_DOCTOR defines how the project validates the engine memory layer itself. It is an
+engine authority file, not a disposable helper note. Register it in `ENGINE_MAP.md` §1.
+
+The scripts in `engine/scripts/` are implementations of this spec. If this file and a
+script disagree, update the script or this file through a lifecycle transaction; do not
+silently treat the script as legacy.
+
+## Maintenance Principle
+- The source of truth for what exists is `ENGINE_MAP.md`, not a hard-coded file list.
+- New authority files added through EXTEND must become visible to Doctor through the
+  registry, class, priority, budget, and references.
+- Scripts must be registry-driven where possible, so extension does not make Doctor stale.
+- Generated cache and archive files are intentionally outside hot-path authority unless
+  `ENGINE_MAP.md` explicitly says otherwise.
+
+## Required Checks
+1. `engine/ENGINE_MAP.md` exists and can be read first.
+2. §1 registered authority files exist on disk, with legal class values and non-empty read priorities.
+3. Disk authority-looking files under `engine/*.md` and `engine/agents/*.md` are registered,
+   archived, generated-cache, or explicitly external.
+4. Mixed files in §1 have section-level coverage in §1.1.
+5. Anchors in §1.2 exist, except paths explicitly marked archived/superseded/external.
+6. Plans/spec twins in §2 use only the allowed status vocabulary and have matching files.
+7. `ENGINE_MAP.md` §3.2 is treated as generated from §3.1.
+8. CLI-LEAN derivable authority files stay pure stubs: no live file inventory, directory tree,
+   module count, version dump, or concrete config registry.
+9. Bootloaders stay thin: target 30 lines, hard cap 45 lines.
+10. File budgets are checked from the v5.5 budget table; over-budget authority files need an
+    archive/split pointer.
+11. Lifecycle transactions close both directions: registry to disk and disk to registry.
+12. Long verification evidence stays in spec twins or `engine/evidence/*`, not in MAP,
+    HANDOFF, or CONTEXT prose.
+13. Recent write sessions should include `read-gate:` evidence in the final report or handoff.
+
+## Script Contract
+Preferred commands:
+
+```bash
+./engine/scripts/engine-doctor.sh
+```
+
+```powershell
+.\engine\scripts\engine-doctor.ps1
+```
+
+Exit codes:
+- `0`: no hard failures
+- `1`: one or more required checks failed
+
+Warnings are allowed for conditions that need human review but do not prove broken state.
+
+## Update Protocol
+- When Engine System itself updates this contract, run `/engine-sync` in installed projects.
+- `/engine-sync` updates command/script tooling, ensures this file is registered, runs Doctor,
+  then reconciles project-specific engine files against the latest contract.
+- If a project extends the engine with new file types, update `ENGINE_MAP.md` first; Doctor
+  should discover the new file from the registry rather than from a script edit.
+- If Doctor needs a new check, update this file first, then update scripts, then run
+  `/engine-doctor` and `/engine-reconcile`.

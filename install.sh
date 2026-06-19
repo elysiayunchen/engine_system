@@ -53,14 +53,21 @@ FILES=(
   ".claude/commands/engine-status.md:.claude/commands/engine-status.md:true"
   ".claude/commands/add-pitfall.md:.claude/commands/add-pitfall.md:true"
   ".claude/commands/engine-ingest.md:.claude/commands/engine-ingest.md:true"
+  ".claude/commands/engine-extend.md:.claude/commands/engine-extend.md:true"
+  ".claude/commands/engine-doctor.md:.claude/commands/engine-doctor.md:true"
+  ".claude/commands/engine-sync.md:.claude/commands/engine-sync.md:true"
   ".claude/commands/engine-reconcile.md:.claude/commands/engine-reconcile.md:true"
   "CLAUDE.md:CLAUDE.md:true"
   "AGENTS.md:AGENTS.md:true"
   "engine/README.md:engine/README.md:false"
+  "engine/README.zh.md:engine/README.zh.md:false"
+  "engine/ENGINE_DOCTOR.md:engine/ENGINE_DOCTOR.md:false"
+  "engine/scripts/engine-doctor.sh:engine/scripts/engine-doctor.sh:true"
+  "engine/scripts/engine-doctor.ps1:engine/scripts/engine-doctor.ps1:true"
 )
 
 # Create directories
-mkdir -p .claude/commands engine
+mkdir -p .claude/commands engine engine/scripts
 
 install_count=0
 skip_count=0
@@ -129,6 +136,9 @@ else
   echo "    /add-pitfall       — record a bug or footgun immediately"
   echo "    /engine-status     — print current project snapshot"
   echo "    /engine-ingest     — file a new plan (design doc) into engine/plans/"
+  echo "    /engine-extend     — register a new authority engine file type"
+  echo "    /engine-doctor     — validate engine registry, anchors, plans, budgets"
+  echo "    /engine-sync       — update Engine System tooling, then reconcile engine files"
   echo "    /engine-reconcile  — audit engine files vs real code, fix drift"
 fi
 echo ""

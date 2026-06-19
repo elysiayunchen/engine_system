@@ -179,6 +179,8 @@ No npm package. No runtime dependency. No config file. Just files.
 
 Claude interviews you: project vision, tech stack, current state, known pitfalls, how you like to collaborate. About 10 minutes. The engine files — `ENGINE_MAP.md` and the rest — are written directly to `engine/`. Open your editor — they're there.
 
+Most agent tools will first read `AGENTS.md` or `CLAUDE.md`. Those files point back to `engine/ENGINE_MAP.md` and the command map, so the same engine layer stays visible even outside Claude Code.
+
 **No Claude Code?** Copy `.claude/commands/engine-init.md` into any Claude session. Save the output manually to `engine/`. Everything else works the same.
 
 ---

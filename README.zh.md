@@ -179,6 +179,9 @@ Claude 会采访你：项目愿景、技术栈、当前状态、已知的坑、�
 
 **没有 Claude Code？** 把 `.claude/commands/engine-init.md` 的内容复制到任意 Claude 会话（网页版、API 均可），把生成结果手动存进 `engine/`。其他一切功能完全一样。
 
+大多数 agent 工具会先读 `AGENTS.md` 或 `CLAUDE.md`；它们会把不同工具都导向同一套 `ENGINE_MAP.md`
+和命令入口，所以不必把整套规则复制到每个工具里。
+
 ---
 
 ## 之后每次会话

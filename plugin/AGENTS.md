@@ -22,6 +22,23 @@ If `engine/ENGINE_MAP.md` does not exist, say:
 - Start: read ENGINE_MAP → load by profile → read required rules/anchors/plans → restate state.
 - End: run `/engine-update` or update HANDOFF + ENGINE_MAP with a change summary.
 
+## COMMAND MAP
+- `/engine-init` — initialize or regenerate the engine layer
+- `/engine-update` — write session handoff; preserve lane structure if multiple workstreams exist
+- `/engine-status` — print current snapshot with lane-aware status
+- `/add-pitfall` — register a new pitfall
+- `/engine-ingest` — record a new plan and spec twin
+- `/engine-extend` — register a new authority file or adapter
+- `/engine-doctor` — validate engine health
+- `/engine-sync` — migrate bundled tooling and reconcile engine files
+- `/engine-reconcile` — compare docs vs reality and land fixes
+
+## MULTI-LANE WORK
+- Multiple workstreams may run in parallel.
+- Shared engine-file writes are single-writer only.
+- CONTEXT, SPRINT, ROADMAP, and HANDOFF may carry lane IDs, owners, dependencies, merge points, and next checkpoints.
+- Use the lane with the matching goal; do not flatten parallel work into one queue.
+
 ## MAP
 - Index: `engine/ENGINE_MAP.md`
 - Rules: `engine/SYSTEM.md`; current state: `engine/CONTEXT.md`; handoff: `engine/HANDOFF.md`

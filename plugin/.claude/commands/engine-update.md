@@ -31,7 +31,7 @@ maintenance files changed.
 ### Update engine/CONTEXT.md
 Edit the 状态面板 table in place:
 - `上次完成` → answer from Q1
-- `进行中` → answer from Q2
+- `进行中` → answer from Q2, but preserve lane structure if multiple workstreams exist
 - Update `构建` status if relevant info was mentioned
 
 ### Append to engine/HANDOFF.md
@@ -40,6 +40,12 @@ Add a new session entry at the TOP of the session history table (time-ordered):
 ```
 | [today's date] | [Q1 answer] | [Q2 answer] | [files touched this session if known] |
 ```
+
+If the project runs multiple workstreams, also capture the lane handoff summary:
+- lane ID
+- current owner
+- merge point
+- next checkpoint
 
 ### Append to engine/PITFALLS.md (only if Q3 has real content)
 Record it as a FULL entry — match the structure `/engine-init` generates, not a bare row:

@@ -11,7 +11,7 @@
 
 ## 顺带一提
 
-由于项目根植于无限降低开发门槛，因此考虑到部分用户尚且不明白应该如何下载安装**claude code**，这个可以稍后补习，如果想见识本项目的效用，可以在**web端**的任意AI平台直接以**`ENGINE_FILE_SYSTEM_v5.md`**作为prompt使用，然后在你的项目根文件夹下面添加**engine**文件夹，以放置AI生成的所有engine文件，之后每次需要在web端开发的时候，只需要把所有engine文件一股脑扔给web端的AI，然后每次项目结束后主动**让AI总结并更新engine文件**即可。————这也是这份engine文件的最初的使用方法，也是最不具门槛的使用方法。您只需要下载项目根目录里的**`ENGINE_FILE_SYSTEM_v5.md`**即可
+由于项目根植于无限降低开发门槛，因此考虑到部分用户尚且不明白应该如何下载安装**claude code**，这个可以稍后补习，如果想见识本项目的效用，可以在**web端**的任意AI平台直接以**`ENGINE_FILE_SYSTEM_v5.md`**作为prompt使用；这个稳定文件名当前装的是最新版 v5.5。然后在你的项目根文件夹下面添加**engine**文件夹，以放置AI生成的所有engine文件，之后每次需要在web端开发的时候，只需要把所有engine文件一股脑扔给web端的AI，然后每次项目结束后主动**让AI总结并更新engine文件**即可。————这也是这份engine文件的最初的使用方法，也是最不具门槛的使用方法。您只需要下载项目根目录里的**`ENGINE_FILE_SYSTEM_v5.md`**即可
 
 ## 作为一个非专业开发者的vibe coding，严格来说只能算作架构师而不是开发者
 
@@ -76,6 +76,10 @@ AI 动了不该动的东西                  AI 早就知道那里不能碰
 | `ROADMAP.md`      | 里程碑、计划功能、预料中将来要大改的东西                       |
 | `HANDOFF.md`      | 会话历史——哪怕隔了两周，也能精准接回上次的断点                 |
 | `SOURCEMAP.md`    | 代码 GPS：哪个文件管哪个功能，加新东西去哪里改                 |
+| `REPO_GUIDE.md`   | 可选：当 SYSTEM 太大时承载仓库命令、流程与维护规则             |
+| `ENGINE_DOCTOR.md`| 引擎健康检查与未来扩展的维护契约                               |
+| `engine/agents/`  | 可选：Codex、Claude Code、IDE agent、CI bot 的环境适配细则      |
+| `engine/scripts/` | 随仓库打包的维护脚本，包括 registry-driven Engine Doctor        |
 
 纯 markdown 文件。提交进 git，用 diff 追踪变化，自己也能读。  
 顺带一提，这也许是你这辈子无意间写出的最好的项目文档。
@@ -146,7 +150,13 @@ npx degit elysiayunchen/engine_system/plugin
 │       ├── engine-status.md     →  /engine-status
 │       ├── add-pitfall.md       →  /add-pitfall
 │       ├── engine-ingest.md     →  /engine-ingest
+│       ├── engine-extend.md     →  /engine-extend
+│       ├── engine-doctor.md     →  /engine-doctor
+│       ├── engine-sync.md       →  /engine-sync
 │       └── engine-reconcile.md  →  /engine-reconcile
+│   └── scripts/
+│       ├── engine-doctor.sh
+│       └── engine-doctor.ps1
 ├── AGENTS.md               ← 给 AI 工具的开机引导卡（把它指向 ENGINE_MAP.md）
 └── CLAUDE.md               ← 每次 Claude Code 启动自动加载
 ```
@@ -203,6 +213,33 @@ Claude 会采访你：项目愿景、技术栈、当前状态、已知的坑、�
 
 把你跟 AI 聊出来的一份设计/方案交给它，它会归档进 `engine/plans/`，并附上一份验收清单。没有格式要学。
 
+**需要新增一种引擎文件类型：**
+
+```
+/engine-extend
+```
+
+它会按 5.5 的完整注册事务创建/登记新的权威引擎文件：class、注册表、引用、预算、验证一起收口。
+普通功能方案仍然走 `/engine-ingest`。
+
+**检查引擎健康：**
+
+```
+/engine-doctor
+```
+
+运行随仓库打包的 Doctor 脚本。Doctor 读取 `ENGINE_MAP.md`，所以将来扩展新的引擎文件时，
+它会通过注册表发现新文件，而不是被写死的旧脚本遗忘。
+
+**更新 Engine System 工具并迁移本地引擎文件：**
+
+```
+/engine-sync
+```
+
+拉取/安装新版 Engine System 后运行它。它会更新命令和脚本，确保 Doctor 契约已注册，
+运行 Doctor，然后通过对账流程迁移本项目已有的引擎文件，不会粗暴覆盖你的项目记忆。
+
 **怀疑文档跟真实代码对不上了：**
 
 ```
@@ -213,7 +250,7 @@ Claude 会采访你：项目愿景、技术栈、当前状态、已知的坑、�
 
 ---
 
-## 六个命令
+## 九个命令
 
 | 命令                 | 它做的事                                                |
 | -------------------- | ------------------------------------------------------- |
@@ -222,6 +259,9 @@ Claude 会采访你：项目愿景、技术栈、当前状态、已知的坑、�
 | `/engine-status`     | 打印一张快照：当前状态、活跃任务、未解决的坑            |
 | `/add-pitfall`       | 立刻记下一个坑，趁你还没忘                              |
 | `/engine-ingest`     | 把一份新设计/方案归档进 `engine/plans/`，并配验收清单   |
+| `/engine-extend`     | 新增并完整注册一种权威引擎文件类型                      |
+| `/engine-doctor`     | 检查注册表、锚点、plan、预算与生命周期闭环              |
+| `/engine-sync`       | 更新 Engine System 工具，并迁移/对账本地引擎文件        |
 | `/engine-reconcile`  | 对账文档与真实代码，修掉任何漂移                        |
 
 ---
@@ -232,7 +272,8 @@ Claude 会采访你：项目愿景、技术栈、当前状态、已知的坑、�
 bash <(curl -sSL .../install.sh) --update
 ```
 
-把命令文件更新到最新版本。你的 `engine/*.md` 文件不会被动。
+把命令和脚本工具更新到最新版本。你的项目专属 `engine/*.md` 记忆不会被粗暴覆盖。更新插件文件后，
+运行 `/engine-sync`，让最新维护契约、Doctor 注册和引擎文件迁移通过 read-gate + reconcile 流程落地。
 
 ---
 

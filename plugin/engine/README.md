@@ -23,6 +23,10 @@ files get written here:
 | `ROADMAP.md`      | Milestones, planned features, future rewrites                        |
 | `HANDOFF.md`      | Session history — pick up where you left off, weeks later            |
 | `SOURCEMAP.md`    | Code GPS: which file owns which feature                              |
+| `REPO_GUIDE.md`   | Optional repo commands and workflow rules                            |
+| `ENGINE_DOCTOR.md`| Maintenance contract for engine health checks                        |
+| `engine/agents/`  | Optional agent/tool-specific adapters                                |
+| `scripts/`        | Bundled Doctor scripts                                               |
 | `plans/`          | Design docs you talk through, each with an acceptance checklist      |
 
 Exactly which files appear depends on the **profile** chosen at init: WEB-FULL writes
@@ -36,5 +40,7 @@ the rest on demand.
   "update status, I just finished login" → it edits `CONTEXT.md`.
 - **Hit a bug?** Say "记住，改 X 时别动 Y" and the AI files it into `PITFALLS.md`.
 - **End of a session?** Run `/engine-update` to sync state and write the handoff note.
+- **Need a new memory type?** Run `/engine-extend` to register it completely.
+- **Updating Engine System?** Run `/engine-sync`, then `/engine-doctor`.
 
 Full docs: <https://github.com/elysiayunchen/engine_system>

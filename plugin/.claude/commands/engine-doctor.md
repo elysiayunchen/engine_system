@@ -18,6 +18,10 @@ does not replace `/engine-reconcile`; it gives RECONCILE a concrete validation s
    - highest-impact failures
    - whether `/engine-reconcile` or `/engine-extend` is the right next action
 
+Doctor is read-only. In multi-agent sessions, several agents may run it in parallel,
+but its output must not be used to justify concurrent writes to shared engine state.
+Any fix must be merged by a single writer after re-anchoring the target files.
+
 ## Important
 - Doctor is registry-driven. New engine authority files should be discovered from
   `ENGINE_MAP.md` §1, not from a hard-coded script list.

@@ -20,6 +20,10 @@ session. This is the answer to "is the documentation still true?".
 - Engine Doctor is the machine-check contract. Read `engine/ENGINE_DOCTOR.md` if present
   and run the bundled Doctor script before finalizing the report.
 
+In multi-agent sessions, reconcile as a single writer only. Other agents may prepare
+parallel evidence, but only one agent may land shared engine-file edits after re-anchoring
+the target files and merging sibling diffs.
+
 ## Step 1: Read ENGINE_MAP first (re-anchor, before anything)
 Use the Read tool on `engine/ENGINE_MAP.md`. Note the **active profile** — it decides
 whether you trust derivable files on disk (WEB-FULL) or regenerate them from code

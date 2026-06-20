@@ -1,0 +1,32 @@
+#!/bin/sh
+# Engine System — git pre-commit hook · 跨平台 / 跨 agent 的"收尾守门员"
+#
+# 提交时检查:本次提交改动了代码,却没有同步引擎记忆(CONTEXT/HANDOFF/ENGINE_MAP)→ 拦截。
+# 这是 agent 无关、平台无关的硬门禁兜底:无论用 Claude Code / Codex / Cursor / Aider /
+# Gemini CLI 还是手敲,只要最后走 `git commit`,门禁就生效。
+#
+# 跨平台:纯 POSIX sh + git 自带 sh 执行 → Linux / macOS / Windows(git 自带 MSYS sh)
+#         全都跑得起来,且不依赖用户的 Git Bash 在 PATH。
+# 安全契约:只读引擎文件;仅读 git 暂存区。不写文件、不碰代码、不联网。
+# 逃生口:确实只想提交纯代码改动时,用  git commit --no-verify  跳过本检查。
+
+staged="$(git diff --cached --name-only 2>/dev/null)"
+[ -n "$staged" ] || exit 0
+
+# 是否有"代码"改动(engine/ 与 .engine/ 之外的任何暂存文件)
+code_changed="$(printf '%s\n' "$staged" | grep -vE '^(engine/|\.engine/)' | head -1)"
+# 是否回写了引擎记忆(状态面板 / 交接 / 索引)
+engine_written="$(printf '%s\n' "$staged" | grep -E '^engine/(CONTEXT|HANDOFF|ENGINE_MAP)\.md$' | head -1)"
+
+if [ -n "$code_changed" ] && [ -z "$engine_written" ]; then
+  printf '\n' >&2
+  printf '【Engine System · 收尾守门员】本次提交改动了代码,但没有同步引擎记忆。\n' >&2
+  printf '请在本次提交里一并更新 engine/CONTEXT.md 或 engine/HANDOFF.md\n' >&2
+  printf '(一句话:这次做了什么 + 下一步),让项目记忆跟代码同步演进。\n' >&2
+  printf '\n' >&2
+  printf '如果确实只想提交纯代码改动,可用:  git commit --no-verify\n' >&2
+  printf '\n' >&2
+  exit 1
+fi
+
+exit 0

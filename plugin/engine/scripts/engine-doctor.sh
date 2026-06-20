@@ -149,6 +149,11 @@ while IFS= read -r path; do
   if [[ "$rel" == engine/README.md || "$rel" == engine/README.zh.md ]]; then
     continue
   fi
+  # External scratch spec, intentionally NOT registered as project authority
+  # (see REPO_GUIDE Engine File Maintenance + scripts/engine-lint.ts). Keep in parity.
+  if [[ "${rel#engine/}" == ENGINE_FILE_SYSTEM_v5.md ]]; then
+    continue
+  fi
   if ! is_registered "$rel" && ! is_registered "${rel#engine/}"; then
     fail "authority-looking file is not registered or explained: $rel"
   fi
@@ -182,8 +187,23 @@ while IFS='|' read -r _ id title status plan spec notes verified _; do
   if [[ "$allowed_status" != *" $status "* ]]; then
     fail "$id has invalid plan status '$status'"
   fi
-  [[ -f "$ROOT/$plan" ]] || fail "$id plan file missing: $plan"
-  [[ -f "$ROOT/$spec" ]] || fail "$id spec twin missing: $spec"
+  # Plan path: an inline "(...)" marker or a composite "a + b" path is not a single file
+  # on disk; only verify a plain single path (parity with scripts/engine-lint.ts).
+  if [[ -n "$plan" && "$plan" != \(* && "$plan" != *"+"* ]]; then
+    [[ -f "$ROOT/$plan" ]] || fail "$id plan file missing: $plan"
+  fi
+  # Spec twin: accept an inline-spec marker ("内联") or a real engine/ path; only check
+  # existence for a plain engine/ path (parity with scripts/engine-lint.ts).
+  has_inline=false; [[ "$spec" == *"内联"* ]] && has_inline=true
+  has_spec_path=false; [[ "$spec" == engine/* ]] && has_spec_path=true
+  if [[ "$has_inline" == false && "$has_spec_path" == false ]]; then
+    case " $status " in
+      " accepted "|" active "|" done ") fail "$id must have a spec twin path or inline spec marker: $spec" ;;
+    esac
+  fi
+  if [[ "$has_spec_path" == true && "$spec" != *"+"* ]]; then
+    [[ -f "$ROOT/$spec" ]] || fail "$id spec twin missing: $spec"
+  fi
 done < "$plan_tmp"
 
 for anchor in AGENTS.md CLAUDE.md; do

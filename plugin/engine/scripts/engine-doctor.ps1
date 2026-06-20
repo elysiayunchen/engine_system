@@ -143,6 +143,8 @@ if (Test-Path $engineDir) {
   Get-ChildItem -Path $engineDir -File -Filter "*.md" | ForEach-Object {
     $rel = "engine/$($_.Name)"
     if ($rel -in @("engine/README.md", "engine/README.zh.md")) { return }
+    # External scratch spec, intentionally unregistered (parity with scripts/engine-lint.ts).
+    if ($_.Name -eq "ENGINE_FILE_SYSTEM_v5.md") { return }
     if (-not (Test-Registered $rel) -and -not (Test-Registered $_.Name)) {
       Write-Fail "authority-looking file is not registered or explained: $rel"
     }
@@ -168,12 +170,26 @@ foreach ($row in $anchorRows) {
 $allowedStatuses = @("draft", "proposed", "accepted", "active", "blocked", "done", "archived", "superseded")
 foreach ($row in $planRows) {
   $cells = Split-Row $row
-  if ($cells.Count -lt 7) { continue }
+  # Plan rows have 6 columns (ID..Last verified); need >=5 to read id/status/plan/spec.
+  if ($cells.Count -lt 5) { continue }
   $id = $cells[0]; $status = $cells[2]; $plan = $cells[3]; $spec = $cells[4]
   if (-not $id -or $id -eq "ID" -or $id -match "^-+$" -or $id.StartsWith("[") -or $id.StartsWith("无")) { continue }
   if ($allowedStatuses -notcontains $status) { Write-Fail "$id has invalid plan status '$status'" }
-  if (-not (Test-Path (Join-Path $Root $plan))) { Write-Fail "$id plan file missing: $plan" }
-  if (-not (Test-Path (Join-Path $Root $spec))) { Write-Fail "$id spec twin missing: $spec" }
+  # Plan path: skip inline "(...)" markers and composite "a + b" paths; only check a plain
+  # single path on disk (parity with scripts/engine-lint.ts).
+  if ($plan -and -not $plan.StartsWith("(") -and ($plan -notmatch "\+") -and -not (Test-Path (Join-Path $Root $plan))) {
+    Write-Fail "$id plan file missing: $plan"
+  }
+  # Spec twin: accept an inline-spec marker ("内联") or a real engine/ path; only verify
+  # existence for a plain engine/ path (parity with scripts/engine-lint.ts).
+  $hasInline = $spec -match "内联"
+  $hasSpecPath = $spec.StartsWith("engine/")
+  if (-not $hasInline -and -not $hasSpecPath -and (@("accepted", "active", "done") -contains $status)) {
+    Write-Fail "$id must have a spec twin path or inline spec marker: $spec"
+  }
+  if ($hasSpecPath -and ($spec -notmatch "\+") -and -not (Test-Path (Join-Path $Root $spec))) {
+    Write-Fail "$id spec twin missing: $spec"
+  }
 }
 
 foreach ($anchor in @("AGENTS.md", "CLAUDE.md")) {

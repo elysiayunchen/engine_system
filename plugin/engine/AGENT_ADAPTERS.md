@@ -1,0 +1,98 @@
+# AGENT ADAPTERS — 跨 Agent 自维护适配
+
+> Engine System (engine_system) · Last updated: 2026-06-21
+> 说明：自维护循环的核心机制按 agent 能力分三档落地，各自独立兜底。
+
+---
+
+## 三档总览
+
+| 档位 | 机制 | agent 门槛 | 覆盖 |
+|------|------|-----------|------|
+| **A 档 · 锚点契约** | 读 AGENTS.md / CLAUDE.md → 遵循会话开始/结束协议 | 只要能读引导文件 | 最广 — 包括 Web 端 |
+| **B 档 · git pre-commit** | `git commit` 时自动检查「改代码→回写引擎」 | 任何走 git commit 的工具 | 全覆盖 — agent 无关 |
+| **C 档 · 原生 hook** | agent 的 SessionStart/Stop 生命周期自动触发 | 支持 hook 的 CLI | 体验最优 — Claude Code / Copilot CLI / Codex CLI / Cursor / Q CLI |
+
+---
+
+## 各 agent 适配
+
+### Claude Code
+- **引导文件**: `CLAUDE.md`（自动加载），`@AGENTS.md` 语法引用
+- **A 档**: ✅ AGENTS.md 写入 SESSION PROTOCOL + read-gate
+- **B 档**: ✅ git pre-commit hook 随 install 分发
+- **C 档**: ✅ **原生支持** SessionStart / Stop hook；`.claude/settings.json` 随 install 铺设
+- **状态**: 全三档覆盖，体验最佳
+
+### GitHub Copilot CLI (GA 2026-02-25)
+- **引导文件**: `.github/copilot-instructions.md`（自动加载）；AGENTS.md 支持待核实
+- **A 档**: ✅ 可将 AGENTS.md 内容也写进 copilot-instructions.md（由 `/engine-sync` 同步）
+- **B 档**: ✅ git pre-commit 覆盖
+- **C 档**: ✅ **支持 lifecycle hooks**（sessionStart / sessionEnd / userPromptSubmitted / preToolUse / postToolUse / errorOccurred）
+- **适配**: 需为 Copilot CLI 写独立 hooks 配置（`.github/copilot-hooks.json`），脚本复用同一套 engine-hook-*.sh
+
+### OpenAI Codex CLI
+- **引导文件**: 读 `AGENTS.md`（官方文档确认）
+- **A 档**: ✅ AGENTS.md 直接生效
+- **B 档**: ✅ git pre-commit 覆盖
+- **C 档**: ⚠️ 有 `notify` hook（agent-turn-complete 事件），能力边界待核实。若支持 Stop 等价事件可复用 hook 脚本。
+- **适配**: 若 notify hook 可返回 block 决策，加一个 `engine-hook-codex.sh` 适配器
+
+### Cursor
+- **引导文件**: `.cursor/rules/`（新版 rules 系统），旧版 `.cursorrules` 已弃用
+- **A 档**: ✅ 需将 AGENTS.md 核心指令同步到 `.cursor/rules/engine.md`（`/engine-sync` 处理）
+- **B 档**: ✅ git pre-commit 覆盖
+- **C 档**: ⚠️ Plugin 系统有 stop/sessionEnd 事件，但非标准 CLI hook 格式。投入产出比较低，暂不优先适配。
+- **适配**: 当前靠 A+B 档兜底
+
+### Google Gemini CLI
+- **引导文件**: `GEMINI.md` 或可配置 `contextFileName`
+- **A 档**: ✅ 需将 AGENTS.md 核心指令同步到 `GEMINI.md`（`/engine-sync` 处理）
+- **B 档**: ✅ git pre-commit 覆盖
+- **C 档**: ❌ 无生命周期 hook
+- **适配**: A+B 档兜底
+
+### Aider
+- **引导文件**: `.aider.conf.yml`（配置文件，非 markdown）；不自动读 AGENTS.md
+- **A 档**: ⚠️ 需在 `.aider.conf.yml` 的 `read` 字段列出引擎文件路径
+- **B 档**: ✅ git pre-commit 覆盖
+- **C 档**: ❌ 无生命周期 hook；但 Aider 自动 git commit 是天然优势——每次改动后自动提交，pre-commit hook 自然触发。
+- **适配**: Aider 的自动 commit + B 档 pre-commit 恰好形成闭环
+
+### Cline / Roo Code (VSCode)
+- **引导文件**: 可配置 `.clinerules`（Cline）；Roo Code 用 `.roorules`
+- **A 档**: ⚠️ 需同步规则文件
+- **B 档**: ✅ git pre-commit 覆盖
+- **C 档**: ⚠️ Cline v3.36+ 有 Hooks（PreToolUse / PostToolUse / UserPromptSubmit / TaskStart），但无 session-end 类事件。Roo Code 无 hook。
+- **适配**: B 档为主
+
+### Amazon Q Developer CLI
+- **引导文件**: 待核实
+- **A 档**: 待核实
+- **B 档**: ✅ git pre-commit 覆盖
+- **C 档**: ⚠️ 有 `stop` hook（每轮 agent 完成时触发），能力待核实
+
+---
+
+## 设计原则
+
+1. **B 档(git pre-commit)是真正的最大公约数** — 任何 agent、任何平台，只要走 git，门禁就生效。这是唯一不需要 agent 配合的机制。
+2. **A 档(锚点契约)覆盖 Web 端** — 网页版 AI 读不到 hook 脚本，但能读到 AGENTS.md 里的 SESSION PROTOCOL。配合"增量回写"契约(边干边记)，是 Web 端最现实的兜底。
+3. **C 档(原生 hook)追求体验最优** — 在支持的 CLI 上做到"架构师零操作"。不需要覆盖所有 agent，有几个算几个。
+4. **三档独立兜底** — 任何一档失效(比如 C 档的 agent 不支持 hook)，B 档 pre-commit 照样拦截。
+
+---
+
+## 实施状态
+
+| Agent | A 档 | B 档 | C 档 | 优先级 |
+|-------|------|------|------|--------|
+| Claude Code | ✅ | ✅ | ✅ 已实现 | P0 |
+| Copilot CLI | 待适配 | ✅ | 待适配 | P1 |
+| Codex CLI | ✅ AGENTS.md | ✅ | 待核实 | P1 |
+| Cursor | 待适配 | ✅ | 暂不优先 | P2 |
+| Gemini CLI | 待适配 | ✅ | N/A | P2 |
+| Aider | 待适配 | ✅ | N/A | P2 |
+| Cline / Roo | 待适配 | ✅ | 暂不优先 | P2 |
+| Amazon Q CLI | 待核实 | ✅ | 待核实 | P2 |
+| Web 端 AI | ✅ 契约 | N/A | N/A | P0 |

@@ -221,6 +221,14 @@ do
   fi
 done
 
+for cli in engine engine.ps1 engine.cmd; do
+  if [[ -f "$ENGINE_DIR/bin/$cli" ]]; then
+    pass "bundled CLI shim exists: engine/bin/$cli"
+  else
+    warn "bundled CLI shim missing: engine/bin/$cli"
+  fi
+done
+
 printf '\nEngine Doctor: %s failure(s), %s warning(s)\n' "$fail_count" "$warn_count"
 if [[ "$fail_count" -gt 0 ]]; then
   exit 1

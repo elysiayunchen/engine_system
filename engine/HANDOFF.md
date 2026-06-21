@@ -12,6 +12,7 @@
 
 | 日期 | 完成了什么 | 下一步 | 改动文件 |
 |------|-----------|--------|---------|
+| 2026-06-21 | 响应“终端 engine update”需求：新增用户级 CLI shim 与安装器分发，文档明确 `engine update` 拉远端工具层、`/engine-sync` 迁移旧引擎记忆 | 验证 CLI shim、Doctor、脚本语法后提交推送 | plugin/bin/*, install.*, README*, engine/* |
 | 2026-06-21 | v5.6 后半段继续推进：增量回写契约、SessionEnd Doctor 缓存、跨 agent anchor sync、pre-commit 安装接线、Doctor 脚本自检扩展、稳定 prompt 与 engine-init 同步到 v5.6，并补旧项目升级路径 | 最终验证后提交并推送；旧项目用 installer update + /engine-sync 升级，不重跑 /engine-init | ENGINE_FILE_SYSTEM_v5*.md, README*, plugin/AGENTS.md, plugin/.claude/commands/*, plugin/engine/scripts/*, install.*, engine/* |
 | 2026-06-21 | v5.6 全量 commit + PR #3 已开：15 files, +543/-9, feature/v5.6-self-maintenance-loop → main | PR review → merge → 增量回写 + SessionEnd 体检 + 跨 agent 同步 + v5.6 发布 | — |
 | 2026-06-21 | .ps1 双版本(hook session-start + stop)编写并测试通过；install.sh/install.ps1 集成 hook+githook+settings.json 分发(已有文件保护)；AGENT_ADAPTERS.md 跨 agent 三档适配策略；ENGINE_MAP.md → rev 2 | 增量回写契约 + SessionEnd 体检 + 跨 agent 同步 + v5.6 发版 | engine-hook-*.ps1, install.*, AGENT_ADAPTERS.md, .gitattributes, ENGINE_MAP.md, plugin/.claude/settings.json |

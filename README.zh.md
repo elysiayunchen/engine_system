@@ -291,6 +291,12 @@ bash <(curl -sSL .../install.sh) --update
 不要为了升级而重跑 `/engine-init`。先更新随项目打包的工具层，再让 `/engine-sync` 迁移已有记忆层：
 
 ```bash
+engine update
+```
+
+如果终端命令还没有进入 PATH，就直接用安装器：
+
+```bash
 bash install.sh --update
 ```
 
@@ -306,6 +312,14 @@ powershell -NoProfile -File .\install.ps1 -Update
 
 这会保留项目自己的 `SYSTEM.md`、`PITFALLS.md`、`CONTEXT.md`、`HANDOFF.md`、plans 和决策，
 同时补上最新 Doctor 契约、hooks、命令文件与跨 agent 引导文件。
+
+安装器也会把 CLI shim 放到 `engine/bin/`，并尝试安装用户级 `engine` 命令
+（macOS/Linux 是 `~/.local/bin/engine`，Windows 是 `%USERPROFILE%\.engine\bin\engine.cmd`）。
+只要这个目录进了 PATH，以后远端更新就是：
+
+```text
+engine update
+```
 
 ---
 

@@ -298,6 +298,12 @@ Do **not** rerun `/engine-init` just to upgrade. Update the bundled tooling firs
 `/engine-sync` migrate the existing memory layer:
 
 ```bash
+engine update
+```
+
+If the terminal command is not on PATH yet, use the installer directly:
+
+```bash
 bash install.sh --update
 ```
 
@@ -314,6 +320,14 @@ Then run:
 This preserves project-specific `SYSTEM.md`, `PITFALLS.md`, `CONTEXT.md`, `HANDOFF.md`,
 plans, and decisions while adding the latest Doctor contract, hooks, command files, and
 cross-agent bootloaders.
+
+The installer also places a CLI shim in `engine/bin/` and tries to install a user-level
+`engine` command (`~/.local/bin/engine` on macOS/Linux, `%USERPROFILE%\.engine\bin\engine.cmd`
+on Windows). Once that location is on PATH, future remote updates are just:
+
+```text
+engine update
+```
 
 ---
 

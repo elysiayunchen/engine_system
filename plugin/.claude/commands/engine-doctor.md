@@ -9,6 +9,9 @@ does not replace `/engine-reconcile`; it gives RECONCILE a concrete validation s
 3. Run the bundled script:
    - macOS/Linux: `./engine/scripts/engine-doctor.sh`
    - Windows: `.\engine\scripts\engine-doctor.ps1`
+   Claude Code installs may also run a non-blocking SessionEnd Doctor hook. Its latest
+   output is cached at `engine/.cache/session-end-doctor.log`, with a short next-session
+   note at `engine/.cache/pending.txt` when failures or warnings exist.
 4. If scripts are missing, do not invent a different standard. Use `/engine-sync` to
    restore bundled tooling, then rerun Doctor. If sync is impossible, manually follow
    `ENGINE_DOCTOR.md`.

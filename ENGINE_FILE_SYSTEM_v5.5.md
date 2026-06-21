@@ -1501,18 +1501,19 @@ Engine System 的"自动更新"在 v5.5 里是软契约——agent 被要求 `MU
 
 ### C 层 · Claude Code 原生 hook（体验最优）
 
-两个 hook 脚本随仓库分发(`engine/scripts/engine-hook-{session-start,stop}.{sh,ps1}`):
+三个 hook 脚本随仓库分发(`engine/scripts/engine-hook-{session-start,stop,session-end}.{sh,ps1}`):
 
 - **SessionStart「自动接手」**:开对话瞬间,脚本读取 CONTEXT.md 状态面板 + HANDOFF.md 最新交接行,注入 agent 上下文。架构师什么都不用说,agent 第一句就是准确的状态复述。
 - **Stop「收尾守门员」(硬门禁)**:agent 每轮结束时,脚本用 `git status` 检查——若本轮改了代码但 CONTEXT.md / HANDOFF.md 没跟着更新,拦截 agent 结束(`decision: block`),要求先增量回写。仅拦截一次(`stop_hook_active` 防死循环),纯问答/工作区干净时不打扰。
+- **SessionEnd「体检缓存」(非阻塞)**:Stop 放行后运行 Engine Doctor,将 warning/failure 写入 `engine/.cache/pending.txt` 与 `session-end-doctor.log`。下一次 SessionStart 会把 pending note 注入上下文,让 agent 先处理引擎漂移。
 
-hook 配置通过 `.claude/settings.json` 随 `install.sh` / `install.ps1` 自动铺设。PowerShell 双版本(.ps1)覆盖 Windows 原生 PowerShell 执行场景。
+hook 配置通过 `.claude/settings.json` 随 `install.sh` / `install.ps1` 自动铺设。PowerShell 双版本(.ps1)覆盖 Windows 原生 PowerShell 执行场景。若目标项目已有 settings,安装器保留原文件,`/engine-sync` 负责合并 hook 字段。
 
 ### B 层 · git pre-commit（跨 agent 最大公约数）
 
 `engine/scripts/githooks/pre-commit` 在 `git commit` 时检查暂存区:若本次提交有代码改动但没有同步引擎记忆(CONTEXT/HANDOFF/ENGINE_MAP),拒绝提交并提示先回写。逃生口:`git commit --no-verify`。
 
-这是唯一不需要 agent 配合的机制——无论用 Claude Code / Codex / Cursor / Aider / Gemini CLI 还是手敲,只要走 `git commit`,门禁就生效。纯 POSIX sh + git 自带 sh 执行,Linux/macOS/Windows 全覆盖。
+安装器会在 `.git/hooks/pre-commit` 不存在时自动安装该脚本；若已有 hook,保留用户 hook 并提示手动合并。它是唯一不需要 agent 配合的机制——无论用 Claude Code / Codex / Cursor / Aider / Gemini CLI 还是手敲,只要走 `git commit`,门禁就生效。纯 POSIX sh + git 自带 sh 执行,Linux/macOS/Windows 全覆盖。
 
 ### A 层 · 锚点契约（Web 端也吃得到）
 
@@ -1521,6 +1522,8 @@ AGENTS.md / CLAUDE.md 里的 `SESSION PROTOCOL` 是写给 agent 的强制契约�
 ### 跨 agent 适配
 
 详见 `engine/AGENT_ADAPTERS.md`。核心策略:每个 agent 按能力自动享受对应层的兜底。
+
+`engine/scripts/engine-sync-agent-anchors.{sh,ps1}` 负责把同一套薄引导块同步到 `.github/copilot-instructions.md`、`.cursor/rules/engine.md`、`GEMINI.md`、`.clinerules`、`.roorules`,并在缺失时生成 Aider starter config。同步块只放指针和会话契约;用户手写规则必须先吸收进 SYSTEM / PITFALLS / 其他权威引擎文件,再清理锚点。
 
 | Agent | C 层(原生 hook) | B 层(git) | A 层(锚点) |
 |-------|----------------|-----------|-----------|

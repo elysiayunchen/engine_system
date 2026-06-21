@@ -23,17 +23,37 @@ updates the Engine System layer itself, then reconciles the local engine files.
    - `engine/ENGINE_DOCTOR.md`
    - `engine/scripts/engine-doctor.sh`
    - `engine/scripts/engine-doctor.ps1`
+   - `engine/scripts/engine-hook-session-start.sh`
+   - `engine/scripts/engine-hook-session-start.ps1`
+   - `engine/scripts/engine-hook-stop.sh`
+   - `engine/scripts/engine-hook-stop.ps1`
+   - `engine/scripts/engine-hook-session-end.sh`
+   - `engine/scripts/engine-hook-session-end.ps1`
+   - `engine/scripts/engine-sync-agent-anchors.sh`
+   - `engine/scripts/engine-sync-agent-anchors.ps1`
 5. Register or migrate maintenance authority without overwriting project memory:
    - If `ENGINE_DOCTOR.md` is missing from ENGINE_MAP §1, add it as `irreducible` with
      read priority after SYSTEM/REPO_GUIDE.
    - Add or update SYSTEM / REPO_GUIDE pointers so Engine Doctor is part of the required
      maintenance flow after engine edits.
    - Do not copy the whole Doctor body into ENGINE_MAP; register path/class/priority only.
-6. Run `/engine-doctor`.
-7. Run `/engine-reconcile` logic to compare project content against engine files and the
+6. Sync cross-agent bootloaders when the project uses those tools, preserving user content
+   outside the managed Engine System block:
+   - macOS/Linux: `./engine/scripts/engine-sync-agent-anchors.sh`
+   - Windows: `.\engine\scripts\engine-sync-agent-anchors.ps1`
+   - Generated targets include `.github/copilot-instructions.md`, `.cursor/rules/engine.md`,
+     `GEMINI.md`, `.clinerules`, `.roorules`, and an Aider starter config when absent.
+7. Ensure Claude Code hooks include SessionStart plus both Stop commands:
+   - `engine-hook-stop.*` is the write-back gatekeeper.
+   - `engine-hook-session-end.*` runs Doctor and caches warnings in `engine/.cache/pending.txt`.
+   - If `.claude/settings.json` already existed and install preserved it, merge these hook
+     entries instead of overwriting the user's settings.
+8. Run `/engine-doctor`.
+9. Run `/engine-reconcile` logic to compare project content against engine files and the
    latest Doctor contract. Confirm before landing repairs.
-8. End with a concise summary:
+10. End with a concise summary:
    - plugin/tooling files updated
+   - cross-agent anchors synced or intentionally skipped
    - maintenance authority registered/migrated
    - Doctor failures/warnings
   - engine files changed

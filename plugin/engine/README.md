@@ -26,7 +26,7 @@ files get written here:
 | `REPO_GUIDE.md`   | Optional repo commands and workflow rules                            |
 | `ENGINE_DOCTOR.md`| Maintenance contract for engine health checks                        |
 | `engine/agents/`  | Optional agent/tool-specific adapters                                |
-| `scripts/`        | Bundled Doctor scripts                                               |
+| `scripts/`        | Bundled Doctor, hook, and cross-agent sync scripts                    |
 | `plans/`          | Design docs you talk through, each with an acceptance checklist      |
 
 Exactly which files appear depends on the **profile** chosen at init: WEB-FULL writes
@@ -44,6 +44,8 @@ the rest on demand.
 - **Running multiple agents?** Let them work in parallel on drafts or evidence, but
   keep shared engine-file writes single-writer and merge them once at the end.
 - **End of a session?** Run `/engine-update` to sync state and write the handoff note.
+  Claude Code hooks can auto-load the latest handoff, block missing write-back, and cache
+  Doctor findings for the next session.
 - **Need a new memory type?** Run `/engine-extend` to register it completely.
 - **Updating Engine System?** Run `/engine-sync`, then `/engine-doctor`.
 

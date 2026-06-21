@@ -33,7 +33,14 @@ $FILES = @(
   @{ src = "engine/scripts/engine-hook-session-start.ps1";  dest = "engine\scripts\engine-hook-session-start.ps1";  protect = $true }
   @{ src = "engine/scripts/engine-hook-stop.sh";   dest = "engine\scripts\engine-hook-stop.sh";   protect = $true }
   @{ src = "engine/scripts/engine-hook-stop.ps1";  dest = "engine\scripts\engine-hook-stop.ps1";  protect = $true }
+  @{ src = "engine/scripts/engine-hook-session-end.sh";   dest = "engine\scripts\engine-hook-session-end.sh";   protect = $true }
+  @{ src = "engine/scripts/engine-hook-session-end.ps1";  dest = "engine\scripts\engine-hook-session-end.ps1";  protect = $true }
+  @{ src = "engine/scripts/engine-sync-agent-anchors.sh";   dest = "engine\scripts\engine-sync-agent-anchors.sh";   protect = $true }
+  @{ src = "engine/scripts/engine-sync-agent-anchors.ps1";  dest = "engine\scripts\engine-sync-agent-anchors.ps1";  protect = $true }
   @{ src = "engine/scripts/githooks/pre-commit";   dest = "engine\scripts\githooks\pre-commit";   protect = $true }
+  @{ src = "bin/engine";                            dest = "engine\bin\engine";                            protect = $true }
+  @{ src = "bin/engine.ps1";                        dest = "engine\bin\engine.ps1";                        protect = $true }
+  @{ src = "bin/engine.cmd";                        dest = "engine\bin\engine.cmd";                        protect = $true }
   @{ src = ".claude/settings.json";                dest = ".claude\settings.json";                protect = $false }
 )
 
@@ -41,7 +48,7 @@ Write-Host ""
 Write-Host "Engine System installer" -ForegroundColor Cyan
 Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-New-Item -ItemType Directory -Force -Path ".claude\commands", "engine", "engine\scripts", "engine\scripts\githooks", "engine\.cache" | Out-Null
+New-Item -ItemType Directory -Force -Path ".claude\commands", "engine", "engine\scripts", "engine\scripts\githooks", "engine\bin", "engine\.cache" | Out-Null
 
 $installed = 0; $skipped = 0
 
@@ -79,13 +86,48 @@ foreach ($f in $FILES) {
   $installed++
 }
 
+$cliDir = Join-Path $env:USERPROFILE ".engine\bin"
+if (Test-Path "engine\bin\engine.ps1") {
+  New-Item -ItemType Directory -Force -Path $cliDir | Out-Null
+  Copy-Item "engine\bin\engine.ps1" (Join-Path $cliDir "engine.ps1") -Force
+  Copy-Item "engine\bin\engine.cmd" (Join-Path $cliDir "engine.cmd") -Force
+  Write-Host "  ✓ $cliDir\engine.cmd (CLI: engine update)" -ForegroundColor Green
+  $installed++
+  $pathParts = ($env:PATH -split ";") | Where-Object { $_ }
+  if ($pathParts -notcontains $cliDir) {
+    Write-Host "  note  add $cliDir to PATH to run: engine update" -ForegroundColor Yellow
+    Write-Host "        This session can run: $cliDir\engine.cmd update" -ForegroundColor Yellow
+  }
+}
+
+$insideGit = git rev-parse --is-inside-work-tree 2>$null
+if ($insideGit -eq "true") {
+  $gitDir = git rev-parse --git-dir 2>$null
+  if ($gitDir) {
+    $hookDir = Join-Path $gitDir "hooks"
+    $hookPath = Join-Path $hookDir "pre-commit"
+    New-Item -ItemType Directory -Force -Path $hookDir | Out-Null
+    if (Test-Path $hookPath) {
+      Write-Host "  keep  $hookPath (已存在；如需 B 层门禁，请手动合并 engine\scripts\githooks\pre-commit)" -ForegroundColor Yellow
+      $skipped++
+    } elseif (Test-Path "engine\scripts\githooks\pre-commit") {
+      Copy-Item "engine\scripts\githooks\pre-commit" $hookPath -Force
+      Write-Host "  ✓ $hookPath" -ForegroundColor Green
+      $installed++
+    }
+  }
+}
+
 Write-Host ""
 Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 Write-Host "Done. $installed files installed, $skipped skipped." -ForegroundColor Green
 Write-Host ""
 
 if ($Update) {
-  Write-Host "Plugin updated. Your engine/*.md files were not touched."
+  Write-Host "Plugin updated. Your engine/*.md project memory was not overwritten."
+  Write-Host "Next: open your AI agent in this project and run /engine-sync."
+  Write-Host "/engine-sync migrates old engine files to the latest contract while preserving project-specific memory."
+  Write-Host "Future remote updates can use: engine update"
 } else {
   Write-Host "Next steps:"
   Write-Host ""
@@ -97,5 +139,8 @@ if ($Update) {
   Write-Host "    Copy .claude\commands\engine-init.md and paste into claude.ai"
   Write-Host ""
   Write-Host "  After init:  /engine-update  /add-pitfall  /engine-status  /engine-ingest  /engine-extend  /engine-doctor  /engine-sync  /engine-reconcile"
+  Write-Host ""
+  Write-Host "  Terminal updater:"
+  Write-Host "    engine update      - fetch latest Engine System tooling from remote"
 }
 Write-Host ""

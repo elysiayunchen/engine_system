@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+# Engine System user-level CLI shim.
+
+set -e
+
+REPO="${ENGINE_SYSTEM_REPO:-elysiayunchen/engine_system}"
+BRANCH="${ENGINE_SYSTEM_BRANCH:-main}"
+
+usage() {
+  cat <<'EOF'
+Engine System CLI
+
+Usage:
+  engine update        Update Engine System tooling in the current project
+  engine help          Show this help
+
+`engine update` downloads the latest installer and runs update mode. It does not overwrite
+project-specific engine/*.md memory. After it finishes, open your AI agent and run
+/engine-sync to migrate old engine files to the latest contract.
+EOF
+}
+
+download() {
+  local url="$1" dest="$2"
+  if command -v curl >/dev/null 2>&1; then
+    curl -sSL "$url" -o "$dest"
+  elif command -v wget >/dev/null 2>&1; then
+    wget -qO "$dest" "$url"
+  else
+    echo "Error: curl or wget is required." >&2
+    exit 1
+  fi
+}
+
+case "${1:-help}" in
+  update)
+    tmp="$(mktemp -t engine-install.XXXXXX)"
+    trap 'rm -f "$tmp"' EXIT
+    download "https://raw.githubusercontent.com/${REPO}/${BRANCH}/install.sh" "$tmp"
+    bash "$tmp" --update
+    echo ""
+    echo "Engine tooling updated from remote."
+    echo "Next: run /engine-sync in your AI agent to migrate old engine files safely."
+    ;;
+  help|-h|--help)
+    usage
+    ;;
+  *)
+    echo "Unknown command: $1" >&2
+    usage >&2
+    exit 1
+    ;;
+esac

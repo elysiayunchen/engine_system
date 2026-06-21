@@ -1,7 +1,16 @@
 #!/usr/bin/env bash
 set -u
 
-ROOT="${1:-$(pwd)}"
+ROOT="$(pwd)"
+PACKAGE_MODE=false
+
+for arg in "$@"; do
+  case "$arg" in
+    --package-mode) PACKAGE_MODE=true ;;
+    *) ROOT="$arg" ;;
+  esac
+done
+
 ENGINE_DIR="$ROOT/engine"
 MAP="$ENGINE_DIR/ENGINE_MAP.md"
 
@@ -29,6 +38,84 @@ warn() {
 pass() {
   printf 'PASS %s\n' "$1"
 }
+
+package_manifest_srcs() {
+  local manifest="$1"
+  if command -v jq >/dev/null 2>&1; then
+    jq -r '.files[].src' "$manifest" | tr -d '\r'
+  else
+    sed -n 's/.*"src"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$manifest" | tr -d '\r'
+  fi
+}
+
+package_mode() {
+  local manifest="$ROOT/manifest.json"
+  if [[ ! -f "$manifest" ]]; then
+    fail "plugin/manifest.json is missing"
+    return
+  fi
+
+  pass "plugin manifest exists"
+  local srcs
+  srcs="$(package_manifest_srcs "$manifest")"
+  if [[ -z "$srcs" ]]; then
+    fail "plugin manifest has no files"
+    return
+  fi
+
+  local seen_tmp
+  seen_tmp="$(mktemp)"
+  while IFS= read -r src; do
+    [[ -z "$src" ]] && continue
+    if grep -Fx "$src" "$seen_tmp" >/dev/null 2>&1; then
+      fail "duplicate manifest src: $src"
+    fi
+    printf '%s\n' "$src" >> "$seen_tmp"
+    if [[ -f "$ROOT/$src" ]]; then
+      pass "package file exists: $src"
+    else
+      fail "package file missing: $src"
+    fi
+  done <<< "$srcs"
+
+  for required in \
+    AGENTS.md \
+    CLAUDE.md \
+    .claude/commands/engine-init.md \
+    .claude/commands/engine-sync.md \
+    engine/ENGINE_DOCTOR.md \
+    engine/scripts/engine-doctor.ps1 \
+    engine/scripts/engine-doctor.sh \
+    engine/scripts/githooks/pre-commit \
+    bin/engine \
+    bin/engine.ps1 \
+    bin/engine.cmd
+  do
+    if ! grep -Fx "$required" "$seen_tmp" >/dev/null 2>&1; then
+      fail "required package file is not in manifest: $required"
+    fi
+  done
+  rm -f "$seen_tmp"
+
+  if [[ -f "$ROOT/.claude/settings.json" ]]; then
+    if grep -q '"SessionStart"' "$ROOT/.claude/settings.json" && grep -q '"Stop"' "$ROOT/.claude/settings.json"; then
+      pass "Claude hook settings declare SessionStart and Stop"
+    else
+      fail ".claude/settings.json is missing SessionStart or Stop hooks"
+    fi
+  else
+    fail ".claude/settings.json is missing"
+  fi
+}
+
+if $PACKAGE_MODE; then
+  package_mode
+  printf '\nEngine Doctor: %s failure(s), %s warning(s)\n' "$fail_count" "$warn_count"
+  if [[ "$fail_count" -gt 0 ]]; then
+    exit 1
+  fi
+  exit 0
+fi
 
 engine_path() {
   local file="$1"
@@ -153,8 +240,7 @@ while IFS= read -r path; do
   if [[ "$rel" == engine/README.md || "$rel" == engine/README.zh.md ]]; then
     continue
   fi
-  # External scratch spec, intentionally NOT registered as project authority
-  # (see REPO_GUIDE Engine File Maintenance + scripts/engine-lint.ts). Keep in parity.
+  # External scratch spec, intentionally not registered as project authority.
   if [[ "${rel#engine/}" == ENGINE_FILE_SYSTEM_v5.md ]]; then
     continue
   fi
@@ -191,13 +277,10 @@ while IFS='|' read -r _ id title status plan spec notes verified _; do
   if [[ "$allowed_status" != *" $status "* ]]; then
     fail "$id has invalid plan status '$status'"
   fi
-  # Plan path: an inline "(...)" marker or a composite "a + b" path is not a single file
-  # on disk; only verify a plain single path (parity with scripts/engine-lint.ts).
+  # Inline markers and composite paths are not single files on disk.
   if [[ -n "$plan" && "$plan" != \(* && "$plan" != *"+"* ]]; then
     [[ -f "$ROOT/$plan" ]] || fail "$id plan file missing: $plan"
   fi
-  # Spec twin: accept an inline-spec marker ("内联") or a real engine/ path; only check
-  # existence for a plain engine/ path (parity with scripts/engine-lint.ts).
   has_inline=false; [[ "$spec" == *"内联"* ]] && has_inline=true
   has_spec_path=false; [[ "$spec" == engine/* ]] && has_spec_path=true
   if [[ "$has_inline" == false && "$has_spec_path" == false ]]; then

@@ -1,5 +1,6 @@
 param(
-  [string]$Root = (Get-Location).Path
+  [string]$Root = (Get-Location).Path,
+  [switch]$PackageMode
 )
 
 $ErrorActionPreference = "Stop"
@@ -66,6 +67,93 @@ function Split-Row([string]$Line) {
   $parts = $Line -split "\|"
   if ($parts.Count -le 2) { return @() }
   return $parts[1..($parts.Count - 2)] | ForEach-Object { Trim-Cell $_ }
+}
+
+function Test-PackageMode {
+  $manifestPath = Join-Path $Root "manifest.json"
+  if (-not (Test-Path $manifestPath)) {
+    Write-Fail "plugin/manifest.json is missing"
+    return
+  }
+
+  Write-Pass "plugin manifest exists"
+  try {
+    $manifest = Get-Content -Raw -Path $manifestPath -Encoding UTF8 | ConvertFrom-Json
+  } catch {
+    Write-Fail "plugin/manifest.json is not valid JSON: $($_.Exception.Message)"
+    return
+  }
+
+  $files = @($manifest.files)
+  if ($files.Count -eq 0) {
+    Write-Fail "plugin manifest has no files"
+    return
+  }
+
+  $seen = New-Object System.Collections.Generic.HashSet[string]
+  foreach ($file in $files) {
+    if (-not $file.src) {
+      Write-Fail "manifest entry has empty src"
+      continue
+    }
+    if (-not $file.dest) {
+      Write-Fail "$($file.src) has empty dest"
+      continue
+    }
+    if (-not $seen.Add([string]$file.src)) {
+      Write-Fail "duplicate manifest src: $($file.src)"
+    }
+
+    $sourcePath = Join-Path $Root ($file.src -replace "/", [IO.Path]::DirectorySeparatorChar)
+    if (Test-Path $sourcePath) {
+      Write-Pass "package file exists: $($file.src)"
+    } else {
+      Write-Fail "package file missing: $($file.src)"
+    }
+  }
+
+  foreach ($required in @(
+    "AGENTS.md",
+    "CLAUDE.md",
+    ".claude/commands/engine-init.md",
+    ".claude/commands/engine-sync.md",
+    "engine/ENGINE_DOCTOR.md",
+    "engine/scripts/engine-doctor.ps1",
+    "engine/scripts/engine-doctor.sh",
+    "engine/scripts/githooks/pre-commit",
+    "bin/engine",
+    "bin/engine.ps1",
+    "bin/engine.cmd"
+  )) {
+    if ($files.src -notcontains $required) {
+      Write-Fail "required package file is not in manifest: $required"
+    }
+  }
+
+  $settingsPath = Join-Path $Root ".claude\settings.json"
+  if (-not (Test-Path $settingsPath)) {
+    Write-Fail ".claude/settings.json is missing"
+    return
+  }
+
+  try {
+    $settings = Get-Content -Raw -Path $settingsPath -Encoding UTF8 | ConvertFrom-Json
+    if ($settings.hooks.SessionStart -and $settings.hooks.Stop) {
+      Write-Pass "Claude hook settings declare SessionStart and Stop"
+    } else {
+      Write-Fail ".claude/settings.json is missing SessionStart or Stop hooks"
+    }
+  } catch {
+    Write-Fail ".claude/settings.json is not valid JSON: $($_.Exception.Message)"
+  }
+}
+
+if ($PackageMode) {
+  Test-PackageMode
+  Write-Host ""
+  Write-Host "Engine Doctor: $failCount failure(s), $warnCount warning(s)"
+  if ($failCount -gt 0) { exit 1 }
+  exit 0
 }
 
 if (-not (Test-Path $map)) {
@@ -163,6 +251,8 @@ if (Test-Path $engineDir) {
   Get-ChildItem -Path $engineDir -File -Filter "*.md" | ForEach-Object {
     $rel = "engine/$($_.Name)"
     if ($rel -in @("engine/README.md", "engine/README.zh.md")) { return }
+    # External scratch spec, intentionally unregistered (parity with release package Doctor).
+    if ($_.Name -eq "ENGINE_FILE_SYSTEM_v5.md") { return }
     if (-not (Test-Registered $rel) -and -not (Test-Registered $_.Name)) {
       Write-Fail "authority-looking file is not registered or explained: $rel"
     }
@@ -188,13 +278,24 @@ foreach ($row in $anchorRows) {
 $allowedStatuses = @("draft", "proposed", "accepted", "active", "blocked", "done", "archived", "superseded")
 foreach ($row in $planRows) {
   $cells = Split-Row $row
-  if ($cells.Count -lt 7) { continue }
+  # Plan rows may be compact; need id/status/plan/spec.
+  if ($cells.Count -lt 5) { continue }
   $id = $cells[0]; $status = $cells[2]; $plan = $cells[3]; $spec = $cells[4]
   $nonePrefix = [string][char]0x65E0
   if (-not $id -or $id -eq "ID" -or $id -match "^-+$" -or $id.StartsWith("[") -or $id.StartsWith($nonePrefix)) { continue }
   if ($allowedStatuses -notcontains $status) { Write-Fail "$id has invalid plan status '$status'" }
-  if (-not (Test-Path (Join-Path $Root $plan))) { Write-Fail "$id plan file missing: $plan" }
-  if (-not (Test-Path (Join-Path $Root $spec))) { Write-Fail "$id spec twin missing: $spec" }
+  # Inline markers and composite paths are not single files on disk.
+  if ($plan -and -not $plan.StartsWith("(") -and ($plan -notmatch "\+") -and -not (Test-Path (Join-Path $Root $plan))) {
+    Write-Fail "$id plan file missing: $plan"
+  }
+  $hasInline = $spec -match "内联"
+  $hasSpecPath = $spec.StartsWith("engine/")
+  if (-not $hasInline -and -not $hasSpecPath -and (@("accepted", "active", "done") -contains $status)) {
+    Write-Fail "$id must have a spec twin path or inline spec marker: $spec"
+  }
+  if ($hasSpecPath -and ($spec -notmatch "\+") -and -not (Test-Path (Join-Path $Root $spec))) {
+    Write-Fail "$id spec twin missing: $spec"
+  }
 }
 
 foreach ($anchor in @("AGENTS.md", "CLAUDE.md")) {

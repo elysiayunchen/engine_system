@@ -1,0 +1,24 @@
+# ENGINE_DOCTOR — 引擎健康检查契约
+
+> Engine System (engine_system) · Last updated: 2026-06-21
+> 说明：本 dogfood 实例的轻量维护契约。完整模板见 `plugin/engine/ENGINE_DOCTOR.md`。
+
+## 当前检查范围
+
+- `engine/ENGINE_MAP.md` 必须存在，并作为会话第一读取入口。
+- `ENGINE_MAP.md` §1 注册的权威文件必须存在于 `engine/`。
+- `engine/*.md` 中看起来像权威文件的文档必须登记到 §1，或明确是 README / archive / cache / external。
+- 维护脚本必须由插件分发，但不作为权威文件登记；脚本契约由本文件和插件模板共同说明。
+- Claude Code hook、git pre-commit、跨 agent anchor sync 缺失时，Doctor 应报告 warning 并提示运行 `/engine-sync`。
+
+## 自维护脚本
+
+- `engine-hook-session-start.{sh,ps1}`：会话开始自动注入 CONTEXT / HANDOFF / pending note。
+- `engine-hook-stop.{sh,ps1}`：代码改动但未回写 CONTEXT / HANDOFF 时，拦截一次结束。
+- `engine-hook-session-end.{sh,ps1}`：非阻塞运行 Doctor，把 warning/failure 缓存到 `engine/.cache/pending.txt`。
+- `engine-sync-agent-anchors.{sh,ps1}`：生成或更新 Copilot / Cursor / Gemini / Cline / Roo / Aider 等薄引导文件。
+- `githooks/pre-commit`：B 层门禁，防止提交代码改动但没有引擎回写。
+
+## 后续
+
+当前文件是 CLI-LEAN dogfood 精简版。正式发布前，用 `/engine-reconcile` 将本实例升级为完整 v5.5 注册表结构。

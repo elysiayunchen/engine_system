@@ -21,6 +21,11 @@
             "type": "command",
             "command": "bash plugin/engine/scripts/engine-hook-stop.sh",
             "timeout": 30
+          },
+          {
+            "type": "command",
+            "command": "bash plugin/engine/scripts/engine-hook-session-end.sh",
+            "timeout": 45
           }
         ]
       }

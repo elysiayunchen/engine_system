@@ -68,6 +68,10 @@ FILES=(
   "engine/scripts/engine-hook-session-start.ps1:engine/scripts/engine-hook-session-start.ps1:true"
   "engine/scripts/engine-hook-stop.sh:engine/scripts/engine-hook-stop.sh:true"
   "engine/scripts/engine-hook-stop.ps1:engine/scripts/engine-hook-stop.ps1:true"
+  "engine/scripts/engine-hook-session-end.sh:engine/scripts/engine-hook-session-end.sh:true"
+  "engine/scripts/engine-hook-session-end.ps1:engine/scripts/engine-hook-session-end.ps1:true"
+  "engine/scripts/engine-sync-agent-anchors.sh:engine/scripts/engine-sync-agent-anchors.sh:true"
+  "engine/scripts/engine-sync-agent-anchors.ps1:engine/scripts/engine-sync-agent-anchors.ps1:true"
   "engine/scripts/githooks/pre-commit:engine/scripts/githooks/pre-commit:true"
   ".claude/settings.json:.claude/settings.json:false"
 )
@@ -119,13 +123,31 @@ for entry in "${FILES[@]}"; do
   ((install_count += 1))
 done
 
+if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  git_dir="$(git rev-parse --git-dir 2>/dev/null || true)"
+  if [[ -n "$git_dir" ]]; then
+    mkdir -p "$git_dir/hooks"
+    if [[ -f "$git_dir/hooks/pre-commit" ]]; then
+      echo -e "  ${YELLOW}keep${RESET}  $git_dir/hooks/pre-commit (已存在；如需 B 层门禁，请手动合并 engine/scripts/githooks/pre-commit)"
+      ((skip_count += 1))
+    elif [[ -f "engine/scripts/githooks/pre-commit" ]]; then
+      cp "engine/scripts/githooks/pre-commit" "$git_dir/hooks/pre-commit"
+      chmod +x "$git_dir/hooks/pre-commit" 2>/dev/null || true
+      echo -e "  ${GREEN}✓${RESET} $git_dir/hooks/pre-commit"
+      ((install_count += 1))
+    fi
+  fi
+fi
+
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo -e "${GREEN}Done.${RESET} $install_count files installed, $skip_count skipped."
 echo ""
 
 if $UPDATE_MODE; then
-  echo "Plugin updated. Your engine/*.md files were not touched."
+  echo "Plugin updated. Your engine/*.md project memory was not overwritten."
+  echo "Next: open your AI agent in this project and run /engine-sync."
+  echo "/engine-sync migrates old engine files to the latest contract while preserving project-specific memory."
 else
   echo "Next steps:"
   echo ""

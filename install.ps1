@@ -33,6 +33,10 @@ $FILES = @(
   @{ src = "engine/scripts/engine-hook-session-start.ps1";  dest = "engine\scripts\engine-hook-session-start.ps1";  protect = $true }
   @{ src = "engine/scripts/engine-hook-stop.sh";   dest = "engine\scripts\engine-hook-stop.sh";   protect = $true }
   @{ src = "engine/scripts/engine-hook-stop.ps1";  dest = "engine\scripts\engine-hook-stop.ps1";  protect = $true }
+  @{ src = "engine/scripts/engine-hook-session-end.sh";   dest = "engine\scripts\engine-hook-session-end.sh";   protect = $true }
+  @{ src = "engine/scripts/engine-hook-session-end.ps1";  dest = "engine\scripts\engine-hook-session-end.ps1";  protect = $true }
+  @{ src = "engine/scripts/engine-sync-agent-anchors.sh";   dest = "engine\scripts\engine-sync-agent-anchors.sh";   protect = $true }
+  @{ src = "engine/scripts/engine-sync-agent-anchors.ps1";  dest = "engine\scripts\engine-sync-agent-anchors.ps1";  protect = $true }
   @{ src = "engine/scripts/githooks/pre-commit";   dest = "engine\scripts\githooks\pre-commit";   protect = $true }
   @{ src = ".claude/settings.json";                dest = ".claude\settings.json";                protect = $false }
 )
@@ -79,13 +83,33 @@ foreach ($f in $FILES) {
   $installed++
 }
 
+$insideGit = git rev-parse --is-inside-work-tree 2>$null
+if ($insideGit -eq "true") {
+  $gitDir = git rev-parse --git-dir 2>$null
+  if ($gitDir) {
+    $hookDir = Join-Path $gitDir "hooks"
+    $hookPath = Join-Path $hookDir "pre-commit"
+    New-Item -ItemType Directory -Force -Path $hookDir | Out-Null
+    if (Test-Path $hookPath) {
+      Write-Host "  keep  $hookPath (已存在；如需 B 层门禁，请手动合并 engine\scripts\githooks\pre-commit)" -ForegroundColor Yellow
+      $skipped++
+    } elseif (Test-Path "engine\scripts\githooks\pre-commit") {
+      Copy-Item "engine\scripts\githooks\pre-commit" $hookPath -Force
+      Write-Host "  ✓ $hookPath" -ForegroundColor Green
+      $installed++
+    }
+  }
+}
+
 Write-Host ""
 Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 Write-Host "Done. $installed files installed, $skipped skipped." -ForegroundColor Green
 Write-Host ""
 
 if ($Update) {
-  Write-Host "Plugin updated. Your engine/*.md files were not touched."
+  Write-Host "Plugin updated. Your engine/*.md project memory was not overwritten."
+  Write-Host "Next: open your AI agent in this project and run /engine-sync."
+  Write-Host "/engine-sync migrates old engine files to the latest contract while preserving project-specific memory."
 } else {
   Write-Host "Next steps:"
   Write-Host ""

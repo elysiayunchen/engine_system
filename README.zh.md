@@ -186,7 +186,8 @@ Claude 会采访你：项目愿景、技术栈、当前状态、已知的坑、�
 
 ## 之后每次会话
 
-**开始：** Claude Code 自动读取 `CLAUDE.md`，上下文加载完毕，什么都不用做。
+**开始：** Claude Code 自动读取 `CLAUDE.md`。在 v5.6 里，SessionStart hook 还会把最新的
+`CONTEXT.md` + `HANDOFF.md` 快照注入新会话。
 
 **会话结束：**
 
@@ -194,7 +195,9 @@ Claude 会采访你：项目愿景、技术栈、当前状态、已知的坑、�
 /engine-update
 ```
 
-三个问题，状态同步，交接笔记写好，三十秒结束。
+三个问题，状态同步，交接笔记写好，三十秒结束。在 Claude Code 里，如果代码变了但
+`CONTEXT.md` / `HANDOFF.md` 没回写，Stop hook 会拦一次；SessionEnd 体检 hook 会把
+Doctor warning 缓存给下次启动。其他 agent 仍有 git pre-commit 兜底。
 
 **踩到奇怪的东西：**
 
@@ -245,7 +248,8 @@ Claude 会采访你：项目愿景、技术栈、当前状态、已知的坑、�
 ```
 
 拉取/安装新版 Engine System 后运行它。它会更新命令和脚本，确保 Doctor 契约已注册，
-运行 Doctor，然后通过对账流程迁移本项目已有的引擎文件，不会粗暴覆盖你的项目记忆。
+同步 Copilot、Cursor、Gemini、Cline/Roo、Aider 等工具的薄引导文件，运行 Doctor，
+然后通过对账流程迁移本项目已有的引擎文件，不会粗暴覆盖你的项目记忆。
 
 **怀疑文档跟真实代码对不上了：**
 
@@ -281,6 +285,41 @@ bash <(curl -sSL .../install.sh) --update
 
 把命令和脚本工具更新到最新版本。你的项目专属 `engine/*.md` 记忆不会被粗暴覆盖。更新插件文件后，
 运行 `/engine-sync`，让最新维护契约、Doctor 注册和引擎文件迁移通过 read-gate + reconcile 流程落地。
+
+### 已经执行过旧引擎文件的项目怎么升级
+
+不要为了升级而重跑 `/engine-init`。先更新随项目打包的工具层，再让 `/engine-sync` 迁移已有记忆层：
+
+```bash
+engine update
+```
+
+如果终端命令还没有进入 PATH，就直接用安装器：
+
+```bash
+bash install.sh --update
+```
+
+```powershell
+powershell -NoProfile -File .\install.ps1 -Update
+```
+
+然后运行：
+
+```text
+/engine-sync
+```
+
+这会保留项目自己的 `SYSTEM.md`、`PITFALLS.md`、`CONTEXT.md`、`HANDOFF.md`、plans 和决策，
+同时补上最新 Doctor 契约、hooks、命令文件与跨 agent 引导文件。
+
+安装器也会把 CLI shim 放到 `engine/bin/`，并尝试安装用户级 `engine` 命令
+（macOS/Linux 是 `~/.local/bin/engine`，Windows 是 `%USERPROFILE%\.engine\bin\engine.cmd`）。
+只要这个目录进了 PATH，以后远端更新就是：
+
+```text
+engine update
+```
 
 ---
 

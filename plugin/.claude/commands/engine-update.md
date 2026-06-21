@@ -34,6 +34,11 @@ Edit the 状态面板 table in place:
 - `进行中` → answer from Q2, but preserve lane structure if multiple workstreams exist
 - Update `构建` status if relevant info was mentioned
 
+For long sessions, do not wait until the final turn: after each meaningful feature, fix,
+or decision, perform this same minimal CONTEXT update and HANDOFF append immediately.
+That incremental write-back is the A-layer contract for Web AI and the data that B/C-layer
+hooks verify.
+
 ### Append to engine/HANDOFF.md
 Add a new session entry at the TOP of the session history table (time-ordered):
 
@@ -86,6 +91,10 @@ If this session touched `ENGINE_MAP.md`, `SYSTEM.md`, `REPO_GUIDE.md`, `ENGINE_D
 `engine/agents/*`, anchors, plans, or any engine registration row, run `/engine-doctor`
 before final confirmation. If Doctor scripts are missing, note that `/engine-sync` is
 required.
+
+If `engine/.cache/pending.txt` exists, read it before confirming. It contains the latest
+SessionEnd Doctor result cached by the hook; resolve it with `/engine-doctor` or
+`/engine-reconcile`, then delete the pending note only after the issue is no longer true.
 
 ## Step 4: Confirm
 Output the change summary (for the architect's review), then the resume pointer:

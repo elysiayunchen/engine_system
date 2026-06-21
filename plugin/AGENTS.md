@@ -20,7 +20,10 @@ If `engine/ENGINE_MAP.md` does not exist, say:
 
 ## SESSION PROTOCOL
 - Start: read ENGINE_MAP → load by profile → read required rules/anchors/plans → restate state.
-- End: run `/engine-update` or update HANDOFF + ENGINE_MAP with a change summary.
+- During work: after any meaningful code change, update `CONTEXT.md` + append one
+  `HANDOFF.md` row before moving on. This is incremental write-back, not optional cleanup.
+- End: run `/engine-update` or update HANDOFF + ENGINE_MAP with a change summary. Claude
+  Code hooks may block Stop if code changed but the engine memory did not.
 
 ## COMMAND MAP
 - `/engine-init` — initialize or regenerate the engine layer
@@ -38,6 +41,14 @@ If `engine/ENGINE_MAP.md` does not exist, say:
 - Shared engine-file writes are single-writer only.
 - CONTEXT, SPRINT, ROADMAP, and HANDOFF may carry lane IDs, owners, dependencies, merge points, and next checkpoints.
 - Use the lane with the matching goal; do not flatten parallel work into one queue.
+
+## SELF-MAINTENANCE LOOP
+- A layer: this anchor contract applies to every agent that reads `AGENTS.md`.
+- B layer: git pre-commit blocks commits that change code without engine write-back.
+- C layer: Claude Code SessionStart/Stop hooks auto-load context, gate missing write-back,
+  and cache Doctor findings for the next session.
+- Web AI has no hooks, so it MUST perform incremental write-back manually after each
+  meaningful unit.
 
 ## MAP
 - Index: `engine/ENGINE_MAP.md`

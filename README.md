@@ -187,7 +187,8 @@ Most agent tools will first read `AGENTS.md` or `CLAUDE.md`. Those files point b
 
 ## Every session after
 
-**Start:** Claude Code reads `CLAUDE.md` automatically. Context loaded, zero effort.
+**Start:** Claude Code reads `CLAUDE.md` automatically. In v5.6, the SessionStart hook can
+also inject the latest `CONTEXT.md` + `HANDOFF.md` snapshot into the new session.
 
 **End of session:**
 
@@ -195,7 +196,10 @@ Most agent tools will first read `AGENTS.md` or `CLAUDE.md`. Those files point b
 /engine-update
 ```
 
-Three questions. State synced. Handoff written. Thirty seconds.
+Three questions. State synced. Handoff written. Thirty seconds. In Claude Code, the Stop
+hook can block once if code changed but `CONTEXT.md` / `HANDOFF.md` did not; the
+SessionEnd health hook caches Doctor warnings for the next startup. Other agents still get
+the git pre-commit safety net.
 
 **When you hit something weird:**
 
@@ -247,8 +251,9 @@ hard-coded script.
 ```
 
 Use this after pulling a newer Engine System version. It updates slash commands and scripts,
-ensures the Doctor contract is registered, runs Doctor, then reconciles project-specific
-engine files without overwriting your memory.
+ensures the Doctor contract is registered, syncs thin bootloaders for tools like Copilot,
+Cursor, Gemini, Cline/Roo, and Aider, runs Doctor, then reconciles project-specific engine
+files without overwriting your memory.
 
 **Suspect the docs drifted from the real code:**
 
@@ -286,6 +291,43 @@ Updates command/script tooling to the latest version. Your project-specific `eng
 memory is not blindly overwritten. After updating the plugin files, run `/engine-sync` so
 the latest maintenance contract, Doctor registration, and engine-file migrations are applied
 through the normal read-gate + reconcile flow.
+
+### Upgrading a project that already has old engine files
+
+Do **not** rerun `/engine-init` just to upgrade. Update the bundled tooling first, then let
+`/engine-sync` migrate the existing memory layer:
+
+```bash
+engine update
+```
+
+If the terminal command is not on PATH yet, use the installer directly:
+
+```bash
+bash install.sh --update
+```
+
+```powershell
+powershell -NoProfile -File .\install.ps1 -Update
+```
+
+Then run:
+
+```text
+/engine-sync
+```
+
+This preserves project-specific `SYSTEM.md`, `PITFALLS.md`, `CONTEXT.md`, `HANDOFF.md`,
+plans, and decisions while adding the latest Doctor contract, hooks, command files, and
+cross-agent bootloaders.
+
+The installer also places a CLI shim in `engine/bin/` and tries to install a user-level
+`engine` command (`~/.local/bin/engine` on macOS/Linux, `%USERPROFILE%\.engine\bin\engine.cmd`
+on Windows). Once that location is on PATH, future remote updates are just:
+
+```text
+engine update
+```
 
 ---
 

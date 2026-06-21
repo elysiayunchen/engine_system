@@ -12,6 +12,8 @@
 
 | 日期 | 完成了什么 | 下一步 | 改动文件 |
 |------|-----------|--------|---------|
+| 2026-06-21 | 合并到 main 前修复 Doctor 双副本漂移：保留 main 上对 scratch spec、inline/composite plan 的兼容逻辑，并同步到 engine 与 plugin 两份脚本 | 重新跑 `scripts/check.*`，通过后推送 main | engine/scripts/engine-doctor.*, plugin/engine/scripts/engine-doctor.*, engine/HANDOFF.md |
+| 2026-06-21 | 根据项目体检完成工程化优化：新增一键 health check、插件 manifest、Doctor package mode、Windows installer PowerShell hook 配置；修复 shell manifest CRLF 路径假失败；PowerShell 与 Git Bash 检查均全绿 | 决定 `ENGINE_FILE_SYSTEM_v5.2.md` 未跟踪文件处理方式；发布前继续以 `scripts/check.*` 作为门禁 | scripts/check.*, plugin/manifest.json, engine/scripts/engine-doctor.*, plugin/engine/scripts/engine-doctor.*, install.ps1, .gitattributes, ENGINE_DOCTOR/CONTEXT/HANDOFF |
 | 2026-06-21 | 响应“终端 engine update”需求：新增用户级 CLI shim 与安装器分发，文档明确 `engine update` 拉远端工具层、`/engine-sync` 迁移旧引擎记忆 | 验证 CLI shim、Doctor、脚本语法后提交推送 | plugin/bin/*, install.*, README*, engine/* |
 | 2026-06-21 | v5.6 后半段继续推进：增量回写契约、SessionEnd Doctor 缓存、跨 agent anchor sync、pre-commit 安装接线、Doctor 脚本自检扩展、稳定 prompt 与 engine-init 同步到 v5.6，并补旧项目升级路径 | 最终验证后提交并推送；旧项目用 installer update + /engine-sync 升级，不重跑 /engine-init | ENGINE_FILE_SYSTEM_v5*.md, README*, plugin/AGENTS.md, plugin/.claude/commands/*, plugin/engine/scripts/*, install.*, engine/* |
 | 2026-06-21 | v5.6 全量 commit + PR #3 已开：15 files, +543/-9, feature/v5.6-self-maintenance-loop → main | PR review → merge → 增量回写 + SessionEnd 体检 + 跨 agent 同步 + v5.6 发布 | — |

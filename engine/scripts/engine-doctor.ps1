@@ -230,6 +230,15 @@ foreach ($script in @(
   }
 }
 
+foreach ($cli in @("engine", "engine.ps1", "engine.cmd")) {
+  $cliPath = Join-Path (Join-Path $engineDir "bin") $cli
+  if (Test-Path $cliPath) {
+    Write-Pass "bundled CLI shim exists: engine/bin/$cli"
+  } else {
+    Write-Warn "bundled CLI shim missing: engine/bin/$cli"
+  }
+}
+
 Write-Host ""
 Write-Host "Engine Doctor: $failCount failure(s), $warnCount warning(s)"
 if ($failCount -gt 0) { exit 1 }

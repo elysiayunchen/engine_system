@@ -8,7 +8,7 @@
 |------|------|
 | 构建 | ✅ 正常（纯 markdown + shell 脚本，无构建步骤） |
 | 上次完成 | v5.6 后半段继续开发：增量回写契约强化、SessionEnd Doctor 缓存 hook、跨 agent 引导同步脚本、B 层 pre-commit 安装接线、Doctor 自检扩展；`engine-init.md` 与稳定 prompt 已同步到 v5.6 |
-| 进行中 | 最终验证后提交并推送；旧项目升级路径已明确为 installer `--update` + `/engine-sync`，不重跑 `/engine-init` |
+| 进行中 | 新增终端 `engine update` 远端更新机制；旧项目升级路径为 `engine update` 更新工具层，再由 `/engine-sync` 迁移项目记忆 |
 | 阻塞 | 无 |
 
 ## 当前假设 / 决策（本轮拍板）

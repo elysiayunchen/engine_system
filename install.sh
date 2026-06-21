@@ -73,11 +73,14 @@ FILES=(
   "engine/scripts/engine-sync-agent-anchors.sh:engine/scripts/engine-sync-agent-anchors.sh:true"
   "engine/scripts/engine-sync-agent-anchors.ps1:engine/scripts/engine-sync-agent-anchors.ps1:true"
   "engine/scripts/githooks/pre-commit:engine/scripts/githooks/pre-commit:true"
+  "bin/engine:engine/bin/engine:true"
+  "bin/engine.ps1:engine/bin/engine.ps1:true"
+  "bin/engine.cmd:engine/bin/engine.cmd:true"
   ".claude/settings.json:.claude/settings.json:false"
 )
 
 # Create directories
-mkdir -p .claude/commands engine engine/scripts engine/scripts/githooks engine/.cache
+mkdir -p .claude/commands engine engine/scripts engine/scripts/githooks engine/bin engine/.cache
 
 install_count=0
 skip_count=0
@@ -123,6 +126,20 @@ for entry in "${FILES[@]}"; do
   ((install_count += 1))
 done
 
+cli_src="engine/bin/engine"
+cli_dest="${HOME:-}/.local/bin/engine"
+if [[ -n "${HOME:-}" && -f "$cli_src" ]]; then
+  mkdir -p "$(dirname "$cli_dest")"
+  cp "$cli_src" "$cli_dest"
+  chmod +x "$cli_dest" 2>/dev/null || true
+  echo -e "  ${GREEN}✓${RESET} $cli_dest (CLI: engine update)"
+  ((install_count += 1))
+  case ":$PATH:" in
+    *":$(dirname "$cli_dest"):"*) ;;
+    *) echo -e "  ${YELLOW}note${RESET} add $(dirname "$cli_dest") to PATH to run: engine update" ;;
+  esac
+fi
+
 if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   git_dir="$(git rev-parse --git-dir 2>/dev/null || true)"
   if [[ -n "$git_dir" ]]; then
@@ -148,6 +165,7 @@ if $UPDATE_MODE; then
   echo "Plugin updated. Your engine/*.md project memory was not overwritten."
   echo "Next: open your AI agent in this project and run /engine-sync."
   echo "/engine-sync migrates old engine files to the latest contract while preserving project-specific memory."
+  echo "Future remote updates can use: engine update"
 else
   echo "Next steps:"
   echo ""
@@ -169,5 +187,8 @@ else
   echo "    /engine-doctor     — validate engine registry, anchors, plans, budgets"
   echo "    /engine-sync       — update Engine System tooling, then reconcile engine files"
   echo "    /engine-reconcile  — audit engine files vs real code, fix drift"
+  echo ""
+  echo "  Terminal updater:"
+  echo "    engine update      — fetch latest Engine System tooling from remote"
 fi
 echo ""

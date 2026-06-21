@@ -12,6 +12,7 @@ updates the Engine System layer itself, then reconciles the local engine files.
 2. Read `engine/SYSTEM.md`, `engine/REPO_GUIDE.md` if present, and
    `engine/ENGINE_DOCTOR.md` if present.
 3. Update bundled Engine System tooling:
+   - Preferred terminal path for existing projects: run `engine update` from the project root.
    - If this project has `install.sh`, run `bash install.sh --update`.
    - If this project has `install.ps1`, run `.\install.ps1 -Update`.
    - If neither exists, fetch the latest installer from
@@ -31,6 +32,9 @@ updates the Engine System layer itself, then reconciles the local engine files.
    - `engine/scripts/engine-hook-session-end.ps1`
    - `engine/scripts/engine-sync-agent-anchors.sh`
    - `engine/scripts/engine-sync-agent-anchors.ps1`
+   - `engine/bin/engine`
+   - `engine/bin/engine.ps1`
+   - `engine/bin/engine.cmd`
 5. Register or migrate maintenance authority without overwriting project memory:
    - If `ENGINE_DOCTOR.md` is missing from ENGINE_MAP §1, add it as `irreducible` with
      read priority after SYSTEM/REPO_GUIDE.

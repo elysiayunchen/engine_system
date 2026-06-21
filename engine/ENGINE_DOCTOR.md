@@ -6,11 +6,13 @@
 ## 当前检查范围
 
 - `engine/ENGINE_MAP.md` 必须存在，并作为会话第一读取入口。
+- `engine-doctor.{sh,ps1}` 支持两种模式：默认项目模式验证已初始化的 `engine/`；`--package-mode` / `-PackageMode` 验证 `plugin/` 发行模板，不要求模板里已有 `ENGINE_MAP.md`。
 - `ENGINE_MAP.md` §1 注册的权威文件必须存在于 `engine/`。
 - `engine/*.md` 中看起来像权威文件的文档必须登记到 §1，或明确是 README / archive / cache / external。
 - 维护脚本必须由插件分发，但不作为权威文件登记；脚本契约由本文件和插件模板共同说明。
 - Claude Code hook、git pre-commit、跨 agent anchor sync 缺失时，Doctor 应报告 warning 并提示运行 `/engine-sync`。
 - `engine/bin/engine*` CLI shim 缺失时，Doctor 应报告 warning；安装器负责将其复制到用户级 PATH 位置以支持 `engine update`。
+- 仓库级 release health 由 `scripts/check.ps1` / `scripts/check.sh` 统一执行：项目 Doctor、插件 package Doctor、PowerShell 语法、shell 语法、installer manifest、`engine/` 与 `plugin/` 副本漂移检查。
 
 ## 自维护脚本
 
@@ -20,6 +22,7 @@
 - `engine-sync-agent-anchors.{sh,ps1}`：生成或更新 Copilot / Cursor / Gemini / Cline / Roo / Aider 等薄引导文件。
 - `githooks/pre-commit`：B 层门禁，防止提交代码改动但没有引擎回写。
 - `engine/bin/engine*`：终端远端更新入口，支持 `engine update`。
+- `scripts/check.{ps1,sh}`：仓库维护入口，不随插件安装到用户项目；发布前必须全绿。
 
 ## 后续
 

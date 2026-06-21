@@ -64,10 +64,16 @@ FILES=(
   "engine/ENGINE_DOCTOR.md:engine/ENGINE_DOCTOR.md:false"
   "engine/scripts/engine-doctor.sh:engine/scripts/engine-doctor.sh:true"
   "engine/scripts/engine-doctor.ps1:engine/scripts/engine-doctor.ps1:true"
+  "engine/scripts/engine-hook-session-start.sh:engine/scripts/engine-hook-session-start.sh:true"
+  "engine/scripts/engine-hook-session-start.ps1:engine/scripts/engine-hook-session-start.ps1:true"
+  "engine/scripts/engine-hook-stop.sh:engine/scripts/engine-hook-stop.sh:true"
+  "engine/scripts/engine-hook-stop.ps1:engine/scripts/engine-hook-stop.ps1:true"
+  "engine/scripts/githooks/pre-commit:engine/scripts/githooks/pre-commit:true"
+  ".claude/settings.json:.claude/settings.json:false"
 )
 
 # Create directories
-mkdir -p .claude/commands engine engine/scripts
+mkdir -p .claude/commands engine engine/scripts engine/scripts/githooks engine/.cache
 
 install_count=0
 skip_count=0
@@ -77,10 +83,11 @@ for entry in "${FILES[@]}"; do
   url="${BASE_URL}/${src}"
 
   # Root anchor files (CLAUDE.md / AGENTS.md): never clobber an existing one, in any mode.
+  # .claude/settings.json: same rule — don't overwrite an existing one.
   # A brand-new project gets the starter bootloader; an existing file is preserved so that
   # /engine-init can absorb its rules first, and /engine-reconcile keeps it in sync after.
-  if { [[ "$dest" == "CLAUDE.md" ]] || [[ "$dest" == "AGENTS.md" ]]; } && [[ -f "$dest" ]]; then
-    echo -e "  ${YELLOW}keep${RESET}  $dest (已存在，保留；运行 /engine-init 吸收其规则后再改写)"
+  if { [[ "$dest" == "CLAUDE.md" ]] || [[ "$dest" == "AGENTS.md" ]] || [[ "$dest" == ".claude/settings.json" ]]; } && [[ -f "$dest" ]]; then
+    echo -e "  ${YELLOW}keep${RESET}  $dest (已存在，保留；运行 /engine-sync 合并 hooks 字段)"
     ((skip_count += 1))
     continue
   fi

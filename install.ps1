@@ -29,13 +29,19 @@ $FILES = @(
   @{ src = "engine/ENGINE_DOCTOR.md";              dest = "engine\ENGINE_DOCTOR.md";              protect = $false }
   @{ src = "engine/scripts/engine-doctor.sh";      dest = "engine\scripts\engine-doctor.sh";      protect = $true }
   @{ src = "engine/scripts/engine-doctor.ps1";     dest = "engine\scripts\engine-doctor.ps1";     protect = $true }
+  @{ src = "engine/scripts/engine-hook-session-start.sh";   dest = "engine\scripts\engine-hook-session-start.sh";   protect = $true }
+  @{ src = "engine/scripts/engine-hook-session-start.ps1";  dest = "engine\scripts\engine-hook-session-start.ps1";  protect = $true }
+  @{ src = "engine/scripts/engine-hook-stop.sh";   dest = "engine\scripts\engine-hook-stop.sh";   protect = $true }
+  @{ src = "engine/scripts/engine-hook-stop.ps1";  dest = "engine\scripts\engine-hook-stop.ps1";  protect = $true }
+  @{ src = "engine/scripts/githooks/pre-commit";   dest = "engine\scripts\githooks\pre-commit";   protect = $true }
+  @{ src = ".claude/settings.json";                dest = ".claude\settings.json";                protect = $false }
 )
 
 Write-Host ""
 Write-Host "Engine System installer" -ForegroundColor Cyan
 Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-New-Item -ItemType Directory -Force -Path ".claude\commands", "engine", "engine\scripts" | Out-Null
+New-Item -ItemType Directory -Force -Path ".claude\commands", "engine", "engine\scripts", "engine\scripts\githooks", "engine\.cache" | Out-Null
 
 $installed = 0; $skipped = 0
 
@@ -43,11 +49,12 @@ foreach ($f in $FILES) {
   $url = "$BASE_URL/$($f.src)"
   $dest = $f.dest
 
-  # Root anchor files (CLAUDE.md / AGENTS.md): never clobber an existing one, in any mode.
+  # Root anchor files (CLAUDE.md / AGENTS.md) and .claude/settings.json:
+  # never clobber an existing one, in any mode.
   # A brand-new project gets the starter bootloader; an existing file is preserved so that
   # /engine-init can absorb its rules first, and /engine-reconcile keeps it in sync after.
-  if (($dest -eq "CLAUDE.md" -or $dest -eq "AGENTS.md") -and (Test-Path $dest)) {
-    Write-Host "  keep  $dest (已存在，保留；运行 /engine-init 吸收其规则后再改写)" -ForegroundColor Yellow
+  if (($dest -eq "CLAUDE.md" -or $dest -eq "AGENTS.md" -or $dest -eq ".claude\settings.json") -and (Test-Path $dest)) {
+    Write-Host "  keep  $dest (已存在，保留；运行 /engine-sync 合并 hooks 字段)" -ForegroundColor Yellow
     $skipped++; continue
   }
 

@@ -78,6 +78,7 @@ AI 动了不该动的东西                  AI 早就知道那里不能碰
 | `SOURCEMAP.md`    | 代码 GPS：哪个文件管哪个功能，加新东西去哪里改                 |
 | `REPO_GUIDE.md`   | 可选：当 SYSTEM 太大时承载仓库命令、流程与维护规则             |
 | `ENGINE_DOCTOR.md`| 引擎健康检查与未来扩展的维护契约                               |
+| `engine/changes/` | 改动胶囊：把 diff 翻译成目标、影响、风险、验证和回滚            |
 | `engine/agents/`  | 可选：Codex、Claude Code、IDE agent、CI bot 的环境适配细则      |
 | `engine/scripts/` | 随仓库打包的维护脚本，包括 registry-driven Engine Doctor        |
 
@@ -199,6 +200,10 @@ Claude 会采访你：项目愿景、技术栈、当前状态、已知的坑、�
 `CONTEXT.md` / `HANDOFF.md` 没回写，Stop hook 会拦一次；SessionEnd 体检 hook 会把
 Doctor warning 缓存给下次启动。其他 agent 仍有 git pre-commit 兜底。
 
+从 v5.7 开始，有意义的改动还会生成 `engine/changes/CHANGE-*.md` 改动胶囊：
+目标、实际变化、影响范围、风险、验证结果、回滚方式和责任边界。你不用看代码 diff，
+只看这份胶囊就能判断“这次改动是否能接受”。
+
 **踩到奇怪的东西：**
 
 ```
@@ -213,7 +218,8 @@ Doctor warning 缓存给下次启动。其他 agent 仍有 git pre-commit 兜底
 /engine-status
 ```
 
-当前状态、活跃任务、未解决的坑，一张快照。
+当前状态、活跃任务、未解决的坑、最近改动胶囊和 Project Self-View，一张快照。
+它会明确告诉你：现在能判断什么、还缺什么证据、架构师需要看哪份胶囊或验收项。
 
 **刚设计完一个新功能：**
 
@@ -240,6 +246,8 @@ Doctor warning 缓存给下次启动。其他 agent 仍有 git pre-commit 兜底
 
 运行随仓库打包的 Doctor 脚本。Doctor 读取 `ENGINE_MAP.md`，所以将来扩展新的引擎文件时，
 它会通过注册表发现新文件，而不是被写死的旧脚本遗忘。
+v5.7 起，Doctor 还会检查最近改动是否有可读胶囊、胶囊是否包含风险/验证/回滚，
+以及标记为 done 的计划是否真的有验收证据。
 
 **更新 Engine System 工具并迁移本地引擎文件：**
 
@@ -266,12 +274,12 @@ Doctor warning 缓存给下次启动。其他 agent 仍有 git pre-commit 兜底
 | 命令                 | 它做的事                                                |
 | -------------------- | ------------------------------------------------------- |
 | `/engine-init`       | 首次初始化。采访你，然后把引擎文件写出来                |
-| `/engine-update`     | 会话结束。同步当前状态，写好交接笔记                    |
-| `/engine-status`     | 打印一张快照：当前状态、活跃任务、未解决的坑            |
+| `/engine-update`     | 会话结束。同步当前状态，写好交接笔记和改动胶囊           |
+| `/engine-status`     | 打印一张自视图：状态、任务、坑、最近改动、缺失证据       |
 | `/add-pitfall`       | 立刻记下一个坑，趁你还没忘                              |
 | `/engine-ingest`     | 把一份新设计/方案归档进 `engine/plans/`，并配验收清单   |
 | `/engine-extend`     | 新增并完整注册一种权威引擎文件类型                      |
-| `/engine-doctor`     | 检查注册表、锚点、plan、预算与生命周期闭环              |
+| `/engine-doctor`     | 检查注册表、锚点、plan、预算、生命周期闭环与自审证据     |
 | `/engine-sync`       | 更新 Engine System 工具，并迁移/对账本地引擎文件        |
 | `/engine-reconcile`  | 对账文档与真实代码，修掉任何漂移                        |
 
@@ -311,7 +319,10 @@ powershell -NoProfile -File .\install.ps1 -Update
 ```
 
 这会保留项目自己的 `SYSTEM.md`、`PITFALLS.md`、`CONTEXT.md`、`HANDOFF.md`、plans 和决策，
-同时补上最新 Doctor 契约、hooks、命令文件与跨 agent 引导文件。
+同时补上最新 Doctor 契约、hooks、命令文件与跨 agent 引导文件。更重要的是，`/engine-sync`
+会把新机制作为迁移补丁写进已有引擎文件，而不是只更新脚本：多 lane 并行工作流、
+自维护循环、change capsule、Project Self-View、done 计划验收证据和 Doctor 自审门禁都会被
+按 additive 方式补入，保留项目原有记忆。
 
 安装器也会把 CLI shim 放到 `engine/bin/`，并尝试安装用户级 `engine` 命令
 （macOS/Linux 是 `~/.local/bin/engine`，Windows 是 `%USERPROFILE%\.engine\bin\engine.cmd`）。

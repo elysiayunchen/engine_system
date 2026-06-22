@@ -17,6 +17,9 @@ session. This is the answer to "is the documentation still true?".
   ENGINE_MAP §4 + a change summary. Re-anchor (re-read from disk) before any write-back.
 - v5.5 rules apply: audit read-gate evidence, complete registration routing, lifecycle
   transaction closure, derivable stub purity, file budgets, and evidence placement.
+- v5.7 self-view rules apply: meaningful recent changes should have architect-readable
+  change capsules with impact, risk, verification, rollback, next step, and responsibility
+  boundary.
 - Engine Doctor is the machine-check contract. Read `engine/ENGINE_DOCTOR.md` if present
   and run the bundled Doctor script before finalizing the report.
 
@@ -68,6 +71,10 @@ A plan whose AC are **all ✅** may be promoted to `done` in §2 (record the dat
 Plan statuses in §2 must be only: `draft / proposed / accepted / active / blocked / done /
 archived / superseded`. Longer notes go in 备注, not as invented statuses.
 
+If an AC is marked ✅, verify that it has evidence in the spec twin's Evidence column,
+`engine/evidence/*`, or a relevant `engine/changes/CHANGE-*.md` capsule. Missing evidence
+blocks promotion to `done` and should be reported as `missing acceptance evidence`.
+
 ## Step 5: Check drift (derivable claims vs real code)
 Where a derivable file asserts a fact about the code (e.g. "SOURCEMAP says
 `src/foo.ts` exists"), verify it. Mismatches (file moved, renamed, deleted; stack
@@ -102,10 +109,22 @@ disposable generated cache or remove it, leaving only recipes.
 - If Doctor itself is missing or unregistered, treat that as a maintenance drift item:
   register `ENGINE_DOCTOR.md` in §1 and add/restore scripts through `/engine-sync`.
 
+## Step 6.6: Check Change Capsules & Project Self-View
+- Inspect `engine/changes/CHANGE-*.md` if present. The latest meaningful code/doc/engine
+  change should have one capsule.
+- Each capsule must include: Goal, Actual Changes, Impact Scope, Risk & Watchpoints,
+  Verification, Rollback, Next Step, and Responsibility Boundary.
+- If `git status --short` shows changed code/docs/scripts but no capsule, report
+  `missing change capsule`.
+- Generate a brief self-view in the report: what the architect can judge now, what is
+  still unverifiable, and what decision remains theirs.
+- Generated self-view files belong in `engine/.cache/project-view.generated.md` only when
+  explicitly requested; do not register generated-cache in ENGINE_MAP.
+
 ## Step 7: Update ENGINE_MAP §4 (Integrity & Freshness)
 Write back: global revision, last-RECONCILE date, dangling refs, drift warnings.
-Keep §4 short: status, warnings, and pointers only. Long evidence belongs in spec twins or
-`engine/evidence/*`.
+Keep §4 short: status, warnings, latest change capsule pointer, and revision only. Long
+evidence belongs in spec twins, `engine/evidence/*`, or `engine/changes/*`.
 
 ## Step 8: Report (简体中文), then confirm before landing fixes
 Output a reconciliation report:
@@ -118,6 +137,8 @@ Output a reconciliation report:
 - 🧼 Stub purity：[污染项或无]
 - 📏 文件预算：[超限项或无]
 - 🩺 Doctor：[pass / fail / missing / unregistered]
+- 🧭 自视图：[架构师现在能判断什么 / 还不能判断什么]
+- 📦 Change capsule：[latest / missing / incomplete]
 - 🔗 悬空引用：[§3 中指向已删除目标的引用，或「无」]
 - ⚓ 锚点层：[引导器一致性 / 已吸收的用户手写规则 / 包锚点覆盖率]
 - ✔️ 升为 done 的 plan：[PLAN-NN，或「无」]

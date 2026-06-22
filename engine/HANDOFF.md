@@ -4,14 +4,15 @@
 
 ## 立即恢复点
 
-下一步：提交本轮归档与功能性优化；后续改 engine-init / Doctor / pitfall 结构时，同步更新根目录唯一 web 初始机 `ENGINE_FILE_SYSTEM_v5.md`。
+下一步：提交并推送 v5.7 自视图、change capsule 与旧项目 `/engine-sync` 迁移路径；后续决定缺少 change capsule 是否从 warning 升级为 hard failure。
 
-> 本轮交接完成。初始机已升级 v5.6.0，自维护循环三层架构(原生 hook + git pre-commit + 锚点契约)已写入主规格文件。
+> 本轮交接完成。初始机已升级 v5.7.0，自视图 / 改动胶囊 / Doctor 自审门禁 / 旧项目 SYNC 迁移清单已写入主规格、插件命令与脚本。
 
 ## 会话历史（最新在上）
 
 | 日期 | 完成了什么 | 下一步 | 改动文件 |
 |------|-----------|--------|---------|
+| 2026-06-22 | 实现 v5.7 架构师自视图与 change capsule，并补齐旧项目升级路径：`/engine-sync` 会 additive 迁移多 lane、自维护循环、change capsule、Project Self-View、验收证据和 Doctor parity；PowerShell/Bash 检查全绿 | 提交并推送本轮改动；后续评估 missing change capsule 是否需要升级为 hard failure | ENGINE_FILE_SYSTEM_v5.md, README*, install.*, engine/bin/*, engine/ENGINE_DOCTOR.md, engine/CONTEXT.md, engine/HANDOFF.md, engine/ENGINE_MAP.md, engine/changes/CHANGE-2026-06-22-01.md, engine/scripts/engine-doctor.*, engine/scripts/engine-sync-agent-anchors.*, plugin/AGENTS.md, plugin/.claude/commands/*, plugin/bin/*, plugin/engine/* |
 | 2026-06-22 | 完成引擎功能性优化并整理 web 初始机入口：Doctor 增加语义记忆检查，`/engine-status` 仪表盘化，pitfall 模板补触发/范围/验证；`ENGINE_FILE_SYSTEM_v5.5.md`、`ENGINE_FILE_SYSTEM_v5.2.md`、`ENGINE_FILE_SYSTEM_v4_legacy.txt` 归档，根目录只留 `ENGINE_FILE_SYSTEM_v5.md` | 提交本轮改动；以后每次更新初始化规则都同步更新唯一 web prompt | ENGINE_FILE_SYSTEM_v5.md, archive/engine-file-system/*, README*, engine/*, plugin/.claude/commands/*, engine/scripts/engine-doctor.*, plugin/engine/scripts/engine-doctor.*, install.ps1, scripts/check.ps1 |
 | 2026-06-21 | 合并到 main 前修复 Doctor 双副本漂移：保留 main 上对 scratch spec、inline/composite plan 的兼容逻辑，并同步到 engine 与 plugin 两份脚本 | 重新跑 `scripts/check.*`，通过后推送 main | engine/scripts/engine-doctor.*, plugin/engine/scripts/engine-doctor.*, engine/HANDOFF.md |
 | 2026-06-21 | 根据项目体检完成工程化优化：新增一键 health check、插件 manifest、Doctor package mode、Windows installer PowerShell hook 配置；修复 shell manifest CRLF 路径假失败；PowerShell 与 Git Bash 检查均全绿 | 决定 `ENGINE_FILE_SYSTEM_v5.2.md` 未跟踪文件处理方式；发布前继续以 `scripts/check.*` 作为门禁 | scripts/check.*, plugin/manifest.json, engine/scripts/engine-doctor.*, plugin/engine/scripts/engine-doctor.*, install.ps1, .gitattributes, ENGINE_DOCTOR/CONTEXT/HANDOFF |

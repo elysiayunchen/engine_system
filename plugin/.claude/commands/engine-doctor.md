@@ -19,6 +19,8 @@ does not replace `/engine-reconcile`; it gives RECONCILE a concrete validation s
    - failure count
    - warning count
    - highest-impact failures
+   - self-view gate: latest change capsule present / missing / incomplete
+   - acceptance gate: active AC evidence complete / missing / not applicable
    - whether `/engine-reconcile` or `/engine-extend` is the right next action
 
 Doctor is read-only. In multi-agent sessions, several agents may run it in parallel,
@@ -30,5 +32,8 @@ Any fix must be merged by a single writer after re-anchoring the target files.
   `ENGINE_MAP.md` §1, not from a hard-coded script list.
 - If Doctor misses a new extension type, update `engine/ENGINE_DOCTOR.md` first, then the
   scripts, then run `/engine-sync`.
+- Doctor should warn when a meaningful recent change cannot be reviewed by a non-technical
+  architect because it lacks a change capsule, risk statement, verification evidence,
+  rollback path, or responsibility boundary.
 - Do not auto-fix engine files from Doctor output alone; use `/engine-reconcile` for
   confirmed repair, or `/engine-extend` for missing authority registration.

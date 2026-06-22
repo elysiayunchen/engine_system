@@ -16,7 +16,8 @@ Usage:
 
 `engine update` downloads the latest installer and runs update mode. It does not overwrite
 project-specific engine/*.md memory. After it finishes, open your AI agent and run
-/engine-sync to migrate old engine files to the latest contract.
+/engine-sync to migrate old engine files to the latest contract mechanisms, including
+multi-lane workstreams, self-maintenance hooks, change capsules, and acceptance evidence.
 EOF
 }
 
@@ -40,7 +41,9 @@ case "${1:-help}" in
     bash "$tmp" --update
     echo ""
     echo "Engine tooling updated from remote."
-    echo "Next: run /engine-sync in your AI agent to migrate old engine files safely."
+    echo "Next: run /engine-sync in your AI agent."
+    echo "That migrates existing engine files to the latest mechanisms: multi-lane work,"
+    echo "self-maintenance hooks, change capsules, and acceptance evidence."
     ;;
   help|-h|--help)
     usage

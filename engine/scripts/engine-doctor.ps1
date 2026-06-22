@@ -381,6 +381,81 @@ function Test-SprintSemantics {
   }
 }
 
+function Get-ChangedPaths {
+  $git = Get-Command git -ErrorAction SilentlyContinue
+  if (-not $git) { return @() }
+  try {
+    $status = & $git.Source -C $Root status --short 2>$null
+    if ($LASTEXITCODE -ne 0) { return @() }
+    return @($status | ForEach-Object {
+      if ($_ -match "^\s*(?:[A-Z?]{1,2})\s+(.+)$") { $Matches[1].Trim() }
+    } | Where-Object { $_ })
+  } catch {
+    return @()
+  }
+}
+
+function Test-ChangeCapsuleSemantics {
+  $changesDir = Join-Path $engineDir "changes"
+  $capsules = @()
+  if (Test-Path $changesDir) {
+    $capsules = @(Get-ChildItem -Path $changesDir -File -Filter "CHANGE-*.md" | Sort-Object LastWriteTime -Descending)
+  }
+
+  $changedPaths = @(Get-ChangedPaths)
+  $meaningfulChanges = @($changedPaths | Where-Object {
+    $_ -notmatch "^engine/changes/" -and
+    $_ -notmatch "^engine/\.cache/" -and
+    $_ -notmatch "^\.git/" -and
+    $_ -notmatch "^archive/"
+  })
+
+  if ($meaningfulChanges.Count -gt 0 -and $capsules.Count -eq 0) {
+    Write-Warn "meaningful changed files exist but no change capsule was found in engine/changes"
+    return
+  }
+
+  if ($capsules.Count -eq 0) { return }
+
+  $latest = $capsules[0]
+  Write-Pass "latest change capsule exists: engine/changes/$($latest.Name)"
+  $content = Get-Content -Raw -Path $latest.FullName -Encoding UTF8
+  $requiredSections = @(
+    @{ Key = "goal"; Pattern = "(?m)^##\s+Goal\s*$" },
+    @{ Key = "actual changes"; Pattern = "(?m)^##\s+Actual Changes\s*$" },
+    @{ Key = "impact scope"; Pattern = "(?m)^##\s+Impact Scope\s*$" },
+    @{ Key = "risk"; Pattern = "(?m)^##\s+Risk & Watchpoints\s*$" },
+    @{ Key = "verification"; Pattern = "(?m)^##\s+Verification\s*$" },
+    @{ Key = "rollback"; Pattern = "(?m)^##\s+Rollback\s*$" },
+    @{ Key = "next step"; Pattern = "(?m)^##\s+Next Step\s*$" },
+    @{ Key = "responsibility boundary"; Pattern = "(?m)^##\s+Responsibility Boundary\s*$" }
+  )
+  foreach ($section in $requiredSections) {
+    if ($content -notmatch $section.Pattern) {
+      Write-Warn "$($latest.Name) is missing change capsule section: $($section.Key)"
+    }
+  }
+  if ($content -match "\[.*\]|TBD|TODO") {
+    Write-Warn "$($latest.Name) still contains placeholders"
+  }
+}
+
+function Test-PlanAcceptanceEvidence {
+  foreach ($row in $planRows) {
+    $cells = Split-Row $row
+    if ($cells.Count -lt 5) { continue }
+    $id = $cells[0]; $status = $cells[2]; $spec = $cells[4]
+    if ($status -ne "done") { continue }
+    if (-not $spec -or -not $spec.StartsWith("engine/") -or $spec -match "\+") { continue }
+    $specPath = Join-Path $Root ($spec -replace "/", [IO.Path]::DirectorySeparatorChar)
+    if (-not (Test-Path $specPath)) { continue }
+    $content = Get-Content -Raw -Path $specPath -Encoding UTF8
+    if ($content -notmatch "Evidence|证据|engine/changes/CHANGE-|engine/evidence/") {
+      Write-Warn "$id is marked done but has no acceptance evidence pointer"
+    }
+  }
+}
+
 if (Test-Path $engineDir) {
   Get-ChildItem -Path $engineDir -File -Filter "*.md" | ForEach-Object {
     $rel = "engine/$($_.Name)"
@@ -437,6 +512,8 @@ Test-ContextSemantics
 Test-HandoffSemantics
 Test-PitfallsSemantics
 Test-SprintSemantics
+Test-ChangeCapsuleSemantics
+Test-PlanAcceptanceEvidence
 
 foreach ($anchor in @("AGENTS.md", "CLAUDE.md")) {
   $path = Join-Path $Root $anchor

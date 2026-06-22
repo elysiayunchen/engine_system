@@ -53,6 +53,16 @@ silently treat the script as legacy.
     not useful: `CONTEXT.md` needs a concrete status panel, `HANDOFF.md` needs a next-step
     resume pointer plus dated history, `PITFALLS.md` entries need trigger/scope/avoid/verify
     fields, and `SPRINT.md` should point to completion criteria and verification.
+19. Meaningful code, documentation, engine-tooling, dependency, test, or behavior changes
+    should have an architect-readable change capsule under `engine/changes/CHANGE-*.md`.
+    Capsules are operational evidence, not §1 authority files.
+20. Each change capsule should include Goal, Actual Changes, Impact Scope, Risk & Watchpoints,
+    Verification, Rollback, Next Step, and Responsibility Boundary, so a non-technical
+    architect can judge the change without reading a diff.
+21. Plans marked `done` must point to acceptance evidence in the spec twin's Evidence column,
+    `engine/evidence/*`, or a relevant `engine/changes/CHANGE-*.md`. Generated self-view
+    snapshots belong in `engine/.cache/project-view.generated.md` and are never registered
+    as authority.
 
 ## Script Contract
 Preferred commands:

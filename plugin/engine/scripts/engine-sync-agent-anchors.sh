@@ -25,8 +25,9 @@ managed_block() {
 
 Read `engine/ENGINE_MAP.md` before editing. Follow the session protocol in `AGENTS.md`:
 run the path-driven read-gate before edits, write incremental updates to `engine/CONTEXT.md`
-and `engine/HANDOFF.md` after meaningful code changes, and keep shared engine-file writes
-single-writer.
+and `engine/HANDOFF.md` after meaningful changes, create/update an architect-readable
+`engine/changes/CHANGE-*.md` capsule with impact/risk/verification/rollback, preserve
+multi-lane workstream structure, and keep shared engine-file writes single-writer.
 <!-- ENGINE_SYSTEM_SYNC_END -->
 EOF
 }

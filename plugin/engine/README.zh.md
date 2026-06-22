@@ -23,6 +23,7 @@
 | `SOURCEMAP.md`    | 代码 GPS:哪个文件管哪个功能                         |
 | `REPO_GUIDE.md`   | 可选：仓库命令、流程与维护规则                      |
 | `ENGINE_DOCTOR.md`| 引擎健康检查的维护契约                              |
+| `changes/`        | 改动胶囊：目标、影响、风险、验证和回滚               |
 | `engine/agents/`  | 可选：不同 AI 工具/环境的适配规则                   |
 | `scripts/`        | 随仓库打包的 Doctor、hook 与跨 agent 同步脚本        |
 | `plans/`          | 你聊出来的设计文档,每份都配一张验收清单             |
@@ -41,6 +42,10 @@ CLI-LEAN 只存没法从代码重建的部分,其余按需现读。
 - **多个 agent 并行?** 可以并行做草稿或证据,但共享引擎文件要单写者收口,最后统一合并。
 - **会话结束?** 运行 `/engine-update` 同步状态、写好交接笔记。Claude Code hook
   可以自动加载上次交接、拦截漏写回的代码改动,并把 Doctor 结果缓存给下次会话。
+- **想审核这次改了什么?** 看 `changes/CHANGE-*.md` 改动胶囊。它把代码 diff 翻译成
+  架构师能判断的目标、影响、风险、验证、回滚和责任边界。
+- **想看项目自视图?** 运行 `/engine-status`。它会展示当前能判断什么、缺什么证据、
+  最近改动胶囊和下一步。
 - **需要新的记忆类型?** 运行 `/engine-extend` 完整注册新的权威引擎文件。
 - **更新 Engine System?** 运行 `/engine-sync`，然后跑 `/engine-doctor`。
 

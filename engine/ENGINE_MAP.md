@@ -1,6 +1,6 @@
 # ENGINE_MAP — 引擎索引
 
-> Engine System (engine_system) · Revision: 4 · Last updated: 2026-06-22
+> Engine System (engine_system) · Revision: 5 · Last updated: 2026-06-22
 > ⚠️ MVP dogfood 实例（精简版）。完整 v5.5 注册表（§1.1 / §1.2 / §2 / §3 / 预算）待 `/engine-reconcile` 或 `/engine-init` 补全。
 
 ## §0 Profile & Read-Gate
@@ -23,6 +23,7 @@
 
 ## §4 完整性与新鲜度
 
-- 全局 revision：4
-- 状态：MVP dogfood 阶段，已注册 hooks 闭环所需的最小文件集（ENGINE_MAP / CONTEXT / HANDOFF / AGENT_ADAPTERS / ENGINE_DOCTOR）；web 端初始机根目录只保留 `ENGINE_FILE_SYSTEM_v5.md`，历史版本归档到 `archive/engine-file-system/`。
+- 全局 revision：5
+- 状态：MVP dogfood 阶段，已注册 hooks 闭环所需的最小文件集（ENGINE_MAP / CONTEXT / HANDOFF / AGENT_ADAPTERS / ENGINE_DOCTOR）；v5.7 已加入 Project Self-View、change capsule、Doctor 自审门禁和旧项目 `/engine-sync` 契约迁移清单；web 端初始机根目录只保留 `ENGINE_FILE_SYSTEM_v5.md`，历史版本归档到 `archive/engine-file-system/`。
+- 最近 change capsule：`engine/changes/CHANGE-2026-06-22-01.md`
 - 已知缺口：SYSTEM.md、PITFALLS.md、ARCHITECTURE.md 等尚未生成；锚点（根 CLAUDE.md/AGENTS.md）尚未铺设。

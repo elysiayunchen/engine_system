@@ -46,7 +46,7 @@ $FILES = @(
 
 Write-Host ""
 Write-Host "Engine System installer" -ForegroundColor Cyan
-Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+Write-Host "-------------------------------------"
 
 New-Item -ItemType Directory -Force -Path ".claude\commands", "engine", "engine\scripts", "engine\scripts\githooks", "engine\bin", "engine\.cache" | Out-Null
 
@@ -61,7 +61,7 @@ foreach ($f in $FILES) {
   # A brand-new project gets the starter bootloader; an existing file is preserved so that
   # /engine-init can absorb its rules first, and /engine-reconcile keeps it in sync after.
   if (($dest -eq "CLAUDE.md" -or $dest -eq "AGENTS.md" -or $dest -eq ".claude\settings.json") -and (Test-Path $dest)) {
-    Write-Host "  keep  $dest (已存在，保留；运行 /engine-sync 合并 hooks 字段)" -ForegroundColor Yellow
+    Write-Host "  keep  $dest (already exists; run /engine-sync to merge hooks)" -ForegroundColor Yellow
     $skipped++; continue
   }
 
@@ -122,7 +122,7 @@ foreach ($f in $FILES) {
   } else {
     Invoke-WebRequest -Uri $url -OutFile $dest -UseBasicParsing
   }
-  Write-Host "  ✓ $dest" -ForegroundColor Green
+  Write-Host "  ok    $dest" -ForegroundColor Green
   $installed++
 }
 
@@ -131,12 +131,12 @@ if (Test-Path "engine\bin\engine.ps1") {
   New-Item -ItemType Directory -Force -Path $cliDir | Out-Null
   Copy-Item "engine\bin\engine.ps1" (Join-Path $cliDir "engine.ps1") -Force
   Copy-Item "engine\bin\engine.cmd" (Join-Path $cliDir "engine.cmd") -Force
-  Write-Host "  ✓ $cliDir\engine.cmd (CLI: engine update)" -ForegroundColor Green
+  Write-Host "  ok    $($cliDir)\engine.cmd (CLI: engine update)" -ForegroundColor Green
   $installed++
   $pathParts = ($env:PATH -split ";") | Where-Object { $_ }
   if ($pathParts -notcontains $cliDir) {
-    Write-Host "  note  add $cliDir to PATH to run: engine update" -ForegroundColor Yellow
-    Write-Host "        This session can run: $cliDir\engine.cmd update" -ForegroundColor Yellow
+    Write-Host "  note  add $($cliDir) to PATH to run: engine update" -ForegroundColor Yellow
+    Write-Host "        This session can run: $($cliDir)\engine.cmd update" -ForegroundColor Yellow
   }
 }
 
@@ -148,18 +148,18 @@ if ($insideGit -eq "true") {
     $hookPath = Join-Path $hookDir "pre-commit"
     New-Item -ItemType Directory -Force -Path $hookDir | Out-Null
     if (Test-Path $hookPath) {
-      Write-Host "  keep  $hookPath (已存在；如需 B 层门禁，请手动合并 engine\scripts\githooks\pre-commit)" -ForegroundColor Yellow
+      Write-Host "  keep  $hookPath (already exists; merge engine\scripts\githooks\pre-commit manually if needed)" -ForegroundColor Yellow
       $skipped++
     } elseif (Test-Path "engine\scripts\githooks\pre-commit") {
       Copy-Item "engine\scripts\githooks\pre-commit" $hookPath -Force
-      Write-Host "  ✓ $hookPath" -ForegroundColor Green
+      Write-Host "  ok    $hookPath" -ForegroundColor Green
       $installed++
     }
   }
 }
 
 Write-Host ""
-Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+Write-Host "-------------------------------------"
 Write-Host "Done. $installed files installed, $skipped skipped." -ForegroundColor Green
 Write-Host ""
 

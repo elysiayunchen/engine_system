@@ -235,6 +235,91 @@ is_registered() {
   return 1
 }
 
+is_registered_name() {
+  local candidate="$1"
+  for name in $registered_names; do
+    [[ "$name" == "$candidate" || "$name" == "engine/$candidate" ]] && return 0
+  done
+  return 1
+}
+
+require_section() {
+  local file="$1" path="$2" pattern="$3" label="$4"
+  if ! grep -Eq "$pattern" "$path"; then
+    warn "$file is missing semantic section: $label"
+  fi
+}
+
+check_context_semantics() {
+  is_registered_name "CONTEXT.md" || return 0
+  local path="$ENGINE_DIR/CONTEXT.md"
+  [[ -f "$path" ]] || return 0
+
+  require_section "CONTEXT.md" "$path" '^##[[:space:]]+状态面板' "状态面板"
+  for label in 构建 上次完成 进行中 阻塞; do
+    local row value
+    row="$(grep -E "^\|[[:space:]]*$label[[:space:]]*\|" "$path" | head -n 1 || true)"
+    if [[ -z "$row" ]]; then
+      warn "CONTEXT.md status panel missing row: $label"
+      continue
+    fi
+    value="$(printf '%s' "$row" | awk -F'|' '{print $3}' | xargs)"
+    if [[ -z "$value" || "$value" =~ ^\[.*\]$ || "$value" == "TBD" || "$value" == "TODO" ]]; then
+      warn "CONTEXT.md status row '$label' is placeholder or empty"
+    fi
+  done
+}
+
+check_handoff_semantics() {
+  is_registered_name "HANDOFF.md" || return 0
+  local path="$ENGINE_DIR/HANDOFF.md"
+  [[ -f "$path" ]] || return 0
+
+  require_section "HANDOFF.md" "$path" '^##[[:space:]]+立即恢复点' "立即恢复点"
+  require_section "HANDOFF.md" "$path" '^##[[:space:]]+会话历史' "会话历史"
+  if ! grep -Eq '^下一步[:：][[:space:]]*[^[:space:]\[]' "$path"; then
+    warn "HANDOFF.md has no concrete next-step resume pointer"
+  fi
+  if ! grep -Eq '^\|[[:space:]]*[0-9]{4}-[0-9]{2}-[0-9]{2}[[:space:]]*\|' "$path"; then
+    warn "HANDOFF.md has no dated session history rows"
+  fi
+}
+
+check_pitfalls_semantics() {
+  is_registered_name "PITFALLS.md" || return 0
+  local path="$ENGINE_DIR/PITFALLS.md"
+  [[ -f "$path" ]] || return 0
+
+  grep -Eq '^##[[:space:]]+(条目|Entries)' "$path" || warn "PITFALLS.md is missing entries section"
+  grep -Eq '^##[[:space:]]+(索引|Index)' "$path" || warn "PITFALLS.md is missing index section"
+
+  local ids
+  ids="$(grep -E '^###[[:space:]]+P[0-9]{3}[[:space:]]+[—-]' "$path" | sed -E 's/^###[[:space:]]+(P[0-9]{3}).*/\1/' || true)"
+  while IFS= read -r id; do
+    [[ -z "$id" ]] && continue
+    local body
+    body="$(awk -v id="$id" '
+      $0 ~ "^###[[:space:]]+" id "[[:space:]]+[—-]" { in_entry=1; print; next }
+      in_entry && $0 ~ "^###[[:space:]]+P[0-9]{3}[[:space:]]+[—-]" { exit }
+      in_entry { print }
+    ' "$path")"
+    for field in 严重程度 类别 状态 你能观察到的现象 错误做法 正确做法 触发条件 验证方式; do
+      if ! printf '%s\n' "$body" | grep -F "**$field：**" >/dev/null 2>&1; then
+        warn "$id is missing pitfall field: $field"
+      fi
+    done
+  done <<< "$ids"
+}
+
+check_sprint_semantics() {
+  is_registered_name "SPRINT.md" || return 0
+  local path="$ENGINE_DIR/SPRINT.md"
+  [[ -f "$path" ]] || return 0
+
+  grep -Eq '完成标准|验收|Acceptance' "$path" || warn "SPRINT.md has no completion criteria"
+  grep -Eiq '验证方法|verify|verification' "$path" || warn "SPRINT.md has no verification method pointers"
+}
+
 while IFS= read -r path; do
   rel="${path#"$ROOT/"}"
   if [[ "$rel" == engine/README.md || "$rel" == engine/README.zh.md ]]; then
@@ -257,6 +342,11 @@ if [[ -d "$ENGINE_DIR/agents" ]]; then
     fi
   done < <(find "$ENGINE_DIR/agents" -maxdepth 1 -type f -name '*.md' 2>/dev/null)
 fi
+
+check_context_semantics
+check_handoff_semantics
+check_pitfalls_semantics
+check_sprint_semantics
 
 while IFS='|' read -r _ path type authority verified _; do
   path="$(trim "$path")"

@@ -41,6 +41,28 @@ else
   pass "pwsh unavailable, skipped PowerShell parse"
 fi
 
+step "Web prompt entrypoint"
+root_prompts="$(find . -maxdepth 1 -type f -name 'ENGINE_FILE_SYSTEM*' 2>/dev/null | sed 's#^\./##' | sort)"
+unexpected_root_prompts="$(printf '%s\n' "$root_prompts" | grep -vx 'ENGINE_FILE_SYSTEM_v5.md' || true)"
+if [[ -f "ENGINE_FILE_SYSTEM_v5.md" && -z "$unexpected_root_prompts" ]]; then
+  pass "single active root web prompt"
+else
+  fail "root must contain only ENGINE_FILE_SYSTEM_v5.md as active web prompt"
+  printf '%s\n' "$root_prompts" | sed 's/^/  root prompt: /'
+fi
+
+for archived_prompt in \
+  ENGINE_FILE_SYSTEM_v4_legacy.txt \
+  ENGINE_FILE_SYSTEM_v5.2.md \
+  ENGINE_FILE_SYSTEM_v5.5.md
+do
+  if [[ -f "archive/engine-file-system/$archived_prompt" ]]; then
+    pass "archived prompt exists: $archived_prompt"
+  else
+    fail "archived prompt missing: $archived_prompt"
+  fi
+done
+
 if [[ "$failures" -gt 0 ]]; then
   printf '\nCHECK FAILED: %s issue(s)\n' "$failures" >&2
   exit 1

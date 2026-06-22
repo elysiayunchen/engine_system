@@ -66,6 +66,9 @@ Record it as a FULL entry — match the structure `/engine-init` generates, not 
    - **根因：** [if known, else TBD]
    - **错误做法：** [if known, else TBD]
    - **正确做法：** [the fix / workaround, if known, else TBD]
+   - **触发条件：** [command, file path, environment, user action, or TBD]
+   - **影响范围：** [path / module / platform / agent type, or global/TBD]
+   - **验证方式：** [smallest repeatable check that proves the pitfall is avoided]
    - **发现时间：** [today's date]
    ```
 2. Append the matching row to the **索引** table:

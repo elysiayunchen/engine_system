@@ -33,6 +33,53 @@ function Invoke-PwshFile([string]$Path, [string[]]$Arguments, [string]$Name) {
   }
 }
 
+function Test-WindowsPowerShellCompatibility([string]$ProjectRoot) {
+  $winPs = Get-Command powershell -ErrorAction SilentlyContinue
+  if (-not $winPs) {
+    Pass "Windows PowerShell unavailable, skipped"
+    return
+  }
+
+  $currentExe = (Get-Process -Id $PID).Path
+  if ((Resolve-Path $winPs.Source).Path -eq (Resolve-Path $currentExe).Path) {
+    Pass "current host is Windows PowerShell"
+    return
+  }
+
+  $compatScript = @'
+param([string]$Root)
+$failureCount = 0
+
+Get-ChildItem -Path $Root -Recurse -File -Include *.ps1 | ForEach-Object {
+  $tokens = $null
+  $errors = $null
+  [System.Management.Automation.Language.Parser]::ParseFile($_.FullName, [ref]$tokens, [ref]$errors) | Out-Null
+  if ($errors.Count -gt 0) {
+    $failureCount++
+    Write-Host "FAIL $($_.FullName)"
+    $errors | ForEach-Object {
+      Write-Host "  $($_.Message) at $($_.Extent.StartLineNumber):$($_.Extent.StartColumnNumber)"
+    }
+  }
+}
+
+exit $failureCount
+'@
+
+  $tmp = Join-Path ([IO.Path]::GetTempPath()) ("engine-winps-parse-" + [guid]::NewGuid().ToString("N") + ".ps1")
+  try {
+    Set-Content -Path $tmp -Value $compatScript -Encoding UTF8
+    & $winPs.Source -NoProfile -ExecutionPolicy Bypass -File $tmp -Root $ProjectRoot
+    if ($LASTEXITCODE -eq 0) {
+      Pass "all PowerShell scripts parse in Windows PowerShell"
+    } else {
+      Fail "Windows PowerShell parser exited $LASTEXITCODE"
+    }
+  } finally {
+    Remove-Item -Path $tmp -ErrorAction SilentlyContinue
+  }
+}
+
 Push-Location $Root
 try {
   Step "Engine Doctor"
@@ -53,6 +100,9 @@ try {
       Pass (Resolve-Path -Relative $_.FullName)
     }
   }
+
+  Step "Windows PowerShell compatibility"
+  Test-WindowsPowerShellCompatibility (Get-Location).Path
 
   Step "Shell syntax"
   $bash = "C:\Program Files\Git\bin\bash.exe"
@@ -80,6 +130,23 @@ try {
   foreach ($src in $manifestSrc) {
     if (-not (Test-Path (Join-Path "plugin" ($src -replace "/", [IO.Path]::DirectorySeparatorChar)))) {
       Fail "manifest source missing: $src"
+    }
+  }
+
+  Step "Web prompt entrypoint"
+  $rootPrompts = @(Get-ChildItem -Path . -File -Filter "ENGINE_FILE_SYSTEM*" | ForEach-Object { $_.Name })
+  $unexpectedRootPrompts = @($rootPrompts | Where-Object { $_ -ne "ENGINE_FILE_SYSTEM_v5.md" })
+  if ((Test-Path ".\ENGINE_FILE_SYSTEM_v5.md") -and $unexpectedRootPrompts.Count -eq 0) {
+    Pass "single active root web prompt"
+  } else {
+    Fail "root must contain only ENGINE_FILE_SYSTEM_v5.md as active web prompt"
+    $rootPrompts | ForEach-Object { Write-Host "  root prompt: $_" -ForegroundColor Red }
+  }
+  foreach ($archivedPrompt in @("ENGINE_FILE_SYSTEM_v4_legacy.txt", "ENGINE_FILE_SYSTEM_v5.2.md", "ENGINE_FILE_SYSTEM_v5.5.md")) {
+    if (Test-Path (Join-Path ".\archive\engine-file-system" $archivedPrompt)) {
+      Pass "archived prompt exists: $archivedPrompt"
+    } else {
+      Fail "archived prompt missing: $archivedPrompt"
     }
   }
 

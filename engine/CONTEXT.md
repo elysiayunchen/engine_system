@@ -1,14 +1,14 @@
 # CONTEXT — 当前状态
 
-> Engine System (engine_system) · Last updated: 2026-06-21 · Profile: CLI-LEAN
+> Engine System (engine_system) · Last updated: 2026-06-22 · Profile: CLI-LEAN
 
 ## 状态面板
 
 | 维度 | 状态 |
 |------|------|
 | 构建 | ✅ 正常（纯 markdown + shell 脚本，无构建步骤） |
-| 上次完成 | 本轮完成仓库健康优化：新增 `scripts/check.ps1` / `scripts/check.sh` 一键检查、`plugin/manifest.json` 安装清单、Doctor package mode、Windows installer PowerShell hook 配置；两条检查入口均已全绿 |
-| 进行中 | v5.6 自维护循环收尾：发布前保持 `scripts/check.*` 全绿，并决定未跟踪的 `ENGINE_FILE_SYSTEM_v5.2.md` 是归档、纳入版本还是忽略 |
+| 上次完成 | 完成引擎功能性优化与 web 初始机整理：Doctor 增加语义记忆检查，`/engine-status` 升级为仪表盘，pitfall 条目补触发/范围/验证字段；根目录只保留 `ENGINE_FILE_SYSTEM_v5.md`，v5.5/v5.2/v4 legacy 已归档 |
+| 进行中 | 提交本轮改动；后续每次改动 engine-init 规则时，同步更新根目录唯一 web 初始机 `ENGINE_FILE_SYSTEM_v5.md` |
 | 阻塞 | 无 |
 
 ## 当前假设 / 决策（本轮拍板）
@@ -17,6 +17,7 @@
 - **Web 端策略 = 双轨**：hooks 是 Claude Code 专属增强；Web 端 AI 靠「增量回写契约」+ 手动命令。
 - **落地节奏 = 先 MVP 自试**：先验证 hooks 闭环手感，再补全三层（增量契约 + 完整 hooks + 零配置安装）并发版 v5.6。
 - **健康门禁 = 一键入口**：发布前优先跑 `pwsh -NoProfile -File scripts/check.ps1 -Root .` 或 `bash scripts/check.sh`，覆盖 Doctor、脚本语法、manifest 和副本漂移。
+- **Web 初始机 = 单一稳定入口**：根目录只保留 `ENGINE_FILE_SYSTEM_v5.md`；历史版本进入 `archive/engine-file-system/`，不要作为活跃入口；每次改 plugin 初始化规则时必须同步更新该稳定 prompt。
 
 ## 待验证
 

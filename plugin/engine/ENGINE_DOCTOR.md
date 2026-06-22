@@ -1,5 +1,5 @@
 # ENGINE_DOCTOR — Engine System Maintenance Checker
-> Last updated: 2026-06-21 | Class: irreducible | This file is the authoritative maintenance spec for engine health checks.
+> Last updated: 2026-06-22 | Class: irreducible | This file is the authoritative maintenance spec for engine health checks.
 
 ## Scope
 ENGINE_DOCTOR defines how the project validates the engine memory layer itself. It is an
@@ -49,6 +49,10 @@ silently treat the script as legacy.
     `plugin/manifest.json`: every source file exists, required commands/scripts/shims are
     present, and Claude hook settings contain SessionStart and Stop. Package mode must not
     require `engine/ENGINE_MAP.md`, because templates are initialized later by `/engine-init`.
+18. Semantic memory checks warn when registered hot-path files are structurally present but
+    not useful: `CONTEXT.md` needs a concrete status panel, `HANDOFF.md` needs a next-step
+    resume pointer plus dated history, `PITFALLS.md` entries need trigger/scope/avoid/verify
+    fields, and `SPRINT.md` should point to completion criteria and verification.
 
 ## Script Contract
 Preferred commands:

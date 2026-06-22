@@ -1,6 +1,6 @@
 # ENGINE_MAP — 引擎索引
 
-> Engine System (engine_system) · Revision: 3 · Last updated: 2026-06-21
+> Engine System (engine_system) · Revision: 4 · Last updated: 2026-06-22
 > ⚠️ MVP dogfood 实例（精简版）。完整 v5.5 注册表（§1.1 / §1.2 / §2 / §3 / 预算）待 `/engine-reconcile` 或 `/engine-init` 补全。
 
 ## §0 Profile & Read-Gate
@@ -12,17 +12,17 @@
 
 | 文件 | Class | 说明 | Last verified |
 |------|-------|------|---------------|
-| ENGINE_MAP.md | index | 本索引，每次会话最先读 | 2026-06-21 |
-| CONTEXT.md | irreducible | 当前状态面板 + 本轮决策 | 2026-06-21 |
-| HANDOFF.md | irreducible | 会话交接历史 + 立即恢复点 | 2026-06-21 |
+| ENGINE_MAP.md | index | 本索引，每次会话最先读 | 2026-06-22 |
+| CONTEXT.md | irreducible | 当前状态面板 + 本轮决策 | 2026-06-22 |
+| HANDOFF.md | irreducible | 会话交接历史 + 立即恢复点 | 2026-06-22 |
 | AGENT_ADAPTERS.md | irreducible | 跨 agent 自维护适配策略（A/B/C 三档） | 2026-06-21 |
-| ENGINE_DOCTOR.md | irreducible | 引擎健康检查与自维护脚本契约 | 2026-06-21 |
+| ENGINE_DOCTOR.md | irreducible | 引擎健康检查与自维护脚本契约 | 2026-06-22 |
 
 > 维护脚本：`plugin/engine/scripts/engine-hook-session-start.{sh,ps1}`、`engine-hook-stop.{sh,ps1}`、`engine-doctor.{sh,ps1}`、`githooks/pre-commit`。
 > 按 v5.5 完整注册路由，脚本属维护工具，**不登记为权威文件**；其契约见 ENGINE_DOCTOR.md 与 AGENT_ADAPTERS.md。
 
 ## §4 完整性与新鲜度
 
-- 全局 revision：3
-- 状态：MVP dogfood 阶段，已注册 hooks 闭环所需的最小文件集（ENGINE_MAP / CONTEXT / HANDOFF / AGENT_ADAPTERS / ENGINE_DOCTOR）。
+- 全局 revision：4
+- 状态：MVP dogfood 阶段，已注册 hooks 闭环所需的最小文件集（ENGINE_MAP / CONTEXT / HANDOFF / AGENT_ADAPTERS / ENGINE_DOCTOR）；web 端初始机根目录只保留 `ENGINE_FILE_SYSTEM_v5.md`，历史版本归档到 `archive/engine-file-system/`。
 - 已知缺口：SYSTEM.md、PITFALLS.md、ARCHITECTURE.md 等尚未生成；锚点（根 CLAUDE.md/AGENTS.md）尚未铺设。

@@ -86,6 +86,8 @@ package_mode() {
     engine/ENGINE_DOCTOR.md \
     engine/scripts/engine-doctor.ps1 \
     engine/scripts/engine-doctor.sh \
+    engine/scripts/engine-migrate-contract.ps1 \
+    engine/scripts/engine-migrate-contract.sh \
     engine/scripts/githooks/pre-commit \
     bin/engine \
     bin/engine.ps1 \
@@ -475,6 +477,8 @@ for script in \
   engine-hook-session-end.ps1 \
   engine-sync-agent-anchors.sh \
   engine-sync-agent-anchors.ps1 \
+  engine-migrate-contract.sh \
+  engine-migrate-contract.ps1 \
   githooks/pre-commit
 do
   if [[ -f "$ENGINE_DIR/scripts/$script" ]]; then

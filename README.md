@@ -330,11 +330,12 @@ Then run:
 
 This preserves project-specific `SYSTEM.md`, `PITFALLS.md`, `CONTEXT.md`, `HANDOFF.md`,
 plans, and decisions while adding the latest Doctor contract, hooks, command files, and
-cross-agent bootloaders. More importantly, `/engine-sync` applies new mechanisms as
-migration patches to existing engine files instead of only updating scripts: multi-lane
-workstreams, the self-maintenance loop, change capsules, Project Self-View, done-plan
-acceptance evidence, and Doctor self-review gates are added in an additive way while
-preserving the project's memory.
+cross-agent bootloaders. More importantly, `/engine-sync` first runs
+`engine/scripts/engine-migrate-contract.*`, applying new mechanisms as repeatable managed
+migration blocks to existing engine files instead of only updating scripts. That managed
+contract can carry any current Engine System rule: self-maintenance, change capsules,
+Project Self-View, done-plan acceptance evidence, Doctor self-review gates, multi-lane
+workstreams, and future mechanisms, all added while preserving the project's memory.
 
 The installer also places a CLI shim in `engine/bin/` and tries to install a user-level
 `engine` command (`~/.local/bin/engine` on macOS/Linux, `%USERPROFILE%\.engine\bin\engine.cmd`

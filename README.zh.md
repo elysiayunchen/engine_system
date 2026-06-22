@@ -320,9 +320,10 @@ powershell -NoProfile -File .\install.ps1 -Update
 
 这会保留项目自己的 `SYSTEM.md`、`PITFALLS.md`、`CONTEXT.md`、`HANDOFF.md`、plans 和决策，
 同时补上最新 Doctor 契约、hooks、命令文件与跨 agent 引导文件。更重要的是，`/engine-sync`
-会把新机制作为迁移补丁写进已有引擎文件，而不是只更新脚本：多 lane 并行工作流、
-自维护循环、change capsule、Project Self-View、done 计划验收证据和 Doctor 自审门禁都会被
-按 additive 方式补入，保留项目原有记忆。
+会先运行 `engine/scripts/engine-migrate-contract.*`，把新机制作为可重复运行的托管迁移区块
+写进已有引擎文件，而不是只更新脚本。这个托管契约可以承载当前和未来的 Engine System
+规则：自维护循环、change capsule、Project Self-View、done 计划验收证据、Doctor 自审门禁、
+多 lane 并行工作流等都会按 additive 方式补入，同时保留项目原有记忆。
 
 安装器也会把 CLI shim 放到 `engine/bin/`，并尝试安装用户级 `engine` 命令
 （macOS/Linux 是 `~/.local/bin/engine`，Windows 是 `%USERPROFILE%\.engine\bin\engine.cmd`）。

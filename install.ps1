@@ -37,6 +37,8 @@ $FILES = @(
   @{ src = "engine/scripts/engine-hook-session-end.ps1";  dest = "engine\scripts\engine-hook-session-end.ps1";  protect = $true }
   @{ src = "engine/scripts/engine-sync-agent-anchors.sh";   dest = "engine\scripts\engine-sync-agent-anchors.sh";   protect = $true }
   @{ src = "engine/scripts/engine-sync-agent-anchors.ps1";  dest = "engine\scripts\engine-sync-agent-anchors.ps1";  protect = $true }
+  @{ src = "engine/scripts/engine-migrate-contract.sh";     dest = "engine\scripts\engine-migrate-contract.sh";     protect = $true }
+  @{ src = "engine/scripts/engine-migrate-contract.ps1";    dest = "engine\scripts\engine-migrate-contract.ps1";    protect = $true }
   @{ src = "engine/scripts/githooks/pre-commit";   dest = "engine\scripts\githooks\pre-commit";   protect = $true }
   @{ src = "bin/engine";                            dest = "engine\bin\engine";                            protect = $true }
   @{ src = "bin/engine.ps1";                        dest = "engine\bin\engine.ps1";                        protect = $true }
@@ -166,9 +168,10 @@ Write-Host ""
 if ($Update) {
   Write-Host "Plugin updated. Your engine/*.md project memory was not overwritten."
   Write-Host "Next: open your AI agent in this project and run /engine-sync."
-  Write-Host "/engine-sync migrates old engine files to the latest contract while preserving project-specific memory."
-  Write-Host "It adds current mechanisms such as multi-lane workstreams, self-maintenance hooks,"
-  Write-Host "change capsules, acceptance evidence, and Doctor parity to existing engine files."
+  Write-Host "/engine-sync runs engine-migrate-contract.* to write the current managed contract block"
+  Write-Host "into old engine files while preserving project-specific memory."
+  Write-Host "That contract covers self-maintenance, change capsules, acceptance evidence,"
+  Write-Host "Doctor parity, and other current Engine System mechanisms."
   Write-Host "Future remote updates can use: engine update"
 } else {
   Write-Host "Next steps:"

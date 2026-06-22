@@ -21,8 +21,10 @@ If `engine/ENGINE_MAP.md` does not exist, say:
 ## SESSION PROTOCOL
 - Start: read ENGINE_MAP → load by profile → read required rules/anchors/plans → restate state.
 - During work: after any meaningful code change, update `CONTEXT.md` + append one
-  `HANDOFF.md` row before moving on. This is incremental write-back, not optional cleanup.
-- End: run `/engine-update` or update HANDOFF + ENGINE_MAP with a change summary. Claude
+  `HANDOFF.md` row and create/update an architect-readable `engine/changes/CHANGE-*.md`
+  capsule before moving on. This is incremental write-back, not optional cleanup.
+- End: run `/engine-update` or update HANDOFF + ENGINE_MAP with a change summary and
+  latest change capsule pointer. Claude
   Code hooks may block Stop if code changed but the engine memory did not.
 
 ## COMMAND MAP
@@ -49,6 +51,12 @@ If `engine/ENGINE_MAP.md` does not exist, say:
   and cache Doctor findings for the next session.
 - Web AI has no hooks, so it MUST perform incremental write-back manually after each
   meaningful unit.
+
+## ARCHITECT SELF-VIEW
+- Meaningful changes need a change capsule: goal, actual changes, impact scope, risk,
+  verification, rollback, next step, and responsibility boundary.
+- `/engine-status` should surface the latest capsule and say what the architect can judge
+  now, what evidence is missing, and what decision remains theirs.
 
 ## MAP
 - Index: `engine/ENGINE_MAP.md`

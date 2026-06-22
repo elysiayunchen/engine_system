@@ -167,6 +167,8 @@ if ($Update) {
   Write-Host "Plugin updated. Your engine/*.md project memory was not overwritten."
   Write-Host "Next: open your AI agent in this project and run /engine-sync."
   Write-Host "/engine-sync migrates old engine files to the latest contract while preserving project-specific memory."
+  Write-Host "It adds current mechanisms such as multi-lane workstreams, self-maintenance hooks,"
+  Write-Host "change capsules, acceptance evidence, and Doctor parity to existing engine files."
   Write-Host "Future remote updates can use: engine update"
 } else {
   Write-Host "Next steps:"

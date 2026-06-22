@@ -320,6 +320,74 @@ check_sprint_semantics() {
   grep -Eiq '验证方法|verify|verification' "$path" || warn "SPRINT.md has no verification method pointers"
 }
 
+changed_paths() {
+  command -v git >/dev/null 2>&1 || return 0
+  git -C "$ROOT" status --short 2>/dev/null | sed -E 's/^[[:space:]]*[A-Z?]{1,2}[[:space:]]+//'
+}
+
+check_change_capsule_semantics() {
+  local changes_dir="$ENGINE_DIR/changes"
+  local latest=""
+  if [[ -d "$changes_dir" ]]; then
+    latest="$(find "$changes_dir" -maxdepth 1 -type f -name 'CHANGE-*.md' -printf '%T@ %p\n' 2>/dev/null | sort -nr | head -n 1 | cut -d' ' -f2-)"
+    if [[ -z "$latest" ]]; then
+      latest="$(find "$changes_dir" -maxdepth 1 -type f -name 'CHANGE-*.md' 2>/dev/null | sort | tail -n 1)"
+    fi
+  fi
+
+  local meaningful=false
+  while IFS= read -r path; do
+    [[ -z "$path" ]] && continue
+    case "$path" in
+      engine/changes/*|engine/.cache/*|.git/*|archive/*) continue ;;
+    esac
+    meaningful=true
+    break
+  done < <(changed_paths)
+
+  if [[ "$meaningful" == true && -z "$latest" ]]; then
+    warn "meaningful changed files exist but no change capsule was found in engine/changes"
+    return 0
+  fi
+
+  [[ -z "$latest" ]] && return 0
+  pass "latest change capsule exists: ${latest#"$ROOT/"}"
+
+  local section
+  for section in \
+    "Goal" \
+    "Actual Changes" \
+    "Impact Scope" \
+    "Risk & Watchpoints" \
+    "Verification" \
+    "Rollback" \
+    "Next Step" \
+    "Responsibility Boundary"
+  do
+    if ! grep -Eq "^##[[:space:]]+$section[[:space:]]*$" "$latest"; then
+      warn "$(basename "$latest") is missing change capsule section: $section"
+    fi
+  done
+  if grep -Eq '\[.*\]|TBD|TODO' "$latest"; then
+    warn "$(basename "$latest") still contains placeholders"
+  fi
+}
+
+check_plan_acceptance_evidence() {
+  while IFS='|' read -r _ id title status plan spec notes verified _; do
+    id="$(trim "$id")"
+    status="$(trim "$status")"
+    spec="$(trim "$spec")"
+    [[ -z "$id" || "$id" == "ID" || "$id" =~ ^-+$ || "$id" == \[* || "$id" == "无"* ]] && continue
+    [[ "$status" == "done" ]] || continue
+    [[ "$spec" == engine/* && "$spec" != *"+"* ]] || continue
+    [[ -f "$ROOT/$spec" ]] || continue
+    if ! grep -Eq 'Evidence|证据|engine/changes/CHANGE-|engine/evidence/' "$ROOT/$spec"; then
+      warn "$id is marked done but has no acceptance evidence pointer"
+    fi
+  done < "$plan_tmp"
+}
+
 while IFS= read -r path; do
   rel="${path#"$ROOT/"}"
   if [[ "$rel" == engine/README.md || "$rel" == engine/README.zh.md ]]; then
@@ -347,6 +415,8 @@ check_context_semantics
 check_handoff_semantics
 check_pitfalls_semantics
 check_sprint_semantics
+check_change_capsule_semantics
+check_plan_acceptance_evidence
 
 while IFS='|' read -r _ path type authority verified _; do
   path="$(trim "$path")"

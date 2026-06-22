@@ -13,6 +13,9 @@
 - Claude Code hook、git pre-commit、跨 agent anchor sync 缺失时，Doctor 应报告 warning 并提示运行 `/engine-sync`。
 - `engine/bin/engine*` CLI shim 缺失时，Doctor 应报告 warning；安装器负责将其复制到用户级 PATH 位置以支持 `engine update`。
 - 已注册的热路径记忆文件需要做语义健康检查：`CONTEXT.md` 要有可用状态面板，`HANDOFF.md` 要有立即恢复点和日期化历史，`PITFALLS.md` 条目要能描述触发条件、影响范围、避免方式与验证方式，`SPRINT.md` 要有完成标准和验证方法。
+- 有意义的代码 / 文档 / 引擎工具改动需要有 `engine/changes/CHANGE-*.md` change capsule，面向非技术架构师说明目标、实际变化、影响范围、风险、验证、回滚、下一步和责任边界。
+- 已标记 `done` 的 plan/spec twin 必须能指向验收证据：spec twin 的 Evidence 列、`engine/evidence/*`，或相关 `engine/changes/CHANGE-*.md`。
+- `engine/.cache/project-view.generated.md` 属于可重建 self-view 快照；如生成，不登记为权威文件，使用前应由 `/engine-status` 或 `/engine-reconcile` 重新生成/核对。
 - 仓库级 release health 由 `scripts/check.ps1` / `scripts/check.sh` 统一执行：项目 Doctor、插件 package Doctor、PowerShell 语法、shell 语法、installer manifest、`engine/` 与 `plugin/` 副本漂移检查。
 
 ## 自维护脚本

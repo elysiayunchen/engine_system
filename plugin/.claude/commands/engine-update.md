@@ -26,6 +26,16 @@ maintenance files changed.
 2. "现在正在做 / 下一步准备做什么？"
 3. "有没有新发现的坑、奇怪的行为、或者要提醒下一个 AI 的事？（没有就说『无』）"
 
+Also infer the architect-facing audit facts from the session transcript and `git status`.
+Ask follow-up questions ONLY if a field cannot be inferred safely:
+- user-visible goal
+- actual changes
+- affected feature/module/path
+- risk level and what could break
+- verification result or missing verification
+- rollback / recovery path
+- responsibility boundary: what the AI checked vs what the architect still needs to decide
+
 ## Step 3: Write Updates
 
 ### Update engine/CONTEXT.md
@@ -51,6 +61,59 @@ If the project runs multiple workstreams, also capture the lane handoff summary:
 - current owner
 - merge point
 - next checkpoint
+
+### Create a Change Capsule (for meaningful implementation/doc/engine changes)
+If this session changed code, docs, engine files, commands, scripts, dependencies, tests, or
+project behavior, create one architect-readable capsule:
+
+Path:
+`engine/changes/CHANGE-[yyyy-mm-dd]-[nn].md`
+
+Rules:
+- Create `engine/changes/` if needed.
+- Use the next same-day sequence number, starting at `01`.
+- The capsule is operational evidence, not an authority file; do NOT register it in
+  ENGINE_MAP §1. Reference it from HANDOFF and ENGINE_MAP §4 freshness instead.
+- Keep it short enough that a non-technical architect can scan it in one minute.
+- Do not paste raw diffs. Translate code changes into project facts.
+
+Template:
+```
+# CHANGE-[yyyy-mm-dd]-[nn] — [plain-language title]
+
+> Created: [today] · Status: [draft / verified / needs-verification] · Related plan: [PLAN-NN / none]
+
+## Goal
+[What the architect wanted or what problem this work solved.]
+
+## Actual Changes
+[What changed in user-visible or project-behavior language.]
+
+## Impact Scope
+[Feature/module/path/platform affected. Use "global" only when truly global.]
+
+## Risk & Watchpoints
+[What could break, including linked PITFALLS IDs if any. Write "No known extra risk" only
+after checking changed paths against PITFALLS and SYSTEM rules.]
+
+## Verification
+| Check | Result | Evidence |
+|-------|--------|----------|
+| [test/build/manual check] | [pass/fail/not run] | [command output summary / observation / reason skipped] |
+
+## Rollback
+[Smallest safe revert or recovery path. If rollback is unknown, write "Unknown - requires architect decision".]
+
+## Next Step
+[One concrete next action.]
+
+## Responsibility Boundary
+- AI checked: [read-gate, changed files, tests/doctor/reconcile, risk scan]
+- Architect should decide: [product choice, release approval, manual check, or "none"]
+```
+
+If an active plan/spec twin exists, map each touched AC to the Verification table. A plan
+may become `done` only when every AC is marked ✅ with evidence in the spec twin or capsule.
 
 ### Append to engine/PITFALLS.md (only if Q3 has real content)
 Record it as a FULL entry — match the structure `/engine-init` generates, not a bare row:
@@ -82,6 +145,8 @@ in Step 1; now write back (metadata only — NEVER copy any file's body into the
   session (CONTEXT, HANDOFF, and PITFALLS if a pitfall was added). If a pitfall was added,
   also bump PITFALLS' per-file `Revision`.
 - **§4 完整性与新鲜度** — bump `全局 revision` by 1.
+- **§4 完整性与新鲜度** — add or update `最近 change capsule：[path]` when a capsule was
+  created.
 - **§4 完整性与新鲜度** — keep it to short freshness metadata, warning pointers, and
   revision only; long session prose belongs in HANDOFF.
 - **Header** — set `Last updated` = today's date and mirror the new revision into `Revision:`.
@@ -108,9 +173,11 @@ Output the change summary (for the architect's review), then the resume pointer:
 | CONTEXT.md    | 修改 | 状态面板：上次完成 / 进行中 |
 | HANDOFF.md    | 追加 | 新会话交接行 |
 | PITFALLS.md   | 追加 | [P00X：一句话]  ← 仅当记录了坑 |
+| CHANGE capsule| 新增 | [CHANGE-YYYY-MM-DD-NN：目标 / 风险 / 验证 / 回滚] ← 仅当有实质改动 |
 | ENGINE_MAP.md | 修改 | §1 Last verified + §4 全局 revision → [新值] |
 
 read-gate: ENGINE_MAP, SYSTEM 会话结束/维护/Doctor, CONTEXT, HANDOFF, PITFALLS
 doctor: [not needed / passed / failed / missing scripts]
+architect view: [verified / needs verification / needs architect decision]
 引擎同步完成。下次会话直接继续：[Q2 answer]
 ```

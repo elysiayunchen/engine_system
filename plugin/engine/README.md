@@ -25,6 +25,7 @@ files get written here:
 | `SOURCEMAP.md`    | Code GPS: which file owns which feature                              |
 | `REPO_GUIDE.md`   | Optional repo commands and workflow rules                            |
 | `ENGINE_DOCTOR.md`| Maintenance contract for engine health checks                        |
+| `changes/`        | Change capsules: goal, impact, risk, verification, and rollback       |
 | `engine/agents/`  | Optional agent/tool-specific adapters                                |
 | `scripts/`        | Bundled Doctor, hook, and cross-agent sync scripts                    |
 | `plans/`          | Design docs you talk through, each with an acceptance checklist      |
@@ -46,6 +47,10 @@ the rest on demand.
 - **End of a session?** Run `/engine-update` to sync state and write the handoff note.
   Claude Code hooks can auto-load the latest handoff, block missing write-back, and cache
   Doctor findings for the next session.
+- **Want to review what changed?** Read `changes/CHANGE-*.md`. A change capsule translates
+  the diff into goal, impact, risk, verification, rollback, and responsibility boundary.
+- **Want the project self-view?** Run `/engine-status`. It shows what can be judged now,
+  what evidence is missing, the latest change capsule, and the next step.
 - **Need a new memory type?** Run `/engine-extend` to register it completely.
 - **Updating Engine System?** Run `/engine-sync`, then `/engine-doctor`.
 

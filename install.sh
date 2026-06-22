@@ -165,6 +165,8 @@ if $UPDATE_MODE; then
   echo "Plugin updated. Your engine/*.md project memory was not overwritten."
   echo "Next: open your AI agent in this project and run /engine-sync."
   echo "/engine-sync migrates old engine files to the latest contract while preserving project-specific memory."
+  echo "It adds current mechanisms such as multi-lane workstreams, self-maintenance hooks,"
+  echo "change capsules, acceptance evidence, and Doctor parity to existing engine files."
   echo "Future remote updates can use: engine update"
 else
   echo "Next steps:"

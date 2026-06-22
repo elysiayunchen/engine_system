@@ -79,6 +79,7 @@ These live in `engine/`. The first one is the index — the AI reads it before a
 | `SOURCEMAP.md`    | Code GPS: which file owns which feature, where to add new things                    |
 | `REPO_GUIDE.md`   | Optional repo commands and workflow rules when SYSTEM would get too bulky           |
 | `ENGINE_DOCTOR.md`| Maintenance contract for validating engine health and future extensions             |
+| `engine/changes/` | Change capsules: diff translated into goal, impact, risk, verification, rollback    |
 | `engine/agents/`  | Optional environment adapters for Codex, Claude Code, IDE agents, or CI bots        |
 | `engine/scripts/` | Bundled maintenance scripts, including the registry-driven Engine Doctor            |
 
@@ -201,6 +202,11 @@ hook can block once if code changed but `CONTEXT.md` / `HANDOFF.md` did not; the
 SessionEnd health hook caches Doctor warnings for the next startup. Other agents still get
 the git pre-commit safety net.
 
+Starting in v5.7, meaningful changes also get an architect-readable
+`engine/changes/CHANGE-*.md` capsule: goal, actual changes, impact scope, risk,
+verification, rollback, and responsibility boundary. You do not review raw diffs; you
+review the project facts the diff produced.
+
 **When you hit something weird:**
 
 ```
@@ -215,7 +221,9 @@ Record it immediately, before you close the window. It lives in `PITFALLS.md` pe
 /engine-status
 ```
 
-Current state, open tasks, unresolved pitfalls. One snapshot.
+Current state, open tasks, unresolved pitfalls, latest change capsule, and Project
+Self-View. It tells you what can be judged now, what evidence is missing, and what the
+architect still needs to decide.
 
 **Just designed a new feature:**
 
@@ -243,6 +251,9 @@ budget, and validation checks. This is for new memory types, not ordinary featur
 Runs the bundled registry-driven Doctor script. Doctor reads `ENGINE_MAP.md`, so future
 engine extensions are validated through the registry instead of being forgotten by an old
 hard-coded script.
+In v5.7, Doctor also checks whether recent changes have readable capsules, whether those
+capsules include risk/verification/rollback, and whether plans marked done actually have
+acceptance evidence.
 
 **Update Engine System tooling and migrate local engine files:**
 
@@ -270,12 +281,12 @@ Reconciliation pass. It checks whether the engine files still match what's actua
 | Command              | What it does                                                              |
 | -------------------- | ------------------------------------------------------------------------ |
 | `/engine-init`       | First-time setup. Interviews you and writes the engine files             |
-| `/engine-update`     | End of session. Syncs current state and writes the handoff note          |
-| `/engine-status`     | Prints a snapshot: current state, open tasks, unresolved pitfalls        |
+| `/engine-update`     | End of session. Syncs state, handoff, and change capsule                |
+| `/engine-status`     | Prints a self-view: state, tasks, pitfalls, recent change, missing proof |
 | `/add-pitfall`       | Records a landmine right now, before you forget it                       |
 | `/engine-ingest`     | Files a new design or plan into `engine/plans/` with an acceptance check |
 | `/engine-extend`     | Registers a new authoritative engine file type without rerunning init    |
-| `/engine-doctor`     | Validates registry, anchors, plans, budgets, and lifecycle closure       |
+| `/engine-doctor`     | Validates registry, anchors, plans, budgets, lifecycle, and review proof |
 | `/engine-sync`       | Updates Engine System tooling, then migrates/reconciles local engine files |
 | `/engine-reconcile`  | Reconciles the docs against the real code and fixes any drift            |
 
@@ -319,7 +330,11 @@ Then run:
 
 This preserves project-specific `SYSTEM.md`, `PITFALLS.md`, `CONTEXT.md`, `HANDOFF.md`,
 plans, and decisions while adding the latest Doctor contract, hooks, command files, and
-cross-agent bootloaders.
+cross-agent bootloaders. More importantly, `/engine-sync` applies new mechanisms as
+migration patches to existing engine files instead of only updating scripts: multi-lane
+workstreams, the self-maintenance loop, change capsules, Project Self-View, done-plan
+acceptance evidence, and Doctor self-review gates are added in an additive way while
+preserving the project's memory.
 
 The installer also places a CLI shim in `engine/bin/` and tries to install a user-level
 `engine` command (`~/.local/bin/engine` on macOS/Linux, `%USERPROFILE%\.engine\bin\engine.cmd`

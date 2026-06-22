@@ -43,6 +43,14 @@ updates the Engine System layer itself, then reconciles the local engine files.
    - Do not copy the whole Doctor body into ENGINE_MAP; register path/class/priority only.
 6. Apply the current Engine System contract migrations to existing engine files. This is
    the step that upgrades old projects; do not skip it just because tooling files updated:
+   - Run the bundled contract migrator first:
+     - macOS/Linux: `./engine/scripts/engine-migrate-contract.sh`
+     - Windows: `.\engine\scripts\engine-migrate-contract.ps1`
+   - The migrator writes managed, idempotent blocks into `AGENTS.md`, `engine/SYSTEM.md`,
+     and `engine/ENGINE_DOCTOR.md`, and creates a migration capsule under
+     `engine/changes/`.
+   - Then inspect the result and fold any project-specific wording into the right authority
+     file if needed.
    - **v5.5 registration closure**: ensure ENGINE_MAP records authority files, anchors,
      plans/spec twins, generated-cache, archive, and scripts in the correct places.
    - **v5.5.2 multi-lane workstreams**: ensure SYSTEM or AGENTS session rules say

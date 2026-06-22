@@ -165,6 +165,8 @@ try {
     @("engine/scripts/engine-hook-session-end.sh", "plugin/engine/scripts/engine-hook-session-end.sh"),
     @("engine/scripts/engine-sync-agent-anchors.ps1", "plugin/engine/scripts/engine-sync-agent-anchors.ps1"),
     @("engine/scripts/engine-sync-agent-anchors.sh", "plugin/engine/scripts/engine-sync-agent-anchors.sh"),
+    @("engine/scripts/engine-migrate-contract.ps1", "plugin/engine/scripts/engine-migrate-contract.ps1"),
+    @("engine/scripts/engine-migrate-contract.sh", "plugin/engine/scripts/engine-migrate-contract.sh"),
     @("engine/scripts/githooks/pre-commit", "plugin/engine/scripts/githooks/pre-commit")
   )
   foreach ($pair in $pairs) {

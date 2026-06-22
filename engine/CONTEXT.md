@@ -7,8 +7,8 @@
 | 维度 | 状态 |
 |------|------|
 | 构建 | ✅ 正常（纯 markdown + shell 脚本，无构建步骤） |
-| 上次完成 | 完成 v5.7 自视图与 change capsule 机制，并补齐旧项目升级路径：`/engine-sync` 现在明确迁移多 lane、自维护循环、change capsule、Project Self-View、验收证据和 Doctor parity；PowerShell 与 Bash release checks 均通过 |
-| 进行中 | 提交并推送本轮 v5.7 改动；后续决定缺少 change capsule 是否从 warning 升级为 hard failure |
+| 上次完成 | 补齐旧项目机制无法更新的通用解法：新增 `engine-migrate-contract.{sh,ps1}`，由 `/engine-sync` 先执行版本化、幂等的 managed contract migration，把最新引擎契约写回旧项目现有引擎文件；PowerShell 与 Bash release checks 均通过 |
+| 进行中 | 提交并推送本轮 contract migrator 改动；后续决定缺少 change capsule 是否从 warning 升级为 hard failure |
 | 阻塞 | 无 |
 
 ## 当前假设 / 决策（本轮拍板）
@@ -19,6 +19,7 @@
 - **健康门禁 = 一键入口**：发布前优先跑 `pwsh -NoProfile -File scripts/check.ps1 -Root .` 或 `bash scripts/check.sh`，覆盖 Doctor、脚本语法、manifest 和副本漂移。
 - **Web 初始机 = 单一稳定入口**：根目录只保留 `ENGINE_FILE_SYSTEM_v5.md`；历史版本进入 `archive/engine-file-system/`，不要作为活跃入口；每次改 plugin 初始化规则时必须同步更新该稳定 prompt。
 - **架构师审核层 = change capsule + Project Self-View**：无基础用户不审 raw diff；由 `engine/changes/CHANGE-*.md` 和 `/engine-status` 把目标、影响、风险、验证、回滚、责任边界翻译成人话。
+- **旧项目升级 = 可执行契约迁移层**：`engine update` 只负责工具分发；`/engine-sync` 必须运行 `engine-migrate-contract.{sh,ps1}`，把当前规则作为托管区块写入 `AGENTS.md`、`engine/SYSTEM.md`、`engine/ENGINE_DOCTOR.md`，保留项目专属记忆在区块外。以后新增机制应追加到 migrator，而不是只改提示词。
 
 ## 待验证
 
@@ -27,4 +28,5 @@
 - ✅ ~~用户项目中 install.sh/install.ps1 铺 settings.json 的完整路径~~ — 新增 SessionEnd hook 分发，并补 `.git/hooks/pre-commit` 自动安装（已有 hook 时保留并提示手动合并）。
 - ✅ ~~仓库级健康检查入口~~ — `scripts/check.ps1` 与 `scripts/check.sh` 均通过；shell Doctor 已兼容 CRLF manifest 路径。
 - ✅ ~~v5.7 自视图门禁~~ — Doctor 已能检测最近 change capsule、必备章节和 done plan 验收证据；`scripts/check.ps1` 与 `scripts/check.sh` 均通过。
+- ✅ ~~旧项目机制迁移不能只靠文档~~ — 新增 `engine-migrate-contract.{sh,ps1}` 并接入 `/engine-sync`、install、manifest、Doctor bundled script checks 和 duplicate drift checks。
 - 待验证：Copilot CLI / Codex CLI 原生 hook 的 block 决策支持。

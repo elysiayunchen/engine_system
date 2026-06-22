@@ -27,7 +27,7 @@ files get written here:
 | `ENGINE_DOCTOR.md`| Maintenance contract for engine health checks                        |
 | `changes/`        | Change capsules: goal, impact, risk, verification, and rollback       |
 | `engine/agents/`  | Optional agent/tool-specific adapters                                |
-| `scripts/`        | Bundled Doctor, hook, and cross-agent sync scripts                    |
+| `scripts/`        | Bundled Doctor, hook, contract migration, and cross-agent sync scripts |
 | `plans/`          | Design docs you talk through, each with an acceptance checklist      |
 
 Exactly which files appear depends on the **profile** chosen at init: WEB-FULL writes
@@ -52,6 +52,7 @@ the rest on demand.
 - **Want the project self-view?** Run `/engine-status`. It shows what can be judged now,
   what evidence is missing, the latest change capsule, and the next step.
 - **Need a new memory type?** Run `/engine-extend` to register it completely.
-- **Updating Engine System?** Run `/engine-sync`, then `/engine-doctor`.
+- **Updating Engine System?** Run `/engine-sync`. It runs the contract migrator first, adds
+  new mechanisms to existing engine files, then runs `/engine-doctor`.
 
 Full docs: <https://github.com/elysiayunchen/engine_system>

@@ -24,6 +24,8 @@
     { "src": "engine/scripts/engine-hook-session-end.ps1", "dest": "engine/scripts/engine-hook-session-end.ps1", "protect": true },
     { "src": "engine/scripts/engine-sync-agent-anchors.sh", "dest": "engine/scripts/engine-sync-agent-anchors.sh", "protect": true },
     { "src": "engine/scripts/engine-sync-agent-anchors.ps1", "dest": "engine/scripts/engine-sync-agent-anchors.ps1", "protect": true },
+    { "src": "engine/scripts/engine-migrate-contract.sh", "dest": "engine/scripts/engine-migrate-contract.sh", "protect": true },
+    { "src": "engine/scripts/engine-migrate-contract.ps1", "dest": "engine/scripts/engine-migrate-contract.ps1", "protect": true },
     { "src": "engine/scripts/githooks/pre-commit", "dest": "engine/scripts/githooks/pre-commit", "protect": true },
     { "src": "bin/engine", "dest": "engine/bin/engine", "protect": true },
     { "src": "bin/engine.ps1", "dest": "engine/bin/engine.ps1", "protect": true },

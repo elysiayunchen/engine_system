@@ -17,8 +17,8 @@ Usage:
 
 `engine update` downloads the latest installer and runs update mode. It does not overwrite
 project-specific engine/*.md memory. After it finishes, open your AI agent and run
-/engine-sync to migrate old engine files to the latest contract mechanisms, including
-multi-lane workstreams, self-maintenance hooks, change capsules, and acceptance evidence.
+/engine-sync. That runs the bundled engine-migrate-contract script so old engine files
+receive the latest managed contract block while preserving project memory.
 "@ | Write-Host
 }
 
@@ -31,8 +31,8 @@ switch ($Command) {
       Write-Host ""
       Write-Host "Engine tooling updated from remote."
       Write-Host "Next: run /engine-sync in your AI agent."
-      Write-Host "That migrates existing engine files to the latest mechanisms: multi-lane work,"
-      Write-Host "self-maintenance hooks, change capsules, and acceptance evidence."
+      Write-Host "That runs engine/scripts/engine-migrate-contract.* to write the latest"
+      Write-Host "managed contract block into existing engine files while preserving project memory."
     } finally {
       Remove-Item -Path $tmp -ErrorAction SilentlyContinue
     }

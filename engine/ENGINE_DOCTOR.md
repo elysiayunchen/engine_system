@@ -24,6 +24,7 @@
 - `engine-hook-stop.{sh,ps1}`：代码改动但未回写 CONTEXT / HANDOFF 时，拦截一次结束。
 - `engine-hook-session-end.{sh,ps1}`：非阻塞运行 Doctor，把 warning/failure 缓存到 `engine/.cache/pending.txt`。
 - `engine-sync-agent-anchors.{sh,ps1}`：生成或更新 Copilot / Cursor / Gemini / Cline / Roo / Aider 等薄引导文件。
+- `engine-migrate-contract.{sh,ps1}`：旧项目契约迁移器，幂等写入当前 Engine System managed contract block，并生成 migration change capsule。
 - `githooks/pre-commit`：B 层门禁，防止提交代码改动但没有引擎回写。
 - `engine/bin/engine*`：终端远端更新入口，支持 `engine update`。
 - `scripts/check.{ps1,sh}`：仓库维护入口，不随插件安装到用户项目；发布前必须全绿。

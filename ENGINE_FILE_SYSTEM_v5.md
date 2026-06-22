@@ -2351,18 +2351,22 @@ Routine:
 1. **Read ENGINE_MAP first**：取得 profile、注册表、已有锚点/plan 状态；读取 `ENGINE_DOCTOR.md`、`SYSTEM.md`、`REPO_GUIDE.md`（若存在）和当前 `AGENTS.md`/`CLAUDE.md`。
 2. **Update tooling layer**：优先运行 `engine update`；若不可用，则运行 `bash install.sh --update` 或 `powershell -NoProfile -File .\install.ps1 -Update`。这一步只更新命令、脚本、hook、CLI shim 和模板文件，不代表项目记忆已经迁移完成。
 3. **Verify bundled tooling exists**：确认 `.claude/commands/engine-sync.md`、`engine/ENGINE_DOCTOR.md`、`engine/scripts/engine-doctor.*`、hook 脚本、`engine-sync-agent-anchors.*`、`engine/bin/engine*` 存在；缺失则记录 tooling drift 并补齐。
-4. **Apply contract migrations additively**：把当前 Engine System 机制迁移进已有引擎文件，NEVER 用模板全文覆盖项目记忆：
+4. **Run contract migrator**：先运行随工具层分发的版本化迁移脚本，给旧项目写入 managed、可重复运行的当前契约区块，并生成 migration capsule：
+   - macOS/Linux：`./engine/scripts/engine-migrate-contract.sh`
+   - Windows：`.\engine\scripts\engine-migrate-contract.ps1`
+   迁移脚本负责写入/更新 `AGENTS.md`、`engine/SYSTEM.md`、`engine/ENGINE_DOCTOR.md` 中的 `ENGINE_SYSTEM_CONTRACT_MIGRATIONS` 托管区块；项目专属规则保留在区块外。
+5. **Apply contract migrations additively**：检查迁移脚本结果，并把当前 Engine System 机制迁移进已有引擎文件，NEVER 用模板全文覆盖项目记忆：
    - **v5.5 registration closure**：补 ENGINE_MAP 注册路由、§1/§1.1/§1.2/§2/§3/§4 事务闭环规则；脚本仍不登记为 authority。
    - **v5.5.2 multi-lane workstreams**：在 SYSTEM/AGENTS 或等价规则文件中补充 `CONTEXT.md`、`SPRINT.md`、`ROADMAP.md`、`HANDOFF.md` 可按 lane ID / owner / dependency / merge point / next checkpoint 记录并行工作；已有单线内容保持原样。
    - **v5.6 self-maintenance loop**：补增量回写、SessionStart/Stop/SessionEnd hook、git pre-commit 兜底、shared engine single-writer 合并规则。
    - **v5.7 architect self-view**：补 `engine/changes/CHANGE-*.md` change capsule 规则，要求有意义改动说明 Goal、Actual Changes、Impact Scope、Risk、Verification、Rollback、Next Step、Responsibility Boundary；`/engine-status` 输出 Project Self-View。
    - **v5.7 acceptance evidence**：补 plan/spec `done` gate：每个 AC 必须有 spec Evidence、`engine/evidence/*` 或相关 change capsule 证据。
    - **Doctor parity**：确保 `ENGINE_DOCTOR.md` 记录语义热路径检查、change capsule 完整性、done plan 验收证据；脚本实现跟随契约。
-5. **Migrate anchors**：运行 `engine-sync-agent-anchors.{sh,ps1}`，并确保 managed block 提到 read-gate、增量回写、change capsule、多 lane 和 single-writer。用户手写规则先吸收进 engine authority，再恢复薄指针。
-6. **Write migration capsule**：为这次旧项目升级创建 `engine/changes/CHANGE-[date]-[nn].md`，说明迁移了哪些机制、保留了哪些项目记忆、触碰了哪些文件、Doctor 结果、回滚方式和架构师待决策项。
-7. **Update ENGINE_MAP freshness**：bump 全局 revision；更新 touched files 的 Last verified；§4 写短摘要和 migration capsule 指针，不写长证据。
-8. **Run Doctor + Reconcile**：运行 `/engine-doctor`；再执行 RECONCILE 核对文档 vs 现实。Doctor warning/failure 必须进入报告；需要架构师拍板的修正先确认再落盘。
-9. **Report**：输出中文摘要：工具层是否更新、旧项目迁移项是否应用（registration / multi-lane / self-maintenance / change capsule / acceptance evidence / Doctor parity）、保留的项目记忆、改动文件、migration capsule 路径、Doctor 结果和下一步。
+6. **Migrate anchors**：运行 `engine-sync-agent-anchors.{sh,ps1}`，并确保 managed block 提到 read-gate、增量回写、change capsule、多 lane 和 single-writer。用户手写规则先吸收进 engine authority，再恢复薄指针。
+7. **Verify migration capsule**：确认迁移脚本创建了 `engine/changes/CHANGE-[date]-[nn].md`，其中说明迁移了哪些机制、保留了哪些项目记忆、触碰了哪些文件、Doctor 结果、回滚方式和架构师待决策项。
+8. **Update ENGINE_MAP freshness**：bump 全局 revision；更新 touched files 的 Last verified；§4 写短摘要和 migration capsule 指针，不写长证据。
+9. **Run Doctor + Reconcile**：运行 `/engine-doctor`；再执行 RECONCILE 核对文档 vs 现实。Doctor warning/failure 必须进入报告；需要架构师拍板的修正先确认再落盘。
+10. **Report**：输出中文摘要：工具层是否更新、旧项目迁移项是否应用（registration / multi-lane / self-maintenance / change capsule / acceptance evidence / Doctor parity）、保留的项目记忆、改动文件、migration capsule 路径、Doctor 结果和下一步。
 
 SYNC 的成功标准：老项目不重跑 `/engine-init`，但新机制已经进入其现有 engine authority / anchors / Doctor 契约；下一次 agent 读旧项目引擎文件时，会按最新多 lane、自维护、change capsule 和验收证据规则工作。
 

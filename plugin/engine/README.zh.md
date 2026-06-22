@@ -25,7 +25,7 @@
 | `ENGINE_DOCTOR.md`| 引擎健康检查的维护契约                              |
 | `changes/`        | 改动胶囊：目标、影响、风险、验证和回滚               |
 | `engine/agents/`  | 可选：不同 AI 工具/环境的适配规则                   |
-| `scripts/`        | 随仓库打包的 Doctor、hook 与跨 agent 同步脚本        |
+| `scripts/`        | 随仓库打包的 Doctor、hook、契约迁移与跨 agent 同步脚本 |
 | `plans/`          | 你聊出来的设计文档,每份都配一张验收清单             |
 
 具体出现哪些文件,取决于初始化时选的 **profile**:WEB-FULL 会把所有内容完整写出;
@@ -47,6 +47,7 @@ CLI-LEAN 只存没法从代码重建的部分,其余按需现读。
 - **想看项目自视图?** 运行 `/engine-status`。它会展示当前能判断什么、缺什么证据、
   最近改动胶囊和下一步。
 - **需要新的记忆类型?** 运行 `/engine-extend` 完整注册新的权威引擎文件。
-- **更新 Engine System?** 运行 `/engine-sync`，然后跑 `/engine-doctor`。
+- **更新 Engine System?** 运行 `/engine-sync`。它会先运行契约迁移脚本，把新机制补进已有
+  引擎文件，再跑 `/engine-doctor`。
 
 完整文档:<https://github.com/elysiayunchen/engine_system>

@@ -108,6 +108,9 @@ Hook scripts:
   next SessionStart.
 - `engine-sync-agent-anchors.{sh,ps1}`: create/update thin pointers for agent-specific
   bootloaders.
+- `engine-migrate-contract.{sh,ps1}`: idempotently migrate old projects by writing the
+  current managed contract block into existing engine authority/anchor files and creating a
+  migration change capsule.
 - `engine/bin/engine`, `engine/bin/engine.ps1`, `engine/bin/engine.cmd`: project-local
   copies of the terminal updater shim; installers also try to install a user-level
   `engine update` command on PATH.

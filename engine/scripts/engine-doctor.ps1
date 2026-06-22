@@ -247,6 +247,140 @@ function Test-Registered([string]$RelativePath) {
   return $false
 }
 
+function Test-RegisteredName([string]$Name) {
+  foreach ($registered in $registeredNames) {
+    if ($registered -eq $Name -or $registered -eq "engine/$Name") { return $true }
+  }
+  return $false
+}
+
+function Test-RequiredMarkdownSection([string[]]$Lines, [string]$File, [string]$Pattern, [string]$Label) {
+  foreach ($line in $Lines) {
+    if ($line -match $Pattern) { return $true }
+  }
+  Write-Warn "$File is missing semantic section: $Label"
+  return $false
+}
+
+function New-Text([int[]]$CodePoints) {
+  return -join ($CodePoints | ForEach-Object { [char]$_ })
+}
+
+function Test-ContextSemantics {
+  if (-not (Test-RegisteredName "CONTEXT.md")) { return }
+  $path = Join-Path $engineDir "CONTEXT.md"
+  if (-not (Test-Path $path)) { return }
+
+  $contextLines = Get-Content -Path $path -Encoding UTF8
+  $statusPanel = New-Text @(0x72B6, 0x6001, 0x9762, 0x677F)
+  Test-RequiredMarkdownSection $contextLines "CONTEXT.md" ("^##\s+" + [regex]::Escape($statusPanel)) "status panel" | Out-Null
+  $labels = @(
+    @{ Key = "build"; Text = New-Text @(0x6784, 0x5EFA) },
+    @{ Key = "last completed"; Text = New-Text @(0x4E0A, 0x6B21, 0x5B8C, 0x6210) },
+    @{ Key = "in progress"; Text = New-Text @(0x8FDB, 0x884C, 0x4E2D) },
+    @{ Key = "blocked"; Text = New-Text @(0x963B, 0x585E) }
+  )
+  foreach ($label in $labels) {
+    $found = $false
+    $labelPattern = [regex]::Escape($label.Text)
+    foreach ($line in $contextLines) {
+      if ($line -match "^\|\s*$labelPattern\s*\|\s*(.+?)\s*\|") {
+        $value = $Matches[1].Trim()
+        if (-not $value -or $value -match "^\[.*\]$|^TBD$|^TODO$") {
+          Write-Warn "CONTEXT.md status row '$($label.Key)' is placeholder or empty"
+        }
+        $found = $true
+        break
+      }
+    }
+    if (-not $found) { Write-Warn "CONTEXT.md status panel missing row: $($label.Key)" }
+  }
+}
+
+function Test-HandoffSemantics {
+  if (-not (Test-RegisteredName "HANDOFF.md")) { return }
+  $path = Join-Path $engineDir "HANDOFF.md"
+  if (-not (Test-Path $path)) { return }
+
+  $handoffLines = Get-Content -Path $path -Encoding UTF8
+  $resumeSection = New-Text @(0x7ACB, 0x5373, 0x6062, 0x590D, 0x70B9)
+  $historySection = New-Text @(0x4F1A, 0x8BDD, 0x5386, 0x53F2)
+  $nextStep = New-Text @(0x4E0B, 0x4E00, 0x6B65)
+  Test-RequiredMarkdownSection $handoffLines "HANDOFF.md" ("^##\s+" + [regex]::Escape($resumeSection)) "resume point" | Out-Null
+  Test-RequiredMarkdownSection $handoffLines "HANDOFF.md" ("^##\s+" + [regex]::Escape($historySection)) "session history" | Out-Null
+
+  $hasResume = $false
+  foreach ($line in $handoffLines) {
+    if ($line -match ("^" + [regex]::Escape($nextStep) + "[:" + [char]0xFF1A + "]\s*(.+)")) {
+      $value = $Matches[1].Trim()
+      if ($value -and $value -notmatch "^\[.*\]$|^TBD$|^TODO$") { $hasResume = $true }
+    }
+  }
+  if (-not $hasResume) { Write-Warn "HANDOFF.md has no concrete next-step resume pointer" }
+
+  $hasHistory = $false
+  foreach ($line in $handoffLines) {
+    if ($line -match "^\|\s*\d{4}-\d{2}-\d{2}\s*\|") { $hasHistory = $true; break }
+  }
+  if (-not $hasHistory) { Write-Warn "HANDOFF.md has no dated session history rows" }
+}
+
+function Test-PitfallsSemantics {
+  if (-not (Test-RegisteredName "PITFALLS.md")) { return }
+  $path = Join-Path $engineDir "PITFALLS.md"
+  if (-not (Test-Path $path)) { return }
+
+  $content = Get-Content -Raw -Path $path -Encoding UTF8
+  $entries = New-Text @(0x6761, 0x76EE)
+  $index = New-Text @(0x7D22, 0x5F15)
+  if ($content -notmatch ("##\s+(" + [regex]::Escape($entries) + "|Entries)")) {
+    Write-Warn "PITFALLS.md is missing entries section"
+  }
+  if ($content -notmatch ("##\s+(" + [regex]::Escape($index) + "|Index)")) {
+    Write-Warn "PITFALLS.md is missing index section"
+  }
+
+  $entryMatches = [regex]::Matches($content, "(?m)^###\s+(P\d{3})\s+[" + [char]0x2014 + "-]\s+(.+)$")
+  foreach ($entry in $entryMatches) {
+    $start = $entry.Index
+    $next = $content.IndexOf("### P", $start + 1)
+    $body = if ($next -gt $start) { $content.Substring($start, $next - $start) } else { $content.Substring($start) }
+    $fields = @(
+      @{ Key = "severity"; Text = New-Text @(0x4E25, 0x91CD, 0x7A0B, 0x5EA6) },
+      @{ Key = "category"; Text = New-Text @(0x7C7B, 0x522B) },
+      @{ Key = "status"; Text = New-Text @(0x72B6, 0x6001) },
+      @{ Key = "observable symptom"; Text = New-Text @(0x4F60, 0x80FD, 0x89C2, 0x5BDF, 0x5230, 0x7684, 0x73B0, 0x8C61) },
+      @{ Key = "wrong action"; Text = New-Text @(0x9519, 0x8BEF, 0x505A, 0x6CD5) },
+      @{ Key = "correct action"; Text = New-Text @(0x6B63, 0x786E, 0x505A, 0x6CD5) },
+      @{ Key = "trigger"; Text = New-Text @(0x89E6, 0x53D1, 0x6761, 0x4EF6) },
+      @{ Key = "verification"; Text = New-Text @(0x9A8C, 0x8BC1, 0x65B9, 0x5F0F) }
+    )
+    foreach ($field in $fields) {
+      $marker = "**$($field.Text)$([char]0xFF1A)**"
+      if ($body -notmatch [regex]::Escape($marker)) {
+        Write-Warn "$($entry.Groups[1].Value) is missing pitfall field: $($field.Key)"
+      }
+    }
+  }
+}
+
+function Test-SprintSemantics {
+  if (-not (Test-RegisteredName "SPRINT.md")) { return }
+  $path = Join-Path $engineDir "SPRINT.md"
+  if (-not (Test-Path $path)) { return }
+
+  $content = Get-Content -Raw -Path $path -Encoding UTF8
+  $completion = New-Text @(0x5B8C, 0x6210, 0x6807, 0x51C6)
+  $acceptance = New-Text @(0x9A8C, 0x6536)
+  $verification = New-Text @(0x9A8C, 0x8BC1, 0x65B9, 0x6CD5)
+  if ($content -notmatch ([regex]::Escape($completion) + "|" + [regex]::Escape($acceptance) + "|Acceptance")) {
+    Write-Warn "SPRINT.md has no completion criteria"
+  }
+  if ($content -notmatch ([regex]::Escape($verification) + "|verify|verification")) {
+    Write-Warn "SPRINT.md has no verification method pointers"
+  }
+}
+
 if (Test-Path $engineDir) {
   Get-ChildItem -Path $engineDir -File -Filter "*.md" | ForEach-Object {
     $rel = "engine/$($_.Name)"
@@ -288,7 +422,8 @@ foreach ($row in $planRows) {
   if ($plan -and -not $plan.StartsWith("(") -and ($plan -notmatch "\+") -and -not (Test-Path (Join-Path $Root $plan))) {
     Write-Fail "$id plan file missing: $plan"
   }
-  $hasInline = $spec -match "内联"
+  $inlineMarker = New-Text @(0x5185, 0x8054)
+  $hasInline = $spec -match [regex]::Escape($inlineMarker)
   $hasSpecPath = $spec.StartsWith("engine/")
   if (-not $hasInline -and -not $hasSpecPath -and (@("accepted", "active", "done") -contains $status)) {
     Write-Fail "$id must have a spec twin path or inline spec marker: $spec"
@@ -297,6 +432,11 @@ foreach ($row in $planRows) {
     Write-Fail "$id spec twin missing: $spec"
   }
 }
+
+Test-ContextSemantics
+Test-HandoffSemantics
+Test-PitfallsSemantics
+Test-SprintSemantics
 
 foreach ($anchor in @("AGENTS.md", "CLAUDE.md")) {
   $path = Join-Path $Root $anchor

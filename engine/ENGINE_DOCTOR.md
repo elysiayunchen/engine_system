@@ -1,6 +1,6 @@
 # ENGINE_DOCTOR — 引擎健康检查契约
 
-> Engine System (engine_system) · Last updated: 2026-06-21
+> Engine System (engine_system) · Last updated: 2026-06-22
 > 说明：本 dogfood 实例的轻量维护契约。完整模板见 `plugin/engine/ENGINE_DOCTOR.md`。
 
 ## 当前检查范围
@@ -12,6 +12,7 @@
 - 维护脚本必须由插件分发，但不作为权威文件登记；脚本契约由本文件和插件模板共同说明。
 - Claude Code hook、git pre-commit、跨 agent anchor sync 缺失时，Doctor 应报告 warning 并提示运行 `/engine-sync`。
 - `engine/bin/engine*` CLI shim 缺失时，Doctor 应报告 warning；安装器负责将其复制到用户级 PATH 位置以支持 `engine update`。
+- 已注册的热路径记忆文件需要做语义健康检查：`CONTEXT.md` 要有可用状态面板，`HANDOFF.md` 要有立即恢复点和日期化历史，`PITFALLS.md` 条目要能描述触发条件、影响范围、避免方式与验证方式，`SPRINT.md` 要有完成标准和验证方法。
 - 仓库级 release health 由 `scripts/check.ps1` / `scripts/check.sh` 统一执行：项目 Doctor、插件 package Doctor、PowerShell 语法、shell 语法、installer manifest、`engine/` 与 `plugin/` 副本漂移检查。
 
 ## 自维护脚本

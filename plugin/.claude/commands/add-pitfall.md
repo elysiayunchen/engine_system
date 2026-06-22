@@ -9,12 +9,17 @@ Don't wait until end of session — record it now before context is lost.
 2. 你能观察到的现象（怎么触发、看到什么）？
 3. 根本原因（如果知道）？
 4. 正确做法 / 绕过方法？
-5. 严重程度：🔴 崩溃或数据损坏 / 🟠 难查的运行时错误 / 🟡 行为不对但能跑 / 🔵 仅造成困惑？
-6. 类别：tooling / deps / arch / api / config / data / testing / security？"
+5. 触发条件（什么文件、命令、环境、用户操作会踩中）？
+6. 影响范围（路径 / 模块 / 平台 / agent 类型；不知道就写全局或 TBD）？
+7. 验证方式（以后怎么确认没有再踩中）？
+8. 严重程度：🔴 崩溃或数据损坏 / 🟠 难查的运行时错误 / 🟡 行为不对但能跑 / 🔵 仅造成困惑？
+9. 类别：tooling / deps / arch / api / config / data / testing / security？"
 
 If the user already described the pitfall before invoking this command, extract what they
-gave and infer 严重程度 / 类别 from the impact — only ask back for fields you genuinely
-cannot determine.
+gave and infer 严重程度 / 类别 / 触发条件 / 影响范围 / 验证方式 from the impact. Only ask
+back for fields you genuinely cannot determine. If verification is not executable yet,
+write the smallest observable check, e.g. "run the failing command again" or "open the
+affected screen and confirm [behavior]".
 
 ## Step 2: Read ENGINE_MAP + engine/PITFALLS.md (re-anchor)
 Read `engine/ENGINE_MAP.md` first, then `engine/PITFALLS.md`. If ENGINE_MAP defines a
@@ -38,6 +43,9 @@ Match the structure `/engine-init` generates. Two writes plus a header bump:
    - **根因：** [Q3, or TBD]
    - **错误做法：** [what triggers it, if known, else TBD]
    - **正确做法：** [Q4]
+   - **触发条件：** [Q5]
+   - **影响范围：** [Q6]
+   - **验证方式：** [Q7]
    - **发现时间：** [today's date]
    ```
 2. Append the matching row to the **索引** table:

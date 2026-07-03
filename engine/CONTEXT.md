@@ -7,7 +7,7 @@
 | 维度 | 状态 |
 |------|------|
 | 构建 | ✅ 正常（纯 markdown + shell 脚本，无构建步骤） |
-| 上次完成 | 落地 **v6 自动更新与迁移机制**(T-013/D-014):VERSION 文件(根+plugin+engine 三致 6.0)+ `engine check-update`/`migrate`/`update` 一站式(拉取→migrate→doctor)+ migrator 创建 v6 数据层(tasks/decisions/domains/changes/evidence + federation.json + rules.json + VERSION)+ session-start 24h 缓存更新提示(fail-open)+ Doctor `check_engine_version` + check.sh VERSION stamp + install/manifest 分发 + migrations/v6.0 版本化 step。`engine verify T-013` 10/10 AC pass;`scripts/check.sh` 全绿;capsule:`engine/changes/CHANGE-2026-07-03-14.md` |
+| 上次完成 | 落地 **v6 自动更新与迁移机制**(T-013/D-014):VERSION 文件(根+plugin+engine 三致 6.0)+ `engine check-update`/`migrate`/`update` 一站式(拉取→migrate→doctor)+ migrator 创建 v6 数据层(tasks/decisions/domains/changes/evidence + federation.json + rules.json + VERSION)+ session-start 24h 缓存更新提示(fail-open)+ Doctor `check_engine_version` + check.sh VERSION stamp + install/manifest 分发 + migrations/v6.0 版本化 step。`engine verify T-013` 10/10 AC pass;`scripts/check.sh` 全绿;capsule:`engine/changes/CHANGE-2026-07-03-14.md`。附:补 runtime-law.md(L0 宪法)分发缺口到 install.sh/ps1(旧项目 L0 注入不触发的修复) |
 | 进行中 | ① 合并 feature/v6-auto-update 到 main(PR);② 后续可选:§7 度量精细化 / Q2 真实大库试点 |
 | 阻塞 | 无 |
 

@@ -1,0 +1,1 @@
+{"ac":"AC-2","verify":"bash plugin/bin/engine check-update; ec=$?; [ $ec -eq 0 -o $ec -eq 7 -o $ec -eq 8 ]","status":"pass","exit":0,"fingerprint":"sha256:a194cc342887e03171b6f89ac8b11bf35471b443d0be6ae39deb609b9779d913","timestamp":"2026-07-03T20:09:56Z"}

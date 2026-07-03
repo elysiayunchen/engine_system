@@ -81,11 +81,16 @@ FILES=(
   "bin/engine:engine/bin/engine:true"
   "bin/engine.ps1:engine/bin/engine.ps1:true"
   "bin/engine.cmd:engine/bin/engine.cmd:true"
+  "VERSION:engine/VERSION:true"
+  "engine/scripts/engine-check-update.sh:engine/scripts/engine-check-update.sh:true"
+  "engine/scripts/engine-check-update.ps1:engine/scripts/engine-check-update.ps1:true"
+  "migrations/v6.0.sh:engine/migrations/v6.0.sh:true"
+  "migrations/v6.0.ps1:engine/migrations/v6.0.ps1:true"
   ".claude/settings.json:.claude/settings.json:false"
 )
 
 # Create directories
-mkdir -p .claude/commands engine engine/scripts engine/scripts/githooks engine/bin engine/.cache
+mkdir -p .claude/commands engine engine/scripts engine/scripts/githooks engine/bin engine/migrations engine/.cache
 
 install_count=0
 skip_count=0

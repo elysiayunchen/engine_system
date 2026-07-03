@@ -127,4 +127,52 @@ if (Test-Path $PendingFile) {
   Write-Output ""
 }
 
+# v6 auto update check: 24h cache, fail-open (network failure silently skips, never blocks session).
+# Safety: read-only remote VERSION, no engine memory writes, no code touches. Non-blocking hint.
+$cache = Join-Path $EngineDir ".cache\update-check.json"
+$now = [int][DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+$checkInterval = 86400  # 24h
+$needCheck = $true
+if (Test-Path $cache) {
+  try {
+    $cached = Get-Content $cache -Raw -Encoding UTF8 | ConvertFrom-Json
+    if ($cached.last_check -and ($now - [int]$cached.last_check) -lt $checkInterval) {
+      $needCheck = $false
+    }
+  } catch { $needCheck = $true }
+}
+
+if ($needCheck) {
+  $repoU = if ($env:ENGINE_SYSTEM_REPO) { $env:ENGINE_SYSTEM_REPO } else { "elysiayunchen/engine_system" }
+  $branchU = if ($env:ENGINE_SYSTEM_BRANCH) { $env:ENGINE_SYSTEM_BRANCH } else { "main" }
+  $remoteVersion = ""
+  try {
+    $resp = Invoke-WebRequest -Uri "https://raw.githubusercontent.com/$repoU/$branchU/VERSION" -UseBasicParsing -TimeoutSec 5 -ErrorAction Stop
+    $remoteVersion = $resp.Content.Trim()
+  } catch { $remoteVersion = "" }
+
+  $localVersion = "unknown"
+  $localVerFile = Join-Path $EngineDir "VERSION"
+  if (Test-Path $localVerFile) {
+    $localVersion = (Get-Content $localVerFile -Raw -Encoding UTF8).Trim()
+  }
+
+  $cacheDir = Join-Path $EngineDir ".cache"
+  if (-not (Test-Path $cacheDir)) { New-Item -ItemType Directory -Force -Path $cacheDir | Out-Null }
+  $cacheObj = @{ last_check = $now; latest = $remoteVersion; current = $localVersion }
+  $cacheObj | ConvertTo-Json -Compress | Set-Content $cache -Encoding UTF8 -ErrorAction SilentlyContinue
+}
+
+# Hint if a newer version exists (read from cache, non-blocking).
+if (Test-Path $cache) {
+  try {
+    $cached = Get-Content $cache -Raw -Encoding UTF8 | ConvertFrom-Json
+    if ($cached.latest -and $cached.latest -ne "" -and $cached.latest -ne $cached.current) {
+      Write-Output "---- Engine update available ----"
+      Write-Output ("Local " + $cached.current + " -> Remote " + $cached.latest + ". Run: engine update")
+      Write-Output ""
+    }
+  } catch { }
+}
+
 exit 0

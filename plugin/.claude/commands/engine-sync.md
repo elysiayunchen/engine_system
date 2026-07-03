@@ -11,13 +11,24 @@ updates the Engine System layer itself, then reconciles the local engine files.
 1. Read `engine/ENGINE_MAP.md` first. If it is missing, run `/engine-init` instead.
 2. Read `engine/SYSTEM.md`, `engine/REPO_GUIDE.md` if present, and
    `engine/ENGINE_DOCTOR.md` if present.
-3. Update bundled Engine System tooling:
+3. Update bundled Engine System tooling (v6 one-shot: fetch + migrate + doctor):
    - Preferred terminal path for existing projects: run `engine update` from the project root.
-   - If this project has `install.sh`, run `bash install.sh --update`.
-   - If this project has `install.ps1`, run `.\install.ps1 -Update`.
+     This downloads the latest installer, runs update mode (does not overwrite project-specific
+     `engine/*.md` memory), then runs the contract migrator (creates v6 data-layer dirs +
+     federation table + VERSION stamp + managed contract block), then runs Doctor to verify.
+   - `engine update --check-only` previews whether a newer version is available without
+     changing anything; `engine update --no-migrate` updates tooling but skips migration.
+   - `engine check-update` compares local `engine/VERSION` against the remote VERSION
+     (exit 0 = up to date, 7 = update available, 8 = network error).
+   - `engine migrate` runs the contract migrator alone (idempotent) - use it to repair or
+     re-apply the v6 structure without re-downloading tooling.
+   - If this project has `install.sh`, running `bash install.sh --update` updates tooling
+     only (no migrate); follow with `engine migrate`.
+   - If this project has `install.ps1`, running `.\install.ps1 -Update` updates tooling
+     only (no migrate); follow with `engine migrate`.
    - If neither exists, fetch the latest installer from
      `https://raw.githubusercontent.com/elysiayunchen/engine_system/main/` and run its
-     update mode for this project.
+     update mode for this project, then run `engine migrate`.
 4. Ensure these installed files exist:
    - `.claude/commands/engine-doctor.md`
    - `.claude/commands/engine-sync.md`

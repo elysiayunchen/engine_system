@@ -86,6 +86,23 @@ try {
   Invoke-PwshFile ".\engine\scripts\engine-doctor.ps1" @("-Root", ".") "project doctor"
   Invoke-PwshFile ".\plugin\engine\scripts\engine-doctor.ps1" @("-Root", ".\plugin", "-PackageMode") "plugin package doctor"
 
+  Step "Engine VERSION stamp (v6 auto-update)"
+  $verFiles = @("VERSION", "plugin\VERSION", "engine\VERSION")
+  $allPresent = $true
+  foreach ($vf in $verFiles) { if (-not (Test-Path $vf)) { $allPresent = $false } }
+  if ($allPresent) {
+    $rv = (Get-Content "VERSION" -Raw -Encoding UTF8).Trim()
+    $pv = (Get-Content "plugin\VERSION" -Raw -Encoding UTF8).Trim()
+    $ev = (Get-Content "engine\VERSION" -Raw -Encoding UTF8).Trim()
+    if ($rv -eq $pv -and $rv -eq $ev) {
+      Pass "VERSION consistent ($rv) across root/plugin/engine"
+    } else {
+      Fail "VERSION mismatch: root=$rv plugin=$pv engine=$ev"
+    }
+  } else {
+    Fail "VERSION file missing (root/plugin/engine must all exist)"
+  }
+
   Step "PowerShell syntax"
   Get-ChildItem -Recurse -File -Include *.ps1 | ForEach-Object {
     $tokens = $null

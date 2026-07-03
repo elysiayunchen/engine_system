@@ -1,6 +1,6 @@
 # Engine System — Agent Entry
 
-> Powered by [Engine System](https://github.com/elysiayunchen/engine_system) (v5.5)
+> Powered by [Engine System](https://github.com/elysiayunchen/engine_system) (v6.0)
 > Bootloader only. The truth lives in `engine/`, indexed by `engine/ENGINE_MAP.md`.
 
 ## FIRST ACTION (MUST)
@@ -36,6 +36,7 @@ If `engine/ENGINE_MAP.md` does not exist, say:
 - `/engine-extend` — register a new authority file or adapter
 - `/engine-doctor` — validate engine health
 - `/engine-sync` — migrate bundled tooling and reconcile engine files
+- `engine check-update` / `engine update` / `engine migrate` — terminal CLI: detect remote version, fetch+migrate+doctor (one-shot), or run migration alone
 - `/engine-reconcile` — compare docs vs reality and land fixes
 
 ## MULTI-LANE WORK

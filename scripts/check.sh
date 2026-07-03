@@ -51,6 +51,13 @@ else
   fail "fractal memory"
 fi
 
+step "Contract compile (idempotent + budget)"
+if bash tests/contract-compile/run-compile-tests.sh; then
+  pass "contract compile fixtures"
+else
+  fail "contract compile"
+fi
+
 step "PowerShell syntax"
 if command -v pwsh >/dev/null 2>&1; then
   if pwsh -NoProfile -File scripts/check.ps1 -Root "$PWD"; then

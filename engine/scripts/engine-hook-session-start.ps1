@@ -19,6 +19,14 @@ if (-not (Test-Path $EngineDir)) {
 Write-Output "[Engine System - auto handoff] Current project memory snapshot. Restate the current state in one Simplified Chinese sentence before acting."
 Write-Output ""
 
+# v6 mid-priority: L0 constitution injection (runtime-law.md <=40 lines, top anti-drift anchor).
+$LawFile = Join-Path $Root "runtime-law.md"
+if (Test-Path $LawFile) {
+  Write-Output "---- L0 constitution (runtime-law) ----"
+  Get-Content $LawFile -TotalCount 40 | ForEach-Object { Write-Output $_ }
+  Write-Output ""
+}
+
 $ContextFile = Join-Path $EngineDir "CONTEXT.md"
 if (Test-Path $ContextFile) {
   Write-Output "---- Current state (engine/CONTEXT.md) ----"

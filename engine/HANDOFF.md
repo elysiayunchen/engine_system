@@ -4,7 +4,7 @@
 
 ## 立即恢复点
 
-下一步：v6 体系完善全部完成(批次1-4,N1-N5 达成)。立即提交推送。后续:真实大库试点 / 合并 main。
+下一步：v6 review 缺口修复完成(3 高优先)。立即提交推送。后续:中优先缺口(N1 注入计数器/L0 注入/flaky)+ 低优先(v6 命名/§7 度量)。
 
 > 本轮交接完成。初始机已升级为“工具更新 + 契约迁移”双阶段：`engine update` 分发脚本与命令，`/engine-sync` 运行 migrator，把自视图、改动胶囊、验收证据、Doctor 自审门禁等当前契约写入旧项目现有引擎文件。
 
@@ -12,6 +12,8 @@
 
 | 日期 | 完成了什么 | 下一步 | 改动文件 |
 |------|-----------|--------|---------|
+| 2026-07-03 | 落地 **v6 中优先缺口修复**(3 项):① N1 注入行数≤400 机器强制(check.sh 加 Session injection budget 段,跑 session-start \| wc -l ≤400,本仓库 187 行);② L0 宪法 SessionStart 注入(session-start.sh/ps1 加 runtime-law.md 前 40 行注入,fail-open);③ flaky 消除(eol=lf 修复后 check 多次稳定) | 提交推送 → 低优先缺口 | engine/scripts/engine-hook-session-start.*, plugin/engine/scripts/engine-hook-session-start.*, scripts/check.sh, engine/ENGINE_MAP.md, engine/CONTEXT.md, engine/HANDOFF.md, engine/changes/CHANGE-2026-07-03-12.md, engine/decisions/D-011.md, engine/tasks/T-011.md |
+| 2026-07-03 | 落地 **v6 review 缺口修复**(3 子代理 review):① dist 行尾根因(.gitattributes eol=lf + renormalize + 00-core.md 删旧横幅,Stop hook 噪音消除);② N3 done-gate 机器强制(Doctor check_task_card_done_evidence:done 须 evidence 或 exempt,T-001..009 exempt/T-004 evidence);③ §5.5 dist 3 产物(compile 产出 web-prompt + runtime-law.md L0 宪法 + rules.json 聚合索引);contract/src/L0-runtime-law.md L0 源 | 提交推送 → 中/低优先缺口 | .gitattributes, contract/src/L0-runtime-law.md, contract/compile.*, contract/budget.json, ENGINE_FILE_SYSTEM_v5.md, runtime-law.md, rules.json, engine/scripts/engine-doctor.*, plugin/engine/scripts/engine-doctor.*, engine/tasks/T-001..T-009.md(exempt), engine/ENGINE_MAP.md, engine/CONTEXT.md, engine/HANDOFF.md, engine/changes/CHANGE-2026-07-03-11.md, engine/decisions/D-010.md, engine/tasks/T-010.md |
 | 2026-07-03 | 落地 **v6 体系完善批次4 契约债计数器(N4)**:Doctor.sh/ps1 加 check_contract_debt/Test-ContractDebt(报告 MUST 数 + 门禁 Rule 数 + debt + budget.debt_baseline 趋势);budget.json 加 debt_baseline=46;双实现等价(sh grep -ho + ps1 [regex]::Matches,都 58 MUST);N4 完成——契约债可追踪下降 | 提交推送 → 真实大库试点 / 合并 main | engine/scripts/engine-doctor.*, plugin/engine/scripts/engine-doctor.*, contract/budget.json, engine/ENGINE_MAP.md, engine/CONTEXT.md, engine/HANDOFF.md, engine/changes/CHANGE-2026-07-03-10.md, engine/decisions/D-009.md, engine/tasks/T-009.md |
 | 2026-07-03 | 落地 **v6 体系完善批次2b D6 根锚点**:本仓库根铺 AGENTS.md(正本 bootloader,Session Protocol 六条:v6 会话开始/动工前/改契约/受保护路径/回写/完成验证 + 机制要点 + 入口) + CLAUDE.md(import 引用 + Quick Start);薄引导器,权威规则在引擎文件;D6 根锚点缺口补齐 | 提交推送 → 契约债计数器/试点/合并 main | AGENTS.md, CLAUDE.md, engine/ENGINE_MAP.md, engine/CONTEXT.md, engine/HANDOFF.md, engine/changes/CHANGE-2026-07-03-09.md, engine/decisions/D-008.md, engine/tasks/T-008.md |
 | 2026-07-03 | 落地 **v6 体系完善批次3 S3-b**:contract/src/ 拆为 4 主题模块(00-core 220行/10-interview 458行/20-file-templates 1558行/30-operational 204行);compile.sh/ps1 改拼接多模块 → dist(幂等,内容零变化);Doctor 双实现 check_contract_compile 改多模块;修复 ps1 Get-ChildItem -Filter 字符类不工作;tests/contract-compile 6/6 | 提交推送 → 批次2b D6 狗粮 | contract/src/*, contract/compile.*, contract/budget.json, contract/README.md, ENGINE_FILE_SYSTEM_v5.md, plugin/engine/scripts/engine-doctor.*, engine/scripts/engine-doctor.*, tests/contract-compile/run-compile-tests.sh, engine/ENGINE_MAP.md, engine/CONTEXT.md, engine/HANDOFF.md, engine/changes/CHANGE-2026-07-03-08.md, engine/decisions/D-007.md, engine/tasks/T-007.md |

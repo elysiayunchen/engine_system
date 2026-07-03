@@ -65,6 +65,14 @@ else
   fail "behavior verify"
 fi
 
+step "Session injection budget (N1: <=400 lines)"
+injected="$(CLAUDE_PROJECT_DIR="$PWD" bash plugin/engine/scripts/engine-hook-session-start.sh 2>/dev/null | wc -l)"
+if [ "$injected" -le 400 ]; then
+  pass "session injection $injected lines <= 400 (N1)"
+else
+  fail "session injection $injected lines > 400 (N1 violated)"
+fi
+
 step "PowerShell syntax"
 if command -v pwsh >/dev/null 2>&1; then
   if pwsh -NoProfile -File scripts/check.ps1 -Root "$PWD"; then

@@ -122,6 +122,8 @@ function Test-PackageMode {
     "engine/scripts/engine-doctor.sh",
     "engine/scripts/engine-migrate-contract.ps1",
     "engine/scripts/engine-migrate-contract.sh",
+    "engine/scripts/engine-verify.ps1",
+    "engine/scripts/engine-verify.sh",
     "engine/scripts/githooks/pre-commit",
     "bin/engine",
     "bin/engine.ps1",
@@ -442,6 +444,37 @@ function Test-ChangeCapsuleSemantics {
   }
 }
 
+function Test-ContractCompile {
+  $src = Join-Path $Root "contract/src/ENGINE_FILE_SYSTEM.md"
+  $dist = Join-Path $Root "ENGINE_FILE_SYSTEM_v5.md"
+  $compileSh = Join-Path $Root "contract/compile.sh"
+  if (-not (Test-Path $src)) { return }
+  if (-not (Test-Path $dist)) { Write-Warn "contract dist missing: $dist"; return }
+  if (-not (Test-Path $compileSh)) { Write-Warn "contract compile.sh missing"; return }
+  $banner = '<!-- ENGINE_FILE_SYSTEM_v5.md: compiled from contract/src/ENGINE_FILE_SYSTEM.md by engine compile. Do not edit dist directly; edit src and recompile. -->'
+  $srcContent = Get-Content -Raw -Path $src -Encoding UTF8
+  $expected = $banner + "`n" + $srcContent
+  $distContent = Get-Content -Raw -Path $dist -Encoding UTF8
+  if ($expected -ceq $distContent) {
+    Write-Pass "contract compile idempotent (compile(src) == dist)"
+  } else {
+    Write-Fail "contract dist is not compile(src) - run bash contract/compile.sh; do not edit dist directly"
+  }
+  $budget = Join-Path $Root "contract/budget.json"
+  if (Test-Path $budget) {
+    $budgetRaw = Get-Content -Raw -Path $budget -Encoding UTF8
+    if ($budgetRaw -match '"max_lines"\s*:\s*(\d+)') {
+      $maxLines = [int]$Matches[1]
+      $srcLines = (Get-Content $src).Count
+      if ($srcLines -le $maxLines) {
+        Write-Pass "contract budget: src $srcLines lines <= $maxLines"
+      } else {
+        Write-Fail "contract budget exceeded: src $srcLines lines > $maxLines (subtraction rule: net-zero growth)"
+      }
+    }
+  }
+}
+
 function Test-PlanAcceptanceEvidence {
   foreach ($row in $planRows) {
     $cells = Split-Row $row
@@ -516,6 +549,7 @@ Test-PitfallsSemantics
 Test-SprintSemantics
 Test-ChangeCapsuleSemantics
 Test-PlanAcceptanceEvidence
+Test-ContractCompile
 
 foreach ($anchor in @("AGENTS.md", "CLAUDE.md")) {
   $path = Join-Path $Root $anchor
@@ -543,6 +577,8 @@ foreach ($script in @(
   "engine-sync-agent-anchors.ps1",
   "engine-migrate-contract.sh",
   "engine-migrate-contract.ps1",
+  "engine-verify.sh",
+  "engine-verify.ps1",
   "githooks/pre-commit"
 )) {
   $scriptPath = Join-Path (Join-Path $engineDir "scripts") ($script -replace "/", [IO.Path]::DirectorySeparatorChar)

@@ -204,6 +204,20 @@ write_task "$r" T-001 active "src/**,engine/**" ""
 git -C "$r" add src/app.js engine/CONTEXT.md
 run_pc "unprotected-path-ok" "$r" 0
 
+# C6. 受保护路径变更,无 active 但有 done 任务卡(decision 覆盖) → rc=0(fallback)
+r="$(new_repo)"; write_rules "$r" "engine/decisions/**"
+write_task "$r" T-001 done "engine/**" "" "D-001"
+write_decision "$r" D-001 approved "engine/decisions/**"
+git -C "$r" add engine/decisions/rules.json engine/CONTEXT.md
+run_pc "protected-done-fallback" "$r" 0
+
+# C7. 受保护路径变更,无 active,done 任务卡 decision scope 不覆盖 → rc=1
+r="$(new_repo)"; write_rules "$r" "engine/decisions/**"
+write_task "$r" T-001 done "engine/**" "" "D-001"
+write_decision "$r" D-001 approved "engine/tasks/**"
+git -C "$r" add engine/decisions/rules.json engine/CONTEXT.md
+run_pc "protected-done-fallback-scope-not-covering" "$r" 1
+
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "task-card gate result: $pass passed, $fail failed"

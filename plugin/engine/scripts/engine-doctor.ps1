@@ -527,6 +527,30 @@ function Test-TaskCardDoneEvidence {
   }
 }
 
+function Test-EngineVersion {
+  $ev = Join-Path $EngineDir "VERSION"
+  if (-not (Test-Path $ev)) {
+    Write-Warn "engine/VERSION missing - run 'engine migrate' to stamp the local version"
+    return
+  }
+  $v = (Get-Content $ev -Raw -Encoding UTF8).Trim()
+  if (-not $v) {
+    Write-Fail "engine/VERSION is empty"
+    return
+  }
+  $repoVer = Join-Path $Root "VERSION"
+  if (Test-Path $repoVer) {
+    $rv = (Get-Content $repoVer -Raw -Encoding UTF8).Trim()
+    if ($v -ne $rv) {
+      Write-Warn "engine/VERSION ($v) differs from repo VERSION ($rv) - run 'engine migrate' to sync"
+    } else {
+      Write-Pass "engine/VERSION ($v) matches repo VERSION"
+    }
+  } else {
+    Write-Pass "engine/VERSION present ($v)"
+  }
+}
+
 function Test-PlanAcceptanceEvidence {
   foreach ($row in $planRows) {
     $cells = Split-Row $row
@@ -604,6 +628,7 @@ Test-PlanAcceptanceEvidence
 Test-ContractCompile
 Test-ContractDebt
 Test-TaskCardDoneEvidence
+Test-EngineVersion
 
 foreach ($anchor in @("AGENTS.md", "CLAUDE.md")) {
   $path = Join-Path $Root $anchor

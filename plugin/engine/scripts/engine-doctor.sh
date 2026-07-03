@@ -447,6 +447,29 @@ check_task_card_done_evidence() {
   done
 }
 
+check_engine_version() {
+  local ev="$ENGINE_DIR/VERSION"
+  if [ ! -f "$ev" ]; then
+    warn "engine/VERSION missing - run 'engine migrate' to stamp the local version"
+    return 0
+  fi
+  local v; v="$(tr -d '[:space:]' < "$ev")"
+  if [ -z "$v" ]; then
+    fail "engine/VERSION is empty"
+    return 0
+  fi
+  if [ -f "$ROOT/VERSION" ]; then
+    local rv; rv="$(tr -d '[:space:]' < "$ROOT/VERSION")"
+    if [ "$v" != "$rv" ]; then
+      warn "engine/VERSION ($v) differs from repo VERSION ($rv) - run 'engine migrate' to sync"
+    else
+      pass "engine/VERSION ($v) matches repo VERSION"
+    fi
+  else
+    pass "engine/VERSION present ($v)"
+  fi
+}
+
 check_plan_acceptance_evidence() {
   while IFS='|' read -r _ id title status plan spec notes verified _; do
     id="$(trim "$id")"
@@ -494,6 +517,7 @@ check_plan_acceptance_evidence
 check_contract_compile
 check_contract_debt
 check_task_card_done_evidence
+check_engine_version
 
 while IFS='|' read -r _ path type authority verified _; do
   path="$(trim "$path")"

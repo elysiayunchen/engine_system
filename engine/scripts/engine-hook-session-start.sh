@@ -109,4 +109,47 @@ if [ -f "$ENGINE_DIR/.cache/pending.txt" ]; then
   echo ""
 fi
 
+# v6 自动检测更新: 24h 缓存, fail-open(联网失败/无 curl 静默跳过,绝不阻塞会话)。
+# 安全: 只读远程 VERSION 单文件, 不写引擎记忆, 不碰代码。提示非阻塞。
+cache="$ENGINE_DIR/.cache/update-check.json"
+now="$(date +%s)"
+check_interval=86400  # 24h
+need_check=1
+if [ -f "$cache" ]; then
+  last_check="$(grep -oE '"last_check":[[:space:]]*[0-9]+' "$cache" 2>/dev/null | head -1 | sed 's/.*:[[:space:]]*//')"
+  if [ -n "$last_check" ] && [ $((now - last_check)) -lt $check_interval ]; then
+    need_check=0
+  fi
+fi
+
+if [ "$need_check" -eq 1 ]; then
+  REPO_U="${ENGINE_SYSTEM_REPO:-elysiayunchen/engine_system}"
+  BRANCH_U="${ENGINE_SYSTEM_BRANCH:-main}"
+  remote_version=""
+  if command -v curl >/dev/null 2>&1; then
+    remote_version="$(curl -sSL --max-time 5 "https://raw.githubusercontent.com/${REPO_U}/${BRANCH_U}/VERSION" 2>/dev/null || true)"
+  elif command -v wget >/dev/null 2>&1; then
+    remote_version="$(wget -qO - --timeout=5 "https://raw.githubusercontent.com/${REPO_U}/${BRANCH_U}/VERSION" 2>/dev/null || true)"
+  fi
+  remote_version="$(printf '%s' "$remote_version" | tr -d '[:space:]')"
+
+  local_version="unknown"
+  [ -f "$ENGINE_DIR/VERSION" ] && local_version="$(tr -d '[:space:]' < "$ENGINE_DIR/VERSION")"
+
+  # Write cache (best effort; never fail the session on a cache write error).
+  mkdir -p "$ENGINE_DIR/.cache" 2>/dev/null || true
+  printf '{"last_check":%s,"latest":"%s","current":"%s"}\n' "$now" "$remote_version" "$local_version" > "$cache" 2>/dev/null || true
+fi
+
+# Hint if a newer version exists (read from cache, non-blocking).
+if [ -f "$cache" ]; then
+  latest="$(grep -oE '"latest":[[:space:]]*"[^"]*"' "$cache" 2>/dev/null | head -1 | sed 's/.*"latest":[[:space:]]*"//;s/"//')"
+  current="$(grep -oE '"current":[[:space:]]*"[^"]*"' "$cache" 2>/dev/null | head -1 | sed 's/.*"current":[[:space:]]*"//;s/"//')"
+  if [ -n "$latest" ] && [ "$latest" != "$current" ] && [ "$latest" != "" ]; then
+    echo "──── 🔄 引擎更新可用 ────"
+    echo "本地 $current -> 远程 $latest。运行 engine update 更新。"
+    echo ""
+  fi
+fi
+
 exit 0

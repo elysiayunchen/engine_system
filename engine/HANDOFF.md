@@ -4,7 +4,7 @@
 
 ## 立即恢复点
 
-下一步：v6 体系完善批次3 S3-b 已落地(contract/src 拆 4 模块 + compile 多模块拼接)。立即提交推送。后续批次2b:D6 狗粮。
+下一步：v6 体系完善全部完成(批次1-3 + 2b)。立即提交推送。后续:契约债计数器(N4) / 真实大库试点 / 合并 main。
 
 > 本轮交接完成。初始机已升级为“工具更新 + 契约迁移”双阶段：`engine update` 分发脚本与命令，`/engine-sync` 运行 migrator，把自视图、改动胶囊、验收证据、Doctor 自审门禁等当前契约写入旧项目现有引擎文件。
 
@@ -12,6 +12,7 @@
 
 | 日期 | 完成了什么 | 下一步 | 改动文件 |
 |------|-----------|--------|---------|
+| 2026-07-03 | 落地 **v6 体系完善批次2b D6 根锚点**:本仓库根铺 AGENTS.md(正本 bootloader,Session Protocol 六条:v6 会话开始/动工前/改契约/受保护路径/回写/完成验证 + 机制要点 + 入口) + CLAUDE.md(import 引用 + Quick Start);薄引导器,权威规则在引擎文件;D6 根锚点缺口补齐 | 提交推送 → 契约债计数器/试点/合并 main | AGENTS.md, CLAUDE.md, engine/ENGINE_MAP.md, engine/CONTEXT.md, engine/HANDOFF.md, engine/changes/CHANGE-2026-07-03-09.md, engine/decisions/D-008.md, engine/tasks/T-008.md |
 | 2026-07-03 | 落地 **v6 体系完善批次3 S3-b**:contract/src/ 拆为 4 主题模块(00-core 220行/10-interview 458行/20-file-templates 1558行/30-operational 204行);compile.sh/ps1 改拼接多模块 → dist(幂等,内容零变化);Doctor 双实现 check_contract_compile 改多模块;修复 ps1 Get-ChildItem -Filter 字符类不工作;tests/contract-compile 6/6 | 提交推送 → 批次2b D6 狗粮 | contract/src/*, contract/compile.*, contract/budget.json, contract/README.md, ENGINE_FILE_SYSTEM_v5.md, plugin/engine/scripts/engine-doctor.*, engine/scripts/engine-doctor.*, tests/contract-compile/run-compile-tests.sh, engine/ENGINE_MAP.md, engine/CONTEXT.md, engine/HANDOFF.md, engine/changes/CHANGE-2026-07-03-08.md, engine/decisions/D-007.md, engine/tasks/T-007.md |
 | 2026-07-03 | 落地 **v6 体系完善批次2a**:pre-commit 加 done fallback(无 active 时用最新 done 任务卡的 decision,scope 仍校验);.git/hooks/pre-commit 安装(B 层门禁真正生效);tests/task-card 加 C6/C7(done fallback 通过 + scope 不覆盖拦截),21/21 | 提交推送 → 批次2b/3 | engine/scripts/githooks/pre-commit, plugin/engine/scripts/githooks/pre-commit, tests/task-card/run-task-tests.sh, engine/ENGINE_MAP.md, engine/CONTEXT.md, engine/HANDOFF.md, engine/changes/CHANGE-2026-07-03-07.md, engine/decisions/D-006.md, engine/tasks/T-006.md |
 | 2026-07-03 | 落地 **v6 体系完善批次1**:install.sh/ps1 + manifest.json 加 engine-verify 分发;Doctor.sh/ps1 加 check_contract_compile(编译幂等 compile(src)==dist + 减法预算)+ bundled/required 清单补 engine-verify;补齐 S3/S4 机制闭环硬缺口 | 提交推送 → 批次2(S3-b / D6) | install.sh, install.ps1, plugin/manifest.json, engine/scripts/engine-doctor.*, plugin/engine/scripts/engine-doctor.*, engine/ENGINE_MAP.md, engine/CONTEXT.md, engine/HANDOFF.md, engine/changes/CHANGE-2026-07-03-06.md, engine/decisions/D-005.md, engine/tasks/T-005.md |

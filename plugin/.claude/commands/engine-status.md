@@ -37,6 +37,9 @@ Then output this dashboard — keep it short, scannable, no fluff:
 阻塞：[list or 无]
 立即恢复点：[HANDOFF 下一步]
 
+### 等你拍板（决策队列）
+[列出 engine/decisions/D-*.md 中 status: proposed 的决策,每条:决策 ID + 标题 + 选项 + 推荐选项 + 一句话后果;无 proposed 时写"无"]
+
 ### 活跃任务 (SPRINT)
 [top 3 tasks with status, or "无 SPRINT 文件"]
 
@@ -48,6 +51,9 @@ Then output this dashboard — keep it short, scannable, no fluff:
 
 ### 最近改动胶囊
 [latest CHANGE capsule title + status + risk + verification + rollback, or "无 change capsule"]
+
+### 验收证据
+[列出最近任务卡的 engine/evidence/T-NNN/AC-N.json:AC ID + status(pass/fail)+ 指纹前 12 位;无 evidence 时写"无——运行 engine verify T-NNN 生成"]
 
 ### 引擎文件健康
 [registry → disk and disk → registry summary; flag missing/unregistered authority-looking files]

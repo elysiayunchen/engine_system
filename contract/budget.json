@@ -1,7 +1,7 @@
 {
-  "_comment": "契约减法规则基线(v6 S3)。新增 Hard Rule 必须净零增长——删并等量旧散文。check 校验 src 行数 ≤ max_lines、Rule 数 ≤ max_rules。提升基线须决策背书。",
-  "max_lines": 2438,
-  "max_rules": 11,
+  "_comment": "契约减法规则基线(v6 S4)。新增 Hard Rule 必须净零增长——删并等量旧散文。提升基线须决策背书(如 D-004 提升至 2440/12 以纳入 Behavior Verification Rule)。",
+  "max_lines": 2440,
+  "max_rules": 12,
   "rules": [
     "CLI-LEAN Hard Rule",
     "Read-Gate Hard Rule",
@@ -13,6 +13,7 @@
     "Acceptance Evidence Rule",
     "Task Card Rule",
     "Decision Ledger Rule",
-    "Fractal Memory Rule"
+    "Fractal Memory Rule",
+    "Behavior Verification Rule"
   ]
 }

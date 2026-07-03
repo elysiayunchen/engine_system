@@ -14,7 +14,7 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$HERE/../.." && pwd)"
 COMPILE_SH="$REPO_ROOT/contract/compile.sh"
 COMPILE_PS1="$REPO_ROOT/contract/compile.ps1"
-SRC="$REPO_ROOT/contract/src/ENGINE_FILE_SYSTEM.md"
+SRC_DIR="$REPO_ROOT/contract/src"
 DIST="$REPO_ROOT/ENGINE_FILE_SYSTEM_v5.md"
 BUDGET="$REPO_ROOT/contract/budget.json"
 
@@ -26,11 +26,11 @@ done
 pass=0
 fail=0
 
-BANNER='<!-- ENGINE_FILE_SYSTEM_v5.md: compiled from contract/src/ENGINE_FILE_SYSTEM.md by engine compile. Do not edit dist directly; edit src and recompile. -->'
+BANNER='<!-- ENGINE_FILE_SYSTEM_v5.md: compiled from contract/src/*.md by engine compile. Do not edit dist directly; edit src and recompile. -->'
 
 # 编译到指定文件(不覆盖 dist)。
 compile_to() {
-  { printf '%s\n' "$BANNER"; cat "$SRC"; } > "$1"
+  { printf '%s\n' "$BANNER"; for m in "$SRC_DIR"/[0-9]*.md; do [ -f "$m" ] || continue; cat "$m"; done; } > "$1"
 }
 
 echo "=== A. 编译幂等 + 篡改检测 ==="
@@ -67,7 +67,7 @@ echo "=== B. 减法规则 ==="
 
 # B1: src 行数 ≤ budget.max_lines
 max_lines=$(grep -o '"max_lines"[[:space:]]*:[[:space:]]*[0-9]*' "$BUDGET" | grep -o '[0-9]*$')
-src_lines=$(wc -l < "$SRC")
+src_lines=$(cat "$SRC_DIR"/[0-9]*.md | wc -l)
 if [ "$src_lines" -le "$max_lines" ]; then
   echo "PASS  B1 src-lines-budget ($src_lines ≤ $max_lines)"; pass=$((pass+1))
 else
@@ -76,7 +76,7 @@ fi
 
 # B2: Rule 数 ≤ budget.max_rules
 max_rules=$(grep -o '"max_rules"[[:space:]]*:[[:space:]]*[0-9]*' "$BUDGET" | grep -o '[0-9]*$')
-rule_count=$(grep -cE '\*\*[^*]*Rule \(v' "$SRC")
+rule_count=$(grep -hE '\*\*[^*]*Rule \(v' "$SRC_DIR"/[0-9]*.md | wc -l)
 if [ "$rule_count" -le "$max_rules" ]; then
   echo "PASS  B2 rule-count-budget ($rule_count ≤ $max_rules)"; pass=$((pass+1))
 else

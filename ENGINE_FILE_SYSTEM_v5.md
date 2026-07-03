@@ -1,4 +1,4 @@
-<!-- ENGINE_FILE_SYSTEM_v5.md: compiled from contract/src/ENGINE_FILE_SYSTEM.md by engine compile. Do not edit dist directly; edit src and recompile. -->
+<!-- ENGINE_FILE_SYSTEM_v5.md: compiled from contract/src/*.md by engine compile. Do not edit dist directly; edit src and recompile. -->
 <!-- ENGINE_FILE_SYSTEM_v5.md — compiled from contract/src/ENGINE_FILE_SYSTEM.md by `engine compile`. Do not edit dist directly; edit src and recompile. -->
 # ENGINE FILE SYSTEM — INITIALIZATION & LIFECYCLE AGENT
 # Version: 5.7.0 | Modes: INIT · INGEST · EXTEND · RECONCILE | Profiles: WEB-FULL · CLI-LEAN | Vibe Coding Optimized | New in 5.7: Project Self-View + Change Capsules for architect-readable review

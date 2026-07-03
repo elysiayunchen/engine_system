@@ -6,7 +6,10 @@
 
 ```
 contract/
-  src/ENGINE_FILE_SYSTEM.md   # 唯一真相源(契约源)
+  src/00-core.md              # 核心规则(知识分类/语言/Profile/锚点/MODE DISPATCH)
+  src/10-interview.md         # 采访 + PHASE 1-4
+  src/20-file-templates.md    # 文件模板(ENGINE_MAP/CONTEXT/PITFALLS/...)
+  src/30-operational.md       # 运维模式 + SPEC TWIN
   compile.sh / compile.ps1    # 编译器:src + 横幅 → dist
   budget.json                 # 减法规则基线(行数 + Rule 数)
 ```

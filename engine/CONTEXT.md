@@ -7,8 +7,8 @@
 | 维度 | 状态 |
 |------|------|
 | 构建 | ✅ 正常（纯 markdown + shell 脚本，无构建步骤） |
-| 上次完成 | 落地 **v6 体系完善批次1**并验证通过:install.sh/ps1 + manifest.json 加 engine-verify 分发;Doctor.sh/ps1 加 check_contract_compile(编译幂等+减法预算)+ bundled 清单补 engine-verify。补齐 S3/S4 机制闭环硬缺口。`scripts/check.sh` 全绿;capsule:`engine/changes/CHANGE-2026-07-03-06.md` |
-| 进行中 | ① 提交推送批次1;② 批次2:S3-b 源模块细分 / D6 狗粮缺口 |
+| 上次完成 | 落地 **v6 体系完善批次2a**并验证通过:pre-commit 加 done fallback(无 active 时用最新 done 任务卡的 decision,scope 仍校验)+ .git/hooks/pre-commit 安装 + tests/task-card C6/C7。B 层门禁从「形同虚设」变「真正生效」。`scripts/check.sh` 全绿;capsule:`engine/changes/CHANGE-2026-07-03-07.md` |
+| 进行中 | ① 提交推送批次2a;② 批次2b:D6 狗粮(SYSTEM/ARCHITECTURE/锚点) / 批次3:S3-b 源模块细分 |
 | 阻塞 | 无 |
 
 ## 当前假设 / 决策（本轮拍板）

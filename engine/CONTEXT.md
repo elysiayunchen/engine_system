@@ -7,8 +7,8 @@
 | 维度 | 状态 |
 |------|------|
 | 构建 | ✅ 正常（纯 markdown + shell 脚本，无构建步骤） |
-| 上次完成 | 落地 **v6 体系完善批次3 S3-b**并验证通过:contract/src/ 拆为 4 主题模块(00-core/10-interview/20-file-templates/30-operational),compile 拼接多模块 → dist(幂等),减法规则可按模块预算。dist 内容零变化。`scripts/check.sh` 全绿;capsule:`engine/changes/CHANGE-2026-07-03-08.md` |
-| 进行中 | ① 提交推送批次3;② 批次2b:D6 狗粮(SYSTEM/ARCHITECTURE/根锚点) |
+| 上次完成 | 落地 **v6 体系完善批次2b D6 根锚点**并验证通过:本仓库根铺 AGENTS.md(正本 bootloader + Session Protocol 六条) + CLAUDE.md(import 引用)。D6 根锚点缺口补齐。`scripts/check.sh` 全绿;capsule:`engine/changes/CHANGE-2026-07-03-09.md` |
+| 进行中 | ① 提交推送批次2b;② v6 体系完善全部完成,后续:契约债计数器(N4) / 真实大库试点 / 合并 main |
 | 阻塞 | 无 |
 
 ## 当前假设 / 决策（本轮拍板）

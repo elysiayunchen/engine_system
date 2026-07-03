@@ -7,8 +7,8 @@
 | 维度 | 状态 |
 |------|------|
 | 构建 | ✅ 正常（纯 markdown + shell 脚本，无构建步骤） |
-| 上次完成 | 落地 **v6 review 缺口修复**(3 子代理 review 暴露的 3 高优先):① dist 行尾根因(.gitattributes eol=lf,Stop hook 噪音消除);② N3 done-gate 机器强制(Doctor done 无 evidence 无 exempt → fail);③ §5.5 dist 3 产物(runtime-law.md L0 宪法 + rules.json 机读规则表)。`scripts/check.sh` 全绿;capsule:`engine/changes/CHANGE-2026-07-03-11.md` |
-| 进行中 | ① 提交推送 review 修复;② 后续:中优先(N1 注入计数器/L0 注入/flaky)+ 低优先(v6 命名/决策记录/§7 度量) |
+| 上次完成 | 落地 **v6 中优先缺口修复**(3 项):① N1 注入行数≤400 机器强制(check.sh 加 Session injection budget 段,本仓库 187 行);② L0 宪法 SessionStart 注入(runtime-law.md 前 40 行);③ flaky 消除(eol=lf 后 check 多次稳定)。`scripts/check.sh` 全绿;capsule:`engine/changes/CHANGE-2026-07-03-12.md` |
+| 进行中 | ① 提交推送中优先修复;② 后续:低优先(v6 命名/决策记录/§7 度量/Q2 试点) |
 | 阻塞 | 无 |
 
 ## 当前假设 / 决策（本轮拍板）

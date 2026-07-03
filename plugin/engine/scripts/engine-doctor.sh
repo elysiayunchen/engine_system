@@ -88,6 +88,8 @@ package_mode() {
     engine/scripts/engine-doctor.sh \
     engine/scripts/engine-migrate-contract.ps1 \
     engine/scripts/engine-migrate-contract.sh \
+    engine/scripts/engine-verify.ps1 \
+    engine/scripts/engine-verify.sh \
     engine/scripts/githooks/pre-commit \
     bin/engine \
     bin/engine.ps1 \
@@ -375,6 +377,55 @@ check_change_capsule_semantics() {
   fi
 }
 
+check_contract_compile() {
+  local src_dir="$ROOT/contract/src"
+  local dist="$ROOT/ENGINE_FILE_SYSTEM_v5.md"
+  local compile_sh="$ROOT/contract/compile.sh"
+  [ -d "$src_dir" ] || return 0
+  [ -f "$dist" ] || { warn "contract dist missing: $dist"; return; }
+  [ -f "$compile_sh" ] || { warn "contract compile.sh missing"; return; }
+  local tmp; tmp="$(mktemp)"
+  local banner='<!-- ENGINE_FILE_SYSTEM_v5.md: compiled from contract/src/*.md by engine compile. Do not edit dist directly; edit src and recompile. -->'
+  { printf '%s\n' "$banner"; for m in "$src_dir"/[0-9]*.md; do [ -f "$m" ] || continue; cat "$m"; done; } > "$tmp"
+  if diff -q "$tmp" "$dist" >/dev/null 2>&1; then
+    pass "contract compile idempotent (compile(src) == dist)"
+  else
+    fail "contract dist is not compile(src) - run bash contract/compile.sh; do not edit dist directly"
+  fi
+  rm -f "$tmp"
+  local budget="$ROOT/contract/budget.json"
+  if [ -f "$budget" ]; then
+    local max_lines; max_lines="$(grep -o '"max_lines"[[:space:]]*:[[:space:]]*[0-9]*' "$budget" | grep -o '[0-9]*$')"
+    local src_lines; src_lines="$(cat "$src_dir"/[0-9]*.md | wc -l)"
+    if [ -n "$max_lines" ] && [ "$src_lines" -le "$max_lines" ]; then
+      pass "contract budget: src $src_lines lines <= $max_lines"
+    elif [ -n "$max_lines" ]; then
+      fail "contract budget exceeded: src $src_lines lines > $max_lines (subtraction rule: net-zero growth)"
+    fi
+  fi
+}
+
+check_contract_debt() {
+  local src_dir="$ROOT/contract/src"
+  [ -d "$src_dir" ] || return 0
+  local total_must; total_must="$(grep -hoE '\bMUST\b' "$src_dir"/[0-9]*.md 2>/dev/null | wc -l)"
+  local rule_count; rule_count="$(grep -hE '\*\*[^*]*Rule \(v' "$src_dir"/[0-9]*.md 2>/dev/null | wc -l)"
+  local debt=$((total_must - rule_count))
+  local budget="$ROOT/contract/budget.json"
+  local baseline=""
+  if [ -f "$budget" ]; then
+    baseline="$(grep -o '"debt_baseline"[[:space:]]*:[[:space:]]*[0-9]*' "$budget" | grep -o '[0-9]*$')"
+  fi
+  pass "contract debt: MUST=$total_must, gated Rules=$rule_count, debt=$debt${baseline:+, baseline=$baseline}"
+  if [ -n "$baseline" ]; then
+    if [ "$debt" -le "$baseline" ]; then
+      pass "contract debt <= baseline ($debt <= $baseline) - net-zero holding"
+    else
+      warn "contract debt > baseline ($debt > $baseline) - move MUST into data tables (Rules/rules.json/federation.json)"
+    fi
+  fi
+}
+
 check_plan_acceptance_evidence() {
   while IFS='|' read -r _ id title status plan spec notes verified _; do
     id="$(trim "$id")"
@@ -419,6 +470,8 @@ check_pitfalls_semantics
 check_sprint_semantics
 check_change_capsule_semantics
 check_plan_acceptance_evidence
+check_contract_compile
+check_contract_debt
 
 while IFS='|' read -r _ path type authority verified _; do
   path="$(trim "$path")"
@@ -480,6 +533,8 @@ for script in \
   engine-sync-agent-anchors.ps1 \
   engine-migrate-contract.sh \
   engine-migrate-contract.ps1 \
+  engine-verify.sh \
+  engine-verify.ps1 \
   githooks/pre-commit
 do
   if [[ -f "$ENGINE_DIR/scripts/$script" ]]; then

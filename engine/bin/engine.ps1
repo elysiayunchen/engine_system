@@ -1,7 +1,8 @@
 # Engine System user-level CLI shim for Windows PowerShell.
 
 param(
-  [string]$Command = "help"
+  [string]$Command = "help",
+  [string]$Task = ""
 )
 
 $Repo = if ($env:ENGINE_SYSTEM_REPO) { $env:ENGINE_SYSTEM_REPO } else { "elysiayunchen/engine_system" }
@@ -13,6 +14,7 @@ Engine System CLI
 
 Usage:
   engine update        Update Engine System tooling in the current project
+  engine verify T-NNN  Run behavior verification for a task card
   engine help          Show this help
 
 `engine update` downloads the latest installer and runs update mode. It does not overwrite
@@ -23,6 +25,18 @@ receive the latest managed contract block while preserving project memory.
 }
 
 switch ($Command) {
+  "verify" {
+    if (-not (Test-Path "engine")) {
+      Write-Error "Error: engine/ not found in $PWD. Run engine verify in a project root."
+      exit 2
+    }
+    if (-not $Task) {
+      Write-Error "Usage: engine verify T-NNN"
+      exit 2
+    }
+    $verifyScript = Join-Path $PWD.Path "engine\scripts\engine-verify.ps1"
+    & $verifyScript -Task $Task
+  }
   "update" {
     $tmp = Join-Path $env:TEMP ("engine-install-" + [guid]::NewGuid().ToString("N") + ".ps1")
     try {

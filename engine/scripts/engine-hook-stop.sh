@@ -2,8 +2,10 @@
 # Engine System — Stop hook · "收尾守门员 / session-close gatekeeper"（硬门禁）
 #
 # 职责（三层，从严到宽）:
-#   1. 任务卡写集校验（v6 S1）:有 active 任务卡时,代码路径越出 WRITE-SET 或触及
-#      FORBIDDEN → block。无 active 任务卡 → 跳过本层（向后兼容）。
+#   1. 任务卡校验（v6 S1+S2）:有 active 任务卡时——
+#      ① WRITE-SET 越界 / FORBIDDEN → block（S1）;
+#      ② 路由一致性:code_path 所属域(联邦表 federation.json)必须 ∈ 任务卡
+#         domain 集合,越域 → block（S2）。无 active 任务卡 → 跳过本层（向后兼容）。
 #   2. 硬门禁（v5.6）:改了代码但没回写 CONTEXT/HANDOFF/ENGINE_MAP → block。
 #   3. 软门禁 WARN（v6 S0）:记忆已回写但无 change capsule → systemMessage 提示。
 #
@@ -109,6 +111,41 @@ if [ -n "$active_task" ] && [ "${#code_paths[@]}" -gt 0 ]; then
       exit 0
     fi
   done
+
+  # ── S2: 路由一致性校验 ──────────────────────────────────────────────
+  # federation.json 存在 + 任务卡声明 domain 时,每条 code_path 所属域(联邦表
+  # 解析)必须 ∈ 任务卡 domain 集合,越域 = block。无 federation.json / 任务卡
+  # 无 domain → 跳过(向后兼容 S1)。
+  fed="$ENGINE_DIR/domains/federation.json"
+  task_domains="$(grep '^>.*domain:' "$active_task" 2>/dev/null | head -1 | sed 's/.*domain:[[:space:]]*//' | sed 's/|.*//' | tr -d ' ')"
+  if [ -f "$fed" ] && [ -n "$task_domains" ]; then
+    federation="$(awk '
+      /"default_domain"/ { if (match($0, /"default_domain"[[:space:]]*:[[:space:]]*"([^"]+)"/, m)) print "DEFAULT\t" m[1]; next }
+      /^[[:space:]]*"[A-Za-z0-9_-]+"[[:space:]]*:[[:space:]]*\{/ { if (match($0, /"([A-Za-z0-9_-]+)"/, m)) { domain=m[1]; in_paths=0 }; next }
+      /"paths"/ { in_paths=1; s=$0; sub(/.*"paths"[[:space:]]*:[[:space:]]*/, "", s); if (s ~ /\]/) { in_paths=0; while (match(s, /"([^"]+)"/, m)) { if (domain!="") print domain "\t" m[1]; s=substr(s, RSTART+RLENGTH) } }; next }
+      in_paths && /\]/ { in_paths=0; next }
+      in_paths { s=$0; while (match(s, /"([^"]+)"/, m)) { if (domain!="") print domain "\t" m[1]; s=substr(s, RSTART+RLENGTH) } }
+    ' "$fed" 2>/dev/null)"
+    default_dom="$(printf '%s\n' "$federation" | awk -F'\t' '/^DEFAULT/{print $2; exit}')"
+    if [ -n "$federation" ]; then
+      for path in "${code_paths[@]}"; do
+        path_dom=""
+        while IFS=$'\t' read -r d g; do
+          [ "$d" = "DEFAULT" ] && continue
+          [ -n "$g" ] || continue
+          case "$path" in
+            $g) path_dom="$d"; break ;;
+          esac
+        done <<< "$federation"
+        [ -n "$path_dom" ] || path_dom="${default_dom:-root}"
+        if ! printf '%s' ",$task_domains," | grep -qF ",$path_dom,"; then
+          reason="【Engine System · 路由越域】路径 $path 属于域「$path_dom」,但任务卡 $active_task_id 的 domain 只覆盖 [$task_domains]。若需跨域工作,请更新任务卡的 domain 字段(逗号分隔)。"
+          printf '{"decision":"block","reason":"%s"}\n' "$reason"
+          exit 0
+        fi
+      done
+    fi
+  fi
 fi
 
 # ── 第 3 层:软门禁 WARN（capsule 缺失）─────────────────────────────────

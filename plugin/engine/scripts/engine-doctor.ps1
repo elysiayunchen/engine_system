@@ -445,14 +445,16 @@ function Test-ChangeCapsuleSemantics {
 }
 
 function Test-ContractCompile {
-  $src = Join-Path $Root "contract/src/ENGINE_FILE_SYSTEM.md"
+  $srcDir = Join-Path $Root "contract/src"
   $dist = Join-Path $Root "ENGINE_FILE_SYSTEM_v5.md"
   $compileSh = Join-Path $Root "contract/compile.sh"
-  if (-not (Test-Path $src)) { return }
+  if (-not (Test-Path $srcDir)) { return }
   if (-not (Test-Path $dist)) { Write-Warn "contract dist missing: $dist"; return }
   if (-not (Test-Path $compileSh)) { Write-Warn "contract compile.sh missing"; return }
-  $banner = '<!-- ENGINE_FILE_SYSTEM_v5.md: compiled from contract/src/ENGINE_FILE_SYSTEM.md by engine compile. Do not edit dist directly; edit src and recompile. -->'
-  $srcContent = Get-Content -Raw -Path $src -Encoding UTF8
+  $banner = '<!-- ENGINE_FILE_SYSTEM_v5.md: compiled from contract/src/*.md by engine compile. Do not edit dist directly; edit src and recompile. -->'
+  $modules = Get-ChildItem -Path $srcDir -File | Where-Object { $_.Name -match '^\d.*\.md$' } | Sort-Object Name
+  $srcContent = ""
+  foreach ($m in $modules) { $srcContent += Get-Content -Raw -Path $m.FullName -Encoding UTF8 }
   $expected = $banner + "`n" + $srcContent
   $distContent = Get-Content -Raw -Path $dist -Encoding UTF8
   if ($expected -ceq $distContent) {
@@ -465,7 +467,7 @@ function Test-ContractCompile {
     $budgetRaw = Get-Content -Raw -Path $budget -Encoding UTF8
     if ($budgetRaw -match '"max_lines"\s*:\s*(\d+)') {
       $maxLines = [int]$Matches[1]
-      $srcLines = (Get-Content $src).Count
+      $srcLines = ($modules | ForEach-Object { (Get-Content $_.FullName).Count } | Measure-Object -Sum).Sum
       if ($srcLines -le $maxLines) {
         Write-Pass "contract budget: src $srcLines lines <= $maxLines"
       } else {

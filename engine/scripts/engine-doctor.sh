@@ -378,15 +378,15 @@ check_change_capsule_semantics() {
 }
 
 check_contract_compile() {
-  local src="$ROOT/contract/src/ENGINE_FILE_SYSTEM.md"
+  local src_dir="$ROOT/contract/src"
   local dist="$ROOT/ENGINE_FILE_SYSTEM_v5.md"
   local compile_sh="$ROOT/contract/compile.sh"
-  [ -f "$src" ] || return 0
+  [ -d "$src_dir" ] || return 0
   [ -f "$dist" ] || { warn "contract dist missing: $dist"; return; }
   [ -f "$compile_sh" ] || { warn "contract compile.sh missing"; return; }
   local tmp; tmp="$(mktemp)"
-  local banner='<!-- ENGINE_FILE_SYSTEM_v5.md: compiled from contract/src/ENGINE_FILE_SYSTEM.md by engine compile. Do not edit dist directly; edit src and recompile. -->'
-  { printf '%s\n' "$banner"; cat "$src"; } > "$tmp"
+  local banner='<!-- ENGINE_FILE_SYSTEM_v5.md: compiled from contract/src/*.md by engine compile. Do not edit dist directly; edit src and recompile. -->'
+  { printf '%s\n' "$banner"; for m in "$src_dir"/[0-9]*.md; do [ -f "$m" ] || continue; cat "$m"; done; } > "$tmp"
   if diff -q "$tmp" "$dist" >/dev/null 2>&1; then
     pass "contract compile idempotent (compile(src) == dist)"
   else
@@ -396,7 +396,7 @@ check_contract_compile() {
   local budget="$ROOT/contract/budget.json"
   if [ -f "$budget" ]; then
     local max_lines; max_lines="$(grep -o '"max_lines"[[:space:]]*:[[:space:]]*[0-9]*' "$budget" | grep -o '[0-9]*$')"
-    local src_lines; src_lines="$(wc -l < "$src")"
+    local src_lines; src_lines="$(cat "$src_dir"/[0-9]*.md | wc -l)"
     if [ -n "$max_lines" ] && [ "$src_lines" -le "$max_lines" ]; then
       pass "contract budget: src $src_lines lines <= $max_lines"
     elif [ -n "$max_lines" ]; then

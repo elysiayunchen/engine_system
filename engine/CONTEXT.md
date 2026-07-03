@@ -7,8 +7,8 @@
 | 维度 | 状态 |
 |------|------|
 | 构建 | ✅ 正常（纯 markdown + shell 脚本，无构建步骤） |
-| 上次完成 | 落地 **v6 体系完善批次2a**并验证通过:pre-commit 加 done fallback(无 active 时用最新 done 任务卡的 decision,scope 仍校验)+ .git/hooks/pre-commit 安装 + tests/task-card C6/C7。B 层门禁从「形同虚设」变「真正生效」。`scripts/check.sh` 全绿;capsule:`engine/changes/CHANGE-2026-07-03-07.md` |
-| 进行中 | ① 提交推送批次2a;② 批次2b:D6 狗粮(SYSTEM/ARCHITECTURE/锚点) / 批次3:S3-b 源模块细分 |
+| 上次完成 | 落地 **v6 体系完善批次3 S3-b**并验证通过:contract/src/ 拆为 4 主题模块(00-core/10-interview/20-file-templates/30-operational),compile 拼接多模块 → dist(幂等),减法规则可按模块预算。dist 内容零变化。`scripts/check.sh` 全绿;capsule:`engine/changes/CHANGE-2026-07-03-08.md` |
+| 进行中 | ① 提交推送批次3;② 批次2b:D6 狗粮(SYSTEM/ARCHITECTURE/根锚点) |
 | 阻塞 | 无 |
 
 ## 当前假设 / 决策（本轮拍板）

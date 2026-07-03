@@ -75,6 +75,10 @@ Lifecycle routing:
 
 **Acceptance Evidence Rule (v5.7):** A plan/spec twin may be marked `done` only when every AC has evidence in the spec twin's Evidence column, `engine/evidence/*`, or a relevant `engine/changes/CHANGE-*.md` capsule. If evidence is missing, keep the plan active/blocked and surface `missing acceptance evidence` in `/engine-reconcile`.
 
+**Task Card Rule (v6 S1):** A task card (`engine/tasks/T-NNN.md`) is a machine-verifiable work order that binds agent intent to architect control. It carries a `WRITE-SET` (paths the agent may touch), optional `FORBIDDEN` (architect veto, data-enforced), `AC` with `verify:` commands, and optional `decision:` / `plan:` / `domain:` references. The Stop hook enforces: code paths touched in the current session MUST be ⊆ the active task card's WRITE-SET ∪ engine files; touching a FORBIDDEN path → `decision:block`. SessionStart always re-injects the active task card to combat drift (especially after compact/resume). Projects without an active task card fall back to v5.6 behavior (backward compatible). Task cards are operational artifacts, not authority files; do not register them in ENGINE_MAP §1.
+
+**Decision Ledger Rule (v6 S1):** A decision (`engine/decisions/D-NNN.md`) is the architect's control surface made data. It carries `status` (proposed/approved/rejected/expired/superseded), `scope` (path globs it governs), `expiry`, options, rationale, and consequences. Protected paths (declared in `engine/decisions/rules.json`) require any staged change to be covered by an `approved` decision whose `scope` matches—enforced by the git pre-commit hook via the active task card's `decision:` reference. `/engine-status` surfaces a "pending your decision" queue (all `proposed` decisions). Decisions are operational artifacts, not authority files; do not register them in ENGINE_MAP §1.
+
 
 ---
 

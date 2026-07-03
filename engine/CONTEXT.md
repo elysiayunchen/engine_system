@@ -7,8 +7,8 @@
 | 维度 | 状态 |
 |------|------|
 | 构建 | ✅ 正常（纯 markdown + shell 脚本，无构建步骤） |
-| 上次完成 | 架构师拍板 v6 推荐路线（A→B 主线，capsule 先 WARN）后落地 **S0「诚实门禁」**并全套验证通过：stop hook 双实现改 porcelain -z -uall 并统一 rename 语义、capsule 计入门禁（WARN 级）、pre-commit 修 quotepath、新增 engine-hook.cmd Windows 调度垫片并接入双安装器与 manifest、migrator 写 contract-version、新增 tests/hook-parity/run-parity.sh（11 场景 sh/ps1 等价断言，19/19 PASS）、契约尾部横幅去版本号、scripts/check.sh 接入 parity 段、check.ps1 补垫片 drift 对、.gitattributes 钉 .cmd=CRLF；`scripts/check.sh` 全绿；capsule：`engine/changes/CHANGE-2026-07-03-01.md` |
-| 进行中 | ① 提交并推送 v6 设计文档 + S0 全部改动 + 引擎回写（含上轮 migrator 遗留）；② 进入 S1（意图内核数据层：任务卡 + 决策台账） |
+| 上次完成 | 落地 **v6 S1「意图内核数据层」**并全套验证通过：任务卡(`engine/tasks/T-NNN.md`，WRITE-SET/FORBIDDEN 机器校验)+ 决策台账(`engine/decisions/D-NNN.md`，受保护路径须引用 approved 决策)+ rules.json + Stop hook 三层门禁(WRITE-SET 越界=block)+ SessionStart 重注入 active 任务卡 + pre-commit 决策引用门禁 + tests/task-card 14 场景(19/19 PASS)；契约新增 Task Card Rule + Decision Ledger Rule；自托管验收：本轮 S1 开发走 T-001 + D-001。`scripts/check.sh` 全绿；capsule：`engine/changes/CHANGE-2026-07-03-02.md` |
+| 进行中 | ① 提交并推送 S1 全部改动；② 进入 S2（分形记忆：联邦表 + 域引擎 + 路由 read-gate + 汇总协议） |
 | 阻塞 | 无 |
 
 ## 当前假设 / 决策（本轮拍板）

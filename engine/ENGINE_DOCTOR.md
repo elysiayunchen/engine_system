@@ -20,13 +20,13 @@
 
 ## 自维护脚本
 
-- `engine-hook-session-start.{sh,ps1}`：会话开始自动注入 CONTEXT / HANDOFF / pending note。
-- `engine-hook-stop.{sh,ps1}`：代码改动但未回写 CONTEXT / HANDOFF 时，拦截一次结束。判定契约（v6 S0）：解析一律 `git status --porcelain -z`（防 quotepath 转义击穿；rename 取新路径）；capsule 缺失走 WARN（systemMessage，不拦截）；sh/ps1 判定必须一致，由 `tests/hook-parity/run-parity.sh` 机器背书。
+- `engine-hook-session-start.{sh,ps1}`（v6 S1 升级）：会话开始自动注入 CONTEXT / HANDOFF / pending note + active 任务卡（WRITE-SET/FORBIDDEN 锚点）+ proposed 决策队列。
+- `engine-hook-stop.{sh,ps1}`：三层门禁（v6 S0+S1）。解析一律 `git status --porcelain -z -uall`（防 quotepath 转义击穿；rename 取新路径；未跟踪目录展开）。① 有 active 任务卡时校验代码路径 ⊆ WRITE-SET、∉ FORBIDDEN（越界=block）；② 硬门禁=CONTEXT/HANDOFF/ENGINE_MAP 被触碰；③ capsule 缺失走 WARN。sh/ps1 判定必须一致，由 `tests/hook-parity/run-parity.sh` + `tests/task-card/run-task-tests.sh` 机器背书。
 - `engine-hook-session-end.{sh,ps1}`：非阻塞运行 Doctor，把 warning/failure 缓存到 `engine/.cache/pending.txt`。
 - `engine-hook.cmd`：Windows C 层调度垫片（bash → Git for Windows bash.exe → PowerShell 孪生逐级回退），消灭 `bash` 不在 cmd PATH 时 hooks 静默哑火。
 - `engine-sync-agent-anchors.{sh,ps1}`：生成或更新 Copilot / Cursor / Gemini / Cline / Roo / Aider 等薄引导文件。
 - `engine-migrate-contract.{sh,ps1}`：旧项目契约迁移器，幂等写入当前 Engine System managed contract block（首行携带 `<!-- contract-version: X -->`，Doctor 与增量迁移由此识别项目所载契约版本），并生成 migration change capsule。
-- `githooks/pre-commit`：B 层门禁，防止提交代码改动但没有引擎回写。
+- `githooks/pre-commit`（v6 S1 升级）：B 层门禁。第 1 层=代码改动须回写引擎记忆；第 2 层=受保护路径（`engine/decisions/rules.json` 声明）变更须由 active 任务卡的 `decision:` 引用一个 status:approved 且 scope 覆盖的决策，否则拒绝提交。
 - `engine/bin/engine*`：终端远端更新入口，支持 `engine update`。
 - `scripts/check.{ps1,sh}`：仓库维护入口，不随插件安装到用户项目；发布前必须全绿。
 

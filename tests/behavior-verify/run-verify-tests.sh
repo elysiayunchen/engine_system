@@ -1,0 +1,142 @@
+#!/usr/bin/env bash
+# Engine System — 行为化验收测试(v6 S4)
+#
+# 测试 engine-verify 脚本:AC verify 命令的 pass/fail/skip + evidence JSON。
+#
+# 用法:bash tests/behavior-verify/run-verify-tests.sh
+
+set -u
+
+HERE="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(cd "$HERE/../.." && pwd)"
+VERIFY_SH="$REPO_ROOT/engine/scripts/engine-verify.sh"
+CLI_SH="$REPO_ROOT/engine/bin/engine"
+
+pass=0
+fail=0
+TMP_ROOT="$(mktemp -d)"
+trap 'rm -rf "$TMP_ROOT"' EXIT
+
+new_repo() {
+  d="$(mktemp -d "$TMP_ROOT/repo.XXXXXX")"
+  mkdir -p "$d/engine/tasks"
+  printf 'ctx\n' > "$d/engine/CONTEXT.md"
+  printf '%s\n' "$d"
+}
+
+write_task_mixed() {
+  repo="$1"
+  cat > "$repo/engine/tasks/T-TEST.md" <<'EOF'
+# TASK CARD — T-TEST
+> status: active | lane: test | decision: | plan: none | domain: root
+GOAL: test
+WRITE-SET: src/**
+FORBIDDEN: none
+AC: AC-1 pass case → verify: true
+AC: AC-2 fail case → verify: false
+AC: AC-3 no verify here
+CONSTRAINTS: none
+EOF
+}
+
+check_json_field() {
+  name="$1"; repo="$2"; ac="$3"; field="$4"; expect="$5"
+  f="$repo/engine/evidence/T-TEST/$ac.json"
+  if [ ! -f "$f" ]; then
+    echo "FAIL  $name ($ac.json 不存在)"; fail=$((fail+1)); return
+  fi
+  val="$(grep -o "\"$field\":\"[^\"]*\"" "$f" | sed 's/.*:.*"\([^"]*\)"/\1/')"
+  if [ "$val" = "$expect" ]; then
+    echo "PASS  $name ($ac.$field=$val)"; pass=$((pass+1))
+  else
+    echo "FAIL  $name ($ac.$field expect=$expect got=$val)"; fail=$((fail+1))
+  fi
+}
+
+check_no_file() {
+  name="$1"; repo="$2"; ac="$3"
+  if [ ! -f "$repo/engine/evidence/T-TEST/$ac.json" ]; then
+    echo "PASS  $name ($ac.json 不存在=skip)"; pass=$((pass+1))
+  else
+    echo "FAIL  $name ($ac.json 应不存在)"; fail=$((fail+1))
+  fi
+}
+
+echo "=== A. verify pass/fail/skip ==="
+
+r="$(new_repo)"; write_task_mixed "$r"
+out="$(CLAUDE_PROJECT_DIR="$r" bash "$VERIFY_SH" T-TEST 2>&1)"; rc=$?
+if [ "$rc" = "1" ]; then
+  echo "PASS  A1 verify-mixed-exit1 (fail_count>0)"; pass=$((pass+1))
+else
+  echo "FAIL  A1 verify-mixed-exit1 (expect rc=1 got rc=$rc)"; fail=$((fail+1))
+fi
+check_json_field "A2 ac1-pass" "$r" "AC-1" "status" "pass"
+check_json_field "A3 ac2-fail" "$r" "AC-2" "status" "fail"
+check_no_file "A4 ac3-skip" "$r" "AC-3"
+
+echo ""
+echo "=== B. evidence JSON 格式 ==="
+
+f="$r/engine/evidence/T-TEST/AC-1.json"
+if grep -q '"fingerprint":"sha256:[0-9a-f]\{64\}"' "$f"; then
+  echo "PASS  B1 fingerprint-format (sha256:64hex)"; pass=$((pass+1))
+else
+  echo "FAIL  B1 fingerprint-format"; fail=$((fail+1))
+fi
+if grep -q '"exit":0' "$f"; then
+  echo "PASS  B2 exit-field"; pass=$((pass+1))
+else
+  echo "FAIL  B2 exit-field"; fail=$((fail+1))
+fi
+if grep -q '"ac":"AC-1"' "$f" && grep -q '"verify":"true"' "$f"; then
+  echo "PASS  B3 ac+verify-fields"; pass=$((pass+1))
+else
+  echo "FAIL  B3 ac+verify-fields"; fail=$((fail+1))
+fi
+
+echo ""
+echo "=== C. 任务卡不存在 ==="
+
+r2="$(new_repo)"
+out="$(CLAUDE_PROJECT_DIR="$r2" bash "$VERIFY_SH" T-NOPE 2>&1)"; rc=$?
+if [ "$rc" = "2" ]; then
+  echo "PASS  C1 missing-task-exit2"; pass=$((pass+1))
+else
+  echo "FAIL  C1 missing-task-exit2 (rc=$rc)"; fail=$((fail+1))
+fi
+
+echo ""
+echo "=== D. 全 pass 任务 → exit 0 ==="
+
+r3="$(new_repo)"
+cat > "$r3/engine/tasks/T-OK.md" <<'EOF'
+# TASK CARD — T-OK
+> status: active | lane: test | decision: | plan: none | domain: root
+GOAL: ok
+WRITE-SET: src/**
+FORBIDDEN: none
+AC: AC-1 ok → verify: true
+CONSTRAINTS: none
+EOF
+out="$(CLAUDE_PROJECT_DIR="$r3" bash "$VERIFY_SH" T-OK 2>&1)"; rc=$?
+if [ "$rc" = "0" ]; then
+  echo "PASS  D1 all-pass-exit0"; pass=$((pass+1))
+else
+  echo "FAIL  D1 all-pass-exit0 (rc=$rc)"; fail=$((fail+1))
+fi
+
+echo ""
+echo "=== E. engine CLI verify 子命令 ==="
+
+out="$(CLAUDE_PROJECT_DIR="$r3" bash "$CLI_SH" verify T-OK 2>&1)"; rc=$?
+if [ "$rc" = "0" ]; then
+  echo "PASS  E1 cli-verify-pass"; pass=$((pass+1))
+else
+  echo "FAIL  E1 cli-verify-pass (rc=$rc out=${out:0:60})"; fail=$((fail+1))
+fi
+
+echo ""
+echo "=========================================="
+echo "PASS=$pass  FAIL=$fail"
+[ "$fail" -eq 0 ]

@@ -12,6 +12,7 @@ Engine System CLI
 
 Usage:
   engine update        Update Engine System tooling in the current project
+  engine verify T-NNN  Run behavior verification for a task card
   engine help          Show this help
 
 `engine update` downloads the latest installer and runs update mode. It does not overwrite
@@ -34,6 +35,18 @@ download() {
 }
 
 case "${1:-help}" in
+  verify)
+    if [ ! -d "$PWD/engine" ]; then
+      echo "Error: engine/ not found in $PWD. Run 'engine verify' in a project root." >&2
+      exit 2
+    fi
+    task="${2:-}"
+    if [ -z "$task" ]; then
+      echo "Usage: engine verify T-NNN" >&2
+      exit 2
+    fi
+    bash "$PWD/engine/scripts/engine-verify.sh" "$task"
+    ;;
   update)
     tmp="$(mktemp -t engine-install.XXXXXX)"
     trap 'rm -f "$tmp"' EXIT

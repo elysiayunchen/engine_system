@@ -83,6 +83,8 @@ Lifecycle routing:
 
 **Fractal Memory Rule (v6 S2):** The engine memory is spatially partitioned into domains. `engine/domains/federation.json` is the routing table: path-glob → domain. Each domain holds its own `CONTEXT.md` (first line = budgeted summary, lifted to the SessionStart domain dashboard) and `PITFALLS.md` (per-domain budget + archive + rg recipe; no global 500-line ceiling). The SessionStart hook assembles L2: for each domain in the active task card's `domain:` field (comma-separated), it injects that domain's CONTEXT + PITFALLS (budget-bounded). The Stop hook enforces route consistency: every code path touched must resolve (via federation.json) to a domain in the task card's `domain:` set—out-of-domain → `decision:block`. Paths matching no domain glob fall to `default_domain`. Projects without `federation.json` or a task card `domain:` field fall back to S1 behavior (backward compatible). The federation table is registered in ENGINE_MAP; domain files are operational artifacts, not authority files.
 
+**Behavior Verification Rule (v6 S4):** A task card's `AC` entries carry `verify:` commands. `engine verify T-NNN` executes each, writing PASS/FAIL + output fingerprint (sha256) to `engine/evidence/T-NNN/AC-N.json`. A task card may be marked `done` only when every AC has either a passing verify result in evidence or an architect exemption (the exemption is itself a decision). Evidence files are generated-cache; do not register them in ENGINE_MAP §1. This machine-enforces N3 (completion has evidence)—the architect judges behavior, not code.
+
 
 ---
 

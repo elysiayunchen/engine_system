@@ -7,8 +7,8 @@
 | 维度 | 状态 |
 |------|------|
 | 构建 | ✅ 正常（纯 markdown + shell 脚本，无构建步骤） |
-| 上次完成 | 落地 **v6 S3「契约编译」**并全套验证通过:`contract/src/`(契约唯一真相源)+ `contract/compile.{sh,ps1}`(编译器 src->dist 幂等)+ `contract/budget.json`(减法基线:行数 2438/Rule 11)+ dist 头部编译横幅 + 编译幂等校验(compile(src)==dist)+ 减法规则(新增 Rule 须净零增长)+ tests/contract-compile 6/6。契约从「agent 背诵」变成「机器编译产物」。`scripts/check.sh` 全绿;capsule:`engine/changes/CHANGE-2026-07-03-04.md` |
-| 进行中 | ① 提交并推送 S3 全部改动;② 进入 S3-b(源模块细分) 或 S4(驾驶舱) |
+| 上次完成 | 落地 **v6 S4「驾驶舱」**并全套验证通过:`engine/scripts/engine-verify.{sh,ps1}`(行为化验收器,AC verify 机器执行,PASS/FAIL+sha256 入 evidence)+ engine CLI `verify` 子命令 + `/engine-status` v2(决策队列+证据段)+ 契约 Behavior Verification Rule(done 门=verify 全绿 或 豁免)+ tests/behavior-verify 10/10。完成 G1 闭环。`scripts/check.sh` 全绿;capsule:`engine/changes/CHANGE-2026-07-03-05.md` |
+| 进行中 | ① 提交并推送 S4 全部改动;② v6 路线 S0-S4 核心阶段全部完成,后续 S3-b 源模块细分 / 真实大库试点 |
 | 阻塞 | 无 |
 
 ## 当前假设 / 决策（本轮拍板）

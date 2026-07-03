@@ -426,6 +426,27 @@ check_contract_debt() {
   fi
 }
 
+check_task_card_done_evidence() {
+  local tasks_dir="$ENGINE_DIR/tasks"
+  [ -d "$tasks_dir" ] || return 0
+  for f in "$tasks_dir"/T-*.md; do
+    [ -f "$f" ] || continue
+    grep -q 'status:.*done' "$f" 2>/dev/null || continue
+    local tid; tid="$(basename "$f" .md)"
+    local ev_dir="$ENGINE_DIR/evidence/$tid"
+    if grep -qi 'exempt' "$f" 2>/dev/null; then
+      pass "task $tid done (exempt - no evidence required)"
+      continue
+    fi
+    if [ -d "$ev_dir" ] && ls "$ev_dir"/AC-*.json >/dev/null 2>&1; then
+      local n; n="$(ls "$ev_dir"/AC-*.json 2>/dev/null | wc -l)"
+      pass "task $tid done with $n evidence file(s)"
+    else
+      fail "task $tid done but no evidence (engine/evidence/$tid/AC-*.json) and no exempt marker - run 'engine verify $tid' or mark exempt"
+    fi
+  done
+}
+
 check_plan_acceptance_evidence() {
   while IFS='|' read -r _ id title status plan spec notes verified _; do
     id="$(trim "$id")"
@@ -472,6 +493,7 @@ check_change_capsule_semantics
 check_plan_acceptance_evidence
 check_contract_compile
 check_contract_debt
+check_task_card_done_evidence
 
 while IFS='|' read -r _ path type authority verified _; do
   path="$(trim "$path")"

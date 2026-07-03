@@ -9,3 +9,9 @@ plugin/engine/scripts/*.sh text eol=lf
 plugin/engine/scripts/githooks/* text eol=lf
 engine/scripts/*.sh text eol=lf
 engine/scripts/githooks/* text eol=lf
+
+# v6 review fix: 钉 dist/src 行尾,避免 autocrlf 噪音
+ENGINE_FILE_SYSTEM_v5.md text eol=lf
+runtime-law.md text eol=lf
+rules.json text eol=lf
+contract/src/*.md text eol=lf

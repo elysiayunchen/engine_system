@@ -163,6 +163,7 @@ try {
     @("engine/scripts/engine-hook-stop.sh", "plugin/engine/scripts/engine-hook-stop.sh"),
     @("engine/scripts/engine-hook-session-end.ps1", "plugin/engine/scripts/engine-hook-session-end.ps1"),
     @("engine/scripts/engine-hook-session-end.sh", "plugin/engine/scripts/engine-hook-session-end.sh"),
+    @("engine/scripts/engine-hook.cmd", "plugin/engine/scripts/engine-hook.cmd"),
     @("engine/scripts/engine-sync-agent-anchors.ps1", "plugin/engine/scripts/engine-sync-agent-anchors.ps1"),
     @("engine/scripts/engine-sync-agent-anchors.sh", "plugin/engine/scripts/engine-sync-agent-anchors.sh"),
     @("engine/scripts/engine-migrate-contract.ps1", "plugin/engine/scripts/engine-migrate-contract.ps1"),

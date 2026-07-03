@@ -21,10 +21,11 @@
 ## 自维护脚本
 
 - `engine-hook-session-start.{sh,ps1}`：会话开始自动注入 CONTEXT / HANDOFF / pending note。
-- `engine-hook-stop.{sh,ps1}`：代码改动但未回写 CONTEXT / HANDOFF 时，拦截一次结束。
+- `engine-hook-stop.{sh,ps1}`：代码改动但未回写 CONTEXT / HANDOFF 时，拦截一次结束。判定契约（v6 S0）：解析一律 `git status --porcelain -z`（防 quotepath 转义击穿；rename 取新路径）；capsule 缺失走 WARN（systemMessage，不拦截）；sh/ps1 判定必须一致，由 `tests/hook-parity/run-parity.sh` 机器背书。
 - `engine-hook-session-end.{sh,ps1}`：非阻塞运行 Doctor，把 warning/failure 缓存到 `engine/.cache/pending.txt`。
+- `engine-hook.cmd`：Windows C 层调度垫片（bash → Git for Windows bash.exe → PowerShell 孪生逐级回退），消灭 `bash` 不在 cmd PATH 时 hooks 静默哑火。
 - `engine-sync-agent-anchors.{sh,ps1}`：生成或更新 Copilot / Cursor / Gemini / Cline / Roo / Aider 等薄引导文件。
-- `engine-migrate-contract.{sh,ps1}`：旧项目契约迁移器，幂等写入当前 Engine System managed contract block，并生成 migration change capsule。
+- `engine-migrate-contract.{sh,ps1}`：旧项目契约迁移器，幂等写入当前 Engine System managed contract block（首行携带 `<!-- contract-version: X -->`，Doctor 与增量迁移由此识别项目所载契约版本），并生成 migration change capsule。
 - `githooks/pre-commit`：B 层门禁，防止提交代码改动但没有引擎回写。
 - `engine/bin/engine*`：终端远端更新入口，支持 `engine update`。
 - `scripts/check.{ps1,sh}`：仓库维护入口，不随插件安装到用户项目；发布前必须全绿。

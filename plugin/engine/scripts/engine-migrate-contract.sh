@@ -11,6 +11,9 @@ ENGINE_DIR="$ROOT/engine"
 MAP="$ENGINE_DIR/ENGINE_MAP.md"
 MARK_START="<!-- ENGINE_SYSTEM_CONTRACT_MIGRATIONS_START -->"
 MARK_END="<!-- ENGINE_SYSTEM_CONTRACT_MIGRATIONS_END -->"
+# 契约版本:契约内容每次变更手动 bump。写进 managed 区块首行,让 Doctor / 未来的
+# 增量迁移能识别"这个项目装的是哪一版契约",而不是只能整块 diff。
+CONTRACT_VERSION="5.7"
 TODAY="$(date +%F)"
 TOUCHED=()
 
@@ -36,6 +39,7 @@ upsert_block() {
 
   {
     printf '%s\n' "$MARK_START"
+    printf '<!-- contract-version: %s -->\n' "$CONTRACT_VERSION"
     printf '## %s\n' "$title"
     printf '> Managed by Engine System contract migration. Preserve project-specific rules outside this block.\n\n'
     cat "$body_file"

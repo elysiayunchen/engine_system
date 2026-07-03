@@ -30,6 +30,13 @@ else
   fail "shell syntax"
 fi
 
+step "Hook parity (sh vs ps1 gatekeeper decisions)"
+if bash tests/hook-parity/run-parity.sh; then
+  pass "stop-hook + pre-commit parity fixtures"
+else
+  fail "hook parity"
+fi
+
 step "PowerShell syntax"
 if command -v pwsh >/dev/null 2>&1; then
   if pwsh -NoProfile -File scripts/check.ps1 -Root "$PWD"; then

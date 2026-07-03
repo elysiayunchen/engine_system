@@ -10,7 +10,10 @@
 # 安全契约:只读引擎文件;仅读 git 暂存区。不写文件、不碰代码、不联网。
 # 逃生口:确实只想提交纯代码改动时,用  git commit --no-verify  跳过本检查。
 
-staged="$(git diff --cached --name-only 2>/dev/null)"
+# -z + tr:非 ASCII 路径在默认 core.quotepath=true 下会被引号+八进制转义包裹,
+# 击穿 ^engine/ 前缀匹配(中文引擎文档会被误判成"代码"而误拦)。-z 从不转义;
+# POSIX sh 读不了 NUL 分隔,用 tr 转成行分隔(路径含换行者属病态,B 层兜底允许漏检)。
+staged="$(git diff --cached --name-only -z 2>/dev/null | tr '\0' '\n')"
 [ -n "$staged" ] || exit 0
 
 # 是否有"代码"改动(engine/ 与 .engine/ 之外的任何暂存文件)

@@ -1,9 +1,19 @@
 # Engine System - Stop hook (PowerShell)
 #
-# PowerShell version matching engine-hook-stop.sh.
-# Gatekeeper: if code changed without engine write-back, block once.
+# PowerShell twin of engine-hook-stop.sh. Decisions MUST stay identical to the
+# .sh implementation - tests/hook-parity/run-parity.sh enforces this.
 #
-# Safety: read-only. Uses git status only.
+# Gate definition (v6 S0):
+#   hard gate = engine/CONTEXT.md / HANDOFF.md / ENGINE_MAP.md touched;
+#   change capsule (engine/changes/CHANGE-*.md) is observed; missing => WARN only.
+#
+# Parsing contract: git status --porcelain -z (NUL separated), never line-based:
+#   non-ASCII paths get quote+octal-escaped under default core.quotepath=true,
+#   which breaks column parsing; -z never quotes, and rename/copy records come as
+#   "XY newpath\0oldpath\0" - take the new path, skip the old one.
+#
+# Safety: read-only; only inspects git status. Idempotent via stop_hook_active.
+# Fail-open on any error (better to miss one gate than to wedge the session).
 
 param()
 
@@ -28,37 +38,53 @@ $inside = git rev-parse --is-inside-work-tree 2>$null
 Pop-Location
 if ($inside -ne "true") { exit 0 }
 
+# NUL-separated status. Force UTF-8 decoding so non-ASCII paths survive PS 5.1.
+try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch {}
 Push-Location $Root
-$status = git status --porcelain 2>$null
+# -uall: list untracked files individually. Default -unormal collapses a fresh
+# untracked directory into "?? dir/", which hides the FIRST capsule (engine/changes/
+# appearing for the first time) from the gate - a real defect the parity tests caught.
+$raw = git status --porcelain -z -uall 2>$null
 Pop-Location
-if (-not $status) { exit 0 }   # Clean worktree or pure Q&A.
+if ($raw -is [array]) { $raw = $raw -join "`n" }   # -z emits no newlines; defensive
+if (-not $raw) { exit 0 }   # Clean worktree or pure Q&A session.
 
 $codeChanged = $false
 $engineWritten = $false
+$capsuleWritten = $false
+$skipNext = $false
 
-foreach ($line in $status) {
-  if (-not $line) { continue }
-  $path = $line.Substring(3)
-  # Rename: use the target path.
-  $idx = $path.IndexOf(" -> ")
-  if ($idx -gt 0) { $path = $path.Substring($idx + 4) }
-  $path = $path.Trim()
+foreach ($rec in ($raw -split "`0")) {
+  if (-not $rec) { continue }
+  if ($skipNext) { $skipNext = $false; continue }   # old path of a rename/copy record
+  if ($rec.Length -lt 4) { continue }
+  $st = $rec.Substring(0, 2)
+  $path = $rec.Substring(3)
+  if ($st -match '[RC]') { $skipNext = $true }   # with -z the NEXT NUL field is the old path
 
   switch -Wildcard ($path) {
-    "engine/CONTEXT.md"   { $engineWritten = $true }
-    "engine/HANDOFF.md"   { $engineWritten = $true }
-    "engine/ENGINE_MAP.md" { $engineWritten = $true }
-    "engine/.cache/*"     { }
-    ".engine/*"           { }
-    "engine/*"            { }
-    default               { $codeChanged = $true }
+    "engine/CONTEXT.md"          { $engineWritten = $true; break }
+    "engine/HANDOFF.md"          { $engineWritten = $true; break }
+    "engine/ENGINE_MAP.md"       { $engineWritten = $true; break }
+    "engine/changes/CHANGE-*.md" { $capsuleWritten = $true; break }   # capsule: WARN-level observation
+    "engine/.cache/*"            { break }
+    ".engine/*"                  { break }
+    "engine/*"                   { break }
+    default                      { $codeChanged = $true }
   }
 }
 
-# Gate: code changed but engine memory was not updated.
+# Hard gate: code changed but engine memory was not updated.
 if ($codeChanged -and -not $engineWritten) {
-  $reason = "[Engine System gatekeeper] Code changed, but engine memory was not updated. Before stopping, update engine/CONTEXT.md and append a HANDOFF.md row with what changed, next step, and touched files."
+  $reason = "[Engine System gatekeeper] Code changed, but engine memory was not updated. Before stopping: 1) update the engine/CONTEXT.md status panel; 2) append a HANDOFF.md row (date | what | next | touched files); 3) for a meaningful change, add a change capsule under engine/changes/CHANGE-YYYY-MM-DD-nn.md."
   Write-Output "{`"decision`":`"block`",`"reason`":`"$reason`"}"
+  exit 0
+}
+
+# Soft gate (WARN, never blocks): memory written, but no change capsule for a code change.
+if ($codeChanged -and $engineWritten -and -not $capsuleWritten) {
+  $msg = "[Engine System] Code change was written back to CONTEXT/HANDOFF, but no change capsule (engine/changes/CHANGE-*.md) was touched. For a meaningful change, ask the agent to add an architect-readable capsule. (WARN, non-blocking)"
+  Write-Output "{`"systemMessage`":`"$msg`"}"
   exit 0
 }
 

@@ -7,8 +7,8 @@
 | 维度 | 状态 |
 |------|------|
 | 构建 | ✅ 正常（纯 markdown + shell 脚本，无构建步骤） |
-| 上次完成 | 落地 **v6 体系完善批次2b D6 根锚点**并验证通过:本仓库根铺 AGENTS.md(正本 bootloader + Session Protocol 六条) + CLAUDE.md(import 引用)。D6 根锚点缺口补齐。`scripts/check.sh` 全绿;capsule:`engine/changes/CHANGE-2026-07-03-09.md` |
-| 进行中 | ① 提交推送批次2b;② v6 体系完善全部完成,后续:契约债计数器(N4) / 真实大库试点 / 合并 main |
+| 上次完成 | 落地 **v6 体系完善批次4 契约债计数器(N4)**并验证通过:Doctor 加 check_contract_debt(报告 MUST/Rule/debt + 基线趋势) + budget.debt_baseline=46。双实现等价(58 MUST)。N4 完成——倒立金字塔变可追踪下降的数字。`scripts/check.sh` 全绿;capsule:`engine/changes/CHANGE-2026-07-03-10.md` |
+| 进行中 | ① 提交推送批次4;② v6 体系完善全部完成(N1-N5 达成),后续:真实大库试点 / 合并 main |
 | 阻塞 | 无 |
 
 ## 当前假设 / 决策（本轮拍板）

@@ -21,6 +21,13 @@ fi
 echo "【Engine System · 自动接手】下面是项目记忆当前快照。请先用一句简体中文复述当前状态,再开始工作。"
 echo ""
 
+# v6 中优先: L0 宪法注入(runtime-law.md ≤40 行常驻法,对抗漂移的顶层锚点)。
+if [ -f "$ROOT/runtime-law.md" ]; then
+  echo "──── ⚖️ L0 宪法 (runtime-law) ────"
+  sed -n '1,40p' "$ROOT/runtime-law.md" 2>/dev/null
+  echo ""
+fi
+
 if [ -f "$ENGINE_DIR/CONTEXT.md" ]; then
   echo "──── 当前状态 (engine/CONTEXT.md) ────"
   sed -n '1,50p' "$ENGINE_DIR/CONTEXT.md" 2>/dev/null

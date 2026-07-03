@@ -7,8 +7,8 @@
 | 维度 | 状态 |
 |------|------|
 | 构建 | ✅ 正常（纯 markdown + shell 脚本，无构建步骤） |
-| 上次完成 | 落地 **v6 中优先缺口修复**(3 项):① N1 注入行数≤400 机器强制(check.sh 加 Session injection budget 段,本仓库 187 行);② L0 宪法 SessionStart 注入(runtime-law.md 前 40 行);③ flaky 消除(eol=lf 后 check 多次稳定)。`scripts/check.sh` 全绿;capsule:`engine/changes/CHANGE-2026-07-03-12.md` |
-| 进行中 | ① 提交推送中优先修复;② 后续:低优先(v6 命名/决策记录/§7 度量/Q2 试点) |
+| 上次完成 | 落地 **v6 低优先缺口修复**:Q3 门禁严格度决策记录(D-012,WRITE-SET 越界=block)+ Q4 v6 命名(D-013,版本号 6.0,文件名保持 v5.md 向后兼容)。§9.3/§9.4 开放问题解决。`scripts/check.sh` 全绿;capsule:`engine/changes/CHANGE-2026-07-03-13.md` |
+| 进行中 | ① 提交推送低优先修复;② v6 review 缺口全部修复(高+中+低),后续:§7 度量 / Q2 试点 |
 | 阻塞 | 无 |
 
 ## 当前假设 / 决策（本轮拍板）

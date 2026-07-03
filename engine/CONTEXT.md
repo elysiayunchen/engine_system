@@ -7,8 +7,8 @@
 | 维度 | 状态 |
 |------|------|
 | 构建 | ✅ 正常（纯 markdown + shell 脚本，无构建步骤） |
-| 上次完成 | 落地 **v6 S4「驾驶舱」**并全套验证通过:`engine/scripts/engine-verify.{sh,ps1}`(行为化验收器,AC verify 机器执行,PASS/FAIL+sha256 入 evidence)+ engine CLI `verify` 子命令 + `/engine-status` v2(决策队列+证据段)+ 契约 Behavior Verification Rule(done 门=verify 全绿 或 豁免)+ tests/behavior-verify 10/10。完成 G1 闭环。`scripts/check.sh` 全绿;capsule:`engine/changes/CHANGE-2026-07-03-05.md` |
-| 进行中 | ① 提交并推送 S4 全部改动;② v6 路线 S0-S4 核心阶段全部完成,后续 S3-b 源模块细分 / 真实大库试点 |
+| 上次完成 | 落地 **v6 体系完善批次1**并验证通过:install.sh/ps1 + manifest.json 加 engine-verify 分发;Doctor.sh/ps1 加 check_contract_compile(编译幂等+减法预算)+ bundled 清单补 engine-verify。补齐 S3/S4 机制闭环硬缺口。`scripts/check.sh` 全绿;capsule:`engine/changes/CHANGE-2026-07-03-06.md` |
+| 进行中 | ① 提交推送批次1;② 批次2:S3-b 源模块细分 / D6 狗粮缺口 |
 | 阻塞 | 无 |
 
 ## 当前假设 / 决策（本轮拍板）

@@ -4,7 +4,7 @@
 
 ## 立即恢复点
 
-下一步：S4「驾驶舱」已全部落地并验证通过（`scripts/check.sh` 全绿，parity 19/19 + task-card 19/19 + fractal-memory 21/21 + contract-compile 6/6 + behavior-verify 10/10）。立即提交推送 S4 改动。v6 路线 S0-S4 核心阶段全部完成，后续 S3-b 源模块细分 / 真实大库试点。
+下一步：v6 体系完善批次1已落地并验证通过(engine-verify 入 install/manifest + Doctor 编译检查)。立即提交推送。后续批次2:S3-b 源模块细分 / D6 狗粮缺口。
 
 > 本轮交接完成。初始机已升级为“工具更新 + 契约迁移”双阶段：`engine update` 分发脚本与命令，`/engine-sync` 运行 migrator，把自视图、改动胶囊、验收证据、Doctor 自审门禁等当前契约写入旧项目现有引擎文件。
 
@@ -12,6 +12,7 @@
 
 | 日期 | 完成了什么 | 下一步 | 改动文件 |
 |------|-----------|--------|---------|
+| 2026-07-03 | 落地 **v6 体系完善批次1**:install.sh/ps1 + manifest.json 加 engine-verify 分发;Doctor.sh/ps1 加 check_contract_compile(编译幂等 compile(src)==dist + 减法预算)+ bundled/required 清单补 engine-verify;补齐 S3/S4 机制闭环硬缺口 | 提交推送 → 批次2(S3-b / D6) | install.sh, install.ps1, plugin/manifest.json, engine/scripts/engine-doctor.*, plugin/engine/scripts/engine-doctor.*, engine/ENGINE_MAP.md, engine/CONTEXT.md, engine/HANDOFF.md, engine/changes/CHANGE-2026-07-03-06.md, engine/decisions/D-005.md, engine/tasks/T-005.md |
 | 2026-07-03 | 落地 **v6 S4「驾驶舱」**：新建 `engine-verify.{sh,ps1}`(行为化验收器,AC verify 机器执行,PASS/FAIL+sha256 入 `engine/evidence/T-NNN/`);engine CLI 加 `verify` 子命令;`/engine-status` v2 加「等你拍板」决策队列+「验收证据」段;契约 Behavior Verification Rule(done 门=verify 全绿 或 架构师豁免);budget 基线提升至 2440/12(D-004 背书);tests/behavior-verify 10/10;check.sh 接入。v6 路线 S0-S4 全部完成 | 提交推送 S4 → S3-b / 真实大库试点 | engine/scripts/engine-verify.*, engine/bin/engine*, plugin/(镜像), plugin/.claude/commands/engine-status.md, contract/src/ENGINE_FILE_SYSTEM.md, contract/budget.json, ENGINE_FILE_SYSTEM_v5.md, scripts/check.sh, tests/behavior-verify/*, engine/decisions/D-004.md, engine/tasks/T-004.md, engine/ENGINE_MAP.md, engine/CONTEXT.md, engine/HANDOFF.md, engine/changes/CHANGE-2026-07-03-05.md |
 | 2026-07-03 | 落地 **v6 S3「契约编译」**：新建 `contract/`(src 契约源 + compile.sh/ps1 编译器 + budget.json 减法基线 + README);dist 头部加编译横幅;编译幂等校验(compile(src)==dist)+ 减法规则(src 行数≤2438/Rule≤11);tests/contract-compile 6/6(幂等+篡改+预算+sh/ps1 一致);check.sh 接入编译校验段;修复 Rule 计数 grep + ps1 横幅 em dash 乱码 | 提交推送 S3 → S3-b 或 S4 | contract/*, ENGINE_FILE_SYSTEM_v5.md, scripts/check.sh, tests/contract-compile/*, engine/decisions/D-003.md, engine/tasks/T-003.md, engine/ENGINE_MAP.md, engine/CONTEXT.md, engine/HANDOFF.md, engine/changes/CHANGE-2026-07-03-04.md |
 | 2026-07-03 | 落地 **v6 S2「分形记忆」**：新建 `engine/domains/`(federation.json 联邦表 path-glob→domain + engine-runtime/project-meta 两域 CONTEXT/PITFALLS);Stop hook 第 1 层加路由一致性校验(code_path 所属域 ∈ 任务卡 domain 集合,越域=block);SessionStart 加域仪表盘(汇总协议)+ L2 装配(按 domain 注入域 CONTEXT/PITFALLS);INIT 采访 BLOCK C 加 16a「项目分几大块」;契约加 Fractal Memory Rule;新增 tests/fractal-memory(9 场景,21/21);自托管铺设 2 域补 D6 缺口;修复 awk paths 同行闭合解析 bug | 提交推送 S2 → 进 S3(契约编译) | engine/domains/*, engine/decisions/D-002.md, engine/tasks/T-002.md, engine/scripts/engine-hook-stop.*, engine/scripts/engine-hook-session-start.*, ENGINE_FILE_SYSTEM_v5.md, plugin/.claude/commands/engine-init.md, plugin/(镜像 4 文件), scripts/check.sh, tests/fractal-memory/run-fractal-tests.sh, engine/ENGINE_MAP.md, engine/CONTEXT.md, engine/HANDOFF.md, engine/changes/CHANGE-2026-07-03-03.md |

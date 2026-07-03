@@ -44,6 +44,13 @@ else
   fail "task card gate"
 fi
 
+step "Fractal memory (federation routing + L2 assembly)"
+if bash tests/fractal-memory/run-fractal-tests.sh; then
+  pass "fractal memory fixtures"
+else
+  fail "fractal memory"
+fi
+
 step "PowerShell syntax"
 if command -v pwsh >/dev/null 2>&1; then
   if pwsh -NoProfile -File scripts/check.ps1 -Root "$PWD"; then

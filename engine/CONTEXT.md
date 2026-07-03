@@ -7,8 +7,8 @@
 | 维度 | 状态 |
 |------|------|
 | 构建 | ✅ 正常（纯 markdown + shell 脚本，无构建步骤） |
-| 上次完成 | 落地 **v6 S1「意图内核数据层」**并全套验证通过：任务卡(`engine/tasks/T-NNN.md`，WRITE-SET/FORBIDDEN 机器校验)+ 决策台账(`engine/decisions/D-NNN.md`，受保护路径须引用 approved 决策)+ rules.json + Stop hook 三层门禁(WRITE-SET 越界=block)+ SessionStart 重注入 active 任务卡 + pre-commit 决策引用门禁 + tests/task-card 14 场景(19/19 PASS)；契约新增 Task Card Rule + Decision Ledger Rule；自托管验收：本轮 S1 开发走 T-001 + D-001。`scripts/check.sh` 全绿；capsule：`engine/changes/CHANGE-2026-07-03-02.md` |
-| 进行中 | ① 提交并推送 S1 全部改动；② 进入 S2（分形记忆：联邦表 + 域引擎 + 路由 read-gate + 汇总协议） |
+| 上次完成 | 落地 **v6 S2「分形记忆」**并全套验证通过：联邦表 `engine/domains/federation.json`(path-glob→domain)+ 域引擎目录(engine-runtime/project-meta 的 CONTEXT/PITFALLS)+ 路由 read-gate(Stop hook 校验 code_path 所属域 ∈ 任务卡 domain)+ L2 装配(SessionStart 按 domain 注入域 CONTEXT/PITFALLS)+ 汇总协议(域仪表盘)+ 检索配方 + INIT 采访加「项目分几大块」+ tests/fractal-memory 21/21；契约加 Fractal Memory Rule；自托管铺设 2 域补 D6 缺口。`scripts/check.sh` 全绿；capsule：`engine/changes/CHANGE-2026-07-03-03.md` |
+| 进行中 | ① 提交并推送 S2 全部改动；② 进入 S3（契约编译：contract/src 拆分 + compile + dist 校验 + 减法规则） |
 | 阻塞 | 无 |
 
 ## 当前假设 / 决策（本轮拍板）

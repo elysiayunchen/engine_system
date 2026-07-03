@@ -1,0 +1,33 @@
+{
+  "_comment": "联邦表:path-glob → domain。hook 解析此表做路由装配与门禁校验。glob 语法同 .gitignore(case 模式匹配);路径不匹配任何域 → default_domain。",
+  "domains": {
+    "engine-runtime": {
+      "paths": [
+        "plugin/engine/scripts/**",
+        "engine/scripts/**",
+        "plugin/.claude/commands/**",
+        "engine/ENGINE_DOCTOR.md",
+        "ENGINE_FILE_SYSTEM_v5.md",
+        "scripts/check.sh",
+        "scripts/check.ps1"
+      ],
+      "summary": "引擎运行时:hook 门禁 / Doctor / 迁移器 / 契约 —— 产品本身"
+    },
+    "project-meta": {
+      "paths": [
+        "engine/tasks/**",
+        "engine/decisions/**",
+        "engine/changes/**",
+        "engine/domains/**",
+        "engine/CONTEXT.md",
+        "engine/HANDOFF.md",
+        "engine/ENGINE_MAP.md",
+        "engine/AGENT_ADAPTERS.md",
+        "docs/**",
+        "tests/**"
+      ],
+      "summary": "项目运营记忆:任务 / 决策 / 变更 / 规划 / 测试 —— 引擎自己的狗粮"
+    }
+  },
+  "default_domain": "root"
+}

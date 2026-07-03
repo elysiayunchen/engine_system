@@ -79,6 +79,8 @@ Lifecycle routing:
 
 **Decision Ledger Rule (v6 S1):** A decision (`engine/decisions/D-NNN.md`) is the architect's control surface made data. It carries `status` (proposed/approved/rejected/expired/superseded), `scope` (path globs it governs), `expiry`, options, rationale, and consequences. Protected paths (declared in `engine/decisions/rules.json`) require any staged change to be covered by an `approved` decision whose `scope` matches—enforced by the git pre-commit hook via the active task card's `decision:` reference. `/engine-status` surfaces a "pending your decision" queue (all `proposed` decisions). Decisions are operational artifacts, not authority files; do not register them in ENGINE_MAP §1.
 
+**Fractal Memory Rule (v6 S2):** The engine memory is spatially partitioned into domains. `engine/domains/federation.json` is the routing table: path-glob → domain. Each domain holds its own `CONTEXT.md` (first line = budgeted summary, lifted to the SessionStart domain dashboard) and `PITFALLS.md` (per-domain budget + archive + rg recipe; no global 500-line ceiling). The SessionStart hook assembles L2: for each domain in the active task card's `domain:` field (comma-separated), it injects that domain's CONTEXT + PITFALLS (budget-bounded). The Stop hook enforces route consistency: every code path touched must resolve (via federation.json) to a domain in the task card's `domain:` set—out-of-domain → `decision:block`. Paths matching no domain glob fall to `default_domain`. Projects without `federation.json` or a task card `domain:` field fall back to S1 behavior (backward compatible). The federation table is registered in ENGINE_MAP; domain files are operational artifacts, not authority files.
+
 
 ---
 

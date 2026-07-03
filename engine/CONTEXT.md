@@ -7,8 +7,8 @@
 | 维度 | 状态 |
 |------|------|
 | 构建 | ✅ 正常（纯 markdown + shell 脚本，无构建步骤） |
-| 上次完成 | 落地 **v6 S2「分形记忆」**并全套验证通过：联邦表 `engine/domains/federation.json`(path-glob→domain)+ 域引擎目录(engine-runtime/project-meta 的 CONTEXT/PITFALLS)+ 路由 read-gate(Stop hook 校验 code_path 所属域 ∈ 任务卡 domain)+ L2 装配(SessionStart 按 domain 注入域 CONTEXT/PITFALLS)+ 汇总协议(域仪表盘)+ 检索配方 + INIT 采访加「项目分几大块」+ tests/fractal-memory 21/21；契约加 Fractal Memory Rule；自托管铺设 2 域补 D6 缺口。`scripts/check.sh` 全绿；capsule：`engine/changes/CHANGE-2026-07-03-03.md` |
-| 进行中 | ① 提交并推送 S2 全部改动；② 进入 S3（契约编译：contract/src 拆分 + compile + dist 校验 + 减法规则） |
+| 上次完成 | 落地 **v6 S3「契约编译」**并全套验证通过:`contract/src/`(契约唯一真相源)+ `contract/compile.{sh,ps1}`(编译器 src->dist 幂等)+ `contract/budget.json`(减法基线:行数 2438/Rule 11)+ dist 头部编译横幅 + 编译幂等校验(compile(src)==dist)+ 减法规则(新增 Rule 须净零增长)+ tests/contract-compile 6/6。契约从「agent 背诵」变成「机器编译产物」。`scripts/check.sh` 全绿;capsule:`engine/changes/CHANGE-2026-07-03-04.md` |
+| 进行中 | ① 提交并推送 S3 全部改动;② 进入 S3-b(源模块细分) 或 S4(驾驶舱) |
 | 阻塞 | 无 |
 
 ## 当前假设 / 决策（本轮拍板）

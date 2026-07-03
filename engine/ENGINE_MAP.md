@@ -1,6 +1,6 @@
 # ENGINE_MAP — 引擎索引
 
-> Engine System (engine_system) · Revision: 8 · Last updated: 2026-07-03
+> Engine System (engine_system) · Revision: 9 · Last updated: 2026-07-03
 > ⚠️ MVP dogfood 实例（精简版）。完整 v5.5 注册表（§1.1 / §1.2 / §2 / §3 / 预算）待 `/engine-reconcile` 或 `/engine-init` 补全。
 
 ## §0 Profile & Read-Gate
@@ -35,10 +35,10 @@ path-glob → domain 路由表。机读源:`engine/domains/federation.json`;Sess
 
 ## §4 完整性与新鲜度
 
-- 全局 revision：8
-- 状态：MVP dogfood 阶段,已注册 hooks 闭环所需的最小文件集;v5.7 已加入 Project Self-View、change capsule、Doctor 自审门禁;**v6 方向已获架构师批准**。S0「诚实门禁」已落地:stop hook porcelain -z + capsule WARN、engine-hook.cmd 垫片、contract-version 标记、tests/hook-parity 等价测试。S1「意图内核数据层」已落地:任务卡 + 决策台账 + 三层门禁 + SessionStart 重注入 + pre-commit 决策引用 + tests/task-card。**S2「分形记忆」已落地**:联邦表 `engine/domains/federation.json`(path-glob → domain)、域引擎目录 `engine/domains/<domain>/{CONTEXT,PITFALLS}.md`、路由 read-gate(Stop hook 校验 code_path 所属域 ∈ 任务卡 domain 集合)、L2 装配(SessionStart 按 domain 注入域 CONTEXT+PITFALLS)、汇总协议(域仪表盘)、检索配方、INIT 采访加「项目分几大块」、tests/fractal-memory 21/21。本仓库自托管铺设 2 域(engine-runtime + project-meta)补 D6 缺口。
-- 运营工件层（不登记为权威文件,不进 §1）：`engine/tasks/T-*.md`、`engine/decisions/D-*.md`、`engine/decisions/rules.json`、`engine/domains/**`（联邦表 + 域文件）、`engine/changes/CHANGE-*.md`、`engine/evidence/*`。
-- 最近 change capsule：`engine/changes/CHANGE-2026-07-03-03.md`
-- 活跃任务卡：`engine/tasks/T-002.md`（S2 分形记忆）
-- 已批准决策：`engine/decisions/D-001.md`（v6 路线 A→B 主线）、`engine/decisions/D-002.md`（S2 分形记忆）
-- 已知缺口：SYSTEM.md、ARCHITECTURE.md 等尚未生成;根锚点尚未铺设(S2 已补域级 CONTEXT/PITFALLS,根级待 S3 契约编译时收口)。
+- 全局 revision：9
+- 状态：MVP dogfood 阶段,已注册 hooks 闭环所需的最小文件集;v5.7 已加入 Project Self-View、change capsule、Doctor 自审门禁;**v6 方向已获架构师批准**。S0「诚实门禁」已落地:stop hook porcelain -z + capsule WARN、engine-hook.cmd 垫片、contract-version 标记、tests/hook-parity 等价测试。S1「意图内核数据层」已落地:任务卡 + 决策台账 + 三层门禁 + SessionStart 重注入 + pre-commit 决策引用 + tests/task-card。S2「分形记忆」已落地:联邦表 + 域引擎 + 路由 read-gate + L2 装配 + 汇总协议 + 检索配方 + INIT 采访加「项目分几大块」+ tests/fractal-memory 21/21。**S3「契约编译」已落地**:`contract/src/`(契约唯一真相源) + `contract/compile.{sh,ps1}`(编译器 src→dist) + `contract/budget.json`(减法规则基线:行数 2438 / Rule 11) + dist 头部编译横幅 + 编译幂等校验(compile(src)==dist) + 减法规则(src 行数≤基线,新增 Rule 须净零增长) + tests/contract-compile 6/6。契约从「agent 背诵」变成「机器编译产物」。
+- 运营工件层（不登记为权威文件,不进 §1）：`engine/tasks/T-*.md`、`engine/decisions/D-*.md`、`engine/decisions/rules.json`、`engine/domains/**`（联邦表 + 域文件）、`engine/changes/CHANGE-*.md`、`engine/evidence/*`、`contract/**`（契约源 + 编译器 + 减法基线——引擎产品本身的源码,非用户项目内容）。
+- 最近 change capsule：`engine/changes/CHANGE-2026-07-03-04.md`
+- 活跃任务卡：`engine/tasks/T-003.md`（S3 契约编译）
+- 已批准决策：`engine/decisions/D-001.md`（v6 路线 A→B 主线）、`engine/decisions/D-002.md`（S2 分形记忆）、`engine/decisions/D-003.md`（S3 契约编译）
+- 已知缺口：SYSTEM.md、ARCHITECTURE.md 等尚未生成;根锚点尚未铺设;contract/src/ 仍是单文件(源模块细分留 S3-b)。

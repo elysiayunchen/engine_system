@@ -477,6 +477,35 @@ function Test-ContractCompile {
   }
 }
 
+function Test-ContractDebt {
+  $srcDir = Join-Path $Root "contract/src"
+  if (-not (Test-Path $srcDir)) { return }
+  $modules = Get-ChildItem -Path $srcDir -File | Where-Object { $_.Name -match '^\d.*\.md$' } | Sort-Object Name
+  $totalMust = 0
+  foreach ($m in $modules) {
+    $content = Get-Content -Raw $m.FullName -Encoding UTF8
+    $totalMust += ([regex]::Matches($content, '\bMUST\b')).Count
+  }
+  $ruleLines = $modules | ForEach-Object { Get-Content $_.FullName -Encoding UTF8 | Select-String -Pattern '\*\*[^*]*Rule \(v' }
+  $ruleCount = if ($ruleLines) { @($ruleLines).Count } else { 0 }
+  $debt = $totalMust - $ruleCount
+  $budget = Join-Path $Root "contract/budget.json"
+  $baseline = $null
+  if (Test-Path $budget) {
+    $budgetRaw = Get-Content -Raw -Path $budget -Encoding UTF8
+    if ($budgetRaw -match '"debt_baseline"\s*:\s*(\d+)') { $baseline = [int]$Matches[1] }
+  }
+  $suffix = if ($null -ne $baseline) { ", baseline=$baseline" } else { "" }
+  Write-Pass "contract debt: MUST=$totalMust, gated Rules=$ruleCount, debt=$debt$suffix"
+  if ($null -ne $baseline) {
+    if ($debt -le $baseline) {
+      Write-Pass "contract debt <= baseline ($debt <= $baseline) - net-zero holding"
+    } else {
+      Write-Warn "contract debt > baseline ($debt > $baseline) - move MUST into data tables"
+    }
+  }
+}
+
 function Test-PlanAcceptanceEvidence {
   foreach ($row in $planRows) {
     $cells = Split-Row $row
@@ -552,6 +581,7 @@ Test-SprintSemantics
 Test-ChangeCapsuleSemantics
 Test-PlanAcceptanceEvidence
 Test-ContractCompile
+Test-ContractDebt
 
 foreach ($anchor in @("AGENTS.md", "CLAUDE.md")) {
   $path = Join-Path $Root $anchor

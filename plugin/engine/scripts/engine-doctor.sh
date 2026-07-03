@@ -405,6 +405,27 @@ check_contract_compile() {
   fi
 }
 
+check_contract_debt() {
+  local src_dir="$ROOT/contract/src"
+  [ -d "$src_dir" ] || return 0
+  local total_must; total_must="$(grep -hoE '\bMUST\b' "$src_dir"/[0-9]*.md 2>/dev/null | wc -l)"
+  local rule_count; rule_count="$(grep -hE '\*\*[^*]*Rule \(v' "$src_dir"/[0-9]*.md 2>/dev/null | wc -l)"
+  local debt=$((total_must - rule_count))
+  local budget="$ROOT/contract/budget.json"
+  local baseline=""
+  if [ -f "$budget" ]; then
+    baseline="$(grep -o '"debt_baseline"[[:space:]]*:[[:space:]]*[0-9]*' "$budget" | grep -o '[0-9]*$')"
+  fi
+  pass "contract debt: MUST=$total_must, gated Rules=$rule_count, debt=$debt${baseline:+, baseline=$baseline}"
+  if [ -n "$baseline" ]; then
+    if [ "$debt" -le "$baseline" ]; then
+      pass "contract debt <= baseline ($debt <= $baseline) - net-zero holding"
+    else
+      warn "contract debt > baseline ($debt > $baseline) - move MUST into data tables (Rules/rules.json/federation.json)"
+    fi
+  fi
+}
+
 check_plan_acceptance_evidence() {
   while IFS='|' read -r _ id title status plan spec notes verified _; do
     id="$(trim "$id")"
@@ -450,6 +471,7 @@ check_sprint_semantics
 check_change_capsule_semantics
 check_plan_acceptance_evidence
 check_contract_compile
+check_contract_debt
 
 while IFS='|' read -r _ path type authority verified _; do
   path="$(trim "$path")"

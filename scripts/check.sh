@@ -73,6 +73,20 @@ else
   fail "session injection $injected lines > 400 (N1 violated)"
 fi
 
+step "Engine VERSION stamp (v6 auto-update)"
+if [[ -f VERSION && -f plugin/VERSION && -f engine/VERSION ]]; then
+  rv="$(tr -d '[:space:]' < VERSION)"
+  pv="$(tr -d '[:space:]' < plugin/VERSION)"
+  ev="$(tr -d '[:space:]' < engine/VERSION)"
+  if [[ "$rv" = "$pv" && "$rv" = "$ev" ]]; then
+    pass "VERSION consistent ($rv) across root/plugin/engine"
+  else
+    fail "VERSION mismatch: root=$rv plugin=$pv engine=$ev"
+  fi
+else
+  fail "VERSION file missing (root=$(test -f VERSION && echo ok || echo miss) plugin=$(test -f plugin/VERSION && echo ok || echo miss) engine=$(test -f engine/VERSION && echo ok || echo miss))"
+fi
+
 step "PowerShell syntax"
 if command -v pwsh >/dev/null 2>&1; then
   if pwsh -NoProfile -File scripts/check.ps1 -Root "$PWD"; then

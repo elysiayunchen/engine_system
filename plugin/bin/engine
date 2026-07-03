@@ -11,14 +11,25 @@ usage() {
 Engine System CLI
 
 Usage:
-  engine update        Update Engine System tooling in the current project
-  engine verify T-NNN  Run behavior verification for a task card
-  engine help          Show this help
+  engine check-update   Check if a newer Engine System version is available
+  engine update         Update tooling, then migrate + doctor (one-shot)
+  engine update --check-only   Only check for updates, change nothing
+  engine update --no-migrate   Update tooling but skip migration/doctor
+  engine migrate        Run contract migration on existing engine files
+  engine verify T-NNN   Run behavior verification for a task card
+  engine help           Show this help
 
-`engine update` downloads the latest installer and runs update mode. It does not overwrite
-project-specific engine/*.md memory. After it finishes, open your AI agent and run
-/engine-sync. That runs the bundled engine-migrate-contract script so old engine files
-receive the latest managed contract block while preserving project memory.
+`engine check-update` compares local engine/VERSION against the remote VERSION.
+Exit codes: 0 = up to date | 7 = update available | 8 = network error.
+
+`engine update` downloads the latest installer, runs update mode (does not
+overwrite project-specific engine/*.md memory), then runs the contract migrator
+so old engine files receive the v6 data-layer structure and managed contract
+block, then runs Doctor to verify. Use --check-only to preview, --no-migrate to
+skip the migration step.
+
+`engine migrate` runs the contract migrator alone (idempotent). Use it to
+repair or re-apply the v6 structure without re-downloading tooling.
 EOF
 }
 
@@ -34,6 +45,36 @@ download() {
   fi
 }
 
+run_migrate() {
+  local root="$1"
+  local migrator="$root/engine/scripts/engine-migrate-contract.sh"
+  if [ -f "$migrator" ]; then
+    echo "[engine] running contract migration..."
+    bash "$migrator" "$root" || echo "[engine] migration reported issues (see above)" >&2
+  else
+    echo "[engine] migrator not found at $migrator - skipping migrate" >&2
+  fi
+}
+
+run_doctor() {
+  local root="$1"
+  local doctor="$root/engine/scripts/engine-doctor.sh"
+  if [ -f "$doctor" ]; then
+    echo "[engine] running doctor..."
+    bash "$doctor" "$root" || echo "[engine] doctor reported issues (see above)" >&2
+  fi
+}
+
+# Parse global flags (apply to `update`).
+NO_MIGRATE=false
+CHECK_ONLY=false
+for arg in "$@"; do
+  case "$arg" in
+    --no-migrate) NO_MIGRATE=true ;;
+    --check-only) CHECK_ONLY=true ;;
+  esac
+done
+
 case "${1:-help}" in
   verify)
     if [ ! -d "$PWD/engine" ]; then
@@ -47,16 +88,36 @@ case "${1:-help}" in
     fi
     bash "$PWD/engine/scripts/engine-verify.sh" "$task"
     ;;
+  check-update)
+    bash "$PWD/engine/scripts/engine-check-update.sh" "$PWD"
+    ;;
+  migrate)
+    if [ ! -d "$PWD/engine" ]; then
+      echo "Error: engine/ not found in $PWD." >&2
+      exit 2
+    fi
+    run_migrate "$PWD"
+    ;;
   update)
+    if $CHECK_ONLY; then
+      bash "$PWD/engine/scripts/engine-check-update.sh" "$PWD"
+      exit $?
+    fi
     tmp="$(mktemp -t engine-install.XXXXXX)"
     trap 'rm -f "$tmp"' EXIT
     download "https://raw.githubusercontent.com/${REPO}/${BRANCH}/install.sh" "$tmp"
     bash "$tmp" --update
     echo ""
+    if ! $NO_MIGRATE; then
+      run_migrate "$PWD"
+      run_doctor "$PWD"
+    fi
+    echo ""
     echo "Engine tooling updated from remote."
-    echo "Next: run /engine-sync in your AI agent."
-    echo "That runs engine/scripts/engine-migrate-contract.* to write the latest"
-    echo "managed contract block into existing engine files while preserving project memory."
+    if ! $NO_MIGRATE; then
+      echo "Migration + doctor complete."
+    fi
+    echo "Next: run /engine-sync in your AI agent if cross-agent anchors need syncing."
     ;;
   help|-h|--help)
     usage

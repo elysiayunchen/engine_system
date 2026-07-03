@@ -46,6 +46,11 @@ $FILES = @(
   @{ src = "bin/engine";                            dest = "engine\bin\engine";                            protect = $true }
   @{ src = "bin/engine.ps1";                        dest = "engine\bin\engine.ps1";                        protect = $true }
   @{ src = "bin/engine.cmd";                        dest = "engine\bin\engine.cmd";                        protect = $true }
+  @{ src = "VERSION";                               dest = "engine\VERSION";                               protect = $true }
+  @{ src = "engine/scripts/engine-check-update.sh"; dest = "engine\scripts\engine-check-update.sh"; protect = $true }
+  @{ src = "engine/scripts/engine-check-update.ps1"; dest = "engine\scripts\engine-check-update.ps1"; protect = $true }
+  @{ src = "migrations/v6.0.sh";                    dest = "engine\migrations\v6.0.sh";                    protect = $true }
+  @{ src = "migrations/v6.0.ps1";                   dest = "engine\migrations\v6.0.ps1";                   protect = $true }
   @{ src = ".claude/settings.json";                dest = ".claude\settings.json";                protect = $false }
 )
 
@@ -53,7 +58,7 @@ Write-Host ""
 Write-Host "Engine System installer" -ForegroundColor Cyan
 Write-Host "-------------------------------------"
 
-New-Item -ItemType Directory -Force -Path ".claude\commands", "engine", "engine\scripts", "engine\scripts\githooks", "engine\bin", "engine\.cache" | Out-Null
+New-Item -ItemType Directory -Force -Path ".claude\commands", "engine", "engine\scripts", "engine\scripts\githooks", "engine\bin", "engine\migrations", "engine\.cache" | Out-Null
 
 $installed = 0; $skipped = 0
 

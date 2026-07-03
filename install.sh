@@ -70,6 +70,7 @@ FILES=(
   "engine/scripts/engine-hook-stop.ps1:engine/scripts/engine-hook-stop.ps1:true"
   "engine/scripts/engine-hook-session-end.sh:engine/scripts/engine-hook-session-end.sh:true"
   "engine/scripts/engine-hook-session-end.ps1:engine/scripts/engine-hook-session-end.ps1:true"
+  "engine/scripts/engine-hook.cmd:engine/scripts/engine-hook.cmd:true"
   "engine/scripts/engine-sync-agent-anchors.sh:engine/scripts/engine-sync-agent-anchors.sh:true"
   "engine/scripts/engine-sync-agent-anchors.ps1:engine/scripts/engine-sync-agent-anchors.ps1:true"
   "engine/scripts/engine-migrate-contract.sh:engine/scripts/engine-migrate-contract.sh:true"
@@ -157,6 +158,23 @@ if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     fi
   fi
 fi
+
+# Windows(MINGW/MSYS/Cygwin):Claude Code 用 cmd.exe 执行 hooks,而 Git for Windows
+# 默认只把 Git\cmd(git.exe)加进系统 PATH——`bash` 在 cmd 里经常找不到,C 层会静默哑火。
+# 把 hook 命令换成 engine-hook.cmd 调度垫片:垫片仍优先找 bash(行为与 Unix 完全一致),
+# 找不到才退 PowerShell 孪生实现。只改写本安装器铺设的命令形态,不碰用户自定义 hooks。
+case "$(uname -s 2>/dev/null)" in
+  MINGW*|MSYS*|CYGWIN*)
+    if [[ -f .claude/settings.json ]] && grep -q 'bash engine/scripts/engine-hook-' .claude/settings.json; then
+      sed -i.engine-bak \
+        -e 's|bash engine/scripts/engine-hook-session-start\.sh|engine\\\\scripts\\\\engine-hook.cmd session-start|' \
+        -e 's|bash engine/scripts/engine-hook-stop\.sh|engine\\\\scripts\\\\engine-hook.cmd stop|' \
+        -e 's|bash engine/scripts/engine-hook-session-end\.sh|engine\\\\scripts\\\\engine-hook.cmd session-end|' \
+        .claude/settings.json && rm -f .claude/settings.json.engine-bak
+      echo -e "  ${GREEN}✓${RESET} .claude/settings.json (Windows: hooks 改经 engine-hook.cmd 调度垫片)"
+    fi
+    ;;
+esac
 
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

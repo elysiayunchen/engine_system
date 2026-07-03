@@ -475,6 +475,7 @@ for script in \
   engine-hook-stop.ps1 \
   engine-hook-session-end.sh \
   engine-hook-session-end.ps1 \
+  engine-hook.cmd \
   engine-sync-agent-anchors.sh \
   engine-sync-agent-anchors.ps1 \
   engine-migrate-contract.sh \

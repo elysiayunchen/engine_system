@@ -104,13 +104,21 @@ Warnings are allowed for conditions that need human review but do not prove brok
 Hook scripts:
 - `engine-hook-session-start.{sh,ps1}`: inject current CONTEXT/HANDOFF plus pending notes.
 - `engine-hook-stop.{sh,ps1}`: block once when code changed without CONTEXT/HANDOFF write-back.
+  Decision contract (v6 S0): parse `git status --porcelain -z` only (immune to quotepath
+  escaping; renames resolve to the new path); a missing change capsule emits a WARN
+  (systemMessage, never blocks); sh/ps1 decisions must be identical, enforced by
+  `tests/hook-parity/run-parity.sh`.
 - `engine-hook-session-end.{sh,ps1}`: run Doctor non-blockingly and cache warnings for the
   next SessionStart.
+- `engine-hook.cmd`: Windows C-layer dispatch shim (bash -> Git for Windows bash.exe ->
+  PowerShell twin). Kills the silent-hook failure mode when `bash` is not on cmd's PATH.
 - `engine-sync-agent-anchors.{sh,ps1}`: create/update thin pointers for agent-specific
   bootloaders.
 - `engine-migrate-contract.{sh,ps1}`: idempotently migrate old projects by writing the
   current managed contract block into existing engine authority/anchor files and creating a
-  migration change capsule.
+  migration change capsule. The managed block's first line carries
+  `<!-- contract-version: X -->` so Doctor and future incremental migrations can tell which
+  contract a project carries.
 - `engine/bin/engine`, `engine/bin/engine.ps1`, `engine/bin/engine.cmd`: project-local
   copies of the terminal updater shim; installers also try to install a user-level
   `engine update` command on PATH.

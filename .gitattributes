@@ -1,4 +1,6 @@
 *.sh text eol=lf
+# cmd 批处理必须 CRLF:LF-only 的 .cmd 在 goto/label 跳转时会静默失败(cmd.exe 历史行为)
+*.cmd text eol=crlf
 scripts/*.sh text eol=lf
 plugin/manifest.json text eol=lf
 plugin/bin/engine text eol=lf

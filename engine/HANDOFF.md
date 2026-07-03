@@ -1,10 +1,10 @@
 # HANDOFF — 会话交接
 
-> Engine System (engine_system) · Last updated: 2026-06-22
+> Engine System (engine_system) · Last updated: 2026-07-03
 
 ## 立即恢复点
 
-下一步：提交并推送 `engine-migrate-contract.{sh,ps1}` 旧项目契约迁移层；后续决定缺少 change capsule 是否从 warning 升级为 hard failure。
+下一步：S0「诚实门禁」已全部落地并验证通过（`scripts/check.sh` 全绿，parity 19/19）。立即提交推送（含 v6 设计文档 + S0 改动 + 引擎回写 + 上轮 migrator 遗留），之后进入 S1（任务卡 + 决策台账）。
 
 > 本轮交接完成。初始机已升级为“工具更新 + 契约迁移”双阶段：`engine update` 分发脚本与命令，`/engine-sync` 运行 migrator，把自视图、改动胶囊、验收证据、Doctor 自审门禁等当前契约写入旧项目现有引擎文件。
 
@@ -12,6 +12,8 @@
 
 | 日期 | 完成了什么 | 下一步 | 改动文件 |
 |------|-----------|--------|---------|
+| 2026-07-03 | 架构师批准推荐路线后执行 **v6 S0「诚实门禁」**：stop hook 双实现重写为 porcelain -z（修中文路径击穿 + 统一 rename 取新路径，消除 sh/ps1 判定分歧）、capsule 入门禁走 WARN 通道（systemMessage，不拦截）、pre-commit 同修 quotepath、新增 engine-hook.cmd 垫片（bash→Git bash.exe→ps1 逐级回退，修 Windows C 层哑火）并接入 install.sh（MINGW 检测改写）/install.ps1（生成垫片命令）/manifest、migrator managed 区块首行写 `contract-version: 5.7`、新增 tests/hook-parity/run-parity.sh（8 stop + 3 pre-commit 场景，双实现等价断言）、契约尾横幅去版本号除漂移源、.gitignore 排除 engine/.cache/ | 分类器恢复后：跑 parity 回填证据 → 补 engine-init.md 横幅 → 提交推送全部 → 进 S1 | plugin/engine/scripts/engine-hook-stop.{sh,ps1}, plugin/engine/scripts/engine-hook.cmd(新), plugin/engine/scripts/githooks/pre-commit, plugin/engine/scripts/engine-migrate-contract.{sh,ps1}, engine/scripts/（同步镜像 6 文件）, install.sh, install.ps1, plugin/manifest.json, tests/hook-parity/run-parity.sh(新), ENGINE_FILE_SYSTEM_v5.md, .gitignore, engine/changes/CHANGE-2026-07-03-01.md(新) |
+| 2026-07-03 | 完成 Engine System 发展方向探究（T-design）：4 个并行 subagent 审计 + 主线程核验，确认六项诊断——强制力金字塔倒立、门禁不认 change capsule、settings.json 仅挂 bash（`.claude/settings.json:10,22,27`）、sh/ps1 rename 语义分歧（`stop.sh:39` 取旧路径 vs `stop.ps1:43-44` 取新路径）、中文路径击穿 porcelain 解析、记忆架构无分形分区；产出 v6 方向设计文档（L0-L3 上下文装配 / 任务卡 / 决策台账 / 分形域引擎 / 契约编译，路线 S0-S4，明确不做平台化） | 架构师拍板文档 §9 五个开放问题；之后统一提交推送（含上轮遗留 migrator 改动） | docs/superpowers/specs/2026-07-03-engine-v6-direction-design.md, engine/CONTEXT.md, engine/HANDOFF.md |
 | 2026-06-22 | 针对“旧项目 engine update 后机制不进入现有引擎文件”的根因，新增 `engine-migrate-contract.{sh,ps1}`：幂等写入 `ENGINE_SYSTEM_CONTRACT_MIGRATIONS` 托管区块到 `AGENTS.md`、`engine/SYSTEM.md`、`engine/ENGINE_DOCTOR.md`，并生成 migration change capsule；已接入 `/engine-sync`、install、manifest、Doctor bundled-script 检查和 duplicate drift 检查 | 重新跑 PowerShell/Bash release checks，提交并推送 | engine/scripts/engine-migrate-contract.*, plugin/engine/scripts/engine-migrate-contract.*, ENGINE_FILE_SYSTEM_v5.md, plugin/.claude/commands/engine-init.md, plugin/.claude/commands/engine-sync.md, README*, install.*, engine/bin/*, plugin/bin/*, engine/ENGINE_DOCTOR.md, plugin/engine/ENGINE_DOCTOR.md, scripts/check.ps1 |
 | 2026-06-22 | 实现 v5.7 架构师自视图与 change capsule，并补齐旧项目升级路径：`/engine-sync` 会 additive 迁移多 lane、自维护循环、change capsule、Project Self-View、验收证据和 Doctor parity；PowerShell/Bash 检查全绿 | 提交并推送本轮改动；后续评估 missing change capsule 是否需要升级为 hard failure | ENGINE_FILE_SYSTEM_v5.md, README*, install.*, engine/bin/*, engine/ENGINE_DOCTOR.md, engine/CONTEXT.md, engine/HANDOFF.md, engine/ENGINE_MAP.md, engine/changes/CHANGE-2026-06-22-01.md, engine/scripts/engine-doctor.*, engine/scripts/engine-sync-agent-anchors.*, plugin/AGENTS.md, plugin/.claude/commands/*, plugin/bin/*, plugin/engine/* |
 | 2026-06-22 | 完成引擎功能性优化并整理 web 初始机入口：Doctor 增加语义记忆检查，`/engine-status` 仪表盘化，pitfall 模板补触发/范围/验证；`ENGINE_FILE_SYSTEM_v5.5.md`、`ENGINE_FILE_SYSTEM_v5.2.md`、`ENGINE_FILE_SYSTEM_v4_legacy.txt` 归档，根目录只留 `ENGINE_FILE_SYSTEM_v5.md` | 提交本轮改动；以后每次更新初始化规则都同步更新唯一 web prompt | ENGINE_FILE_SYSTEM_v5.md, archive/engine-file-system/*, README*, engine/*, plugin/.claude/commands/*, engine/scripts/engine-doctor.*, plugin/engine/scripts/engine-doctor.*, install.ps1, scripts/check.ps1 |

@@ -20,6 +20,10 @@ New-Item -ItemType Directory -Force -Path $EngineDir, (Join-Path $EngineDir "cha
 
 $Start = "<!-- ENGINE_SYSTEM_CONTRACT_MIGRATIONS_START -->"
 $End = "<!-- ENGINE_SYSTEM_CONTRACT_MIGRATIONS_END -->"
+# Contract version: bump manually whenever managed contract content changes.
+# Written as the first line inside the managed block so Doctor / future
+# incremental migrations can tell WHICH contract a project carries.
+$ContractVersion = "5.7"
 $Today = Get-Date -Format "yyyy-MM-dd"
 $Touched = New-Object System.Collections.Generic.List[string]
 
@@ -40,6 +44,7 @@ function Upsert-Block([string]$Path, [string]$Title, [string]$Body) {
 
   $block = @"
 $Start
+<!-- contract-version: $ContractVersion -->
 ## $Title
 > Managed by Engine System contract migration. Preserve project-specific rules outside this block.
 

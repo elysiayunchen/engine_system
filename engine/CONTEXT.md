@@ -1,14 +1,14 @@
 # CONTEXT — 当前状态
 
-> Engine System (engine_system) · Last updated: 2026-06-22 · Profile: CLI-LEAN
+> Engine System (engine_system) · Last updated: 2026-07-03 · Profile: CLI-LEAN
 
 ## 状态面板
 
 | 维度 | 状态 |
 |------|------|
 | 构建 | ✅ 正常（纯 markdown + shell 脚本，无构建步骤） |
-| 上次完成 | 补齐旧项目机制无法更新的通用解法：新增 `engine-migrate-contract.{sh,ps1}`，由 `/engine-sync` 先执行版本化、幂等的 managed contract migration，把最新引擎契约写回旧项目现有引擎文件；PowerShell 与 Bash release checks 均通过 |
-| 进行中 | 提交并推送本轮 contract migrator 改动；后续决定缺少 change capsule 是否从 warning 升级为 hard failure |
+| 上次完成 | 架构师拍板 v6 推荐路线（A→B 主线，capsule 先 WARN）后落地 **S0「诚实门禁」**并全套验证通过：stop hook 双实现改 porcelain -z -uall 并统一 rename 语义、capsule 计入门禁（WARN 级）、pre-commit 修 quotepath、新增 engine-hook.cmd Windows 调度垫片并接入双安装器与 manifest、migrator 写 contract-version、新增 tests/hook-parity/run-parity.sh（11 场景 sh/ps1 等价断言，19/19 PASS）、契约尾部横幅去版本号、scripts/check.sh 接入 parity 段、check.ps1 补垫片 drift 对、.gitattributes 钉 .cmd=CRLF；`scripts/check.sh` 全绿；capsule：`engine/changes/CHANGE-2026-07-03-01.md` |
+| 进行中 | ① 提交并推送 v6 设计文档 + S0 全部改动 + 引擎回写（含上轮 migrator 遗留）；② 进入 S1（意图内核数据层：任务卡 + 决策台账） |
 | 阻塞 | 无 |
 
 ## 当前假设 / 决策（本轮拍板）

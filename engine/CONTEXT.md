@@ -7,8 +7,8 @@
 | 维度 | 状态 |
 |------|------|
 | 构建 | ✅ 正常（纯 markdown + shell 脚本，无构建步骤） |
-| 上次完成 | 落地 **v6 体系完善批次4 契约债计数器(N4)**并验证通过:Doctor 加 check_contract_debt(报告 MUST/Rule/debt + 基线趋势) + budget.debt_baseline=46。双实现等价(58 MUST)。N4 完成——倒立金字塔变可追踪下降的数字。`scripts/check.sh` 全绿;capsule:`engine/changes/CHANGE-2026-07-03-10.md` |
-| 进行中 | ① 提交推送批次4;② v6 体系完善全部完成(N1-N5 达成),后续:真实大库试点 / 合并 main |
+| 上次完成 | 落地 **v6 review 缺口修复**(3 子代理 review 暴露的 3 高优先):① dist 行尾根因(.gitattributes eol=lf,Stop hook 噪音消除);② N3 done-gate 机器强制(Doctor done 无 evidence 无 exempt → fail);③ §5.5 dist 3 产物(runtime-law.md L0 宪法 + rules.json 机读规则表)。`scripts/check.sh` 全绿;capsule:`engine/changes/CHANGE-2026-07-03-11.md` |
+| 进行中 | ① 提交推送 review 修复;② 后续:中优先(N1 注入计数器/L0 注入/flaky)+ 低优先(v6 命名/决策记录/§7 度量) |
 | 阻塞 | 无 |
 
 ## 当前假设 / 决策（本轮拍板）

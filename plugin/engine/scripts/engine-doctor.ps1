@@ -506,6 +506,27 @@ function Test-ContractDebt {
   }
 }
 
+function Test-TaskCardDoneEvidence {
+  $tasksDir = Join-Path $engineDir "tasks"
+  if (-not (Test-Path $tasksDir)) { return }
+  foreach ($f in (Get-ChildItem -Path $tasksDir -File -Filter "T-*.md" -ErrorAction SilentlyContinue)) {
+    $content = Get-Content -Raw -Path $f.FullName -Encoding UTF8 -ErrorAction SilentlyContinue
+    if ($content -notmatch 'status:\s*done') { continue }
+    $tid = $f.BaseName
+    $evDir = Join-Path $engineDir ("evidence\" + $tid)
+    if ($content -match 'exempt') {
+      Write-Pass "task $tid done (exempt - no evidence required)"
+      continue
+    }
+    if ((Test-Path $evDir) -and (Get-ChildItem -Path $evDir -Filter "AC-*.json" -ErrorAction SilentlyContinue)) {
+      $n = (Get-ChildItem -Path $evDir -Filter "AC-*.json").Count
+      Write-Pass "task $tid done with $n evidence file(s)"
+    } else {
+      Write-Fail "task $tid done but no evidence (engine/evidence/$tid/AC-*.json) and no exempt marker - run 'engine verify $tid' or mark exempt"
+    }
+  }
+}
+
 function Test-PlanAcceptanceEvidence {
   foreach ($row in $planRows) {
     $cells = Split-Row $row
@@ -582,6 +603,7 @@ Test-ChangeCapsuleSemantics
 Test-PlanAcceptanceEvidence
 Test-ContractCompile
 Test-ContractDebt
+Test-TaskCardDoneEvidence
 
 foreach ($anchor in @("AGENTS.md", "CLAUDE.md")) {
   $path = Join-Path $Root $anchor

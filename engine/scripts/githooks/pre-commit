@@ -1,24 +1,25 @@
 #!/bin/sh
 # Engine System — git pre-commit hook · 跨平台 / 跨 agent 的"收尾守门员"
 #
-# 提交时检查:本次提交改动了代码,却没有同步引擎记忆(CONTEXT/HANDOFF/ENGINE_MAP)→ 拦截。
-# 这是 agent 无关、平台无关的硬门禁兜底:无论用 Claude Code / Codex / Cursor / Aider /
-# Gemini CLI 还是手敲,只要最后走 `git commit`,门禁就生效。
+# B 层门禁(agent 无关、平台无关)。两层检查:
+#   1. 回写门禁:代码改动但没同步 CONTEXT/HANDOFF/ENGINE_MAP → 拦截。
+#   2. 受保护路径门禁(v6 S1):受保护路径(rules.json 声明)的变更须由一个
+#      status:approved 且 scope 覆盖该路径的决策授权——通过 active 任务卡的
+#      decision: D-NNN 字段引用。无引用 / 未批准 / scope 不覆盖 → 拦截。
 #
-# 跨平台:纯 POSIX sh + git 自带 sh 执行 → Linux / macOS / Windows(git 自带 MSYS sh)
-#         全都跑得起来,且不依赖用户的 Git Bash 在 PATH。
-# 安全契约:只读引擎文件;仅读 git 暂存区。不写文件、不碰代码、不联网。
-# 逃生口:确实只想提交纯代码改动时,用  git commit --no-verify  跳过本检查。
+# 跨平台:纯 POSIX sh + git 自带 sh。安全契约:只读引擎文件;仅读暂存区。
+# 逃生口:git commit --no-verify。
+
+ROOT="${CLAUDE_PROJECT_DIR:-$PWD}"
+ENGINE_DIR="$ROOT/engine"
 
 # -z + tr:非 ASCII 路径在默认 core.quotepath=true 下会被引号+八进制转义包裹,
-# 击穿 ^engine/ 前缀匹配(中文引擎文档会被误判成"代码"而误拦)。-z 从不转义;
-# POSIX sh 读不了 NUL 分隔,用 tr 转成行分隔(路径含换行者属病态,B 层兜底允许漏检)。
+# 击穿前缀匹配。-z 从不转义;POSIX sh 读不了 NUL 分隔,用 tr 转成行分隔。
 staged="$(git diff --cached --name-only -z 2>/dev/null | tr '\0' '\n')"
 [ -n "$staged" ] || exit 0
 
-# 是否有"代码"改动(engine/ 与 .engine/ 之外的任何暂存文件)
+# ── 第 1 层:回写门禁 ─────────────────────────────────────────────────────
 code_changed="$(printf '%s\n' "$staged" | grep -vE '^(engine/|\.engine/)' | head -1)"
-# 是否回写了引擎记忆(状态面板 / 交接 / 索引)
 engine_written="$(printf '%s\n' "$staged" | grep -E '^engine/(CONTEXT|HANDOFF|ENGINE_MAP)\.md$' | head -1)"
 
 if [ -n "$code_changed" ] && [ -z "$engine_written" ]; then
@@ -28,6 +29,102 @@ if [ -n "$code_changed" ] && [ -z "$engine_written" ]; then
   printf '(一句话:这次做了什么 + 下一步),让项目记忆跟代码同步演进。\n' >&2
   printf '\n' >&2
   printf '如果确实只想提交纯代码改动,可用:  git commit --no-verify\n' >&2
+  printf '\n' >&2
+  exit 1
+fi
+
+# ── 第 2 层:受保护路径决策引用门禁(v6 S1)──────────────────────────────
+rules_file="$ENGINE_DIR/decisions/rules.json"
+[ -f "$rules_file" ] && [ -n "$ENGINE_DIR" ] || exit 0
+
+# 从 rules.json 提取 protected_paths 数组中的 glob(每行一个)。
+protected="$(sed -n '/"protected_paths"/,/\]/{
+  /"protected_paths"/d
+  /\]/d
+  s/.*"\([^"]*\)".*/\1/p
+}' "$rules_file" 2>/dev/null)"
+[ -n "$protected" ] || exit 0
+
+# 找到 active 任务卡及其 decision 引用。
+active_task=""
+for f in "$ENGINE_DIR"/tasks/T-*.md; do
+  [ -f "$f" ] || continue
+  if grep -q 'status:.*active' "$f" 2>/dev/null; then
+    active_task="$f"; break
+  fi
+done
+
+task_decision=""
+if [ -n "$active_task" ]; then
+  task_decision="$(grep 'decision:' "$active_task" 2>/dev/null | head -1 | sed 's/.*decision:[[:space:]]*//' | sed 's/[[:space:]].*//')"
+fi
+
+# glob 匹配辅助:path 是否命中换行分隔的 glob 列表中的任一条。
+match_any_glob() {
+  _path="$1"; _pats="$2"; _old="$IFS"
+  IFS='
+'
+  for _p in $_pats; do
+    [ -n "$_p" ] || continue
+    case "$_path" in
+      $_p) IFS="$_old"; return 0 ;;
+    esac
+  done
+  IFS="$_old"
+  return 1
+}
+
+# 逐个检查暂存文件:受保护路径须有 approved 决策且 scope 覆盖。
+violation=""
+oldIFS="$IFS"
+IFS='
+'
+for file in $staged; do
+  [ -n "$file" ] || continue
+  match_any_glob "$file" "$protected" || continue
+
+  # 此文件受保护——必须有决策引用。
+  if [ -z "$task_decision" ]; then
+    violation="$file (无 active 任务卡或任务卡未声明 decision: D-NNN)"
+    break
+  fi
+  decision_file="$ENGINE_DIR/decisions/$task_decision.md"
+  if [ ! -f "$decision_file" ]; then
+    violation="$file (决策 $task_decision 文件不存在)"
+    break
+  fi
+  if ! grep -q 'status:.*approved' "$decision_file" 2>/dev/null; then
+    violation="$file (决策 $task_decision 未批准)"
+    break
+  fi
+  # scope 覆盖检查:scope 是逗号分隔的 glob,在同一行 > 开头。
+  scope_line="$(grep 'scope:' "$decision_file" 2>/dev/null | head -1)"
+  scope_raw="$(printf '%s' "$scope_line" | sed 's/.*scope:[[:space:]]*//' | sed 's/|[[:space:]].*//' | tr -d '\r')"
+  scope_matched=0
+  IFS_csv="$IFS"
+  IFS=','
+  for sp in $scope_raw; do
+    sp="$(printf '%s' "$sp" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+    [ -n "$sp" ] || continue
+    case "$file" in
+      $sp) scope_matched=1; break ;;
+    esac
+  done
+  IFS="$IFS_csv"
+  if [ "$scope_matched" -eq 0 ]; then
+    violation="$file (决策 $task_decision 的 scope 不覆盖此路径)"
+    break
+  fi
+done
+IFS="$oldIFS"
+
+if [ -n "$violation" ]; then
+  printf '\n' >&2
+  printf '【Engine System · 受保护路径门禁】%s\n' "$violation" >&2
+  printf '受保护路径的变更须由一个 status:approved 且 scope 覆盖该路径的决策授权。\n' >&2
+  printf '在任务卡(engine/tasks/T-NNN.md)中声明 decision: D-NNN,\n' >&2
+  printf '并确保 engine/decisions/D-NNN.md 已批准且 scope 覆盖该路径。\n' >&2
+  printf '逃生口: git commit --no-verify\n' >&2
   printf '\n' >&2
   exit 1
 fi

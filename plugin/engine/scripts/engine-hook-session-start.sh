@@ -4,6 +4,9 @@
 # 在新会话开始时读取项目记忆,把状态摘要打到 stdout 注入 agent 上下文,
 # 让 agent 无需架构师重新介绍即可接手上次的工作。
 #
+# v6 S1: 始终注入 active 任务卡。压缩后(compact)/恢复(resume)是漂移最危险
+# 的时刻——任务卡把 GOAL/WRITE-SET/FORBIDDEN 重新打到 agent 眼前,锚住意图。
+#
 # 安全契约:只读。不写引擎文件、不碰代码、不联网。任何失败都绝不致命(始终 exit 0)。
 # 触发:SessionStart(新会话 / --resume / /clear / 自动压缩后)。
 
@@ -30,7 +33,38 @@ if [ -f "$ENGINE_DIR/HANDOFF.md" ]; then
   echo ""
 fi
 
-# SessionEnd hook（后续阶段实现）会把遗留待办/Doctor 结果写到这里，由本钩子读出。
+# v6 S1: active 任务卡重注入——对抗漂移的核心锚点。
+active_task=""
+for f in "$ENGINE_DIR"/tasks/T-*.md; do
+  [ -f "$f" ] || continue
+  if grep -q 'status:.*active' "$f" 2>/dev/null; then
+    active_task="$f"
+    break
+  fi
+done
+if [ -n "$active_task" ]; then
+  task_id="$(basename "$active_task" .md)"
+  echo "──── 🎯 当前任务卡 ($task_id) ────"
+  echo "⚠️ 你的所有代码改动必须在 WRITE-SET 内;FORBIDDEN 是架构师否决权,碰了即被拦截。"
+  cat "$active_task" 2>/dev/null
+  echo ""
+fi
+
+# 「等你拍板」队列:proposed 决策,提示架构师需要拍板。
+proposed_count=0
+for f in "$ENGINE_DIR"/decisions/D-*.md; do
+  [ -f "$f" ] || continue
+  if grep -q 'status:.*proposed' "$f" 2>/dev/null; then
+    if [ "$proposed_count" -eq 0 ]; then
+      echo "──── ⏳ 等你拍板 (proposed 决策) ────"
+    fi
+    head -3 "$f" 2>/dev/null
+    echo ""
+    proposed_count=$((proposed_count + 1))
+  fi
+done
+
+# SessionEnd hook 会把遗留待办/Doctor 结果写到这里，由本钩子读出。
 if [ -f "$ENGINE_DIR/.cache/pending.txt" ]; then
   echo "──── ⚠️ 上次会话遗留待办 ────"
   cat "$ENGINE_DIR/.cache/pending.txt" 2>/dev/null

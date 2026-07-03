@@ -1,0 +1,13 @@
+{
+  "_comment": "受保护路径声明。pre-commit 检查暂存区是否触碰这些 glob；若是，要求引用一个 status:approved 且 scope 覆盖该路径的决策 ID。glob 语法同 .gitignore。",
+  "protected_paths": [
+    "engine/decisions/**",
+    "engine/tasks/**",
+    "ENGINE_FILE_SYSTEM_v5.md",
+    "plugin/.claude/commands/engine-init.md",
+    "install.sh",
+    "install.ps1",
+    "plugin/manifest.json",
+    ".gitattributes"
+  ]
+}

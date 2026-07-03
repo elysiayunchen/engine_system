@@ -122,6 +122,8 @@ function Test-PackageMode {
     "engine/scripts/engine-doctor.sh",
     "engine/scripts/engine-migrate-contract.ps1",
     "engine/scripts/engine-migrate-contract.sh",
+    "engine/scripts/engine-verify.ps1",
+    "engine/scripts/engine-verify.sh",
     "engine/scripts/githooks/pre-commit",
     "bin/engine",
     "bin/engine.ps1",
@@ -442,6 +444,68 @@ function Test-ChangeCapsuleSemantics {
   }
 }
 
+function Test-ContractCompile {
+  $srcDir = Join-Path $Root "contract/src"
+  $dist = Join-Path $Root "ENGINE_FILE_SYSTEM_v5.md"
+  $compileSh = Join-Path $Root "contract/compile.sh"
+  if (-not (Test-Path $srcDir)) { return }
+  if (-not (Test-Path $dist)) { Write-Warn "contract dist missing: $dist"; return }
+  if (-not (Test-Path $compileSh)) { Write-Warn "contract compile.sh missing"; return }
+  $banner = '<!-- ENGINE_FILE_SYSTEM_v5.md: compiled from contract/src/*.md by engine compile. Do not edit dist directly; edit src and recompile. -->'
+  $modules = Get-ChildItem -Path $srcDir -File | Where-Object { $_.Name -match '^\d.*\.md$' } | Sort-Object Name
+  $srcContent = ""
+  foreach ($m in $modules) { $srcContent += Get-Content -Raw -Path $m.FullName -Encoding UTF8 }
+  $expected = $banner + "`n" + $srcContent
+  $distContent = Get-Content -Raw -Path $dist -Encoding UTF8
+  if ($expected -ceq $distContent) {
+    Write-Pass "contract compile idempotent (compile(src) == dist)"
+  } else {
+    Write-Fail "contract dist is not compile(src) - run bash contract/compile.sh; do not edit dist directly"
+  }
+  $budget = Join-Path $Root "contract/budget.json"
+  if (Test-Path $budget) {
+    $budgetRaw = Get-Content -Raw -Path $budget -Encoding UTF8
+    if ($budgetRaw -match '"max_lines"\s*:\s*(\d+)') {
+      $maxLines = [int]$Matches[1]
+      $srcLines = ($modules | ForEach-Object { (Get-Content $_.FullName).Count } | Measure-Object -Sum).Sum
+      if ($srcLines -le $maxLines) {
+        Write-Pass "contract budget: src $srcLines lines <= $maxLines"
+      } else {
+        Write-Fail "contract budget exceeded: src $srcLines lines > $maxLines (subtraction rule: net-zero growth)"
+      }
+    }
+  }
+}
+
+function Test-ContractDebt {
+  $srcDir = Join-Path $Root "contract/src"
+  if (-not (Test-Path $srcDir)) { return }
+  $modules = Get-ChildItem -Path $srcDir -File | Where-Object { $_.Name -match '^\d.*\.md$' } | Sort-Object Name
+  $totalMust = 0
+  foreach ($m in $modules) {
+    $content = Get-Content -Raw $m.FullName -Encoding UTF8
+    $totalMust += ([regex]::Matches($content, '\bMUST\b')).Count
+  }
+  $ruleLines = $modules | ForEach-Object { Get-Content $_.FullName -Encoding UTF8 | Select-String -Pattern '\*\*[^*]*Rule \(v' }
+  $ruleCount = if ($ruleLines) { @($ruleLines).Count } else { 0 }
+  $debt = $totalMust - $ruleCount
+  $budget = Join-Path $Root "contract/budget.json"
+  $baseline = $null
+  if (Test-Path $budget) {
+    $budgetRaw = Get-Content -Raw -Path $budget -Encoding UTF8
+    if ($budgetRaw -match '"debt_baseline"\s*:\s*(\d+)') { $baseline = [int]$Matches[1] }
+  }
+  $suffix = if ($null -ne $baseline) { ", baseline=$baseline" } else { "" }
+  Write-Pass "contract debt: MUST=$totalMust, gated Rules=$ruleCount, debt=$debt$suffix"
+  if ($null -ne $baseline) {
+    if ($debt -le $baseline) {
+      Write-Pass "contract debt <= baseline ($debt <= $baseline) - net-zero holding"
+    } else {
+      Write-Warn "contract debt > baseline ($debt > $baseline) - move MUST into data tables"
+    }
+  }
+}
+
 function Test-PlanAcceptanceEvidence {
   foreach ($row in $planRows) {
     $cells = Split-Row $row
@@ -516,6 +580,8 @@ Test-PitfallsSemantics
 Test-SprintSemantics
 Test-ChangeCapsuleSemantics
 Test-PlanAcceptanceEvidence
+Test-ContractCompile
+Test-ContractDebt
 
 foreach ($anchor in @("AGENTS.md", "CLAUDE.md")) {
   $path = Join-Path $Root $anchor
@@ -543,6 +609,8 @@ foreach ($script in @(
   "engine-sync-agent-anchors.ps1",
   "engine-migrate-contract.sh",
   "engine-migrate-contract.ps1",
+  "engine-verify.sh",
+  "engine-verify.ps1",
   "githooks/pre-commit"
 )) {
   $scriptPath = Join-Path (Join-Path $engineDir "scripts") ($script -replace "/", [IO.Path]::DirectorySeparatorChar)

@@ -33,6 +33,17 @@ if [ -f "$ENGINE_DIR/HANDOFF.md" ]; then
   echo ""
 fi
 
+# v6 S2: 域仪表盘(汇总协议)——每个域一句话摘要,根文件规模 = O(域数),不是 O(仓库)。
+fed="$ENGINE_DIR/domains/federation.json"
+if [ -f "$fed" ]; then
+  echo "──── 🗺️ 域仪表盘 (federation) ────"
+  awk '
+    /^[[:space:]]*"[A-Za-z0-9_-]+"[[:space:]]*:[[:space:]]*\{/ { if (match($0, /"([A-Za-z0-9_-]+)"/, m)) { domain=m[1]; next } }
+    /"summary"/ { if (match($0, /"summary"[[:space:]]*:[[:space:]]*"([^"]+)"/, m)) print "• " domain ": " m[1]; next }
+  ' "$fed" 2>/dev/null
+  echo ""
+fi
+
 # v6 S1: active 任务卡重注入——对抗漂移的核心锚点。
 active_task=""
 for f in "$ENGINE_DIR"/tasks/T-*.md; do
@@ -48,6 +59,26 @@ if [ -n "$active_task" ]; then
   echo "⚠️ 你的所有代码改动必须在 WRITE-SET 内;FORBIDDEN 是架构师否决权,碰了即被拦截。"
   cat "$active_task" 2>/dev/null
   echo ""
+fi
+
+# v6 S2: L2 所属域装配——按 active 任务卡 domain 拉取对应域的 CONTEXT+PITFALLS(各受预算约束)。
+if [ -n "$active_task" ] && [ -f "$fed" ]; then
+  task_domains_l2="$(grep '^>.*domain:' "$active_task" 2>/dev/null | head -1 | sed 's/.*domain:[[:space:]]*//' | sed 's/|.*//' | tr -d ' ')"
+  if [ -n "$task_domains_l2" ]; then
+    saved_IFS="$IFS"; IFS=','
+    for dom in $task_domains_l2; do
+      [ -n "$dom" ] || continue
+      dom_ctx="$ENGINE_DIR/domains/$dom/CONTEXT.md"
+      dom_pit="$ENGINE_DIR/domains/$dom/PITFALLS.md"
+      if [ -f "$dom_ctx" ] || [ -f "$dom_pit" ]; then
+        echo "──── 📦 L2 域: $dom ────"
+        [ -f "$dom_ctx" ] && sed -n '1,50p' "$dom_ctx" 2>/dev/null
+        [ -f "$dom_pit" ] && sed -n '1,40p' "$dom_pit" 2>/dev/null
+        echo ""
+      fi
+    done
+    IFS="$saved_IFS"
+  fi
 fi
 
 # 「等你拍板」队列:proposed 决策,提示架构师需要拍板。

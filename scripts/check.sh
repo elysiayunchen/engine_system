@@ -44,6 +44,27 @@ else
   fail "task card gate"
 fi
 
+step "Fractal memory (federation routing + L2 assembly)"
+if bash tests/fractal-memory/run-fractal-tests.sh; then
+  pass "fractal memory fixtures"
+else
+  fail "fractal memory"
+fi
+
+step "Contract compile (idempotent + budget)"
+if bash tests/contract-compile/run-compile-tests.sh; then
+  pass "contract compile fixtures"
+else
+  fail "contract compile"
+fi
+
+step "Behavior verify (AC verify commands)"
+if bash tests/behavior-verify/run-verify-tests.sh; then
+  pass "behavior verify fixtures"
+else
+  fail "behavior verify"
+fi
+
 step "PowerShell syntax"
 if command -v pwsh >/dev/null 2>&1; then
   if pwsh -NoProfile -File scripts/check.ps1 -Root "$PWD"; then

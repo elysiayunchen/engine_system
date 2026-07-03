@@ -58,6 +58,16 @@ task_decision=""
 if [ -n "$active_task" ]; then
   task_decision="$(grep 'decision:' "$active_task" 2>/dev/null | head -1 | sed 's/.*decision:[[:space:]]*//' | sed 's/[[:space:]].*//')"
 fi
+# v6 批次2a: 无 active 时,fallback 到最新 done 任务卡的 decision(done 后提交用最近决策)。
+if [ -z "$task_decision" ]; then
+  for f in $(ls -1 "$ENGINE_DIR"/tasks/T-*.md 2>/dev/null | sort -r); do
+    [ -f "$f" ] || continue
+    if grep -q 'status:.*done' "$f" 2>/dev/null; then
+      task_decision="$(grep 'decision:' "$f" 2>/dev/null | head -1 | sed 's/.*decision:[[:space:]]*//' | sed 's/[[:space:]].*//')"
+      break
+    fi
+  done
+fi
 
 # glob 匹配辅助:path 是否命中换行分隔的 glob 列表中的任一条。
 match_any_glob() {

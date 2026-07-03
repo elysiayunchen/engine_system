@@ -7,8 +7,8 @@
 | 维度 | 状态 |
 |------|------|
 | 构建 | ✅ 正常（纯 markdown + shell 脚本，无构建步骤） |
-| 上次完成 | 落地 **v6 S1「意图内核数据层」**并全套验证通过：任务卡(`engine/tasks/T-NNN.md`，WRITE-SET/FORBIDDEN 机器校验)+ 决策台账(`engine/decisions/D-NNN.md`，受保护路径须引用 approved 决策)+ rules.json + Stop hook 三层门禁(WRITE-SET 越界=block)+ SessionStart 重注入 active 任务卡 + pre-commit 决策引用门禁 + tests/task-card 14 场景(19/19 PASS)；契约新增 Task Card Rule + Decision Ledger Rule；自托管验收：本轮 S1 开发走 T-001 + D-001。`scripts/check.sh` 全绿；capsule：`engine/changes/CHANGE-2026-07-03-02.md` |
-| 进行中 | ① 提交并推送 S1 全部改动；② 进入 S2（分形记忆：联邦表 + 域引擎 + 路由 read-gate + 汇总协议） |
+| 上次完成 | 落地 **v6 体系完善批次4 契约债计数器(N4)**并验证通过:Doctor 加 check_contract_debt(报告 MUST/Rule/debt + 基线趋势) + budget.debt_baseline=46。双实现等价(58 MUST)。N4 完成——倒立金字塔变可追踪下降的数字。`scripts/check.sh` 全绿;capsule:`engine/changes/CHANGE-2026-07-03-10.md` |
+| 进行中 | ① 提交推送批次4;② v6 体系完善全部完成(N1-N5 达成),后续:真实大库试点 / 合并 main |
 | 阻塞 | 无 |
 
 ## 当前假设 / 决策（本轮拍板）

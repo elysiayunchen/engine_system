@@ -5,8 +5,11 @@
 # enforce this.
 #
 # Responsibilities (strict -> lenient):
-#   1. Task card WRITE-SET gate (v6 S1): with an active task card, code paths
-#      outside WRITE-SET or touching FORBIDDEN -> block. No active card -> skip.
+#   1. Task card gate (v6 S1+S2): with an active task card --
+#      (a) WRITE-SET boundary / FORBIDDEN -> block (S1);
+#      (b) route consistency: each code_path's domain (from federation.json)
+#          must be in the task card's domain set, else block (S2).
+#      No active card -> skip (backward compatible).
 #   2. Hard gate (v5.6): code changed without CONTEXT/HANDOFF/ENGINE_MAP -> block.
 #   3. Soft WARN (v6 S0): memory written but no change capsule -> systemMessage.
 #
@@ -119,6 +122,45 @@ if ($activeTask -and $codePaths.Count -gt 0) {
       $reason = "[Engine System task-card write-set] Path $path is not in the WRITE-SET of task $activeTaskId. To expand the write-set, update engine/tasks/$activeTaskId.md or create a new decision. WRITE-SET: $writeSet"
       Write-Output "{`"decision`":`"block`",`"reason`":`"$reason`"}"
       exit 0
+    }
+  }
+
+  # S2: route consistency check.
+  # federation.json present + task card declares domain: each code_path's
+  # domain must be in the task card's domain set, else block. No federation /
+  # no domain -> skip (backward compatible with S1).
+  $fedPath = Join-Path $EngineDir "domains\federation.json"
+  $taskDomains = ""
+  foreach ($line in ($taskContent -split "`n")) {
+    if (($line -match '^>') -and ($line -match 'domain:\s*([^|]+)')) {
+      $taskDomains = ($Matches[1] -replace ' ', '')
+      break
+    }
+  }
+  if ((Test-Path $fedPath) -and $taskDomains) {
+    try { $fed = Get-Content -Raw -Path $fedPath -Encoding UTF8 | ConvertFrom-Json } catch { $fed = $null }
+    if ($fed) {
+      $defaultDom = $fed.default_domain
+      if (-not $defaultDom) { $defaultDom = "root" }
+      $taskDomainList = $taskDomains -split ','
+      foreach ($path in $codePaths) {
+        $pathDom = $null
+        foreach ($domName in $fed.domains.PSObject.Properties.Name) {
+          $dom = $fed.domains.$domName
+          if ($dom.paths) {
+            foreach ($g in $dom.paths) {
+              if ($path -like $g) { $pathDom = $domName; break }
+            }
+          }
+          if ($pathDom) { break }
+        }
+        if (-not $pathDom) { $pathDom = $defaultDom }
+        if ($taskDomainList -notcontains $pathDom) {
+          $reason = "[Engine System route-violation] Path $path belongs to domain '$pathDom', but task $activeTaskId domain covers only [$taskDomains]. To work cross-domain, update the task card's domain field."
+          Write-Output "{`"decision`":`"block`",`"reason`":`"$reason`"}"
+          exit 0
+        }
+      }
     }
   }
 }

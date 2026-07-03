@@ -33,6 +33,20 @@ if (Test-Path $HandoffFile) {
   Write-Output ""
 }
 
+# v6 S2: domain dashboard (summary protocol) - one-line summary per domain, O(domains) not O(repo).
+$FedFile = Join-Path $EngineDir "domains\federation.json"
+if (Test-Path $FedFile) {
+  Write-Output "---- Domain dashboard (federation) ----"
+  try {
+    $fed = Get-Content -Raw -Path $FedFile -Encoding UTF8 | ConvertFrom-Json
+    foreach ($domName in $fed.domains.PSObject.Properties.Name) {
+      $sum = $fed.domains.$domName.summary
+      if ($sum) { Write-Output ("* " + $domName + ": " + $sum) }
+    }
+  } catch {}
+  Write-Output ""
+}
+
 # v6 S1: active task card re-injection - core anti-drift anchor.
 $tasksDir = Join-Path $EngineDir "tasks"
 $activeTask = $null
@@ -53,6 +67,31 @@ if ($activeTask) {
   Write-Output "WARNING: all code changes must be within WRITE-SET; FORBIDDEN is the architect's veto."
   Get-Content $activeTask | ForEach-Object { Write-Output $_ }
   Write-Output ""
+}
+
+# v6 S2: L2 domain assembly - pull CONTEXT+PITFALLS for each domain in the task card's domain field (budget-bounded).
+if ($activeTask -and (Test-Path $FedFile)) {
+  $taskContent = Get-Content -Raw -Path $activeTask -Encoding UTF8
+  $taskDomainsL2 = ""
+  foreach ($line in ($taskContent -split "`n")) {
+    if (($line -match '^>') -and ($line -match 'domain:\s*([^|]+)')) {
+      $taskDomainsL2 = ($Matches[1] -replace ' ', '')
+      break
+    }
+  }
+  if ($taskDomainsL2) {
+    foreach ($dom in ($taskDomainsL2 -split ',')) {
+      if (-not $dom) { continue }
+      $domCtx = Join-Path $EngineDir ("domains\" + $dom + "\CONTEXT.md")
+      $domPit = Join-Path $EngineDir ("domains\" + $dom + "\PITFALLS.md")
+      if ((Test-Path $domCtx) -or (Test-Path $domPit)) {
+        Write-Output ("---- L2 domain: " + $dom + " ----")
+        if (Test-Path $domCtx) { Get-Content $domCtx -TotalCount 50 | ForEach-Object { Write-Output $_ } }
+        if (Test-Path $domPit) { Get-Content $domPit -TotalCount 40 | ForEach-Object { Write-Output $_ } }
+        Write-Output ""
+      }
+    }
+  }
 }
 
 # "Wait for your call" queue: proposed decisions.

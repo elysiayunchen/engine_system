@@ -1,0 +1,11 @@
+{
+  "_comment": "机读规则表(编译产出)。Doctor/hooks 直接读源文件;本文件是聚合索引。",
+  "sources": {
+    "budget": "contract/budget.json",
+    "protected_paths": "engine/decisions/rules.json",
+    "federation": "engine/domains/federation.json"
+  },
+  "max_lines": 2439,
+  "max_rules": 12,
+  "debt_baseline": 46
+}

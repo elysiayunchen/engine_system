@@ -79,3 +79,38 @@ if [ -f "$PREAMBLE" ] && [ -d "$(dirname "$INIT_DIST")" ]; then
 fi
 
 echo "compile: 4 dist files (web-prompt $(wc -l < "$DIST") lines, runtime-law, rules.json, engine-init)"
+
+# 5. plugin/engine/scripts/ 镜像同步(engine/scripts/ 是唯一真相源)
+# 改脚本只改 engine/scripts/;compile.sh 自动同步到 plugin/。
+# check.sh 漂移检查兜底:若有人绕过 compile 直改 plugin/engine/scripts/ 会报警。
+SYNC_LIST="
+engine-check-update.ps1
+engine-check-update.sh
+engine-doctor.ps1
+engine-doctor.sh
+engine-hook-session-end.ps1
+engine-hook-session-end.sh
+engine-hook-session-start.ps1
+engine-hook-session-start.sh
+engine-hook-stop.ps1
+engine-hook-stop.sh
+engine-hook.cmd
+engine-migrate-contract.ps1
+engine-migrate-contract.sh
+engine-sync-agent-anchors.ps1
+engine-sync-agent-anchors.sh
+engine-verify.ps1
+engine-verify.sh
+githooks/pre-commit
+"
+sync_count=0
+for f in $SYNC_LIST; do
+  src_file="$ROOT/engine/scripts/$f"
+  dst_file="$ROOT/plugin/engine/scripts/$f"
+  if [[ -f "$src_file" ]]; then
+    mkdir -p "$(dirname "$dst_file")"
+    cp "$src_file" "$dst_file"
+    sync_count=$((sync_count + 1))
+  fi
+done
+echo "compile: plugin/engine/scripts/ synced ($sync_count files from engine/scripts/)"

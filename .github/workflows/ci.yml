@@ -1,0 +1,115 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  check:
+    name: Engine check (Linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run check.sh
+        run: bash scripts/check.sh
+
+  check-windows:
+    name: Engine check (Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run check.ps1
+        shell: pwsh
+        run: pwsh -NoProfile -File scripts/check.ps1 -Root .
+
+      - name: Shell syntax (Git Bash)
+        shell: bash
+        run: bash scripts/check.sh
+
+  install-dry-run:
+    name: Install dry-run
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: source
+
+      - name: Simulate local install
+        run: |
+          mkdir target && cd target
+          SRC="${{ github.workspace }}/source"
+
+          # Override download() to copy from local checkout instead of curl
+          # Patch both BASE_URL (plugin/ files) and the runtime-law.md root URL
+          sed \
+            -e "s|^BASE_URL=.*|BASE_URL=\"file://${SRC}/plugin\"|" \
+            -e 's|curl -sSL "\$url" -o "\$dest"|cp "$url" "$dest"|' \
+            -e 's|wget -qO "\$dest" "\$url"|cp "$url" "$dest"|' \
+            -e "s|https://raw.githubusercontent.com/\${REPO}/\${BRANCH}/runtime-law.md|file://${SRC}/runtime-law.md|" \
+            "$SRC/install.sh" > install-local.sh
+          bash install-local.sh
+
+      - name: Verify installed files
+        run: |
+          cd target
+          errors=0
+
+          # VERSION must exist and match source
+          if [[ -f engine/VERSION ]]; then
+            installed="$(tr -d '[:space:]' < engine/VERSION)"
+            src_ver="$(tr -d '[:space:]' < "${{ github.workspace }}/source/VERSION")"
+            if [[ "$installed" = "$src_ver" ]]; then
+              echo "PASS VERSION matches ($installed)"
+            else
+              echo "FAIL VERSION mismatch: installed=$installed source=$src_ver"
+              errors=$((errors + 1))
+            fi
+          else
+            echo "FAIL engine/VERSION missing after install"
+            errors=$((errors + 1))
+          fi
+
+          # CLI shim must be executable
+          if [[ -x engine/bin/engine ]]; then
+            echo "PASS engine CLI executable"
+          else
+            echo "FAIL engine CLI not executable"
+            errors=$((errors + 1))
+          fi
+
+          # Spot-check critical files are non-empty
+          for f in .claude/commands/engine-init.md engine/scripts/engine-doctor.sh engine/scripts/engine-hook-session-start.sh runtime-law.md; do
+            if [[ -s "$f" ]]; then
+              echo "PASS $f non-empty"
+            else
+              echo "FAIL $f missing or empty"
+              errors=$((errors + 1))
+            fi
+          done
+
+          # manifest.json vs actual plugin/ file coverage
+          missing=0
+          while IFS= read -r src; do
+            plugin_file="${{ github.workspace }}/source/plugin/$src"
+            if [[ ! -f "$plugin_file" ]]; then
+              echo "FAIL manifest entry missing in plugin/: $src"
+              missing=$((missing + 1))
+            fi
+          done < <(python3 -c "
+          import json
+          with open('${{ github.workspace }}/source/plugin/manifest.json') as f:
+              data = json.load(f)
+              for entry in data['files']:
+                  print(entry['src'])
+          " 2>/dev/null || true)
+          if [[ "$missing" -gt 0 ]]; then
+            errors=$((errors + missing))
+          else
+            echo "PASS all manifest entries exist in plugin/"
+          fi
+
+          [[ "$errors" -eq 0 ]] || exit 1

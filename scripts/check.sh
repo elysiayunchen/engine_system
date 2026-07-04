@@ -127,6 +127,50 @@ do
   fi
 done
 
+step "Plugin scripts drift (engine/scripts/ is single source)"
+drift_files="engine-check-update.ps1 engine-check-update.sh engine-doctor.ps1 engine-doctor.sh engine-hook-session-end.ps1 engine-hook-session-end.sh engine-hook-session-start.ps1 engine-hook-session-start.sh engine-hook-stop.ps1 engine-hook-stop.sh engine-hook.cmd engine-migrate-contract.ps1 engine-migrate-contract.sh engine-sync-agent-anchors.ps1 engine-sync-agent-anchors.sh engine-verify.ps1 engine-verify.sh githooks/pre-commit"
+drift_count=0
+for f in $drift_files; do
+  src="$ROOT/engine/scripts/$f"
+  dst="$ROOT/plugin/engine/scripts/$f"
+  if [[ -f "$src" && -f "$dst" ]]; then
+    if ! cmp -s "$src" "$dst"; then
+      printf '  drift: %s\n' "$f" >&2
+      drift_count=$((drift_count + 1))
+    fi
+  fi
+done
+if [[ "$drift_count" -gt 0 ]]; then
+  fail "plugin/engine/scripts/ drifted ($drift_count files) — edit engine/scripts/ then run: bash contract/compile.sh"
+else
+  pass "plugin/engine/scripts/ matches engine/scripts/"
+fi
+
+step "Manifest coverage (plugin/ vs manifest.json)"
+manifest="$ROOT/plugin/manifest.json"
+if [[ -f "$manifest" ]]; then
+  manifest_missing=0
+  # Extract src values portably — works without jq or python
+  grep -oE '"src"[[:space:]]*:[[:space:]]*"[^"]*"' "$manifest" \
+    | sed 's/.*"src"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/' \
+    | while IFS= read -r src; do
+        if [[ ! -f "$ROOT/plugin/$src" ]]; then
+          printf '  missing: %s\n' "$src" >&2
+          # Signal failure via temp file (subshell can't modify parent var)
+          touch "$ROOT/plugin/.manifest-check-fail"
+        fi
+      done
+  if [[ -f "$ROOT/plugin/.manifest-check-fail" ]]; then
+    rm -f "$ROOT/plugin/.manifest-check-fail"
+    fail "manifest entries missing in plugin/"
+  else
+    manifest_count="$(grep -cE '"src"[[:space:]]*:' "$manifest" || true)"
+    pass "all $manifest_count manifest entries exist in plugin/"
+  fi
+else
+  fail "plugin/manifest.json not found"
+fi
+
 if [[ "$failures" -gt 0 ]]; then
   printf '\nCHECK FAILED: %s issue(s)\n' "$failures" >&2
   exit 1

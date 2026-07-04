@@ -77,3 +77,39 @@ if ((Test-Path $preamble) -and (Test-Path (Split-Path -Parent $InitDist))) {
 
 $lines = (Get-Content $Dist).Count
 Write-Output "compile: 4 dist files (web-prompt $lines lines, runtime-law, rules.json, engine-init)"
+
+# 5. plugin/engine/scripts/ mirror sync (engine/scripts/ is single source of truth)
+# Edit scripts in engine/scripts/ only; compile.ps1 auto-syncs to plugin/.
+# check.sh drift check catches manual edits to plugin/engine/scripts/.
+$syncList = @(
+  "engine-check-update.ps1",
+  "engine-check-update.sh",
+  "engine-doctor.ps1",
+  "engine-doctor.sh",
+  "engine-hook-session-end.ps1",
+  "engine-hook-session-end.sh",
+  "engine-hook-session-start.ps1",
+  "engine-hook-session-start.sh",
+  "engine-hook-stop.ps1",
+  "engine-hook-stop.sh",
+  "engine-hook.cmd",
+  "engine-migrate-contract.ps1",
+  "engine-migrate-contract.sh",
+  "engine-sync-agent-anchors.ps1",
+  "engine-sync-agent-anchors.sh",
+  "engine-verify.ps1",
+  "engine-verify.sh",
+  "githooks\pre-commit"
+)
+$syncCount = 0
+foreach ($f in $syncList) {
+  $srcFile = Join-Path $Root "engine\scripts\$f"
+  $dstFile = Join-Path $Root "plugin\engine\scripts\$f"
+  if (Test-Path $srcFile) {
+    $dstDir = Split-Path -Parent $dstFile
+    if (-not (Test-Path $dstDir)) { New-Item -ItemType Directory -Path $dstDir -Force | Out-Null }
+    Copy-Item -Path $srcFile -Destination $dstFile -Force
+    $syncCount++
+  }
+}
+Write-Output "compile: plugin\engine\scripts\ synced ($syncCount files from engine\scripts\)"

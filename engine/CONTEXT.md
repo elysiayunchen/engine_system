@@ -8,7 +8,7 @@
 |------|------|
 | 构建 | ✅ 正常（纯 markdown + shell 脚本，无构建步骤） |
 | 上次完成 | 落地 **D-015 v6 验收缺口修复 + 外部 4 bug**(T-014):① engine-init.md 纳入契约编译(第 4 dist = cli-preamble + 同一模块,消灭双份实现/横幅漂移,doctor+tests 幂等扩展);② S3 拆分时丢失的 16a 采访问题(域划分来源)回补唯一真相源,budget 2439→2441(D-015 背书);③ histexpand 修复(migrate/sync 双树 MARK 单引号 + set +H);④ VERSION 语义化 6.0.0(三处一致)+ check-update/session-start 归一化比较(6.0≡6.0.0 防伪更新提示);⑤ 迁移 rules.json 基线补 protected_paths(pre-commit 契约对齐);⑥ run_migrate 版本化调度(归一化版本列排序→仅应用新步→每步 VERSION 回写,无待应用步回退幂等修复)。tests/update-flow 7/7 新套件入 check.sh;contract-compile 8/8;`engine verify T-014` 全绿;capsule:`engine/changes/CHANGE-2026-07-04-01.md` |
-| 进行中 | ① D-014 已经 PR #7 合入 main;D-015 修复 + VERSION 6.0.1 bump 待推送开 PR #8;② Q2 真实大库试点待拍板;③ VERSION 已 bump 6.0.0→6.0.1(并入 D-015 commit),合 main 后触发存量 6.0 用户更新提示(归一化下 6.0≠6.0.1) |
+| 进行中 | ① PR #8 待合 main(含 D-015 全修复 + VERSION 6.0.1 bump + D-016 Doctor 占位符误报补丁 T-015);② Q2 真实大库试点待拍板;③ VERSION 6.0.1 合 main 后触发存量 6.0 用户更新提示(归一化下 6.0≠6.0.1) |
 | 阻塞 | 无 |
 
 ## 当前假设 / 决策（本轮拍板）

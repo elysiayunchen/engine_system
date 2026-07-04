@@ -372,7 +372,10 @@ check_change_capsule_semantics() {
       warn "$(basename "$latest") is missing change capsule section: $section"
     fi
   done
-  if grep -Eq '\[.*\]|TBD|TODO' "$latest"; then
+  # D-016: 先剔除代码块(```...```)与内联代码(`...`),再检测占位符,防 JSON [] 误报
+  local capsule_stripped
+  capsule_stripped="$(sed -e '/^```/,/^```/d' -e 's/`[^`]*`//g' "$latest")"
+  if grep -Eq '\[.*\]|TBD|TODO' <<< "$capsule_stripped"; then
     warn "$(basename "$latest") still contains placeholders"
   fi
 }

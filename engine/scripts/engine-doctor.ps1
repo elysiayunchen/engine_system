@@ -439,7 +439,11 @@ function Test-ChangeCapsuleSemantics {
       Write-Warn "$($latest.Name) is missing change capsule section: $($section.Key)"
     }
   }
-  if ($content -match "\[.*\]|TBD|TODO") {
+  # D-016: 先剔除代码块(```...```)与内联代码(`...`),再检测占位符,防 JSON [] 误报
+  $fence = [regex]::Escape('```')
+  $capsulePattern = '(?s)' + $fence + '.*?' + $fence
+  $capsuleStripped = $content -replace $capsulePattern, '' -replace '`[^`\r\n]*`', ''
+  if ($capsuleStripped -match "\[.*\]|TBD|TODO") {
     Write-Warn "$($latest.Name) still contains placeholders"
   }
 }

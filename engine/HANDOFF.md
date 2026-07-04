@@ -4,7 +4,7 @@
 
 ## 立即恢复点
 
-下一步：T-014 done(D-015 全落地,check.sh 全绿)。D-014 已经 PR #7 合 main;本次 amend f92f7b4(D-015 成果,原 "init"/parity 作者→规范 message+fm)+ VERSION 三处 6.0.0→6.0.1(触发存量 6.0 用户更新提示),待推送开 PR #8 合 main → Q2 试点库拍板。
+下一步：T-015 done(D-016 Doctor 占位符误报修复,check.sh 全绿)。PR #8(feature/v6-auto-update)现含 D-015 全修复 + VERSION 6.0.1 bump + D-016 补丁,待合 main → Q2 试点库拍板。
 
 > 本轮交接完成。初始机已升级为“工具更新 + 契约迁移”双阶段：`engine update` 分发脚本与命令，`/engine-sync` 运行 migrator，把自视图、改动胶囊、验收证据、Doctor 自审门禁等当前契约写入旧项目现有引擎文件。
 
@@ -12,6 +12,7 @@
 
 | 日期 | 完成了什么 | 下一步 | 改动文件 |
 |------|-----------|--------|---------|
+| 2026-07-04 | 修复 Doctor 占位符误报(T-015/D-016):check_change_capsule_semantics 正则误匹配 CHANGE 胶囊内联代码里的 JSON 空数组;改为剔除代码块与内联代码后再检测(双树 4 文件);新增 tests/doctor-parity(D1-D4)接入 check.sh;不 bump VERSION(D-015 补丁,并入 PR #8) | PR #8 合 main → Q2 试点拍板 | engine/scripts/engine-doctor.{sh,ps1}, plugin/engine/scripts/engine-doctor.{sh,ps1}, tests/doctor-parity/run-doctor-tests.sh, scripts/check.sh, engine/{tasks/T-015,decisions/D-016,changes/CHANGE-2026-07-04-02,CONTEXT,HANDOFF}.md |
 | 2026-07-04 | 发布端收尾:amend f92f7b4(D-015 成果,原 "init"/parity 作者→规范 message+fm)+ VERSION 三处 6.0.0→6.0.1(触发存量 6.0 用户更新提示;契约头保持 6.0.0 体系标识,不动 dist) | 推送 + 开 PR #8 合 main → Q2 试点拍板 | VERSION, engine/VERSION, plugin/VERSION, engine/CONTEXT.md, engine/HANDOFF.md |
 | 2026-07-04 | 落地 **T-014/D-015 v6 验收缺口修复 + 外部 4 bug**:G1 engine-init.md 纳入编译(第 4 dist,幂等门禁扩展)+ G2 16a 采访回补 src(budget 2441)+ histexpand(MARK 单引号+set +H)+ VERSION 6.0.0 语义化+归一化比较 + 迁移 rules.json 基线 protected_paths + run_migrate 版本化调度(按序+回写);设计文档 Status→absorbed;tests/update-flow 7/7 新套件 | 合并 PR → Q2 试点拍板 →(可选)发 6.0.1 | contract/**, plugin/.claude/commands/engine-init.md, ENGINE_FILE_SYSTEM_v5.md, VERSION+plugin/VERSION+engine/VERSION, engine+plugin scripts(migrate/sync/check-update/doctor/session-start)+bin, tests/update-flow/**, tests/contract-compile/**, scripts/check.sh, .gitattributes, engine/{tasks/T-014,decisions/D-015,changes/CHANGE-2026-07-04-01,domains/engine-runtime/PITFALLS}.md, docs spec |
 | 2026-07-03 | 落地 **v6 低优先缺口修复**:Q3 门禁严格度决策记录(D-012,WRITE-SET 越界=block,与 §5.2 一致,补 §9.3 未决)+ Q4 v6 命名(D-013,版本号 6.0 + 文件名 v5.md 向后兼容,00-core.md Version 5.7.0→6.0);§9.3/§9.4 开放问题解决 | 提交推送 → §7 度量/Q2 试点 | contract/src/00-core.md, ENGINE_FILE_SYSTEM_v5.md, engine/ENGINE_MAP.md, engine/CONTEXT.md, engine/HANDOFF.md, engine/changes/CHANGE-2026-07-03-13.md, engine/decisions/D-012.md, engine/decisions/D-013.md, engine/tasks/T-012.md |

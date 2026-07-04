@@ -72,6 +72,13 @@ else
   fail "update flow"
 fi
 
+step "Doctor placeholder parity (D-016)"
+if bash tests/doctor-parity/run-doctor-tests.sh; then
+  pass "doctor placeholder fixtures"
+else
+  fail "doctor placeholder"
+fi
+
 step "Session injection budget (N1: <=400 lines)"
 injected="$(CLAUDE_PROJECT_DIR="$PWD" bash plugin/engine/scripts/engine-hook-session-start.sh 2>/dev/null | wc -l)"
 if [ "$injected" -le 400 ]; then

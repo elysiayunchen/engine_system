@@ -462,6 +462,19 @@ function Test-ContractCompile {
   } else {
     Write-Fail "contract dist is not compile(src) - run bash contract/compile.sh; do not edit dist directly"
   }
+  # D-015: 4th dist (engine-init.md = banner + cli-preamble + same modules) must be idempotent too
+  $initDist = Join-Path $Root "plugin/.claude/commands/engine-init.md"
+  $preamble = Join-Path $srcDir "cli-preamble.md"
+  if ((Test-Path $preamble) -and (Test-Path $initDist)) {
+    $initBanner = '<!-- plugin/.claude/commands/engine-init.md: compiled from contract/src/ (cli-preamble.md + [0-9]*.md) by engine compile. Do not edit dist directly; edit src and recompile. -->'
+    $initExpected = $initBanner + "`n" + (Get-Content -Raw -Path $preamble -Encoding UTF8) + $srcContent
+    $initContent = Get-Content -Raw -Path $initDist -Encoding UTF8
+    if ($initExpected -ceq $initContent) {
+      Write-Pass "contract compile idempotent (engine-init.md == compile(preamble+src))"
+    } else {
+      Write-Fail "engine-init.md is not compile(src) - run bash contract/compile.sh; do not edit dist directly"
+    }
+  }
   $budget = Join-Path $Root "contract/budget.json"
   if (Test-Path $budget) {
     $budgetRaw = Get-Content -Raw -Path $budget -Encoding UTF8

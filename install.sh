@@ -183,6 +183,11 @@ case "$(uname -s 2>/dev/null)" in
     ;;
 esac
 
+# L0 宪法 (runtime-law.md): session-start hook 注入前 40 行对抗漂移。
+# 从仓库根拉取(contract compile 产物),放项目根。fresh + update 都覆盖(引擎产物,非项目记忆)。
+download "https://raw.githubusercontent.com/${REPO}/${BRANCH}/runtime-law.md" "runtime-law.md"
+echo -e "  ${GREEN}✓${RESET} runtime-law.md (L0 constitution)"
+
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo -e "${GREEN}Done.${RESET} $install_count files installed, $skip_count skipped."

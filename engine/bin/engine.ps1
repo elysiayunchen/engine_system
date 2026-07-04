@@ -32,19 +32,62 @@ so old engine files receive the v6 data-layer structure and managed contract
 block, then runs Doctor to verify. Use -CheckOnly to preview, -NoMigrate to
 skip the migration step.
 
-`engine migrate` runs the contract migrator alone (idempotent).
+`engine migrate` applies migration steps under engine/migrations/ newer than
+the local engine/VERSION in version order, writing the version back after each
+step; when nothing is pending it falls back to the idempotent contract migrator.
 "@ | Write-Host
 }
 
+# Normalize: pad to major.minor.patch (6.0 -> 6.0.0); non-numeric returned as-is (D-015).
+function Normalize-Version([string]$v) {
+  $v = ($v -replace '\s', '')
+  if ($v -notmatch '^[0-9]+(\.[0-9]+)*$') { return $v }
+  $parts = @($v.Split('.'))
+  while ($parts.Count -lt 3) { $parts += '0' }
+  return ($parts -join '.')
+}
+
+# Versioned migration scheduling (D-015): discover engine/migrations/v*.ps1, apply steps
+# newer than local engine/VERSION in version order, write VERSION back after each step.
+# Falls back to the idempotent contract migrator when nothing is pending.
 function Run-Migrate {
   param([string]$Root)
   $migrator = Join-Path $Root "engine\scripts\engine-migrate-contract.ps1"
-  if (Test-Path $migrator) {
-    Write-Host "[engine] running contract migration..."
-    & $migrator -Root $Root
-    if ($LASTEXITCODE -ne 0) { Write-Host "[engine] migration reported issues (see above)" }
-  } else {
-    Write-Host "[engine] migrator not found at $migrator - skipping migrate"
+  $migDir = Join-Path $Root "engine\migrations"
+  $vfile = Join-Path $Root "engine\VERSION"
+  $current = "0"
+  if (Test-Path $vfile) { $current = (Get-Content $vfile -Raw -Encoding UTF8).Trim() }
+  $currentN = Normalize-Version $current
+  if ($currentN -notmatch '^[0-9]+(\.[0-9]+)*$') { $currentN = "0.0.0" }
+  $applied = 0
+  if (Test-Path $migDir) {
+    $steps = Get-ChildItem -Path $migDir -Filter "v*.ps1" -File -ErrorAction SilentlyContinue |
+      Where-Object { $_.BaseName -match '^v[0-9][0-9.]*$' } |
+      Sort-Object { [version](Normalize-Version $_.BaseName.Substring(1)) }
+    foreach ($s in $steps) {
+      $stepV = Normalize-Version $s.BaseName.Substring(1)
+      if ([version]$stepV -gt [version]$currentN) {
+        Write-Host "[engine] applying migration step $($s.Name) ($currentN -> $stepV)..."
+        & $s.FullName -Root $Root
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "[engine] migration step $($s.Name) failed - stopping (VERSION stays $currentN)"
+          return
+        }
+        # VERSION write-back after each successful step (BOM-free so sh readers stay intact).
+        [System.IO.File]::WriteAllText($vfile, $stepV + "`n", (New-Object System.Text.UTF8Encoding $false))
+        $currentN = $stepV
+        $applied++
+      }
+    }
+  }
+  if ($applied -eq 0) {
+    if (Test-Path $migrator) {
+      Write-Host "[engine] no pending migration steps (local $currentN) - running contract migrator (idempotent repair)..."
+      & $migrator -Root $Root
+      if ($LASTEXITCODE -ne 0) { Write-Host "[engine] migration reported issues (see above)" }
+    } else {
+      Write-Host "[engine] migrator not found at $migrator - skipping migrate"
+    }
   }
 }
 

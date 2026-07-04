@@ -23,7 +23,7 @@ New-Item -ItemType Directory -Force -Path $EngineDir, (Join-Path $EngineDir "cha
 
 $Start = "<!-- ENGINE_SYSTEM_CONTRACT_MIGRATIONS_START -->"
 $End = "<!-- ENGINE_SYSTEM_CONTRACT_MIGRATIONS_END -->"
-# Contract version: read from VERSION file (repo root, then engine/), fall back to 6.0.
+# Contract version: read from VERSION file (repo root, then engine/), fall back to 6.0.0.
 $repoVersionFile = Join-Path $Root "VERSION"
 $engineVersionFile = Join-Path $EngineDir "VERSION"
 if (Test-Path $repoVersionFile) {
@@ -31,7 +31,7 @@ if (Test-Path $repoVersionFile) {
 } elseif (Test-Path $engineVersionFile) {
   $ContractVersion = (Get-Content $engineVersionFile -Raw -Encoding UTF8).Trim()
 } else {
-  $ContractVersion = "6.0"
+  $ContractVersion = "6.0.0"
 }
 $Today = Get-Date -Format "yyyy-MM-dd"
 $Touched = New-Object System.Collections.Generic.List[string]
@@ -100,7 +100,7 @@ function Ensure-Structure {
   }
   $rules = Join-Path $EngineDir "decisions\rules.json"
   if (-not (Test-Path $rules)) {
-    Set-Content -Path $rules -Value '{"rules":[]}' -Encoding UTF8
+    Set-Content -Path $rules -Value '{"rules":[],"protected_paths":[]}' -Encoding UTF8
     Write-Host "created $(Get-Relative $rules)"
     $changed = $true
   }

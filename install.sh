@@ -9,11 +9,29 @@ REPO="elysiayunchen/engine_system"
 BRANCH="main"
 PLUGIN_DIR="plugin"
 UPDATE_MODE=false
+VERSION_TAG=""
 
 # Parse flags
-for arg in "$@"; do
-  case $arg in
-    --update) UPDATE_MODE=true ;;
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --update) UPDATE_MODE=true; shift ;;
+    --version)
+      VERSION_TAG="$2"
+      # Normalize: strip leading 'v' if present for internal use
+      VERSION_TAG="${VERSION_TAG#v}"
+      shift 2
+      ;;
+    --help|-h)
+      echo "Usage: bash install.sh [--update] [--version TAG]"
+      echo ""
+      echo "Options:"
+      echo "  --update         Update mode: overwrite tooling, preserve engine/*.md"
+      echo "  --version TAG    Install a specific version (e.g. --version 6.0.1)"
+      echo "                   Tries GitHub Release first, falls back to raw content"
+      echo "  --help, -h       Show this help"
+      exit 0
+      ;;
+    *) echo "Unknown option: $1 (try --help)" >&2; exit 1 ;;
   esac
 done
 
@@ -43,7 +61,89 @@ download() {
   fi
 }
 
-BASE_URL="https://raw.githubusercontent.com/${REPO}/${BRANCH}/${PLUGIN_DIR}"
+# Download with release-first fallback (when --version is specified)
+download_versioned() {
+  local src="$1" dest="$2"
+  local release_url="https://github.com/${REPO}/releases/download/v${VERSION_TAG}/${PLUGIN_DIR}/${src}"
+  local raw_url="${BASE_URL}/${src}"
+
+  if command -v curl &>/dev/null; then
+    local http_code
+    http_code=$(curl -sSL -w "%{http_code}" -o "$dest" "$release_url" 2>/dev/null || echo "000")
+    if [[ "$http_code" == "200" ]]; then
+      return 0
+    fi
+    # Release artifact not found — fallback to raw content
+    curl -sSL "$raw_url" -o "$dest"
+  else
+    if wget -q --spider "$release_url" 2>/dev/null; then
+      wget -qO "$dest" "$release_url"
+    else
+      wget -qO "$dest" "$raw_url"
+    fi
+  fi
+}
+
+# Verify SHA256 checksums against manifest (best-effort, fail-open)
+verify_checksums() {
+  local manifest_file="$1"
+  local verify_count=0
+  local fail_count=0
+
+  [[ -f "$manifest_file" ]] || return 0
+
+  # Extract src:sha256 pairs where sha256 is non-empty
+  grep -oE '"src"\s*:\s*"[^"]*"' "$manifest_file" | while IFS= read -r line; do
+    local src
+    src="$(echo "$line" | sed 's/.*"src"\s*:\s*"\([^"]*\)".*/\1/')"
+    [[ -z "$src" ]] && continue
+
+    # Look for sha256 in the same JSON object (simplified: find next sha256 line)
+    local sha256
+    sha256="$(grep -A3 "\"$src\"" "$manifest_file" | grep -oE '"sha256"\s*:\s*"[^"]*"' | head -1 | sed 's/.*"sha256"\s*:\s*"\([^"]*\)".*/\1/')"
+    [[ -z "$sha256" || "$sha256" == "placeholder" ]] && continue
+
+    # Map src to dest (same mapping as FILES array)
+    local dest_file
+    case "$src" in
+      engine/*) dest_file="engine/${src#engine/}" ;;
+      bin/*)    dest_file="engine/bin/${src#bin/}" ;;
+      migrations/*) dest_file="engine/migrations/${src#migrations/}" ;;
+      *)        dest_file="$src" ;;
+    esac
+
+    [[ -f "$dest_file" ]] || continue
+
+    # Compute actual hash
+    local actual=""
+    if command -v sha256sum &>/dev/null; then
+      actual="$(sha256sum "$dest_file" | cut -d' ' -f1)"
+    elif command -v shasum &>/dev/null; then
+      actual="$(shasum -a 256 "$dest_file" | cut -d' ' -f1)"
+    fi
+    [[ -z "$actual" ]] && continue
+
+    verify_count=$((verify_count + 1))
+    if [[ "$actual" != "$sha256" ]]; then
+      echo -e "  ${YELLOW}WARN${RESET} checksum mismatch: $dest_file (expected ${sha256:0:8}... got ${actual:0:8}...)"
+      fail_count=$((fail_count + 1))
+    fi
+  done
+
+  if [[ "$fail_count" -gt 0 ]]; then
+    echo -e "  ${YELLOW}WARN${RESET} $fail_count file(s) failed checksum verification"
+  elif [[ "$verify_count" -gt 0 ]]; then
+    echo -e "  ${GREEN}✓${RESET} $verify_count file(s) verified (SHA256)"
+  fi
+}
+
+# Build BASE_URL — use specified version tag or default branch
+if [[ -n "$VERSION_TAG" ]]; then
+  BASE_URL="https://raw.githubusercontent.com/${REPO}/v${VERSION_TAG}/${PLUGIN_DIR}"
+  echo -e "  Installing version: ${CYAN}v${VERSION_TAG}${RESET}"
+else
+  BASE_URL="https://raw.githubusercontent.com/${REPO}/${BRANCH}/${PLUGIN_DIR}"
+fi
 
 # Files to install
 # Format: "source_path:dest_path:protect_on_update"
@@ -118,7 +218,11 @@ for entry in "${FILES[@]}"; do
 
   # In update mode, always overwrite plugin files (commands, CLAUDE.md, AGENTS.md)
   if $UPDATE_MODE && [[ "$protect" == "true" ]]; then
-    download "$url" "$dest"
+    if [[ -n "$VERSION_TAG" ]]; then
+      download_versioned "$src" "$dest"
+    else
+      download "$url" "$dest"
+    fi
     echo -e "  ${GREEN}updated${RESET} $dest"
     ((install_count += 1))
     continue
@@ -131,7 +235,11 @@ for entry in "${FILES[@]}"; do
     continue
   fi
 
-  download "$url" "$dest"
+  if [[ -n "$VERSION_TAG" ]]; then
+    download_versioned "$src" "$dest"
+  else
+    download "$url" "$dest"
+  fi
   echo -e "  ${GREEN}✓${RESET} $dest"
   ((install_count += 1))
 done
@@ -185,8 +293,21 @@ esac
 
 # L0 宪法 (runtime-law.md): session-start hook 注入前 40 行对抗漂移。
 # 从仓库根拉取(contract compile 产物),放项目根。fresh + update 都覆盖(引擎产物,非项目记忆)。
-download "https://raw.githubusercontent.com/${REPO}/${BRANCH}/runtime-law.md" "runtime-law.md"
+if [[ -n "$VERSION_TAG" ]]; then
+  download "https://raw.githubusercontent.com/${REPO}/v${VERSION_TAG}/runtime-law.md" "runtime-law.md"
+else
+  download "https://raw.githubusercontent.com/${REPO}/${BRANCH}/runtime-law.md" "runtime-law.md"
+fi
 echo -e "  ${GREEN}✓${RESET} runtime-law.md (L0 constitution)"
+
+# Verify SHA256 checksums (best-effort, only when --version is specified)
+if [[ -n "$VERSION_TAG" ]]; then
+  download "https://raw.githubusercontent.com/${REPO}/v${VERSION_TAG}/${PLUGIN_DIR}/manifest.json" ".manifest-check.json" 2>/dev/null || true
+  if [[ -f ".manifest-check.json" ]]; then
+    verify_checksums ".manifest-check.json"
+    rm -f ".manifest-check.json"
+  fi
+fi
 
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

@@ -10,6 +10,7 @@ BRANCH="main"
 PLUGIN_DIR="plugin"
 UPDATE_MODE=false
 VERSION_TAG=""
+LOCAL_PATH=""
 
 # Parse flags
 while [[ $# -gt 0 ]]; do
@@ -21,13 +22,29 @@ while [[ $# -gt 0 ]]; do
       VERSION_TAG="${VERSION_TAG#v}"
       shift 2
       ;;
+    --local)
+      LOCAL_PATH="$2"
+      # Extract tarball to temp dir if it's a file
+      if [[ -f "$LOCAL_PATH" ]]; then
+        LOCAL_DIR="$(mktemp -d)"
+        tar xzf "$LOCAL_PATH" -C "$LOCAL_DIR"
+        echo -e "  Extracted offline package: $LOCAL_PATH"
+      elif [[ -d "$LOCAL_PATH" ]]; then
+        LOCAL_DIR="$LOCAL_PATH"
+      else
+        echo "Error: --local path not found: $LOCAL_PATH" >&2
+        exit 1
+      fi
+      shift 2
+      ;;
     --help|-h)
-      echo "Usage: bash install.sh [--update] [--version TAG]"
+      echo "Usage: bash install.sh [--update] [--version TAG] [--local PATH]"
       echo ""
       echo "Options:"
       echo "  --update         Update mode: overwrite tooling, preserve engine/*.md"
       echo "  --version TAG    Install a specific version (e.g. --version 6.0.1)"
       echo "                   Tries GitHub Release first, falls back to raw content"
+      echo "  --local PATH     Install from local tarball or directory (no network)"
       echo "  --help, -h       Show this help"
       exit 0
       ;;
@@ -218,7 +235,9 @@ for entry in "${FILES[@]}"; do
 
   # In update mode, always overwrite plugin files (commands, CLAUDE.md, AGENTS.md)
   if $UPDATE_MODE && [[ "$protect" == "true" ]]; then
-    if [[ -n "$VERSION_TAG" ]]; then
+    if [[ -n "$LOCAL_DIR" ]]; then
+      cp "$LOCAL_DIR/$src" "$dest"
+    elif [[ -n "$VERSION_TAG" ]]; then
       download_versioned "$src" "$dest"
     else
       download "$url" "$dest"
@@ -235,7 +254,9 @@ for entry in "${FILES[@]}"; do
     continue
   fi
 
-  if [[ -n "$VERSION_TAG" ]]; then
+  if [[ -n "$LOCAL_DIR" ]]; then
+    cp "$LOCAL_DIR/$src" "$dest"
+  elif [[ -n "$VERSION_TAG" ]]; then
     download_versioned "$src" "$dest"
   else
     download "$url" "$dest"
@@ -293,15 +314,17 @@ esac
 
 # L0 宪法 (runtime-law.md): session-start hook 注入前 40 行对抗漂移。
 # 从仓库根拉取(contract compile 产物),放项目根。fresh + update 都覆盖(引擎产物,非项目记忆)。
-if [[ -n "$VERSION_TAG" ]]; then
+if [[ -n "$LOCAL_DIR" ]] && [[ -f "$LOCAL_DIR/runtime-law.md" ]]; then
+  cp "$LOCAL_DIR/runtime-law.md" "runtime-law.md"
+elif [[ -n "$VERSION_TAG" ]]; then
   download "https://raw.githubusercontent.com/${REPO}/v${VERSION_TAG}/runtime-law.md" "runtime-law.md"
 else
   download "https://raw.githubusercontent.com/${REPO}/${BRANCH}/runtime-law.md" "runtime-law.md"
 fi
 echo -e "  ${GREEN}✓${RESET} runtime-law.md (L0 constitution)"
 
-# Verify SHA256 checksums (best-effort, only when --version is specified)
-if [[ -n "$VERSION_TAG" ]]; then
+# Verify SHA256 checksums (best-effort, only when --version is specified, skip for --local)
+if [[ -n "$VERSION_TAG" ]] && [[ -z "$LOCAL_DIR" ]]; then
   download "https://raw.githubusercontent.com/${REPO}/v${VERSION_TAG}/${PLUGIN_DIR}/manifest.json" ".manifest-check.json" 2>/dev/null || true
   if [[ -f ".manifest-check.json" ]]; then
     verify_checksums ".manifest-check.json"

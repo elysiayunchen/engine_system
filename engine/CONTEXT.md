@@ -7,8 +7,8 @@
 | 维度 | 状态 |
 |------|------|
 | 构建 | ✅ 正常（纯 markdown + shell 脚本，无构建步骤） |
-| 上次完成 | **T-017 done**: 版本锁定安装(install.sh --version / install.ps1 -Version → release-first download + raw content fallback) + SHA256 完整性校验(manifest sha256 字段 + verify_checksums best-effort fail-open)。`engine verify T-017` 7/7 全绿。 |
-| 进行中 | ① T-018(离线安装包) active; ② Phase 0 完成后进入 Phase 1(通用化核心); ③ Q2 试点库待拍板 |
+| 上次完成 | **T-018 done**: 离线安装包(release.yml 产出 offline tarball + install.sh --local PATH + install.ps1 -Local → 本地 tarball/目录安装,不联网 + runtime-law.md 本地拷贝 + checksum skip)。`engine verify T-018` 6/6 全绿。**Phase 0 管道加固 3/3 全部完成**。 |
+| 进行中 | ① Phase 1(通用化核心) 待启动; ② Q2 试点库待拍板 |
 | 阻塞 | 无 |
 
 ## 当前假设 / 决策（本轮拍板）

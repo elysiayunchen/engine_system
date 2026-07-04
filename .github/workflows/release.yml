@@ -1,0 +1,114 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract version
+        id: version
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          VERSION="${TAG#v}"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Generate release notes from capsules
+        id: notes
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          NOTES_FILE="release-notes.md"
+
+          # Find previous tag for incremental notes
+          PREV_TAG="$(git tag -l 'v*' --sort=-v:refname | grep -v "^${TAG}$" | head -1 || true)"
+
+          {
+            printf '## Engine System %s\n\n' "$TAG"
+
+            if [[ -n "$PREV_TAG" ]]; then
+              CAPSULES="$(git diff --name-only "$PREV_TAG" HEAD -- 'engine/changes/CHANGE-*.md' 2>/dev/null | sort)"
+              printf '> Changes since %s\n\n' "$PREV_TAG"
+            else
+              CAPSULES="$(ls engine/changes/CHANGE-*.md 2>/dev/null | sort)"
+              printf '> Initial release\n\n'
+            fi
+
+            if [[ -n "$CAPSULES" ]]; then
+              while IFS= read -r capsule; do
+                [[ -f "$capsule" ]] || continue
+                # Extract title from first line: "# CHANGE-date — description"
+                title="$(head -1 "$capsule" | sed 's/^# CHANGE-[0-9-]* — *//' 2>/dev/null || true)"
+                [[ -z "$title" || "$title" == "# CHANGE-"* ]] && title="$(basename "$capsule" .md)"
+                printf '### %s\n\n' "$title"
+                # Include capsule body (skip first line + blank line)
+                tail -n +3 "$capsule"
+                printf '\n---\n\n'
+              done <<< "$CAPSULES"
+            else
+              printf '_No change capsules found for this release._\n'
+            fi
+          } > "$NOTES_FILE"
+
+          echo "notes_file=${NOTES_FILE}" >> "$GITHUB_OUTPUT"
+          echo "--- Generated release notes ---"
+          cat "$NOTES_FILE"
+
+      - name: Package plugin/
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+
+          # tarball (preserves symlinks and permissions)
+          tar czf "engine-system-v${VERSION}.tar.gz" -C plugin .
+
+          # zip (for Windows users)
+          cd plugin && zip -qr "../engine-system-v${VERSION}.zip" . && cd ..
+
+          echo "Packaged:"
+          ls -lh engine-system-v${VERSION}.{tar.gz,zip}
+
+      - name: Generate checksums
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          sha256sum \
+            "engine-system-v${VERSION}.tar.gz" \
+            "engine-system-v${VERSION}.zip" \
+            > "engine-system-v${VERSION}-checksums.txt"
+          echo "--- Checksums ---"
+          cat "engine-system-v${VERSION}-checksums.txt"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          VERSION="${{ steps.version.outputs.version }}"
+          NOTES="${{ steps.notes.outputs.notes_file }}"
+
+          # Pre-release if version contains alpha/beta/rc
+          PRERELEASE=""
+          if echo "$VERSION" | grep -qiE 'alpha|beta|rc'; then
+            PRERELEASE="--prerelease"
+          fi
+
+          gh release create "$TAG" \
+            --title "Engine System $TAG" \
+            --notes-file "$NOTES" \
+            $PRERELEASE \
+            "engine-system-v${VERSION}.tar.gz" \
+            "engine-system-v${VERSION}.zip" \
+            "engine-system-v${VERSION}-checksums.txt"
+
+          echo "Release $TAG created successfully."

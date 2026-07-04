@@ -4,14 +4,15 @@
 
 ## 立即恢复点
 
-下一步：开 D-017 发布端方向决策 + Phase 0 任务卡。PR #8 已合 main (v6.0.1)。发布基础设施已提交 main (CI + release + compile sync + check drift)。D-017 五项决策已拍板（目标用户=任何 AI 开发者: CLI 双轨/快速安装骨架/adapter 原生最优/分步迁移/npm 完整 CLI 包）。Phase 0 任务: Release 自动化/版本锁定安装/完整性校验/离线包。Q2 试点库待拍板。
+下一步：T-016 done(Release 自动化 workflow,5/5 AC 全绿)。继续 T-017(版本锁定安装+完整性校验)→ T-018(离线安装包)→ Phase 1(通用化核心)。Q2 试点库待拍板。
 
-> 本轮交接完成。发布端方向确定，准备从管道加固（Phase 0）开始落地。
+> 本轮交接进行中。Phase 0 已完成 1/3（Release 自动化），剩余两项（版本锁定+完整性校验、离线包）待执行。
 
 ## 会话历史（最新在上）
 
 | 日期 | 完成了什么 | 下一步 | 改动文件 |
 |------|-----------|--------|---------|
+| 2026-07-05 | **T-016 done**: GitHub Release 自动化 workflow(release.yml, tag push v* → capsules → notes → tarball+zip → sha256 → gh release create) + release.sh 提示更新 + engine verify 5/5 全绿 | T-017(版本锁定+完整性校验) → T-018(离线包) → Phase 1 | .github/workflows/release.yml, scripts/release.sh, engine/tasks/T-016.md, engine/evidence/T-016/*, engine/changes/CHANGE-2026-07-05-02.md, engine/CONTEXT.md, engine/HANDOFF.md |
 | 2026-07-05 | 发布端方向构思 + 五项决策拍板(D-017: 目标用户=任何AI开发者, CLI双轨/快速安装骨架/adapter原生最优/分步迁移/npm完整CLI包) + 发布基础设施提交(CI+release+compile sync+check drift) + PR #8 确认已合 main | 开 Phase 0 任务卡(Release自动化/版本锁定/完整性校验/离线包) | .github/workflows/ci.yml, scripts/release.sh, contract/compile.{sh,ps1}, scripts/check.sh, engine/CONTEXT.md, engine/HANDOFF.md |
 | 2026-07-04 | 发布端收尾:amend f92f7b4(D-015 成果,原 "init"/parity 作者→规范 message+fm)+ VERSION 三处 6.0.0→6.0.1(触发存量 6.0 用户更新提示;契约头保持 6.0.0 体系标识,不动 dist) | 推送 + 开 PR #8 合 main → Q2 试点拍板 | VERSION, engine/VERSION, plugin/VERSION, engine/CONTEXT.md, engine/HANDOFF.md |
 | 2026-07-04 | 落地 **T-014/D-015 v6 验收缺口修复 + 外部 4 bug**:G1 engine-init.md 纳入编译(第 4 dist,幂等门禁扩展)+ G2 16a 采访回补 src(budget 2441)+ histexpand(MARK 单引号+set +H)+ VERSION 6.0.0 语义化+归一化比较 + 迁移 rules.json 基线 protected_paths + run_migrate 版本化调度(按序+回写);设计文档 Status→absorbed;tests/update-flow 7/7 新套件 | 合并 PR → Q2 试点拍板 →(可选)发 6.0.1 | contract/**, plugin/.claude/commands/engine-init.md, ENGINE_FILE_SYSTEM_v5.md, VERSION+plugin/VERSION+engine/VERSION, engine+plugin scripts(migrate/sync/check-update/doctor/session-start)+bin, tests/update-flow/**, tests/contract-compile/**, scripts/check.sh, .gitattributes, engine/{tasks/T-014,decisions/D-015,changes/CHANGE-2026-07-04-01,domains/engine-runtime/PITFALLS}.md, docs spec |

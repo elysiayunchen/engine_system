@@ -7,8 +7,8 @@
 | 维度 | 状态 |
 |------|------|
 | 构建 | ✅ 正常（纯 markdown + shell 脚本，无构建步骤） |
-| 上次完成 | 发布基础设施落地：CI workflow (.github/workflows/ci.yml, 3 parallel jobs) + release.sh (一键发版) + compile.sh/ps1 step 5 (engine/scripts/ → plugin/ 18 文件镜像同步) + check.sh (漂移检测 + manifest 覆盖校验)。PR #8 已合 main (v6.0.1)。 |
-| 进行中 | ① D-017 发布端方向决策已拍板（目标用户=任何 AI 开发者, 5 项决策: CLI 双轨/快速安装骨架/adapter 原生最优/分步迁移/npm 完整 CLI 包）; ② 开 Phase 0 任务卡（Release 自动化/版本锁定安装/完整性校验/离线包）; ③ Q2 试点库待拍板 |
+| 上次完成 | **T-016 done**: GitHub Release 自动化 workflow (.github/workflows/release.yml, tag push v* → change capsules → release notes → plugin/ tarball+zip → sha256 checksums → gh release create) + release.sh 提示更新。`engine verify T-016` 5/5 全绿。 |
+| 进行中 | ① T-017(版本锁定安装+完整性校验) active; ② T-018(离线安装包) active; ③ Phase 0 剩余两项完成后进入 Phase 1(通用化核心); ④ Q2 试点库待拍板 |
 | 阻塞 | 无 |
 
 ## 当前假设 / 决策（本轮拍板）

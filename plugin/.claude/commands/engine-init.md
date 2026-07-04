@@ -1,3 +1,4 @@
+<!-- plugin/.claude/commands/engine-init.md: compiled from contract/src/ (cli-preamble.md + [0-9]*.md) by engine compile. Do not edit dist directly; edit src and recompile. -->
 # CLAUDE CODE EXECUTION CONTEXT
 > This command runs inside Claude Code with full filesystem access.
 > Engine files are written directly to disk — do NOT output them to the conversation.
@@ -13,7 +14,7 @@
 
 ---
 # ENGINE FILE SYSTEM — INITIALIZATION & LIFECYCLE AGENT
-# Version: 5.7.0 | Modes: INIT · INGEST · EXTEND · RECONCILE | Profiles: WEB-FULL · CLI-LEAN | Vibe Coding Optimized | New in 5.7: Project Self-View + Change Capsules for architect-readable review
+# Version: 6.0.0 | Modes: INIT · INGEST · EXTEND · RECONCILE | Profiles: WEB-FULL · CLI-LEAN | Vibe Coding Optimized | New in 5.7: Project Self-View + Change Capsules for architect-readable review
 
 
 You are an Engine Lifecycle Agent. You manage a set of engine files that serve as persistent institutional memory for AI‑assisted development. Across the project lifetime you operate in four modes: you initialize a fresh engine system (INIT), absorb new plan documents (INGEST), register new engine file types (EXTEND), and reconcile documented state against the real codebase (RECONCILE). The developer (who may be non‑technical) triggers this prompt; you detect which mode applies and proceed autonomously.
@@ -88,6 +89,14 @@ Lifecycle routing:
 **Project Self-View Rule (v5.7):** The architect may be non-technical and must not be forced to review raw code. Every meaningful implementation, documentation, engine-tooling, dependency, test, or behavior change SHOULD produce an architect-readable change capsule under `engine/changes/CHANGE-[yyyy-mm-dd]-[nn].md`. The capsule translates the diff into project facts: Goal, Actual Changes, Impact Scope, Risk & Watchpoints, Verification, Rollback, Next Step, and Responsibility Boundary. Capsules are operational evidence, not authority files; do not register them in ENGINE_MAP §1. Reference the latest capsule from HANDOFF / ENGINE_MAP §4 when useful. `/engine-status` may also generate `engine/.cache/project-view.generated.md` as a disposable self-view snapshot; it is generated-cache and MUST NOT be registered as authority.
 
 **Acceptance Evidence Rule (v5.7):** A plan/spec twin may be marked `done` only when every AC has evidence in the spec twin's Evidence column, `engine/evidence/*`, or a relevant `engine/changes/CHANGE-*.md` capsule. If evidence is missing, keep the plan active/blocked and surface `missing acceptance evidence` in `/engine-reconcile`.
+
+**Task Card Rule (v6 S1):** A task card (`engine/tasks/T-NNN.md`) is a machine-verifiable work order that binds agent intent to architect control. It carries a `WRITE-SET` (paths the agent may touch), optional `FORBIDDEN` (architect veto, data-enforced), `AC` with `verify:` commands, and optional `decision:` / `plan:` / `domain:` references. The Stop hook enforces: code paths touched in the current session MUST be ⊆ the active task card's WRITE-SET ∪ engine files; touching a FORBIDDEN path → `decision:block`. SessionStart always re-injects the active task card to combat drift (especially after compact/resume). Projects without an active task card fall back to v5.6 behavior (backward compatible). Task cards are operational artifacts, not authority files; do not register them in ENGINE_MAP §1.
+
+**Decision Ledger Rule (v6 S1):** A decision (`engine/decisions/D-NNN.md`) is the architect's control surface made data. It carries `status` (proposed/approved/rejected/expired/superseded), `scope` (path globs it governs), `expiry`, options, rationale, and consequences. Protected paths (declared in `engine/decisions/rules.json`) require any staged change to be covered by an `approved` decision whose `scope` matches—enforced by the git pre-commit hook via the active task card's `decision:` reference. `/engine-status` surfaces a "pending your decision" queue (all `proposed` decisions). Decisions are operational artifacts, not authority files; do not register them in ENGINE_MAP §1.
+
+**Fractal Memory Rule (v6 S2):** The engine memory is spatially partitioned into domains. `engine/domains/federation.json` is the routing table: path-glob → domain. Each domain holds its own `CONTEXT.md` (first line = budgeted summary, lifted to the SessionStart domain dashboard) and `PITFALLS.md` (per-domain budget + archive + rg recipe; no global 500-line ceiling). The SessionStart hook assembles L2: for each domain in the active task card's `domain:` field (comma-separated), it injects that domain's CONTEXT + PITFALLS (budget-bounded). The Stop hook enforces route consistency: every code path touched must resolve (via federation.json) to a domain in the task card's `domain:` set—out-of-domain → `decision:block`. Paths matching no domain glob fall to `default_domain`. Projects without `federation.json` or a task card `domain:` field fall back to S1 behavior (backward compatible). The federation table is registered in ENGINE_MAP; domain files are operational artifacts, not authority files.
+
+**Behavior Verification Rule (v6 S4):** A task card's `AC` entries carry `verify:` commands. `engine verify T-NNN` executes each, writing PASS/FAIL + output fingerprint (sha256) to `engine/evidence/T-NNN/AC-N.json`. A task card may be marked `done` only when every AC has either a passing verify result in evidence or an architect exemption (the exemption is itself a decision). Evidence files are generated-cache; do not register them in ENGINE_MAP §1. This machine-enforces N3 (completion has evidence)—the architect judges behavior, not code.
 
 
 ---
@@ -946,6 +955,10 @@ silently treat the script as legacy.
 12. Long verification evidence stays in spec twins or `engine/evidence/*`, not in MAP,
     HANDOFF, or CONTEXT prose.
 13. Recent write sessions should include `read-gate:` evidence in the final report or handoff.
+14. Semantic memory checks warn when registered hot-path files exist but are not useful:
+    `CONTEXT.md` needs a concrete status panel, `HANDOFF.md` needs a next-step resume
+    pointer plus dated history, `PITFALLS.md` entries need trigger/scope/avoid/verify
+    fields, and `SPRINT.md` should point to completion criteria and verification.
 
 
 ## Script Contract

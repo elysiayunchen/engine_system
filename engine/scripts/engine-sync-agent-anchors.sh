@@ -5,11 +5,13 @@
 # AGENTS.md directly. Existing user content is preserved outside the managed block.
 
 set -u
+# histexpand 防御(D-015):同 engine-migrate-contract.sh,防交互式 bash 历史展开击穿 MARK 赋值。
+set +H
 
 ROOT="${1:-${CLAUDE_PROJECT_DIR:-$PWD}}"
 MAP="$ROOT/engine/ENGINE_MAP.md"
-MARK_START="<!-- ENGINE_SYSTEM_SYNC_START -->"
-MARK_END="<!-- ENGINE_SYSTEM_SYNC_END -->"
+MARK_START='<!-- ENGINE_SYSTEM_SYNC_START -->'
+MARK_END='<!-- ENGINE_SYSTEM_SYNC_END -->'
 
 [ -f "$MAP" ] || {
   echo "engine/ENGINE_MAP.md not found. Run /engine-init first."

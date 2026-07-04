@@ -8,13 +8,16 @@
 # can fully operate the current v6 mechanisms.
 
 set -euo pipefail
+# histexpand 防御(D-015):交互式/被 source 的 bash 会对双引号里的 `!-` 做历史展开,
+# 击穿 MARK 赋值 -> set -u unbound。set +H 关掉展开,MARK 用单引号双保险。
+set +H
 
 ROOT="${1:-${CLAUDE_PROJECT_DIR:-$PWD}}"
 ENGINE_DIR="$ROOT/engine"
 MAP="$ENGINE_DIR/ENGINE_MAP.md"
-MARK_START="<!-- ENGINE_SYSTEM_CONTRACT_MIGRATIONS_START -->"
-MARK_END="<!-- ENGINE_SYSTEM_CONTRACT_MIGRATIONS_END -->"
-# Contract version: read from VERSION file (repo root, then engine/), fall back to 6.0.
+MARK_START='<!-- ENGINE_SYSTEM_CONTRACT_MIGRATIONS_START -->'
+MARK_END='<!-- ENGINE_SYSTEM_CONTRACT_MIGRATIONS_END -->'
+# Contract version: read from VERSION file (repo root, then engine/), fall back to 6.0.0.
 # Written into the managed block header so Doctor / future incremental migrations can
 # identify which contract version a project has installed.
 if [ -f "$ROOT/VERSION" ]; then
@@ -22,7 +25,7 @@ if [ -f "$ROOT/VERSION" ]; then
 elif [ -f "$ENGINE_DIR/VERSION" ]; then
   CONTRACT_VERSION="$(tr -d '[:space:]' < "$ENGINE_DIR/VERSION")"
 else
-  CONTRACT_VERSION="6.0"
+  CONTRACT_VERSION="6.0.0"
 fi
 TODAY="$(date +%F)"
 TOUCHED=()
@@ -92,8 +95,9 @@ FED
     changed=1
   fi
   # Decision rules baseline (empty; populated as decisions are made).
+  # protected_paths must exist even when empty - it is the key the pre-commit gate reads.
   if [ ! -f "$ENGINE_DIR/decisions/rules.json" ]; then
-    printf '%s\n' '{"rules":[]}' > "$ENGINE_DIR/decisions/rules.json"
+    printf '%s\n' '{"rules":[],"protected_paths":[]}' > "$ENGINE_DIR/decisions/rules.json"
     echo "created $(relpath "$ENGINE_DIR/decisions/rules.json")"
     changed=1
   fi

@@ -1,6 +1,6 @@
 {
-  "_comment": "契约减法规则基线(v6 S4)。新增 Hard Rule 必须净零增长——删并等量旧散文。提升基线须决策背书(如 D-004 提升至 2440/12 以纳入 Behavior Verification Rule)。",
-  "max_lines": 2439,
+  "_comment": "契约减法规则基线(v6 S4)。新增 Hard Rule 必须净零增长——删并等量旧散文。提升基线须决策背书(如 D-004 提升至 2440/12 以纳入 Behavior Verification Rule;D-015 提升至 2441 以回补 S3 拆分时丢失的 16a 采访问题)。cli-preamble.md 与 L0-runtime-law.md 不计入行数(非契约散文)。",
+  "max_lines": 2441,
   "max_rules": 12,
   "debt_baseline": 46,
   "rules": [

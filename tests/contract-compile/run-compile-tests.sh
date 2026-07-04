@@ -27,10 +27,18 @@ pass=0
 fail=0
 
 BANNER='<!-- ENGINE_FILE_SYSTEM_v5.md: compiled from contract/src/*.md by engine compile. Do not edit dist directly; edit src and recompile. -->'
+INIT_BANNER='<!-- plugin/.claude/commands/engine-init.md: compiled from contract/src/ (cli-preamble.md + [0-9]*.md) by engine compile. Do not edit dist directly; edit src and recompile. -->'
+INIT_DIST="$REPO_ROOT/plugin/.claude/commands/engine-init.md"
+PREAMBLE="$SRC_DIR/cli-preamble.md"
 
 # 编译到指定文件(不覆盖 dist)。
 compile_to() {
   { printf '%s\n' "$BANNER"; for m in "$SRC_DIR"/[0-9]*.md; do [ -f "$m" ] || continue; cat "$m"; done; } > "$1"
+}
+
+# 第 4 dist(engine-init.md,D-015)编译到指定文件。
+compile_init_to() {
+  { printf '%s\n' "$INIT_BANNER"; cat "$PREAMBLE"; for m in "$SRC_DIR"/[0-9]*.md; do [ -f "$m" ] || continue; cat "$m"; done; } > "$1"
 }
 
 echo "=== A. 编译幂等 + 篡改检测 ==="
@@ -62,6 +70,22 @@ else
 fi
 cp "$backup" "$DIST"; rm -f "$tmp" "$backup"
 
+# A4: engine-init.md 幂等(D-015 第 4 dist——消灭 init.md 双份实现)
+tmp="$(mktemp)"; compile_init_to "$tmp"
+if diff -q "$tmp" "$INIT_DIST" >/dev/null 2>&1; then
+  echo "PASS  A4 init-md-idempotent"; pass=$((pass+1))
+else
+  echo "FAIL  A4 init-md-idempotent (engine-init.md 与 compile(preamble+src) 不一致——可能被手改)"; fail=$((fail+1))
+fi
+rm -f "$tmp"
+
+# A5: init dist 头部含编译横幅
+if head -1 "$INIT_DIST" | grep -q "compiled from contract/src"; then
+  echo "PASS  A5 init-banner-present"; pass=$((pass+1))
+else
+  echo "FAIL  A5 init-banner-present"; fail=$((fail+1))
+fi
+
 echo ""
 echo "=== B. 减法规则 ==="
 
@@ -86,11 +110,11 @@ fi
 echo ""
 echo "=== C. sh/ps1 编译产物一致 ==="
 
-# C1: compile.sh 与 compile.ps1 产出的 dist 相同
+# C1: compile.sh 与 compile.ps1 产出的 dist(含 engine-init.md)相同
 if [ -n "$PS_BIN" ]; then
   backup="$(mktemp)"; cp "$DIST" "$backup"
-  bash "$COMPILE_SH" >/dev/null 2>&1; hash_sh=$(sha256sum "$DIST" | cut -d' ' -f1)
-  "$PS_BIN" -NoProfile -ExecutionPolicy Bypass -File "$COMPILE_PS1" >/dev/null 2>&1; hash_ps=$(sha256sum "$DIST" | cut -d' ' -f1)
+  bash "$COMPILE_SH" >/dev/null 2>&1; hash_sh=$(cat "$DIST" "$INIT_DIST" | sha256sum | cut -d' ' -f1)
+  "$PS_BIN" -NoProfile -ExecutionPolicy Bypass -File "$COMPILE_PS1" >/dev/null 2>&1; hash_ps=$(cat "$DIST" "$INIT_DIST" | sha256sum | cut -d' ' -f1)
   # 恢复 dist 到 sh 产出(若一致则无变化)
   bash "$COMPILE_SH" >/dev/null 2>&1
   if [ "$hash_sh" = "$hash_ps" ]; then

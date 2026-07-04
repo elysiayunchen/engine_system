@@ -17,6 +17,16 @@ if (-not $Root) { $Root = $PWD.Path }
 $LocalFile = Join-Path $Root "engine\VERSION"
 $RemoteUrl = "https://raw.githubusercontent.com/$Repo/$Branch/VERSION"
 
+# Normalize: pad to major.minor.patch (6.0 -> 6.0.0) before comparing, so 6.0 vs 6.0.0
+# never yields a false update hint; non-numeric versions are returned as-is (D-015).
+function Normalize-Version([string]$v) {
+  $v = ($v -replace '\s', '')
+  if ($v -notmatch '^[0-9]+(\.[0-9]+)*$') { return $v }
+  $parts = @($v.Split('.'))
+  while ($parts.Count -lt 3) { $parts += '0' }
+  return ($parts -join '.')
+}
+
 # Read local version: prefer engine/VERSION, fall back to ENGINE_FILE_SYSTEM_v5.md header.
 $localVersion = "unknown"
 if (Test-Path $LocalFile) {
@@ -44,7 +54,7 @@ if (-not $remoteVersion) {
 Write-Output "Local:  $localVersion"
 Write-Output "Remote: $remoteVersion"
 
-if ($localVersion -eq $remoteVersion) {
+if ((Normalize-Version $localVersion) -eq (Normalize-Version $remoteVersion)) {
   Write-Output "Up to date."
   exit 0
 } else {

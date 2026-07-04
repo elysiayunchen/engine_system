@@ -393,6 +393,20 @@ check_contract_compile() {
     fail "contract dist is not compile(src) - run bash contract/compile.sh; do not edit dist directly"
   fi
   rm -f "$tmp"
+  # D-015: 第 4 dist(engine-init.md = 横幅 + cli-preamble + 同一模块)同样幂等
+  local init_dist="$ROOT/plugin/.claude/commands/engine-init.md"
+  local preamble="$src_dir/cli-preamble.md"
+  if [ -f "$preamble" ] && [ -f "$init_dist" ]; then
+    local init_banner='<!-- plugin/.claude/commands/engine-init.md: compiled from contract/src/ (cli-preamble.md + [0-9]*.md) by engine compile. Do not edit dist directly; edit src and recompile. -->'
+    local tmp2; tmp2="$(mktemp)"
+    { printf '%s\n' "$init_banner"; cat "$preamble"; for m in "$src_dir"/[0-9]*.md; do [ -f "$m" ] || continue; cat "$m"; done; } > "$tmp2"
+    if diff -q "$tmp2" "$init_dist" >/dev/null 2>&1; then
+      pass "contract compile idempotent (engine-init.md == compile(preamble+src))"
+    else
+      fail "engine-init.md is not compile(src) - run bash contract/compile.sh; do not edit dist directly"
+    fi
+    rm -f "$tmp2"
+  fi
   local budget="$ROOT/contract/budget.json"
   if [ -f "$budget" ]; then
     local max_lines; max_lines="$(grep -o '"max_lines"[[:space:]]*:[[:space:]]*[0-9]*' "$budget" | grep -o '[0-9]*$')"

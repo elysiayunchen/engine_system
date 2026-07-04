@@ -142,10 +142,17 @@ if [ "$need_check" -eq 1 ]; then
 fi
 
 # Hint if a newer version exists (read from cache, non-blocking).
+# D-015: 归一化比较(6.0 ≡ 6.0.0)防伪更新提示;非数字版本退回原始不等判定。
+norm_v() {
+  v="$(printf '%s' "${1:-}" | tr -d '[:space:]')"
+  case "$v" in ''|*[!0-9.]*) printf '%s' "$v"; return ;; esac
+  case "$v" in *.*.*) ;; *.*) v="$v.0" ;; *) v="$v.0.0" ;; esac
+  printf '%s' "$v"
+}
 if [ -f "$cache" ]; then
   latest="$(grep -oE '"latest":[[:space:]]*"[^"]*"' "$cache" 2>/dev/null | head -1 | sed 's/.*"latest":[[:space:]]*"//;s/"//')"
   current="$(grep -oE '"current":[[:space:]]*"[^"]*"' "$cache" 2>/dev/null | head -1 | sed 's/.*"current":[[:space:]]*"//;s/"//')"
-  if [ -n "$latest" ] && [ "$latest" != "$current" ] && [ "$latest" != "" ]; then
+  if [ -n "$latest" ] && [ "$latest" != "" ] && [ "$(norm_v "$latest")" != "$(norm_v "$current")" ]; then
     echo "──── 🔄 引擎更新可用 ────"
     echo "本地 $current -> 远程 $latest。运行 engine update 更新。"
     echo ""

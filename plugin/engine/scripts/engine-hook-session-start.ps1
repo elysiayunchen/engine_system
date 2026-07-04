@@ -164,10 +164,18 @@ if ($needCheck) {
 }
 
 # Hint if a newer version exists (read from cache, non-blocking).
+# D-015: compare normalized versions (6.0 == 6.0.0) to avoid false update hints.
+function Normalize-Version([string]$v) {
+  $v = ($v -replace '\s', '')
+  if ($v -notmatch '^[0-9]+(\.[0-9]+)*$') { return $v }
+  $parts = @($v.Split('.'))
+  while ($parts.Count -lt 3) { $parts += '0' }
+  return ($parts -join '.')
+}
 if (Test-Path $cache) {
   try {
     $cached = Get-Content $cache -Raw -Encoding UTF8 | ConvertFrom-Json
-    if ($cached.latest -and $cached.latest -ne "" -and $cached.latest -ne $cached.current) {
+    if ($cached.latest -and $cached.latest -ne "" -and ((Normalize-Version ([string]$cached.latest)) -ne (Normalize-Version ([string]$cached.current)))) {
       Write-Output "---- Engine update available ----"
       Write-Output ("Local " + $cached.current + " -> Remote " + $cached.latest + ". Run: engine update")
       Write-Output ""

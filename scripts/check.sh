@@ -65,6 +65,13 @@ else
   fail "behavior verify"
 fi
 
+step "Update flow (version normalize + migration scheduling)"
+if bash tests/update-flow/run-update-tests.sh; then
+  pass "update flow fixtures"
+else
+  fail "update flow"
+fi
+
 step "Session injection budget (N1: <=400 lines)"
 injected="$(CLAUDE_PROJECT_DIR="$PWD" bash plugin/engine/scripts/engine-hook-session-start.sh 2>/dev/null | wc -l)"
 if [ "$injected" -le 400 ]; then

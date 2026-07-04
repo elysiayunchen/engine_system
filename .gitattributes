@@ -15,3 +15,5 @@ ENGINE_FILE_SYSTEM_v5.md text eol=lf
 runtime-law.md text eol=lf
 rules.json text eol=lf
 contract/src/*.md text eol=lf
+# D-015: engine-init.md 纳入编译产物,同样钉 lf
+plugin/.claude/commands/engine-init.md text eol=lf

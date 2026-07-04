@@ -28,8 +28,10 @@ so old engine files receive the v6 data-layer structure and managed contract
 block, then runs Doctor to verify. Use --check-only to preview, --no-migrate to
 skip the migration step.
 
-`engine migrate` runs the contract migrator alone (idempotent). Use it to
-repair or re-apply the v6 structure without re-downloading tooling.
+`engine migrate` applies migration steps under engine/migrations/ that are
+newer than the local engine/VERSION, in version order (sort -V), writing the
+version back after each step. When nothing is pending it falls back to the
+idempotent contract migrator, so it still repairs/re-applies the v6 structure.
 EOF
 }
 
@@ -45,14 +47,72 @@ download() {
   fi
 }
 
+# 归一化:补足 major.minor.patch(6.0 -> 6.0.0);非纯数字版本原样返回(D-015)。
+normalize_version() {
+  local v
+  v="$(printf '%s' "${1:-}" | tr -d '[:space:]')"
+  case "$v" in
+    ''|*[!0-9.]*) printf '%s' "$v"; return ;;
+  esac
+  case "$v" in
+    *.*.*) ;;
+    *.*) v="$v.0" ;;
+    *) v="$v.0.0" ;;
+  esac
+  printf '%s' "$v"
+}
+
+# $1 > $2 ?(两侧须已归一化;相等不算大于)
+version_gt() {
+  [ "$1" = "$2" ] && return 1
+  [ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | tail -n 1)" = "$1" ]
+}
+
+# 版本化迁移调度(D-015):发现 engine/migrations/v*.sh -> sort -V -> 仅应用
+# 新于本地 engine/VERSION 的步 -> 每步成功后回写 VERSION。
+# 无待应用步时回退直接跑契约迁移器(保留 `engine migrate` 的幂等修复语义)。
 run_migrate() {
   local root="$1"
   local migrator="$root/engine/scripts/engine-migrate-contract.sh"
-  if [ -f "$migrator" ]; then
-    echo "[engine] running contract migration..."
-    bash "$migrator" "$root" || echo "[engine] migration reported issues (see above)" >&2
-  else
-    echo "[engine] migrator not found at $migrator - skipping migrate" >&2
+  local mig_dir="$root/engine/migrations"
+  local vfile="$root/engine/VERSION"
+  local current="0"
+  [ -f "$vfile" ] && current="$(tr -d '[:space:]' < "$vfile")"
+  current="$(normalize_version "$current")"
+  case "$current" in ''|*[!0-9.]*) current="0.0.0" ;; esac
+  local applied=0 step step_v
+  if [ -d "$mig_dir" ]; then
+    # 按"归一化版本列"排序而非文件名:v6.0.sh 的文件名在 sort -V 里会排在
+    # v6.0.1.sh 之后(digit < letter),直接排文件名会让低版本步被跳过。
+    while IFS=' ' read -r step_v step; do
+      [ -n "$step" ] || continue
+      if version_gt "$step_v" "$current"; then
+        echo "[engine] applying migration step $(basename "$step") ($current -> $step_v)..."
+        if bash "$step" "$root"; then
+          printf '%s\n' "$step_v" > "$vfile"   # VERSION 回写:每步成功后推进
+          current="$step_v"
+          applied=$((applied + 1))
+        else
+          echo "[engine] migration step $(basename "$step") failed - stopping (VERSION stays $current)" >&2
+          return 1
+        fi
+      fi
+    done < <(
+      for f in "$mig_dir"/v*.sh; do
+        [ -f "$f" ] || continue
+        b="$(basename "$f" .sh)"
+        case "$b" in v[0-9]*) ;; *) continue ;; esac
+        printf '%s %s\n' "$(normalize_version "${b#v}")" "$f"
+      done | sort -V
+    )
+  fi
+  if [ "$applied" -eq 0 ]; then
+    if [ -f "$migrator" ]; then
+      echo "[engine] no pending migration steps (local $current) - running contract migrator (idempotent repair)..."
+      bash "$migrator" "$root" || echo "[engine] migration reported issues (see above)" >&2
+    else
+      echo "[engine] migrator not found at $migrator - skipping migrate" >&2
+    fi
   fi
 }
 

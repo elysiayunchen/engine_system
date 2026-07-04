@@ -168,6 +168,16 @@ if ($insideGit -eq "true") {
   }
 }
 
+# L0 constitution (runtime-law.md): session-start hook injects first 40 lines to fight drift.
+# Fetched from repo root (contract compile output) to project root. Always overwrite (engine artifact).
+try {
+  Invoke-WebRequest -Uri "https://raw.githubusercontent.com/$Repo/$Branch/runtime-law.md" -OutFile "runtime-law.md" -UseBasicParsing -TimeoutSec 15
+  Write-Host "  ok    runtime-law.md (L0 constitution)" -ForegroundColor Green
+  $installed++
+} catch {
+  Write-Host "  skip  runtime-law.md (network error - L0 constitution not fetched)" -ForegroundColor Yellow
+}
+
 Write-Host ""
 Write-Host "-------------------------------------"
 Write-Host "Done. $installed files installed, $skipped skipped." -ForegroundColor Green

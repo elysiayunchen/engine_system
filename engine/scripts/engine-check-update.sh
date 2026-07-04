@@ -15,6 +15,21 @@ ROOT="${1:-${CLAUDE_PROJECT_DIR:-$PWD}}"
 LOCAL_VERSION_FILE="$ROOT/engine/VERSION"
 REMOTE_URL="https://raw.githubusercontent.com/${REPO}/${BRANCH}/VERSION"
 
+# 归一化:补足 major.minor.patch(6.0 -> 6.0.0)再比较,防 6.0 vs 6.0.0 伪更新提示;
+# 非纯数字版本(unknown 等)原样返回,退回原始不等判定(D-015)。
+normalize_version() {
+  v="$(printf '%s' "${1:-}" | tr -d '[:space:]')"
+  case "$v" in
+    ''|*[!0-9.]*) printf '%s' "$v"; return ;;
+  esac
+  case "$v" in
+    *.*.*) ;;
+    *.*) v="$v.0" ;;
+    *) v="$v.0.0" ;;
+  esac
+  printf '%s' "$v"
+}
+
 # Read local version: prefer engine/VERSION, fall back to ENGINE_FILE_SYSTEM_v5.md header.
 local_version="unknown"
 if [ -f "$LOCAL_VERSION_FILE" ]; then
@@ -44,7 +59,7 @@ fi
 echo "Local:  $local_version"
 echo "Remote: $remote_version"
 
-if [ "$local_version" = "$remote_version" ]; then
+if [ "$(normalize_version "$local_version")" = "$(normalize_version "$remote_version")" ]; then
   echo "Up to date."
   exit 0
 else

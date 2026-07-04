@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
-# Engine System — 契约编译器(v6 S3 + S3-b + review fix)
+# Engine System — 契约编译器(v6 S3 + S3-b + review fix + D-015)
 #
-# 产出 3 个 dist:
+# 产出 4 个 dist:
 #   1. ENGINE_FILE_SYSTEM_v5.md(横幅 + 拼接 4 模块)— web-prompt 全量
 #   2. runtime-law.md(L0 宪法,从 L0-runtime-law.md)— ≤40 行常驻法
 #   3. rules.json(机读规则表聚合索引)— Doctor/hooks 源文件聚合
+#   4. plugin/.claude/commands/engine-init.md(CLI 前言 + 同一契约模块)
+#      — 消灭 init.md 双份实现(设计 §5.5 / D-015)
 #
 # 幂等:compile(src) == dist。
 # 用法:bash contract/compile.sh
@@ -15,6 +17,7 @@ SRC_DIR="$ROOT/contract/src"
 DIST="$ROOT/ENGINE_FILE_SYSTEM_v5.md"
 LAW_DIST="$ROOT/runtime-law.md"
 RULES_DIST="$ROOT/rules.json"
+INIT_DIST="$ROOT/plugin/.claude/commands/engine-init.md"
 
 if [ ! -d "$SRC_DIR" ]; then
   echo "compile: 源目录不存在: $SRC_DIR" >&2
@@ -59,4 +62,20 @@ debt="$(grep -o '"debt_baseline"[[:space:]]*:[[:space:]]*[0-9]*' "$BUDGET" 2>/de
   printf '}\n'
 } > "$RULES_DIST"
 
-echo "compile: 3 dist files (web-prompt $(wc -l < "$DIST") lines, runtime-law, rules.json)"
+# 4. engine-init.md(CLI 命令 dist:前言 + 同一契约模块,D-015)
+INIT_BANNER='<!-- plugin/.claude/commands/engine-init.md: compiled from contract/src/ (cli-preamble.md + [0-9]*.md) by engine compile. Do not edit dist directly; edit src and recompile. -->'
+PREAMBLE="$SRC_DIR/cli-preamble.md"
+if [ -f "$PREAMBLE" ] && [ -d "$(dirname "$INIT_DIST")" ]; then
+  tmp="$(mktemp)"
+  {
+    printf '%s\n' "$INIT_BANNER"
+    cat "$PREAMBLE"
+    for m in "$SRC_DIR"/[0-9]*.md; do
+      [ -f "$m" ] || continue
+      cat "$m"
+    done
+  } > "$tmp"
+  mv "$tmp" "$INIT_DIST"
+fi
+
+echo "compile: 4 dist files (web-prompt $(wc -l < "$DIST") lines, runtime-law, rules.json, engine-init)"

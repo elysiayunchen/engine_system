@@ -1,16 +1,75 @@
 # Engine System installer for Windows
 # Usage:
 #   Invoke-WebRequest https://raw.githubusercontent.com/elysiayunchen/engine_system/main/install.ps1 -OutFile install.ps1
-#   powershell -NoProfile -File .\install.ps1 [-Update]
+#   powershell -NoProfile -File .\install.ps1 [-Update] [-Version TAG]
 #
 # Keep this installer file-download-first. Avoid pipe-to-execute examples:
 # security products often flag remote-content direct execution as malware-like.
 
-param([switch]$Update)
+param(
+  [switch]$Update,
+  [string]$Version = ""
+)
 
 $REPO = "elysiayunchen/engine_system"
 $BRANCH = "main"
-$BASE_URL = "https://raw.githubusercontent.com/$REPO/$BRANCH/plugin"
+
+# Normalize version: strip leading 'v' if present
+if ($Version -and $Version.StartsWith("v")) { $Version = $Version.Substring(1) }
+
+# Build BASE_URL — use version tag or default branch
+if ($Version) {
+  $BASE_URL = "https://raw.githubusercontent.com/$REPO/v$Version/plugin"
+} else {
+  $BASE_URL = "https://raw.githubusercontent.com/$REPO/$BRANCH/plugin"
+}
+
+# Download with release-first fallback (when -Version is specified)
+function Download-File {
+  param([string]$Src, [string]$Dest)
+  $url = "$BASE_URL/$Src"
+
+  if ($Version) {
+    $releaseUrl = "https://github.com/$REPO/releases/download/v$Version/plugin/$Src"
+    try {
+      Invoke-WebRequest -Uri $releaseUrl -OutFile $Dest -UseBasicParsing -TimeoutSec 30 -ErrorAction Stop
+      return
+    } catch {
+      # Release artifact not found — fallback to raw content
+    }
+  }
+
+  Invoke-WebRequest -Uri $url -OutFile $Dest -UseBasicParsing -TimeoutSec 30
+}
+
+# Verify SHA256 checksums against manifest (best-effort, fail-open)
+function Verify-Checksums {
+  param([string]$ManifestFile)
+  if (-not (Test-Path $ManifestFile)) { return }
+  try {
+    $manifest = Get-Content $ManifestFile -Raw | ConvertFrom-Json
+    $verified = 0; $failed = 0
+    foreach ($entry in $manifest.files) {
+      if (-not $entry.sha256 -or $entry.sha256 -eq "placeholder") { continue }
+      # Map src to dest
+      $destFile = $entry.src -replace '/', '\'
+      if ($entry.src -like "engine/*") { $destFile = $entry.src -replace '/', '\' }
+      elseif ($entry.src -like "bin/*") { $destFile = "engine\bin\" + ($entry.src -replace '^bin/', '') }
+      elseif ($entry.src -like "migrations/*") { $destFile = "engine\migrations\" + ($entry.src -replace '^migrations/', '') }
+      if (-not (Test-Path $destFile)) { continue }
+      $actual = (Get-FileHash $destFile -Algorithm SHA256).Hash.ToLower()
+      $verified++
+      if ($actual -ne $entry.sha256) {
+        Write-Host "  WARN  checksum mismatch: $destFile" -ForegroundColor Yellow
+        $failed++
+      }
+    }
+    if ($failed -gt 0) { Write-Host "  WARN  $failed file(s) failed checksum verification" -ForegroundColor Yellow }
+    elseif ($verified -gt 0) { Write-Host "  ok    $verified file(s) verified (SHA256)" -ForegroundColor Green }
+  } catch {
+    Write-Host "  note  checksum verification skipped (manifest parse error)" -ForegroundColor Yellow
+  }
+}
 
 $FILES = @(
   @{ src = ".claude/commands/engine-init.md";      dest = ".claude\commands\engine-init.md";      protect = $true }
@@ -81,7 +140,7 @@ foreach ($f in $FILES) {
   }
 
   if ($Update -and $f.protect) {
-    Invoke-WebRequest -Uri $url -OutFile $dest -UseBasicParsing
+    Download-File -Src $f.src -Dest $dest
     Write-Host "  updated $dest" -ForegroundColor Green
     $installed++; continue
   }
@@ -130,7 +189,7 @@ foreach ($f in $FILES) {
 }
 '@ | Set-Content -Path $dest -Encoding UTF8
   } else {
-    Invoke-WebRequest -Uri $url -OutFile $dest -UseBasicParsing
+    Download-File -Src $f.src -Dest $dest
   }
   Write-Host "  ok    $dest" -ForegroundColor Green
   $installed++
@@ -171,11 +230,28 @@ if ($insideGit -eq "true") {
 # L0 constitution (runtime-law.md): session-start hook injects first 40 lines to fight drift.
 # Fetched from repo root (contract compile output) to project root. Always overwrite (engine artifact).
 try {
-  Invoke-WebRequest -Uri "https://raw.githubusercontent.com/$Repo/$Branch/runtime-law.md" -OutFile "runtime-law.md" -UseBasicParsing -TimeoutSec 15
+  if ($Version) {
+    $runtimeLawUrl = "https://raw.githubusercontent.com/$REPO/v$Version/runtime-law.md"
+  } else {
+    $runtimeLawUrl = "https://raw.githubusercontent.com/$REPO/$BRANCH/runtime-law.md"
+  }
+  Invoke-WebRequest -Uri $runtimeLawUrl -OutFile "runtime-law.md" -UseBasicParsing -TimeoutSec 15
   Write-Host "  ok    runtime-law.md (L0 constitution)" -ForegroundColor Green
   $installed++
 } catch {
   Write-Host "  skip  runtime-law.md (network error - L0 constitution not fetched)" -ForegroundColor Yellow
+}
+
+# Verify SHA256 checksums (best-effort, only when -Version is specified)
+if ($Version) {
+  try {
+    $manifestUrl = "https://raw.githubusercontent.com/$REPO/v$Version/plugin/manifest.json"
+    Invoke-WebRequest -Uri $manifestUrl -OutFile ".manifest-check.json" -UseBasicParsing -TimeoutSec 15 -ErrorAction Stop
+    Verify-Checksums -ManifestFile ".manifest-check.json"
+    Remove-Item ".manifest-check.json" -Force -ErrorAction SilentlyContinue
+  } catch {
+    # Fail-open: no checksum verification if manifest unavailable
+  }
 }
 
 Write-Host ""

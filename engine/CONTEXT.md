@@ -7,8 +7,8 @@
 | 维度 | 状态 |
 |------|------|
 | 构建 | ✅ 正常（纯 markdown + shell 脚本，无构建步骤） |
-| 上次完成 | **T-016 done**: GitHub Release 自动化 workflow (.github/workflows/release.yml, tag push v* → change capsules → release notes → plugin/ tarball+zip → sha256 checksums → gh release create) + release.sh 提示更新。`engine verify T-016` 5/5 全绿。 |
-| 进行中 | ① T-017(版本锁定安装+完整性校验) active; ② T-018(离线安装包) active; ③ Phase 0 剩余两项完成后进入 Phase 1(通用化核心); ④ Q2 试点库待拍板 |
+| 上次完成 | **T-017 done**: 版本锁定安装(install.sh --version / install.ps1 -Version → release-first download + raw content fallback) + SHA256 完整性校验(manifest sha256 字段 + verify_checksums best-effort fail-open)。`engine verify T-017` 7/7 全绿。 |
+| 进行中 | ① T-018(离线安装包) active; ② Phase 0 完成后进入 Phase 1(通用化核心); ③ Q2 试点库待拍板 |
 | 阻塞 | 无 |
 
 ## 当前假设 / 决策（本轮拍板）

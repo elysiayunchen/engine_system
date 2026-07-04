@@ -1,6 +1,6 @@
 {
   "files": [
-    { "src": ".claude/commands/engine-init.md", "dest": ".claude/commands/engine-init.md", "protect": true },
+    { "src": ".claude/commands/engine-init.md", "dest": ".claude/commands/engine-init.md", "protect": true, "sha256": "placeholder" },
     { "src": ".claude/commands/engine-update.md", "dest": ".claude/commands/engine-update.md", "protect": true },
     { "src": ".claude/commands/engine-status.md", "dest": ".claude/commands/engine-status.md", "protect": true },
     { "src": ".claude/commands/add-pitfall.md", "dest": ".claude/commands/add-pitfall.md", "protect": true },

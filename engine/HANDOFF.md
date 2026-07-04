@@ -4,14 +4,15 @@
 
 ## 立即恢复点
 
-下一步：T-017 done(版本锁定安装+完整性校验,7/7 AC 全绿)。继续 T-018(离线安装包)→ Phase 1(通用化核心)。Q2 试点库待拍板。
+下一步：Phase 0 管道加固 3/3 完成(T-016 Release 自动化 + T-017 版本锁定+完整性 + T-018 离线包)。继续 Phase 1(通用化核心)。Q2 试点库待拍板。
 
-> 本轮交接进行中。Phase 0 已完成 2/3（Release 自动化 + 版本锁定+完整性校验），剩余一项（离线包）待执行。
+> Phase 0 已全部完成。下一步进入 Phase 1：通用化核心（核心引擎文件去 Claude-Code 专属依赖、多 agent 适配层）。
 
 ## 会话历史（最新在上）
 
 | 日期 | 完成了什么 | 下一步 | 改动文件 |
 |------|-----------|--------|---------|
+| 2026-07-05 | **T-018 done**: 离线安装包(release.yml offline tarball + install.sh --local + install.ps1 -Local → 本地安装不联网 + runtime-law.md 本地拷贝 + checksum skip) + engine verify 6/6 全绿。**Phase 0 管道加固 3/3 完成** | Phase 1(通用化核心) → Q2 试点 | .github/workflows/release.yml, install.sh, install.ps1, engine/tasks/T-018.md, engine/evidence/T-018/*, engine/changes/CHANGE-2026-07-05-04.md, engine/CONTEXT.md, engine/HANDOFF.md |
 | 2026-07-05 | **T-017 done**: 版本锁定安装(--version/-Version) + release-first download + SHA256 校验(manifest sha256 字段 + verify_checksums) + engine verify 7/7 全绿 | T-018(离线包) → Phase 1 | install.sh, install.ps1, plugin/manifest.json, engine/tasks/T-017.md, engine/evidence/T-017/*, engine/changes/CHANGE-2026-07-05-03.md, engine/CONTEXT.md, engine/HANDOFF.md |
 | 2026-07-05 | **T-016 done**: GitHub Release 自动化 workflow(release.yml, tag push v* → capsules → notes → tarball+zip → sha256 → gh release create) + release.sh 提示更新 + engine verify 5/5 全绿 | T-017(版本锁定+完整性校验) → T-018(离线包) → Phase 1 | .github/workflows/release.yml, scripts/release.sh, engine/tasks/T-016.md, engine/evidence/T-016/*, engine/changes/CHANGE-2026-07-05-02.md, engine/CONTEXT.md, engine/HANDOFF.md |
 | 2026-07-05 | 发布端方向构思 + 五项决策拍板(D-017: 目标用户=任何AI开发者, CLI双轨/快速安装骨架/adapter原生最优/分步迁移/npm完整CLI包) + 发布基础设施提交(CI+release+compile sync+check drift) + PR #8 确认已合 main | 开 Phase 0 任务卡(Release自动化/版本锁定/完整性校验/离线包) | .github/workflows/ci.yml, scripts/release.sh, contract/compile.{sh,ps1}, scripts/check.sh, engine/CONTEXT.md, engine/HANDOFF.md |

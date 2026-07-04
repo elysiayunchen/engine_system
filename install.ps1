@@ -8,7 +8,8 @@
 
 param(
   [switch]$Update,
-  [string]$Version = ""
+  [string]$Version = "",
+  [string]$Local = ""
 )
 
 $REPO = "elysiayunchen/engine_system"
@@ -16,6 +17,22 @@ $BRANCH = "main"
 
 # Normalize version: strip leading 'v' if present
 if ($Version -and $Version.StartsWith("v")) { $Version = $Version.Substring(1) }
+
+# Handle -Local parameter (offline install, no network needed)
+$LocalDir = ""
+if ($Local) {
+  if (Test-Path $Local -PathType Leaf) {
+    $LocalDir = Join-Path $env:TEMP "engine-offline-$(Get-Random)"
+    New-Item -ItemType Directory -Force -Path $LocalDir | Out-Null
+    tar xzf $Local -C $LocalDir
+    Write-Host "  Extracted offline package: $Local"
+  } elseif (Test-Path $Local -PathType Container) {
+    $LocalDir = $Local
+  } else {
+    Write-Host "Error: -Local path not found: $Local" -ForegroundColor Red
+    exit 1
+  }
+}
 
 # Build BASE_URL — use version tag or default branch
 if ($Version) {
@@ -40,6 +57,17 @@ function Download-File {
   }
 
   Invoke-WebRequest -Uri $url -OutFile $Dest -UseBasicParsing -TimeoutSec 30
+}
+
+# Copy from local offline directory (when -Local is specified)
+function Copy-Local {
+  param([string]$Src, [string]$Dest)
+  $srcPath = Join-Path $LocalDir ($Src -replace '/', '\')
+  if (Test-Path $srcPath) {
+    Copy-Item $srcPath $Dest -Force
+  } else {
+    Write-Host "  WARN  local file not found: $srcPath" -ForegroundColor Yellow
+  }
 }
 
 # Verify SHA256 checksums against manifest (best-effort, fail-open)
@@ -140,7 +168,8 @@ foreach ($f in $FILES) {
   }
 
   if ($Update -and $f.protect) {
-    Download-File -Src $f.src -Dest $dest
+    if ($LocalDir) { Copy-Local -Src $f.src -Dest $dest }
+    else { Download-File -Src $f.src -Dest $dest }
     Write-Host "  updated $dest" -ForegroundColor Green
     $installed++; continue
   }
@@ -150,7 +179,9 @@ foreach ($f in $FILES) {
     $skipped++; continue
   }
 
-  if ($dest -eq ".claude\settings.json") {
+  if ($LocalDir) {
+    Copy-Local -Src $f.src -Dest $dest
+  } elseif ($dest -eq ".claude\settings.json") {
 @'
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
@@ -229,21 +260,27 @@ if ($insideGit -eq "true") {
 
 # L0 constitution (runtime-law.md): session-start hook injects first 40 lines to fight drift.
 # Fetched from repo root (contract compile output) to project root. Always overwrite (engine artifact).
-try {
-  if ($Version) {
-    $runtimeLawUrl = "https://raw.githubusercontent.com/$REPO/v$Version/runtime-law.md"
-  } else {
-    $runtimeLawUrl = "https://raw.githubusercontent.com/$REPO/$BRANCH/runtime-law.md"
-  }
-  Invoke-WebRequest -Uri $runtimeLawUrl -OutFile "runtime-law.md" -UseBasicParsing -TimeoutSec 15
+if ($LocalDir -and (Test-Path (Join-Path $LocalDir "runtime-law.md"))) {
+  Copy-Item (Join-Path $LocalDir "runtime-law.md") "runtime-law.md" -Force
   Write-Host "  ok    runtime-law.md (L0 constitution)" -ForegroundColor Green
   $installed++
-} catch {
-  Write-Host "  skip  runtime-law.md (network error - L0 constitution not fetched)" -ForegroundColor Yellow
+} else {
+  try {
+    if ($Version) {
+      $runtimeLawUrl = "https://raw.githubusercontent.com/$REPO/v$Version/runtime-law.md"
+    } else {
+      $runtimeLawUrl = "https://raw.githubusercontent.com/$REPO/$BRANCH/runtime-law.md"
+    }
+    Invoke-WebRequest -Uri $runtimeLawUrl -OutFile "runtime-law.md" -UseBasicParsing -TimeoutSec 15
+    Write-Host "  ok    runtime-law.md (L0 constitution)" -ForegroundColor Green
+    $installed++
+  } catch {
+    Write-Host "  skip  runtime-law.md (network error - L0 constitution not fetched)" -ForegroundColor Yellow
+  }
 }
 
-# Verify SHA256 checksums (best-effort, only when -Version is specified)
-if ($Version) {
+# Verify SHA256 checksums (best-effort, only when -Version is specified, skip for -Local)
+if ($Version -and -not $LocalDir) {
   try {
     $manifestUrl = "https://raw.githubusercontent.com/$REPO/v$Version/plugin/manifest.json"
     Invoke-WebRequest -Uri $manifestUrl -OutFile ".manifest-check.json" -UseBasicParsing -TimeoutSec 15 -ErrorAction Stop

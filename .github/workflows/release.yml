@@ -76,8 +76,15 @@ jobs:
           # zip (for Windows users)
           cd plugin && zip -qr "../engine-system-v${VERSION}.zip" . && cd ..
 
+          # offline install package (plugin/ + install scripts, no network needed)
+          OFFLINE_DIR="$(mktemp -d)"
+          cp -r plugin/* "$OFFLINE_DIR/"
+          cp install.sh install.ps1 "$OFFLINE_DIR/"
+          tar czf "engine-system-v${VERSION}-offline.tar.gz" -C "$OFFLINE_DIR" .
+          rm -rf "$OFFLINE_DIR"
+
           echo "Packaged:"
-          ls -lh engine-system-v${VERSION}.{tar.gz,zip}
+          ls -lh engine-system-v${VERSION}.tar.gz engine-system-v${VERSION}.zip engine-system-v${VERSION}-offline.tar.gz
 
       - name: Generate checksums
         run: |
@@ -85,6 +92,7 @@ jobs:
           sha256sum \
             "engine-system-v${VERSION}.tar.gz" \
             "engine-system-v${VERSION}.zip" \
+            "engine-system-v${VERSION}-offline.tar.gz" \
             > "engine-system-v${VERSION}-checksums.txt"
           echo "--- Checksums ---"
           cat "engine-system-v${VERSION}-checksums.txt"
@@ -109,6 +117,7 @@ jobs:
             $PRERELEASE \
             "engine-system-v${VERSION}.tar.gz" \
             "engine-system-v${VERSION}.zip" \
+            "engine-system-v${VERSION}-offline.tar.gz" \
             "engine-system-v${VERSION}-checksums.txt"
 
           echo "Release $TAG created successfully."

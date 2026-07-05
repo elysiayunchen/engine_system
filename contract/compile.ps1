@@ -1,11 +1,13 @@
 # Engine System - Contract compiler (v6 S3 + S3-b + review fix + D-015)
 #
-# Produces 4 dist files:
+# Produces 5 dist files:
 #   1. ENGINE_FILE_SYSTEM_v5.md (banner + 4 modules concatenated) - web-prompt
 #   2. runtime-law.md (L0 constitution, from L0-runtime-law.md) - <=40 lines
 #   3. rules.json (machine-readable rule table aggregate index)
 #   4. plugin/.claude/commands/engine-init.md (CLI preamble + same contract modules)
 #      - kills the init.md dual implementation (design 5.5 / D-015)
+#   5. engine/prompts/init.md (agent-neutral preamble + same contract modules,
+#      mirrored to plugin/) - in-project pickup point for ANY agent (D-018a)
 #
 # Idempotent: compile(src) == dist.
 
@@ -16,6 +18,7 @@ $Dist = Join-Path $Root "ENGINE_FILE_SYSTEM_v5.md"
 $LawDist = Join-Path $Root "runtime-law.md"
 $RulesDist = Join-Path $Root "rules.json"
 $InitDist = Join-Path $Root "plugin\.claude\commands\engine-init.md"
+$PromptsDist = Join-Path $Root "engine\prompts\init.md"
 
 if (-not (Test-Path $SrcDir)) {
   Write-Error "compile: source dir not found: $SrcDir"
@@ -75,10 +78,27 @@ if ((Test-Path $preamble) -and (Test-Path (Split-Path -Parent $InitDist))) {
   [System.IO.File]::WriteAllText($InitDist, $initCompiled, $utf8NoBom)
 }
 
-$lines = (Get-Content $Dist).Count
-Write-Output "compile: 4 dist files (web-prompt $lines lines, runtime-law, rules.json, engine-init)"
+# 5. engine/prompts/init.md (agent-neutral dist: neutral preamble + same contract modules, D-018a)
+$PromptsBanner = '<!-- engine/prompts/init.md: compiled from contract/src/ (agent-preamble.md + [0-9]*.md) by engine compile. Do not edit dist directly; edit src and recompile. -->'
+$agentPreamble = Join-Path $SrcDir "agent-preamble.md"
+if (Test-Path $agentPreamble) {
+  $promptsDir = Split-Path -Parent $PromptsDist
+  if (-not (Test-Path $promptsDir)) { New-Item -ItemType Directory -Path $promptsDir -Force | Out-Null }
+  $promptsCompiled = $PromptsBanner + "`n"
+  $promptsCompiled += Get-Content -Raw -Path $agentPreamble -Encoding UTF8
+  foreach ($m in $modules) {
+    $promptsCompiled += Get-Content -Raw -Path $m.FullName -Encoding UTF8
+  }
+  [System.IO.File]::WriteAllText($PromptsDist, $promptsCompiled, $utf8NoBom)
+  $pluginPrompts = Join-Path $Root "plugin\engine\prompts"
+  if (-not (Test-Path $pluginPrompts)) { New-Item -ItemType Directory -Path $pluginPrompts -Force | Out-Null }
+  Copy-Item -Path $PromptsDist -Destination (Join-Path $pluginPrompts "init.md") -Force
+}
 
-# 5. plugin/engine/scripts/ mirror sync (engine/scripts/ is single source of truth)
+$lines = (Get-Content $Dist).Count
+Write-Output "compile: 5 dist files (web-prompt $lines lines, runtime-law, rules.json, engine-init, prompts/init)"
+
+# 6. plugin/engine/scripts/ mirror sync (engine/scripts/ is single source of truth)
 # Edit scripts in engine/scripts/ only; compile.ps1 auto-syncs to plugin/.
 # check.sh drift check catches manual edits to plugin/engine/scripts/.
 $syncList = @(
@@ -113,3 +133,16 @@ foreach ($f in $syncList) {
   }
 }
 Write-Output "compile: plugin\engine\scripts\ synced ($syncCount files from engine\scripts\)"
+
+# 7. plugin/bin/ mirror sync (engine/bin/ is single source of truth, D-018e)
+$binCount = 0
+foreach ($f in @("engine", "engine.ps1", "engine.cmd")) {
+  $srcBin = Join-Path $Root "engine\bin\$f"
+  if (Test-Path $srcBin) {
+    $dstBinDir = Join-Path $Root "plugin\bin"
+    if (-not (Test-Path $dstBinDir)) { New-Item -ItemType Directory -Path $dstBinDir -Force | Out-Null }
+    Copy-Item -Path $srcBin -Destination (Join-Path $dstBinDir $f) -Force
+    $binCount++
+  }
+}
+Write-Output "compile: plugin\bin\ synced ($binCount files from engine\bin\)"

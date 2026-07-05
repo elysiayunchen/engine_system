@@ -4,7 +4,8 @@ param(
   [Parameter(Position=0)][string]$Command = "help",
   [Parameter(Position=1)][string]$Task = "",
   [switch]$CheckOnly,
-  [switch]$NoMigrate
+  [switch]$NoMigrate,
+  [switch]$Print
 )
 
 $Repo = if ($env:ENGINE_SYSTEM_REPO) { $env:ENGINE_SYSTEM_REPO } else { "elysiayunchen/engine_system" }
@@ -15,6 +16,8 @@ function Show-Help {
 Engine System CLI
 
 Usage:
+  engine init           Show how to run the init interview with any AI agent
+  engine init --print   Print the raw agent-neutral init prompt (pipe/copy it)
   engine check-update   Check if a newer Engine System version is available
   engine update         Update tooling, then migrate + doctor (one-shot)
   engine update -CheckOnly       Only check for updates, change nothing
@@ -22,6 +25,10 @@ Usage:
   engine migrate        Run contract migration on existing engine files
   engine verify T-NNN   Run behavior verification for a task card
   engine help           Show this help
+
+`engine init` is the agent-agnostic entry to initialize the engine layer: it
+locates engine/prompts/init.md (distributed by the installer) and shows how to
+feed it to your AI agent; --print emits the raw prompt for piping/copying.
 
 `engine check-update` compares local engine/VERSION against the remote VERSION.
 Exit codes: 0 = up to date | 7 = update available | 8 = network error.
@@ -102,6 +109,34 @@ function Run-Doctor {
 }
 
 switch ($Command) {
+  "init" {
+    $promptRel = "engine/prompts/init.md"
+    $promptFile = Join-Path $PWD.Path "engine\prompts\init.md"
+    if (-not (Test-Path $promptFile)) {
+      Write-Error "Error: $promptRel not found in $PWD. Run 'engine update' (or re-run the installer) to fetch the init prompt, then retry."
+      exit 2
+    }
+    if ($Print -or $Task -eq "--print") {
+      Write-Output (Get-Content -Raw -Path $promptFile -Encoding UTF8)
+      exit 0
+    }
+    Write-Host "Engine System init - agent-neutral entry point"
+    Write-Host ""
+    if (Test-Path (Join-Path $PWD.Path "engine\ENGINE_MAP.md")) {
+      Write-Host "Note: engine/ENGINE_MAP.md already exists - this project looks initialized."
+      Write-Host "Prefer /engine-reconcile (in your agent) or 'engine migrate' instead of re-init."
+      Write-Host ""
+    }
+    Write-Host "The init interview prompt lives at: $promptRel"
+    Write-Host "Feed it to whichever AI agent you use:"
+    Write-Host ""
+    Write-Host "  Claude Code   type /engine-init in this project"
+    Write-Host "  claude CLI    claude `"`$(cat $promptRel)`""
+    Write-Host "  codex CLI     codex `"`$(cat $promptRel)`""
+    Write-Host "  copilot CLI   copilot -p `"`$(cat $promptRel)`""
+    Write-Host "  Web chat      paste the contents of $promptRel into the chat"
+    Write-Host "  Raw prompt    engine init --print"
+  }
   "verify" {
     if (-not (Test-Path "engine")) {
       Write-Error "Error: engine/ not found in $PWD. Run engine verify in a project root."

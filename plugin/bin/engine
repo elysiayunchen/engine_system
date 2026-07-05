@@ -11,6 +11,8 @@ usage() {
 Engine System CLI
 
 Usage:
+  engine init           Show how to run the init interview with any AI agent
+  engine init --print   Print the raw agent-neutral init prompt (pipe/copy it)
   engine check-update   Check if a newer Engine System version is available
   engine update         Update tooling, then migrate + doctor (one-shot)
   engine update --check-only   Only check for updates, change nothing
@@ -18,6 +20,10 @@ Usage:
   engine migrate        Run contract migration on existing engine files
   engine verify T-NNN   Run behavior verification for a task card
   engine help           Show this help
+
+`engine init` is the agent-agnostic entry to initialize the engine layer: it
+locates engine/prompts/init.md (distributed by the installer) and shows how to
+feed it to your AI agent; --print emits the raw prompt for piping/copying.
 
 `engine check-update` compares local engine/VERSION against the remote VERSION.
 Exit codes: 0 = up to date | 7 = update available | 8 = network error.
@@ -136,6 +142,35 @@ for arg in "$@"; do
 done
 
 case "${1:-help}" in
+  init)
+    prompt_rel="engine/prompts/init.md"
+    prompt_file="$PWD/$prompt_rel"
+    if [ ! -f "$prompt_file" ]; then
+      echo "Error: $prompt_rel not found in $PWD." >&2
+      echo "Run 'engine update' (or re-run the installer) to fetch the init prompt, then retry." >&2
+      exit 2
+    fi
+    if [ "${2:-}" = "--print" ]; then
+      cat "$prompt_file"
+      exit 0
+    fi
+    echo "Engine System init — agent-neutral entry point"
+    echo ""
+    if [ -f "$PWD/engine/ENGINE_MAP.md" ]; then
+      echo "Note: engine/ENGINE_MAP.md already exists — this project looks initialized."
+      echo "Prefer /engine-reconcile (in your agent) or 'engine migrate' instead of re-init."
+      echo ""
+    fi
+    echo "The init interview prompt lives at: $prompt_rel"
+    echo "Feed it to whichever AI agent you use:"
+    echo ""
+    echo "  Claude Code   type /engine-init in this project"
+    echo "  claude CLI    claude \"\$(cat $prompt_rel)\""
+    echo "  codex CLI     codex \"\$(cat $prompt_rel)\""
+    echo "  copilot CLI   copilot -p \"\$(cat $prompt_rel)\""
+    echo "  Web chat      paste the contents of $prompt_rel into the chat"
+    echo "  Raw prompt    engine init --print"
+    ;;
   verify)
     if [ ! -d "$PWD/engine" ]; then
       echo "Error: engine/ not found in $PWD. Run 'engine verify' in a project root." >&2

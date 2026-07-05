@@ -179,6 +179,7 @@ FILES=(
   "engine/README.md:engine/README.md:false"
   "engine/README.zh.md:engine/README.zh.md:false"
   "engine/ENGINE_DOCTOR.md:engine/ENGINE_DOCTOR.md:false"
+  "engine/prompts/init.md:engine/prompts/init.md:true"
   "engine/scripts/engine-doctor.sh:engine/scripts/engine-doctor.sh:true"
   "engine/scripts/engine-doctor.ps1:engine/scripts/engine-doctor.ps1:true"
   "engine/scripts/engine-hook-session-start.sh:engine/scripts/engine-hook-session-start.sh:true"
@@ -207,7 +208,7 @@ FILES=(
 )
 
 # Create directories
-mkdir -p .claude/commands engine engine/scripts engine/scripts/githooks engine/bin engine/migrations engine/.cache
+mkdir -p .claude/commands engine engine/scripts engine/scripts/githooks engine/bin engine/migrations engine/prompts engine/.cache
 
 install_count=0
 skip_count=0

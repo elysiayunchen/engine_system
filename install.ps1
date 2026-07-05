@@ -114,6 +114,7 @@ $FILES = @(
   @{ src = "engine/README.md";                     dest = "engine\README.md";                     protect = $false }
   @{ src = "engine/README.zh.md";                  dest = "engine\README.zh.md";                  protect = $false }
   @{ src = "engine/ENGINE_DOCTOR.md";              dest = "engine\ENGINE_DOCTOR.md";              protect = $false }
+  @{ src = "engine/prompts/init.md";               dest = "engine\prompts\init.md";               protect = $true }
   @{ src = "engine/scripts/engine-doctor.sh";      dest = "engine\scripts\engine-doctor.sh";      protect = $true }
   @{ src = "engine/scripts/engine-doctor.ps1";     dest = "engine\scripts\engine-doctor.ps1";     protect = $true }
   @{ src = "engine/scripts/engine-hook-session-start.sh";   dest = "engine\scripts\engine-hook-session-start.sh";   protect = $true }
@@ -145,7 +146,7 @@ Write-Host ""
 Write-Host "Engine System installer" -ForegroundColor Cyan
 Write-Host "-------------------------------------"
 
-New-Item -ItemType Directory -Force -Path ".claude\commands", "engine", "engine\scripts", "engine\scripts\githooks", "engine\bin", "engine\migrations", "engine\.cache" | Out-Null
+New-Item -ItemType Directory -Force -Path ".claude\commands", "engine", "engine\scripts", "engine\scripts\githooks", "engine\bin", "engine\migrations", "engine\prompts", "engine\.cache" | Out-Null
 
 $installed = 0; $skipped = 0
 

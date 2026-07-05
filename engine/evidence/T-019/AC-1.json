@@ -1,0 +1,1 @@
+{"ac":"AC-1","verify":"test -f engine/prompts/init.md && git diff --no-index --quiet engine/prompts/init.md plugin/engine/prompts/init.md","status":"pass","exit":0,"fingerprint":"sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855","timestamp":"2026-07-05T06:28:00Z"}

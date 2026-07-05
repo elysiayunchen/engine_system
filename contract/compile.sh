@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
 # Engine System — 契约编译器(v6 S3 + S3-b + review fix + D-015)
 #
-# 产出 4 个 dist:
+# 产出 5 个 dist:
 #   1. ENGINE_FILE_SYSTEM_v5.md(横幅 + 拼接 4 模块)— web-prompt 全量
 #   2. runtime-law.md(L0 宪法,从 L0-runtime-law.md)— ≤40 行常驻法
 #   3. rules.json(机读规则表聚合索引)— Doctor/hooks 源文件聚合
 #   4. plugin/.claude/commands/engine-init.md(CLI 前言 + 同一契约模块)
 #      — 消灭 init.md 双份实现(设计 §5.5 / D-015)
+#   5. engine/prompts/init.md(agent 中立前言 + 同一契约模块,镜像到 plugin/)
+#      — 任何 agent 的项目内取用点(D-018a)
 #
 # 幂等:compile(src) == dist。
 # 用法:bash contract/compile.sh
@@ -18,6 +20,7 @@ DIST="$ROOT/ENGINE_FILE_SYSTEM_v5.md"
 LAW_DIST="$ROOT/runtime-law.md"
 RULES_DIST="$ROOT/rules.json"
 INIT_DIST="$ROOT/plugin/.claude/commands/engine-init.md"
+PROMPTS_DIST="$ROOT/engine/prompts/init.md"
 
 if [ ! -d "$SRC_DIR" ]; then
   echo "compile: 源目录不存在: $SRC_DIR" >&2
@@ -78,9 +81,28 @@ if [ -f "$PREAMBLE" ] && [ -d "$(dirname "$INIT_DIST")" ]; then
   mv "$tmp" "$INIT_DIST"
 fi
 
-echo "compile: 4 dist files (web-prompt $(wc -l < "$DIST") lines, runtime-law, rules.json, engine-init)"
+# 5. engine/prompts/init.md(agent 中立 dist:中立前言 + 同一契约模块,D-018a)
+PROMPTS_BANNER='<!-- engine/prompts/init.md: compiled from contract/src/ (agent-preamble.md + [0-9]*.md) by engine compile. Do not edit dist directly; edit src and recompile. -->'
+AGENT_PREAMBLE="$SRC_DIR/agent-preamble.md"
+if [ -f "$AGENT_PREAMBLE" ]; then
+  mkdir -p "$(dirname "$PROMPTS_DIST")"
+  tmp="$(mktemp)"
+  {
+    printf '%s\n' "$PROMPTS_BANNER"
+    cat "$AGENT_PREAMBLE"
+    for m in "$SRC_DIR"/[0-9]*.md; do
+      [ -f "$m" ] || continue
+      cat "$m"
+    done
+  } > "$tmp"
+  mv "$tmp" "$PROMPTS_DIST"
+  mkdir -p "$ROOT/plugin/engine/prompts"
+  cp "$PROMPTS_DIST" "$ROOT/plugin/engine/prompts/init.md"
+fi
 
-# 5. plugin/engine/scripts/ 镜像同步(engine/scripts/ 是唯一真相源)
+echo "compile: 5 dist files (web-prompt $(wc -l < "$DIST") lines, runtime-law, rules.json, engine-init, prompts/init)"
+
+# 6. plugin/engine/scripts/ 镜像同步(engine/scripts/ 是唯一真相源)
 # 改脚本只改 engine/scripts/;compile.sh 自动同步到 plugin/。
 # check.sh 漂移检查兜底:若有人绕过 compile 直改 plugin/engine/scripts/ 会报警。
 SYNC_LIST="
@@ -114,3 +136,14 @@ for f in $SYNC_LIST; do
   fi
 done
 echo "compile: plugin/engine/scripts/ synced ($sync_count files from engine/scripts/)"
+
+# 7. plugin/bin/ 镜像同步(engine/bin/ 是唯一真相源,D-018e)
+bin_count=0
+for f in engine engine.ps1 engine.cmd; do
+  if [ -f "$ROOT/engine/bin/$f" ]; then
+    mkdir -p "$ROOT/plugin/bin"
+    cp "$ROOT/engine/bin/$f" "$ROOT/plugin/bin/$f"
+    bin_count=$((bin_count + 1))
+  fi
+done
+echo "compile: plugin/bin/ synced ($bin_count files from engine/bin/)"

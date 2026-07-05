@@ -7,8 +7,8 @@
 | 维度 | 状态 |
 |------|------|
 | 构建 | ✅ 正常（纯 markdown + shell 脚本，无构建步骤） |
-| 上次完成 | **T-018 done**: 离线安装包(release.yml 产出 offline tarball + install.sh --local PATH + install.ps1 -Local → 本地 tarball/目录安装,不联网 + runtime-law.md 本地拷贝 + checksum skip)。`engine verify T-018` 6/6 全绿。**Phase 0 管道加固 3/3 全部完成**。 |
-| 进行中 | ① Phase 1(通用化核心) 待启动; ② Q2 试点库待拍板 |
+| 上次完成 | **D-018 设计 + T-019 done**: Phase 1 核心设计(D-018 proposed,五项子决策+任务拆分,修正 D-017a「薄壳」口径)+ T-019 实施:init prompt 中立分发(compile 第 5 dist → engine/prompts/init.md 正本 + plugin 镜像 + manifest/install 分发)+ `engine init` 子命令(指引 + --print,bash/ps1 孪生,零写入)+ plugin/bin 纳入 compile 同步。`engine verify T-019` 9/9 全绿。 |
+| 进行中 | ① Phase 1 剩余:T-020(agent 检测器)/ T-021(安装骨架),均 paused; ② D-018 待架构师批准(proposed); ③ Q2 试点库待拍板 |
 | 阻塞 | 无 |
 
 ## 当前假设 / 决策（本轮拍板）
@@ -20,6 +20,7 @@
 - **Web 初始机 = 单一稳定入口**：根目录只保留 `ENGINE_FILE_SYSTEM_v5.md`；历史版本进入 `archive/engine-file-system/`，不要作为活跃入口；每次改 plugin 初始化规则时必须同步更新该稳定 prompt。
 - **架构师审核层 = change capsule + Project Self-View**：无基础用户不审 raw diff；由 `engine/changes/CHANGE-*.md` 和 `/engine-status` 把目标、影响、风险、验证、回滚、责任边界翻译成人话。
 - **旧项目升级 = 可执行契约迁移层**：`engine update` 只负责工具分发；`/engine-sync` 必须运行 `engine-migrate-contract.{sh,ps1}`，把当前规则作为托管区块写入 `AGENTS.md`、`engine/SYSTEM.md`、`engine/ENGINE_DOCTOR.md`，保留项目专属记忆在区块外。以后新增机制应追加到 migrator，而不是只改提示词。
+- **Phase 1 口径 = D-017 原文四子项**：prompt 抽离 / CLI 扩展 / 快速安装 / agent 检测；实施设计见 D-018——「薄壳引用」修正为「编译同源 + 全量 dist」(编译已消除分叉,薄壳只剩间接层风险),proposed 待架构师批准。
 
 ## 待验证
 

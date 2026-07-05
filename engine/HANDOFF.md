@@ -4,14 +4,15 @@
 
 ## 立即恢复点
 
-下一步：Phase 0 管道加固 3/3 完成(T-016 Release 自动化 + T-017 版本锁定+完整性 + T-018 离线包)。继续 Phase 1(通用化核心)。Q2 试点库待拍板。
+下一步：Phase 1 进行中——T-019 done(prompt 中立分发 + engine init + bin 同步),T-020(agent 检测器)与 T-021(安装骨架)排队(paused)。D-018(Phase 1 实施设计)status: proposed 等架构师拍板;Q2 试点库待拍板。
 
-> Phase 0 已全部完成。下一步进入 Phase 1：通用化核心（核心引擎文件去 Claude-Code 专属依赖、多 agent 适配层）。
+> Phase 1 = 通用化核心(prompt 抽离 / CLI 扩展 / 快速安装 / agent 检测——D-017 原文口径;实施细化与「薄壳」口径修正见 D-018)。
 
 ## 会话历史（最新在上）
 
 | 日期 | 完成了什么 | 下一步 | 改动文件 |
 |------|-----------|--------|---------|
+| 2026-07-05 | **D-018 设计 + T-019 done**: Phase 1 核心设计决策(D-018 proposed: prompt 中立分发/engine init/agent 检测器/安装骨架/bin 同步,修正 D-017a「薄壳」口径)+ T-019 实施(compile 第 5 dist → engine/prompts/init.md 正本 + plugin 镜像 + `engine init` 子命令 bash/ps1 孪生(指引+--print) + bin 纳入 compile 同步 + manifest/install 三件套分发)+ engine verify 9/9 全绿 | T-020(agent 检测)→ T-021(骨架)→ 架构师批 D-018 + 拍板 Q2 试点库 | contract/src/agent-preamble.md, contract/compile.{sh,ps1}, engine/bin/*, plugin/bin/*, engine/prompts/init.md, plugin/engine/prompts/init.md, plugin/manifest.json, install.sh, install.ps1, engine/decisions/D-018.md, engine/tasks/T-019/020/021.md, engine/evidence/T-019/*, engine/changes/CHANGE-2026-07-05-05.md, engine/CONTEXT.md, engine/HANDOFF.md, engine/ENGINE_MAP.md |
 | 2026-07-05 | **T-018 done**: 离线安装包(release.yml offline tarball + install.sh --local + install.ps1 -Local → 本地安装不联网 + runtime-law.md 本地拷贝 + checksum skip) + engine verify 6/6 全绿。**Phase 0 管道加固 3/3 完成** | Phase 1(通用化核心) → Q2 试点 | .github/workflows/release.yml, install.sh, install.ps1, engine/tasks/T-018.md, engine/evidence/T-018/*, engine/changes/CHANGE-2026-07-05-04.md, engine/CONTEXT.md, engine/HANDOFF.md |
 | 2026-07-05 | **T-017 done**: 版本锁定安装(--version/-Version) + release-first download + SHA256 校验(manifest sha256 字段 + verify_checksums) + engine verify 7/7 全绿 | T-018(离线包) → Phase 1 | install.sh, install.ps1, plugin/manifest.json, engine/tasks/T-017.md, engine/evidence/T-017/*, engine/changes/CHANGE-2026-07-05-03.md, engine/CONTEXT.md, engine/HANDOFF.md |
 | 2026-07-05 | **T-016 done**: GitHub Release 自动化 workflow(release.yml, tag push v* → capsules → notes → tarball+zip → sha256 → gh release create) + release.sh 提示更新 + engine verify 5/5 全绿 | T-017(版本锁定+完整性校验) → T-018(离线包) → Phase 1 | .github/workflows/release.yml, scripts/release.sh, engine/tasks/T-016.md, engine/evidence/T-016/*, engine/changes/CHANGE-2026-07-05-02.md, engine/CONTEXT.md, engine/HANDOFF.md |

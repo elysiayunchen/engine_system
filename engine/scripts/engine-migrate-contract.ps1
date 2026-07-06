@@ -100,7 +100,7 @@ function Ensure-Structure {
   }
   $rules = Join-Path $EngineDir "decisions\rules.json"
   if (-not (Test-Path $rules)) {
-    Set-Content -Path $rules -Value '{"rules":[],"protected_paths":[]}' -Encoding UTF8
+    Set-Content -Path $rules -Value '{"rules":[],"protected_paths":["runtime-law.md"]}' -Encoding UTF8
     Write-Host "created $(Get-Relative $rules)"
     $changed = $true
   }

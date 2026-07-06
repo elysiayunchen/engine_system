@@ -99,7 +99,7 @@ FED
   # Decision rules baseline (empty; populated as decisions are made).
   # protected_paths must exist even when empty - it is the key the pre-commit gate reads.
   if [ ! -f "$ENGINE_DIR/decisions/rules.json" ]; then
-    printf '%s\n' '{"rules":[],"protected_paths":[]}' > "$ENGINE_DIR/decisions/rules.json"
+    printf '%s\n' '{"rules":[],"protected_paths":["runtime-law.md"]}' > "$ENGINE_DIR/decisions/rules.json"
     echo "created $(relpath "$ENGINE_DIR/decisions/rules.json")"
     changed=1
   fi

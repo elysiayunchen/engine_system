@@ -1,4 +1,4 @@
-# Engine System installer for Windows
+﻿# Engine System installer for Windows
 # Usage:
 #   Invoke-WebRequest https://raw.githubusercontent.com/elysiayunchen/engine_system/main/install.ps1 -OutFile install.ps1
 #   powershell -NoProfile -File .\install.ps1 [-Update] [-Version TAG]
@@ -155,6 +155,9 @@ $FILES = @(
   @{ src = "engine/scripts/engine-check-update.ps1"; dest = "engine\scripts\engine-check-update.ps1"; protect = $true }
   @{ src = "migrations/v6.0.sh";                    dest = "engine\migrations\v6.0.sh";                    protect = $true }
   @{ src = "migrations/v6.0.ps1";                   dest = "engine\migrations\v6.0.ps1";                   protect = $true }
+  @{ src = "engine/skeleton/ENGINE_MAP.md";         dest = "engine\ENGINE_MAP.md";         protect = $false }
+  @{ src = "engine/skeleton/CONTEXT.md";            dest = "engine\CONTEXT.md";            protect = $false }
+  @{ src = "engine/skeleton/HANDOFF.md";            dest = "engine\HANDOFF.md";            protect = $false }
   @{ src = ".claude/settings.json";                dest = ".claude\settings.json";                protect = $false }
 )
 

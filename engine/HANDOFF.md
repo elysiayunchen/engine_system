@@ -1,6 +1,6 @@
 # HANDOFF — 会话交接
 
-> Engine System (engine_system) · Last updated: 2026-07-05
+> Engine System (engine_system) · Last updated: 2026-07-06
 
 ## 立即恢复点
 
@@ -12,6 +12,7 @@
 
 | 日期 | 完成了什么 | 下一步 | 改动文件 |
 |------|-----------|--------|---------|
+| 2026-07-06 | **Windows CLI 修复**: install.sh 新增 engine.cmd/engine.ps1 到 PATH,修复 Windows 终端 `engine` 命令打开文本编辑器问题。远端 6 个未推送提交已 push。 | Phase 1 剩余:T-020/T-021 | install.sh |
 | 2026-07-05 | **D-018 设计 + T-019 done**: Phase 1 核心设计决策(D-018 proposed: prompt 中立分发/engine init/agent 检测器/安装骨架/bin 同步,修正 D-017a「薄壳」口径)+ T-019 实施(compile 第 5 dist → engine/prompts/init.md 正本 + plugin 镜像 + `engine init` 子命令 bash/ps1 孪生(指引+--print) + bin 纳入 compile 同步 + manifest/install 三件套分发)+ engine verify 9/9 全绿 | T-020(agent 检测)→ T-021(骨架)→ 架构师批 D-018 + 拍板 Q2 试点库 | contract/src/agent-preamble.md, contract/compile.{sh,ps1}, engine/bin/*, plugin/bin/*, engine/prompts/init.md, plugin/engine/prompts/init.md, plugin/manifest.json, install.sh, install.ps1, engine/decisions/D-018.md, engine/tasks/T-019/020/021.md, engine/evidence/T-019/*, engine/changes/CHANGE-2026-07-05-05.md, engine/CONTEXT.md, engine/HANDOFF.md, engine/ENGINE_MAP.md |
 | 2026-07-05 | **T-018 done**: 离线安装包(release.yml offline tarball + install.sh --local + install.ps1 -Local → 本地安装不联网 + runtime-law.md 本地拷贝 + checksum skip) + engine verify 6/6 全绿。**Phase 0 管道加固 3/3 完成** | Phase 1(通用化核心) → Q2 试点 | .github/workflows/release.yml, install.sh, install.ps1, engine/tasks/T-018.md, engine/evidence/T-018/*, engine/changes/CHANGE-2026-07-05-04.md, engine/CONTEXT.md, engine/HANDOFF.md |
 | 2026-07-05 | **T-017 done**: 版本锁定安装(--version/-Version) + release-first download + SHA256 校验(manifest sha256 字段 + verify_checksums) + engine verify 7/7 全绿 | T-018(离线包) → Phase 1 | install.sh, install.ps1, plugin/manifest.json, engine/tasks/T-017.md, engine/evidence/T-017/*, engine/changes/CHANGE-2026-07-05-03.md, engine/CONTEXT.md, engine/HANDOFF.md |

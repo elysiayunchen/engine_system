@@ -266,14 +266,24 @@ for entry in "${FILES[@]}"; do
   ((install_count += 1))
 done
 
+# Install CLI shims to user PATH. On Windows, bash/ps1/cmd all get copied so
+# the command works from Git Bash, PowerShell, and CMD alike.
 cli_src="engine/bin/engine"
 cli_dest="${HOME:-}/.local/bin/engine"
 if [[ -n "${HOME:-}" && -f "$cli_src" ]]; then
   mkdir -p "$(dirname "$cli_dest")"
   cp "$cli_src" "$cli_dest"
   chmod +x "$cli_dest" 2>/dev/null || true
-  echo -e "  ${GREEN}✓${RESET} $cli_dest (CLI: engine update)"
+  echo -e "  ${GREEN}✓${RESET} $cli_dest (CLI: engine)"
   ((install_count += 1))
+  # Windows companions: .cmd (dispatcher) + .ps1 (powershell script)
+  for ext in cmd ps1; do
+    if [[ -f "${cli_src}.${ext}" ]]; then
+      cp "${cli_src}.${ext}" "${cli_dest}.${ext}"
+      echo -e "  ${GREEN}✓${RESET} ${cli_dest}.${ext}"
+      ((install_count += 1))
+    fi
+  done
   case ":$PATH:" in
     *":$(dirname "$cli_dest"):"*) ;;
     *) echo -e "  ${YELLOW}note${RESET} add $(dirname "$cli_dest") to PATH to run: engine update" ;;

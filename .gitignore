@@ -1,2 +1,5 @@
 # Engine System generated cache (doctor pending notes, self-view snapshots) — regenerable, never authority
 engine/.cache/
+
+# subagent-driven-development scratch (task briefs, reports, review packages)
+.superpowers/

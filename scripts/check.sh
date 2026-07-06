@@ -58,6 +58,13 @@ else
   fail "contract compile"
 fi
 
+step "Dist drift (runtime-law/rules.json/prompts idempotent + mirror + tamper)"
+if bash tests/dist-drift/run-dist-drift-tests.sh; then
+  pass "dist drift fixtures"
+else
+  fail "dist drift"
+fi
+
 step "Behavior verify (AC verify commands)"
 if bash tests/behavior-verify/run-verify-tests.sh; then
   pass "behavior verify fixtures"
@@ -126,25 +133,6 @@ do
     fail "archived prompt missing: $archived_prompt"
   fi
 done
-
-step "Plugin scripts drift (engine/scripts/ is single source)"
-drift_files="engine-check-update.ps1 engine-check-update.sh engine-doctor.ps1 engine-doctor.sh engine-hook-session-end.ps1 engine-hook-session-end.sh engine-hook-session-start.ps1 engine-hook-session-start.sh engine-hook-stop.ps1 engine-hook-stop.sh engine-hook.cmd engine-migrate-contract.ps1 engine-migrate-contract.sh engine-sync-agent-anchors.ps1 engine-sync-agent-anchors.sh engine-verify.ps1 engine-verify.sh githooks/pre-commit"
-drift_count=0
-for f in $drift_files; do
-  src="$ROOT/engine/scripts/$f"
-  dst="$ROOT/plugin/engine/scripts/$f"
-  if [[ -f "$src" && -f "$dst" ]]; then
-    if ! cmp -s "$src" "$dst"; then
-      printf '  drift: %s\n' "$f" >&2
-      drift_count=$((drift_count + 1))
-    fi
-  fi
-done
-if [[ "$drift_count" -gt 0 ]]; then
-  fail "plugin/engine/scripts/ drifted ($drift_count files) — edit engine/scripts/ then run: bash contract/compile.sh"
-else
-  pass "plugin/engine/scripts/ matches engine/scripts/"
-fi
 
 step "Manifest coverage (plugin/ vs manifest.json)"
 manifest="$ROOT/plugin/manifest.json"

@@ -1,4 +1,10 @@
-# Engine System - Contract compiler (v6 S3 + S3-b + review fix + D-015)
+﻿# Engine System - Contract compiler (v6 S3 + S3-b + review fix + D-015)
+#
+# NOTE: this file is saved with a UTF-8 BOM (unlike other *.ps1 in this repo).
+# It embeds a Chinese string literal (rules.json _comment, matched to compile.sh
+# for sh/ps1 byte parity). Windows PowerShell 5.1 (powershell.exe) decodes
+# BOM-less .ps1 source using the system codepage, which mangles non-ASCII
+# literals; the BOM forces correct UTF-8 decoding. Do not strip it.
 #
 # Produces 5 dist files:
 #   1. ENGINE_FILE_SYSTEM_v5.md (banner + 4 modules concatenated) - web-prompt
@@ -17,11 +23,16 @@ $ErrorActionPreference = "Stop"
 
 $Root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $SrcDir = Join-Path $Root "contract\src"
-$Dist = Join-Path $Root "ENGINE_FILE_SYSTEM_v5.md"
-$LawDist = Join-Path $Root "runtime-law.md"
-$RulesDist = Join-Path $Root "rules.json"
-$InitDist = Join-Path $Root "plugin\.claude\commands\engine-init.md"
-$PromptsDist = Join-Path $Root "engine\prompts\init.md"
+# ENGINE_COMPILE_OUT: dist output root (defaults to repo root). All write paths hang off
+# this; read paths (contract/src, engine/scripts, engine/bin) always resolve under $Root
+# so test sandboxes can recompute into isolation and compare against the real dist
+# (tests/dist-drift).
+$OutRoot = if ($env:ENGINE_COMPILE_OUT) { $env:ENGINE_COMPILE_OUT } else { $Root }
+$Dist = Join-Path $OutRoot "ENGINE_FILE_SYSTEM_v5.md"
+$LawDist = Join-Path $OutRoot "runtime-law.md"
+$RulesDist = Join-Path $OutRoot "rules.json"
+$InitDist = Join-Path $OutRoot "plugin\.claude\commands\engine-init.md"
+$PromptsDist = Join-Path $OutRoot "engine\prompts\init.md"
 
 if (-not (Test-Path $SrcDir)) {
   Write-Error "compile: source dir not found: $SrcDir"
@@ -56,7 +67,7 @@ if (Test-Path $budget) {
 }
 $rulesJson = @"
 {
-  "_comment": "machine-readable rule table (compiled). Doctor/hooks read source files directly; this is an aggregate index.",
+  "_comment": "机读规则表(编译产出)。Doctor/hooks 直接读源文件;本文件是聚合索引。",
   "sources": {
     "budget": "contract/budget.json",
     "protected_paths": "engine/decisions/rules.json",
@@ -66,13 +77,15 @@ $rulesJson = @"
   "max_rules": $maxRules,
   "debt_baseline": $debt
 }
-"@
+"@ + "`n"
 [System.IO.File]::WriteAllText($RulesDist, $rulesJson, $utf8NoBom)
 
 # 4. engine-init.md (CLI command dist: preamble + same contract modules, D-015)
 $InitBanner = '<!-- plugin/.claude/commands/engine-init.md: compiled from contract/src/ (cli-preamble.md + [0-9]*.md) by engine compile. Do not edit dist directly; edit src and recompile. -->'
 $preamble = Join-Path $SrcDir "cli-preamble.md"
-if ((Test-Path $preamble) -and (Test-Path (Split-Path -Parent $InitDist))) {
+if (Test-Path $preamble) {
+  $initDir = Split-Path -Parent $InitDist
+  if (-not (Test-Path $initDir)) { New-Item -ItemType Directory -Path $initDir -Force | Out-Null }
   $initCompiled = $InitBanner + "`n"
   $initCompiled += Get-Content -Raw -Path $preamble -Encoding UTF8
   foreach ($m in $modules) {
@@ -93,7 +106,7 @@ if (Test-Path $agentPreamble) {
     $promptsCompiled += Get-Content -Raw -Path $m.FullName -Encoding UTF8
   }
   [System.IO.File]::WriteAllText($PromptsDist, $promptsCompiled, $utf8NoBom)
-  $pluginPrompts = Join-Path $Root "plugin\engine\prompts"
+  $pluginPrompts = Join-Path $OutRoot "plugin\engine\prompts"
   if (-not (Test-Path $pluginPrompts)) { New-Item -ItemType Directory -Path $pluginPrompts -Force | Out-Null }
   Copy-Item -Path $PromptsDist -Destination (Join-Path $pluginPrompts "init.md") -Force
 }
@@ -127,7 +140,7 @@ $syncList = @(
 $syncCount = 0
 foreach ($f in $syncList) {
   $srcFile = Join-Path $Root "engine\scripts\$f"
-  $dstFile = Join-Path $Root "plugin\engine\scripts\$f"
+  $dstFile = Join-Path $OutRoot "plugin\engine\scripts\$f"
   if (Test-Path $srcFile) {
     $dstDir = Split-Path -Parent $dstFile
     if (-not (Test-Path $dstDir)) { New-Item -ItemType Directory -Path $dstDir -Force | Out-Null }
@@ -142,7 +155,7 @@ $binCount = 0
 foreach ($f in @("engine", "engine.ps1", "engine.cmd")) {
   $srcBin = Join-Path $Root "engine\bin\$f"
   if (Test-Path $srcBin) {
-    $dstBinDir = Join-Path $Root "plugin\bin"
+    $dstBinDir = Join-Path $OutRoot "plugin\bin"
     if (-not (Test-Path $dstBinDir)) { New-Item -ItemType Directory -Path $dstBinDir -Force | Out-Null }
     Copy-Item -Path $srcBin -Destination (Join-Path $dstBinDir $f) -Force
     $binCount++

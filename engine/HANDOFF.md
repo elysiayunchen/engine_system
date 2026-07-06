@@ -4,7 +4,7 @@
 
 ## 立即恢复点
 
-下一步：**T-022(P0 防护卡)进行中**——Task 1(dist 漂移全覆盖)与 Task 2(protected_paths 补齐 contract/src + runtime-law + migrator 基线)完成,下一步 Task 3(manifest sha256 去空转)。其后:Task 4(engine-verify 孪生修复)→engine verify T-022 + 回写 + capsule。D-018 待批、T-020/T-021(paused)、Q2 试点库待拍板、D-019 P1(技能+路由)。
+下一步：**T-022(P0 防护卡)进行中**——Task 1(dist 漂移全覆盖)与 Task 2(protected_paths 补齐 contract/src + runtime-law + migrator 基线)完成,Task 3(manifest sha256 去空转)完成,下一步 Task 4(engine-verify 孪生修复)。其后:engine verify T-022 + 回写 + capsule。D-018 待批、T-020/T-021(paused)、Q2 试点库待拍板、D-019 P1(技能+路由)。
 
 > Phase 1 = 通用化核心(prompt 抽离 / CLI 扩展 / 快速安装 / agent 检测——D-017 原文口径;实施细化与「薄壳」口径修正见 D-018)。
 

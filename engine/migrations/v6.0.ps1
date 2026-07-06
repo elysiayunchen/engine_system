@@ -15,8 +15,6 @@
 # Path note: this script may live under plugin/migrations/ (dev tree) or
 # engine/migrations/ (installed project). It probes candidate locations.
 
-$ErrorActionPreference = "Stop"
-
 param(
   [string]$Root = $(if ($env:CLAUDE_PROJECT_DIR) { $env:CLAUDE_PROJECT_DIR } else { (Get-Location).Path })
 )

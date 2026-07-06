@@ -162,3 +162,26 @@ foreach ($f in @("engine", "engine.ps1", "engine.cmd")) {
   }
 }
 Write-Output "compile: plugin\bin\ synced ($binCount files from engine\bin\)"
+
+# 8. manifest sha256 backfill (compute hash of plugin\<src> bytes, keep single-line format)
+$manifest = Join-Path $OutRoot "plugin\manifest.json"
+if (Test-Path $manifest) {
+  $content = Get-Content -Raw -Path $manifest -Encoding UTF8
+  # Remove existing sha256 fields
+  $content = $content -replace ', "sha256": "[^"]*"', ''
+  # Compute and insert hash for each src
+  $srcMatches = [regex]::Matches($content, '"src"\s*:\s*"([^"]*)"')
+  foreach ($m in $srcMatches) {
+    $src = $m.Groups[1].Value
+    $srcFile = Join-Path $OutRoot "plugin\$src"
+    if (Test-Path $srcFile) {
+      $hash = (Get-FileHash $srcFile -Algorithm SHA256).Hash.ToLower()
+      $pattern = '"src": "' + [regex]::Escape($src) + '"'
+      $replacement = '"src": "' + $src + '", "sha256": "' + $hash + '"'
+      $content = $content -replace $pattern, $replacement
+    }
+  }
+  [System.IO.File]::WriteAllText($manifest, $content, $utf8NoBom)
+  $shaCount = ([regex]::Matches($content, '"sha256"')).Count
+  Write-Output "compile: manifest sha256 backfilled ($shaCount entries)"
+}

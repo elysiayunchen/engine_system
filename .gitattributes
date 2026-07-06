@@ -17,3 +17,17 @@ rules.json text eol=lf
 contract/src/*.md text eol=lf
 # D-015: engine-init.md 纳入编译产物,同样钉 lf
 plugin/.claude/commands/engine-init.md text eol=lf
+
+# Task 3: 钉齐 manifest 覆盖的剩余文件,消除 autocrlf 漂移
+plugin/.claude/commands/*.md text eol=lf
+plugin/CLAUDE.md text eol=lf
+plugin/AGENTS.md text eol=lf
+plugin/engine/*.md text eol=lf
+plugin/engine/prompts/*.md text eol=lf
+plugin/bin/engine.ps1 text eol=lf
+plugin/VERSION text eol=lf
+plugin/migrations/*.ps1 text eol=lf
+plugin/migrations/*.sh text eol=lf
+plugin/.claude/settings.json text eol=lf
+engine/*.md text eol=lf
+engine/prompts/*.md text eol=lf

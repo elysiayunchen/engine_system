@@ -14,6 +14,7 @@ PLUGIN_DIR="plugin"
 UPDATE_MODE=false
 VERSION_TAG=""
 LOCAL_PATH=""
+LOCAL_DIR=""
 
 # Parse flags
 while [[ $# -gt 0 ]]; do
@@ -58,6 +59,7 @@ done
 # Colors
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
+RED='\033[0;31m'
 CYAN='\033[0;36m'
 RESET='\033[0m'
 
@@ -104,24 +106,32 @@ download_versioned() {
   fi
 }
 
-# Verify SHA256 checksums against manifest (best-effort, fail-open)
+# Verify SHA256 checksums against manifest (hard-fail on mismatch)
 verify_checksums() {
   local manifest_file="$1"
   local verify_count=0
   local fail_count=0
+  local failed_files=""
+  local skipped_count=0
 
   [[ -f "$manifest_file" ]] || return 0
 
-  # Extract src:sha256 pairs where sha256 is non-empty
-  grep -oE '"src"\s*:\s*"[^"]*"' "$manifest_file" | while IFS= read -r line; do
-    local src
-    src="$(echo "$line" | sed 's/.*"src"\s*:\s*"\([^"]*\)".*/\1/')"
+  # Read src list with process substitution to avoid subshell scope loss
+  local srcs=()
+  while IFS= read -r line; do
+    srcs+=("$(echo "$line" | sed 's/.*"src"\s*:\s*"\([^"]*\)".*/\1/')")
+  done < <(grep -oE '"src"\s*:\s*"[^"]*"' "$manifest_file")
+
+  for src in "${srcs[@]}"; do
     [[ -z "$src" ]] && continue
 
-    # Look for sha256 in the same JSON object (simplified: find next sha256 line)
     local sha256
-    sha256="$(grep -A3 "\"$src\"" "$manifest_file" | grep -oE '"sha256"\s*:\s*"[^"]*"' | head -1 | sed 's/.*"sha256"\s*:\s*"\([^"]*\)".*/\1/')"
-    [[ -z "$sha256" || "$sha256" == "placeholder" ]] && continue
+    sha256="$(grep "\"$src\"" "$manifest_file" | grep -oE '"sha256"\s*:\s*"[^"]*"' | head -1 | sed 's/.*"sha256"\s*:\s*"\([^"]*\)".*/\1/')"
+    if [[ -z "$sha256" || "$sha256" == "placeholder" ]]; then
+      skipped_count=$((skipped_count + 1))
+      echo -e "  ${YELLOW}NOTE${RESET} checksum skipped: $src (no sha256)"
+      continue
+    fi
 
     # Map src to dest (same mapping as FILES array)
     local dest_file
@@ -132,9 +142,12 @@ verify_checksums() {
       *)        dest_file="$src" ;;
     esac
 
+    # .claude/settings.json is generated/modified by the installer post-download;
+    # its on-disk bytes will not match the manifest hash.
+    [[ "$dest_file" == ".claude/settings.json" ]] && continue
+
     [[ -f "$dest_file" ]] || continue
 
-    # Compute actual hash
     local actual=""
     if command -v sha256sum &>/dev/null; then
       actual="$(sha256sum "$dest_file" | cut -d' ' -f1)"
@@ -145,13 +158,15 @@ verify_checksums() {
 
     verify_count=$((verify_count + 1))
     if [[ "$actual" != "$sha256" ]]; then
-      echo -e "  ${YELLOW}WARN${RESET} checksum mismatch: $dest_file (expected ${sha256:0:8}... got ${actual:0:8}...)"
+      echo -e "  ${RED}FAIL${RESET} checksum mismatch: $dest_file (expected ${sha256:0:8}... got ${actual:0:8}...)"
       fail_count=$((fail_count + 1))
+      failed_files="$failed_files $dest_file"
     fi
   done
 
   if [[ "$fail_count" -gt 0 ]]; then
-    echo -e "  ${YELLOW}WARN${RESET} $fail_count file(s) failed checksum verification"
+    echo -e "  ${RED}FAIL${RESET} $fail_count file(s) failed checksum verification:$failed_files"
+    return 1
   elif [[ "$verify_count" -gt 0 ]]; then
     echo -e "  ${GREEN}✓${RESET} $verify_count file(s) verified (SHA256)"
   else
@@ -345,11 +360,14 @@ else
 fi
 echo -e "  ${GREEN}✓${RESET} runtime-law.md (L0 constitution)"
 
-# Verify SHA256 checksums (best-effort, only when --version is specified, skip for --local)
+# Verify SHA256 checksums (hard-fail on mismatch; only when --version is specified, skip for --local)
 if [[ -n "$VERSION_TAG" ]] && [[ -z "$LOCAL_DIR" ]]; then
   download "https://raw.githubusercontent.com/${REPO}/v${VERSION_TAG}/${PLUGIN_DIR}/manifest.json" ".manifest-check.json" 2>/dev/null || true
   if [[ -f ".manifest-check.json" ]]; then
-    verify_checksums ".manifest-check.json"
+    if ! verify_checksums ".manifest-check.json"; then
+      rm -f ".manifest-check.json"
+      exit 1
+    fi
     rm -f ".manifest-check.json"
   fi
 fi

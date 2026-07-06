@@ -159,3 +159,19 @@ for f in engine engine.ps1 engine.cmd; do
   fi
 done
 echo "compile: plugin/bin/ synced ($bin_count files from engine/bin/)"
+
+# 8. manifest sha256 回填(对 plugin/<src> 工作区字节算哈希,保持单行格式)
+MANIFEST="$OUT_ROOT/plugin/manifest.json"
+if [[ -f "$MANIFEST" ]]; then
+  # 先清占位/旧值
+  sed -i 's/, "sha256": "[^"]*"//g' "$MANIFEST"
+  while IFS= read -r src; do
+    src_file="$OUT_ROOT/plugin/$src"
+    if [[ -f "$src_file" ]]; then
+      hash=$(sha256sum "$src_file" | cut -d' ' -f1)
+      sed -i "s|\"src\": \"$src\"|\"src\": \"$src\", \"sha256\": \"$hash\"|" "$MANIFEST"
+    fi
+  done < <(grep -oE '"src"[[:space:]]*:[[:space:]]*"[^"]*"' "$MANIFEST" | sed 's/.*"src"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
+  sha_count=$(grep -c '"sha256"' "$MANIFEST" || true)
+  echo "compile: manifest sha256 backfilled ($sha_count entries)"
+fi

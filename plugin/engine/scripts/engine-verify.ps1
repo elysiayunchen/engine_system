@@ -7,22 +7,23 @@
 # Safety: verify commands are declared in the task card; approving the card
 # approves verify. User-run, not hook-automated.
 
-$ErrorActionPreference = "Stop"
-
 param([Parameter(Mandatory=$false)][string]$Task)
+
+$ErrorActionPreference = "Stop"
+trap { [Console]::Error.WriteLine("[engine-verify] error: $_"); exit 1 }
 
 $Root = $env:CLAUDE_PROJECT_DIR
 if (-not $Root) { $Root = $PWD.Path }
 $EngineDir = Join-Path $Root "engine"
 
 if (-not $Task) {
-  Write-Error "Usage: engine verify T-NNN"
+  [Console]::Error.WriteLine("Usage: engine verify T-NNN")
   exit 2
 }
 
 $taskFile = Join-Path $EngineDir ("tasks\" + $Task + ".md")
 if (-not (Test-Path $taskFile)) {
-  Write-Error "Error: task card not found: $taskFile"
+  [Console]::Error.WriteLine("Error: task card not found: $taskFile")
   exit 2
 }
 
@@ -32,6 +33,18 @@ New-Item -ItemType Directory -Path $evidenceDir -Force | Out-Null
 $passCount = 0; $failCount = 0; $skipCount = 0
 Write-Output "[Engine System behavior verify] $Task"
 Write-Output ""
+
+# Prefer real Git Bash; exclude WSL stub in System32 which emits garbled output.
+$bashExe = ""
+$gitBash = "C:\Program Files\Git\bin\bash.exe"
+if (Test-Path $gitBash) {
+  $bashExe = $gitBash
+} else {
+  $cmd = Get-Command bash -ErrorAction SilentlyContinue
+  if ($cmd -and $cmd.Source -notlike "*\System32\bash.exe") {
+    $bashExe = $cmd.Source
+  }
+}
 
 foreach ($line in (Get-Content $taskFile -Encoding UTF8)) {
   if ($line -notmatch '^AC:') { continue }
@@ -47,7 +60,12 @@ foreach ($line in (Get-Content $taskFile -Encoding UTF8)) {
   Write-Output "-- $acId --"
   Write-Output "verify: $verifyCmd"
   Push-Location $Root
-  $output = & cmd /c $verifyCmd 2>&1 | Out-String
+  if ($bashExe) {
+    $output = & $bashExe -lc $verifyCmd 2>&1 | Out-String
+  } else {
+    Write-Warning "Git Bash not found; falling back to cmd /c (bash syntax may fail)" 2>&1
+    $output = & cmd /c $verifyCmd 2>&1 | Out-String
+  }
   $rc = $LASTEXITCODE
   Pop-Location
   $bytes = [System.Text.Encoding]::UTF8.GetBytes($output)

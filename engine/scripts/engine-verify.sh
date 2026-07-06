@@ -48,6 +48,7 @@ while IFS= read -r line; do
   echo "── $ac_id ──"
   echo "verify: $verify_cmd"
   tmp_out="$(mktemp)"
+  rc=0
   ( cd "$ROOT" && eval "$verify_cmd" ) >"$tmp_out" 2>&1 || rc=$?
   rc=${rc:-0}
   fp="$(sha256sum "$tmp_out" | cut -d' ' -f1)"

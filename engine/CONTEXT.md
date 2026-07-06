@@ -7,8 +7,8 @@
 | 维度 | 状态 |
 |------|------|
 | 构建 | ✅ 正常（纯 markdown + shell 脚本，无构建步骤） |
-| 上次完成 | **D-019 行为引擎化提案(proposed)**: 方向=引擎从「项目记忆+门禁」升级为「agent 行为引擎」(对标 Superpowers/Agent Teams 类)。五子项:a 防护前置(P0)/ b 行为技能面(编译第 6 组 dist,首批 5 技能)/ c 行为路由表 routing.json / d 任务胶囊 engine capsule / e token 账本+HANDOFF 裁剪。7-05 评估四发现收编进 a/e。 |
-| 进行中 | ① D-019 行为引擎化待批(proposed,批后 P0 防护前置先行); ② D-018 待架构师批准(proposed); ③ Phase 1 剩余:T-020(agent 检测器)/ T-021(安装骨架),均 paused; ④ Q2 试点库待拍板 |
+| 上次完成 | **T-022 P0 防护卡 done + 分发盲区修复**(7 commit,67d08e6..7c5d518):dist 漂移全覆盖 / protected_paths 补齐 / manifest 43 条真哈希硬校验(去空转)/ engine-verify 孪生修三 bug(ps1 从未启动/bash 探测/sh rc)。分发盲区:skeleton 骨架 + install 自动 migrator + 引导 → 用户项目引擎不再不可见。engine verify T-022 6/6 全绿。 |
+| 进行中 | ① D-019 P0 完成,P1(技能+路由)排队; ② D-018 待架构师批准(proposed); ③ T-020(agent 检测器)paused; ④ Q2 试点库待拍板(引擎现已可见可用,试点条件成熟) |
 | 阻塞 | 无 |
 
 ## 当前假设 / 决策（本轮拍板）

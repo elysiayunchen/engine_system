@@ -4,7 +4,7 @@
 
 ## 立即恢复点
 
-下一步：**T-022(P0 防护卡)收尾中**——Task 1-4 全 done(dist 漂移/protected_paths/manifest 去空转/engine-verify 孪生)+ 分发盲区修复 done(skeleton 骨架 + install 自动 migrator + 引导)。manifest 加 skeleton 3 条(43 条目)。check.sh 全绿(PS 5.1 解析修复 + install 内嵌列表同步)。待做:engine verify T-022 + capsule + T-022 → done。其后:D-018 待批、T-020(paused)、Q2 试点、D-019 P1。
+下一步：**T-022 P0 防护卡 done**(engine verify 6/6 全绿)+ 分发盲区修复 done(skeleton + migrator + 引导)。D-019 P0 完成。其后:① Q2 试点库待拍板(引擎现已可见可用,试点条件成熟); ② D-018 待批; ③ T-020(agent 检测器)paused; ④ D-019 P1(技能+路由)排队。架构师已指示分发盲区是最高优先级——现已落地,可转向试点验证或 P1。
 
 > Phase 1 = 通用化核心(prompt 抽离 / CLI 扩展 / 快速安装 / agent 检测——D-017 原文口径;实施细化与「薄壳」口径修正见 D-018)。
 

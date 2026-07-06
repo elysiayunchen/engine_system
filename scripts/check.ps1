@@ -186,6 +186,10 @@ try {
     @("engine/scripts/engine-sync-agent-anchors.sh", "plugin/engine/scripts/engine-sync-agent-anchors.sh"),
     @("engine/scripts/engine-migrate-contract.ps1", "plugin/engine/scripts/engine-migrate-contract.ps1"),
     @("engine/scripts/engine-migrate-contract.sh", "plugin/engine/scripts/engine-migrate-contract.sh"),
+    @("engine/scripts/engine-verify.ps1", "plugin/engine/scripts/engine-verify.ps1"),
+    @("engine/scripts/engine-verify.sh", "plugin/engine/scripts/engine-verify.sh"),
+    @("engine/scripts/engine-check-update.ps1", "plugin/engine/scripts/engine-check-update.ps1"),
+    @("engine/scripts/engine-check-update.sh", "plugin/engine/scripts/engine-check-update.sh"),
     @("engine/scripts/githooks/pre-commit", "plugin/engine/scripts/githooks/pre-commit")
   )
   foreach ($pair in $pairs) {

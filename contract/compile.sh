@@ -18,11 +18,15 @@ on_error() { echo "[compile] error on line $1" >&2; exit 1; }
 trap 'on_error ${LINENO}' ERR
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SRC_DIR="$ROOT/contract/src"
-DIST="$ROOT/ENGINE_FILE_SYSTEM_v5.md"
-LAW_DIST="$ROOT/runtime-law.md"
-RULES_DIST="$ROOT/rules.json"
-INIT_DIST="$ROOT/plugin/.claude/commands/engine-init.md"
-PROMPTS_DIST="$ROOT/engine/prompts/init.md"
+# ENGINE_COMPILE_OUT:dist 输出根目录(默认仓库根)。所有写出路径接在其下;
+# 读入路径(contract/src、engine/scripts、engine/bin)恒指向真实仓库 $ROOT,
+# 使测试沙箱可重算到隔离目录再与真实 dist 比对(tests/dist-drift)。
+OUT_ROOT="${ENGINE_COMPILE_OUT:-$ROOT}"
+DIST="$OUT_ROOT/ENGINE_FILE_SYSTEM_v5.md"
+LAW_DIST="$OUT_ROOT/runtime-law.md"
+RULES_DIST="$OUT_ROOT/rules.json"
+INIT_DIST="$OUT_ROOT/plugin/.claude/commands/engine-init.md"
+PROMPTS_DIST="$OUT_ROOT/engine/prompts/init.md"
 
 if [ ! -d "$SRC_DIR" ]; then
   echo "compile: 源目录不存在: $SRC_DIR" >&2
@@ -70,7 +74,8 @@ debt="$(grep -o '"debt_baseline"[[:space:]]*:[[:space:]]*[0-9]*' "$BUDGET" 2>/de
 # 4. engine-init.md(CLI 命令 dist:前言 + 同一契约模块,D-015)
 INIT_BANNER='<!-- plugin/.claude/commands/engine-init.md: compiled from contract/src/ (cli-preamble.md + [0-9]*.md) by engine compile. Do not edit dist directly; edit src and recompile. -->'
 PREAMBLE="$SRC_DIR/cli-preamble.md"
-if [ -f "$PREAMBLE" ] && [ -d "$(dirname "$INIT_DIST")" ]; then
+if [ -f "$PREAMBLE" ]; then
+  mkdir -p "$(dirname "$INIT_DIST")"
   tmp="$(mktemp)"
   {
     printf '%s\n' "$INIT_BANNER"
@@ -98,9 +103,9 @@ if [ -f "$AGENT_PREAMBLE" ]; then
     done
   } > "$tmp"
   mv "$tmp" "$PROMPTS_DIST"
-  mkdir -p "$ROOT/plugin/engine/prompts"
+  mkdir -p "$OUT_ROOT/plugin/engine/prompts"
   if [[ -f "$PROMPTS_DIST" ]]; then
-    cp "$PROMPTS_DIST" "$ROOT/plugin/engine/prompts/init.md"
+    cp "$PROMPTS_DIST" "$OUT_ROOT/plugin/engine/prompts/init.md"
   else
     echo "compile: source not found for plugin sync: $PROMPTS_DIST" >&2
     exit 1
@@ -135,7 +140,7 @@ githooks/pre-commit
 sync_count=0
 for f in $SYNC_LIST; do
   src_file="$ROOT/engine/scripts/$f"
-  dst_file="$ROOT/plugin/engine/scripts/$f"
+  dst_file="$OUT_ROOT/plugin/engine/scripts/$f"
   if [[ -f "$src_file" ]]; then
     mkdir -p "$(dirname "$dst_file")"
     cp "$src_file" "$dst_file"
@@ -148,8 +153,8 @@ echo "compile: plugin/engine/scripts/ synced ($sync_count files from engine/scri
 bin_count=0
 for f in engine engine.ps1 engine.cmd; do
   if [ -f "$ROOT/engine/bin/$f" ]; then
-    mkdir -p "$ROOT/plugin/bin"
-    cp "$ROOT/engine/bin/$f" "$ROOT/plugin/bin/$f"
+    mkdir -p "$OUT_ROOT/plugin/bin"
+    cp "$ROOT/engine/bin/$f" "$OUT_ROOT/plugin/bin/$f"
     bin_count=$((bin_count + 1))
   fi
 done

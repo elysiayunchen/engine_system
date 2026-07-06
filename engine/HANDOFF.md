@@ -4,7 +4,7 @@
 
 ## 立即恢复点
 
-下一步：① 架构师批 D-019(行为引擎化)与 D-018(Phase 1 实施设计),两者互不阻塞;② D-019 批后先开 P0 防护前置卡(dist 漂移检测全覆盖 / contract src 入 protected_paths / T-017 校验去空转 / verify 孪生治理),再 P1 技能+路由 → P2 胶囊+账本;③ Phase 1 剩余 T-020/T-021(paused)照走;④ Q2 试点库待拍板。
+下一步：**T-022(P0 防护卡)进行中**——D-019 已获批(approved),T-022 立卡开工,四任务串行:①dist 漂移全覆盖(tests/dist-drift)→②protected_paths 补齐→③manifest sha256 去空转(tests/install-flow)→④engine-verify 孪生修复(ps1 param 启动 bug / sh rc 陈旧值 bug / bash 语义)。完成后 engine verify T-022 + 回写 + capsule。其后:D-018 待批、T-020/T-021(paused)、Q2 试点库待拍板、D-019 P1(技能+路由)。
 
 > Phase 1 = 通用化核心(prompt 抽离 / CLI 扩展 / 快速安装 / agent 检测——D-017 原文口径;实施细化与「薄壳」口径修正见 D-018)。
 

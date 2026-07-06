@@ -8,6 +8,8 @@
     "install.sh",
     "install.ps1",
     "plugin/manifest.json",
-    ".gitattributes"
+    ".gitattributes",
+    "contract/src/**",
+    "runtime-law.md"
   ]
 }

@@ -218,6 +218,23 @@ write_decision "$r" D-001 approved "engine/tasks/**"
 git -C "$r" add engine/decisions/rules.json engine/CONTEXT.md
 run_pc "protected-done-fallback-scope-not-covering" "$r" 1
 
+# C8. runtime-law.md 受保护,有 approved 决策 scope 覆盖 → rc=0
+# 注:必须实际修改 engine/CONTEXT.md 使其进入暂存区,否则第1层回写门禁会拦截。
+r="$(new_repo)"; write_rules "$r" "runtime-law.md"
+write_task "$r" T-001 active "root" "" "D-001"
+write_decision "$r" D-001 approved "runtime-law.md"
+printf 'test\n' > "$r/runtime-law.md"
+printf 'updated\n' > "$r/engine/CONTEXT.md"
+git -C "$r" add runtime-law.md engine/CONTEXT.md
+run_pc "runtime-law-protected-with-approved-decision" "$r" 0
+
+# C9. runtime-law.md 受保护,无任务卡 → rc=1
+r="$(new_repo)"; write_rules "$r" "runtime-law.md"
+printf 'test\n' > "$r/runtime-law.md"
+printf 'updated\n' > "$r/engine/CONTEXT.md"
+git -C "$r" add runtime-law.md engine/CONTEXT.md
+run_pc "runtime-law-protected-no-task-card" "$r" 1
+
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "task-card gate result: $pass passed, $fail failed"

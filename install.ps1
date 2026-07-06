@@ -72,31 +72,45 @@ function Copy-Local {
   }
 }
 
-# Verify SHA256 checksums against manifest (best-effort, fail-open)
+# Verify SHA256 checksums against manifest (hard-fail on mismatch)
 function Verify-Checksums {
   param([string]$ManifestFile)
   if (-not (Test-Path $ManifestFile)) { return }
   try {
     $manifest = Get-Content $ManifestFile -Raw | ConvertFrom-Json
-    $verified = 0; $failed = 0
+    $verified = 0; $failed = 0; $skipped = 0
+    $failedFiles = @()
     foreach ($entry in $manifest.files) {
-      if (-not $entry.sha256 -or $entry.sha256 -eq "placeholder") { continue }
+      if (-not $entry.sha256 -or $entry.sha256 -eq "placeholder") {
+        $skipped++
+        Write-Host "  NOTE  checksum skipped: $($entry.src) (no sha256)" -ForegroundColor Yellow
+        continue
+      }
       # Map src to dest
       $destFile = $entry.src -replace '/', '\'
       if ($entry.src -like "engine/*") { $destFile = $entry.src -replace '/', '\' }
       elseif ($entry.src -like "bin/*") { $destFile = "engine\bin\" + ($entry.src -replace '^bin/', '') }
       elseif ($entry.src -like "migrations/*") { $destFile = "engine\migrations\" + ($entry.src -replace '^migrations/', '') }
+      # .claude/settings.json is generated/modified by the installer post-download;
+      # its on-disk bytes will not match the manifest hash.
+      if ($destFile -eq ".claude\settings.json") { continue }
       if (-not (Test-Path $destFile)) { continue }
       $actual = (Get-FileHash $destFile -Algorithm SHA256).Hash.ToLower()
       $verified++
       if ($actual -ne $entry.sha256) {
-        Write-Host "  WARN  checksum mismatch: $destFile" -ForegroundColor Yellow
+        Write-Host "  FAIL  checksum mismatch: $destFile" -ForegroundColor Red
         $failed++
+        $failedFiles += $destFile
       }
     }
-    if ($failed -gt 0) { Write-Host "  WARN  $failed file(s) failed checksum verification" -ForegroundColor Yellow }
-    elseif ($verified -gt 0) { Write-Host "  ok    $verified file(s) verified (SHA256)" -ForegroundColor Green }
+    if ($failed -gt 0) {
+      Write-Host "  FAIL  $failed file(s) failed checksum verification: $failedFiles" -ForegroundColor Red
+      throw "Checksum verification failed"
+    } elseif ($verified -gt 0) {
+      Write-Host "  ok    $verified file(s) verified (SHA256)" -ForegroundColor Green
+    }
   } catch {
+    if ($_.Exception.Message -eq "Checksum verification failed") { throw }
     Write-Host "  note  checksum verification skipped (manifest parse error)" -ForegroundColor Yellow
   }
 }
@@ -282,7 +296,7 @@ if ($LocalDir -and (Test-Path (Join-Path $LocalDir "runtime-law.md"))) {
   }
 }
 
-# Verify SHA256 checksums (best-effort, only when -Version is specified, skip for -Local)
+# Verify SHA256 checksums (hard-fail on mismatch; only when -Version is specified, skip for -Local)
 if ($Version -and -not $LocalDir) {
   try {
     $manifestUrl = "https://raw.githubusercontent.com/$REPO/v$Version/plugin/manifest.json"
@@ -290,6 +304,10 @@ if ($Version -and -not $LocalDir) {
     Verify-Checksums -ManifestFile ".manifest-check.json"
     Remove-Item ".manifest-check.json" -Force -ErrorAction SilentlyContinue
   } catch {
+    Remove-Item ".manifest-check.json" -Force -ErrorAction SilentlyContinue
+    if ($_.Exception.Message -match "Checksum verification failed") {
+      exit 1
+    }
     # Fail-open: no checksum verification if manifest unavailable
   }
 }

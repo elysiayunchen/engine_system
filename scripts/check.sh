@@ -79,6 +79,13 @@ else
   fail "update flow"
 fi
 
+step "Install flow (checksum hard-fail + skip compat)"
+if bash tests/install-flow/run-install-tests.sh; then
+  pass "install flow fixtures"
+else
+  fail "install flow"
+fi
+
 step "Session injection budget (N1: <=400 lines)"
 injected="$(CLAUDE_PROJECT_DIR="$PWD" bash plugin/engine/scripts/engine-hook-session-start.sh 2>/dev/null | wc -l)"
 if [ "$injected" -le 400 ]; then
@@ -134,10 +141,11 @@ do
   fi
 done
 
-step "Manifest coverage (plugin/ vs manifest.json)"
+step "Manifest coverage (plugin/ vs manifest.json + sha256 integrity)"
 manifest="$ROOT/plugin/manifest.json"
 if [[ -f "$manifest" ]]; then
   manifest_missing=0
+  manifest_sha_bad=0
   # Extract src values portably — works without jq or python
   grep -oE '"src"[[:space:]]*:[[:space:]]*"[^"]*"' "$manifest" \
     | sed 's/.*"src"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/' \
@@ -146,14 +154,27 @@ if [[ -f "$manifest" ]]; then
           printf '  missing: %s\n' "$src" >&2
           # Signal failure via temp file (subshell can't modify parent var)
           touch "$ROOT/plugin/.manifest-check-fail"
+          continue
+        fi
+        # sha256 integrity check
+        recorded="$(grep "\"$src\"" "$manifest" | grep -oE '"sha256"\s*:\s*"[^"]*"' | head -1 | sed 's/.*"sha256"\s*:\s*"\([^"]*\)".*/\1/')"
+        if [[ -z "$recorded" || "$recorded" == "placeholder" ]]; then
+          printf '  sha256 missing/placeholder: %s (run: bash contract/compile.sh)\n' "$src" >&2
+          touch "$ROOT/plugin/.manifest-check-fail"
+          continue
+        fi
+        actual="$(sha256sum "$ROOT/plugin/$src" | cut -d' ' -f1)"
+        if [[ "$actual" != "$recorded" ]]; then
+          printf '  sha256 mismatch: %s (run: bash contract/compile.sh)\n' "$src" >&2
+          touch "$ROOT/plugin/.manifest-check-fail"
         fi
       done
   if [[ -f "$ROOT/plugin/.manifest-check-fail" ]]; then
     rm -f "$ROOT/plugin/.manifest-check-fail"
-    fail "manifest entries missing in plugin/"
+    fail "manifest coverage or sha256 integrity failed"
   else
     manifest_count="$(grep -cE '"src"[[:space:]]*:' "$manifest" || true)"
-    pass "all $manifest_count manifest entries exist in plugin/"
+    pass "all $manifest_count manifest entries exist and sha256 verified"
   fi
 else
   fail "plugin/manifest.json not found"

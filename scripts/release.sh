@@ -147,6 +147,7 @@ step "Commit + Tag"
 git add VERSION plugin/VERSION engine/VERSION \
         ENGINE_FILE_SYSTEM_v5.md runtime-law.md rules.json \
         plugin/.claude/commands/engine-init.md \
+        plugin/manifest.json \
         CHANGELOG.md
 
 git commit -m "$COMMIT_MSG"

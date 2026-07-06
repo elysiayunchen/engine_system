@@ -7,8 +7,8 @@
 | 维度 | 状态 |
 |------|------|
 | 构建 | ✅ 正常（纯 markdown + shell 脚本，无构建步骤） |
-| 上次完成 | **全脚本错误处理强化**: 所有 .sh 脚本新增 `set -euo pipefail` + ERR trap(17个)、hooks 保持 fail-open + stderr 日志、所有 .ps1 脚本新增 `$ErrorActionPreference = "Stop"` + trap(23个)、测试脚本保持 `set -u`(定制计数器)。check.sh 全 PASS: 0 failures, 0 warnings。 |
-| 进行中 | ① Phase 1 剩余:T-020(agent 检测器)/ T-021(安装骨架),均 paused; ② D-018 待架构师批准(proposed); ③ Q2 试点库待拍板 |
+| 上次完成 | **D-019 行为引擎化提案(proposed)**: 方向=引擎从「项目记忆+门禁」升级为「agent 行为引擎」(对标 Superpowers/Agent Teams 类)。五子项:a 防护前置(P0)/ b 行为技能面(编译第 6 组 dist,首批 5 技能)/ c 行为路由表 routing.json / d 任务胶囊 engine capsule / e token 账本+HANDOFF 裁剪。7-05 评估四发现收编进 a/e。 |
+| 进行中 | ① D-019 行为引擎化待批(proposed,批后 P0 防护前置先行); ② D-018 待架构师批准(proposed); ③ Phase 1 剩余:T-020(agent 检测器)/ T-021(安装骨架),均 paused; ④ Q2 试点库待拍板 |
 | 阻塞 | 无 |
 
 ## 当前假设 / 决策（本轮拍板）
@@ -21,6 +21,7 @@
 - **架构师审核层 = change capsule + Project Self-View**：无基础用户不审 raw diff；由 `engine/changes/CHANGE-*.md` 和 `/engine-status` 把目标、影响、风险、验证、回滚、责任边界翻译成人话。
 - **旧项目升级 = 可执行契约迁移层**：`engine update` 只负责工具分发；`/engine-sync` 必须运行 `engine-migrate-contract.{sh,ps1}`，把当前规则作为托管区块写入 `AGENTS.md`、`engine/SYSTEM.md`、`engine/ENGINE_DOCTOR.md`，保留项目专属记忆在区块外。以后新增机制应追加到 migrator，而不是只改提示词。
 - **Phase 1 口径 = D-017 原文四子项**：prompt 抽离 / CLI 扩展 / 快速安装 / agent 检测；实施设计见 D-018——「薄壳引用」修正为「编译同源 + 全量 dist」(编译已消除分叉,薄壳只剩间接层风险),proposed 待架构师批准。
+- **产品面方向 = 行为引擎化(D-019,proposed)**：在既有三件套(单源编译/硬门禁/行为证据)之上长出技能面(该怎么做)+ 编排面(任务胶囊,谁去做)+ 账本面(token 可测)。三项拍板:独立立项分期落地、编排深度止于胶囊不直驱进程、防护整改(dist 漂移检测全覆盖/contract src 入 protected_paths/T-017 校验去空转)前置为 P0。技能红线:每条「必须」配机器查点或显式标注,防验收剧场搬家;净零增长照旧。
 
 ## 待验证
 

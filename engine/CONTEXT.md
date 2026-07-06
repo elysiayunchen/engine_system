@@ -1,13 +1,13 @@
 # CONTEXT — 当前状态
 
-> Engine System (engine_system) · Last updated: 2026-07-05 · Profile: CLI-LEAN
+> Engine System (engine_system) · Last updated: 2026-07-06 · Profile: CLI-LEAN
 
 ## 状态面板
 
 | 维度 | 状态 |
 |------|------|
 | 构建 | ✅ 正常（纯 markdown + shell 脚本，无构建步骤） |
-| 上次完成 | **D-018 设计 + T-019 done**: Phase 1 核心设计(D-018 proposed,五项子决策+任务拆分,修正 D-017a「薄壳」口径)+ T-019 实施:init prompt 中立分发(compile 第 5 dist → engine/prompts/init.md 正本 + plugin 镜像 + manifest/install 分发)+ `engine init` 子命令(指引 + --print,bash/ps1 孪生,零写入)+ plugin/bin 纳入 compile 同步。`engine verify T-019` 9/9 全绿。 |
+| 上次完成 | **install.sh PATH fix**: 修复 Windows 终端下 `engine` 命令无 .cmd/.ps1 联动导致打开文本编辑器的 bug。install.sh 新增复制 engine.cmd/engine.ps1 到 PATH,三种 Shell 均可直接使用。 |
 | 进行中 | ① Phase 1 剩余:T-020(agent 检测器)/ T-021(安装骨架),均 paused; ② D-018 待架构师批准(proposed); ③ Q2 试点库待拍板 |
 | 阻塞 | 无 |
 

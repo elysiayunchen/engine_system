@@ -224,6 +224,9 @@ FILES=(
   "engine/scripts/engine-check-update.ps1:engine/scripts/engine-check-update.ps1:true"
   "migrations/v6.0.sh:engine/migrations/v6.0.sh:true"
   "migrations/v6.0.ps1:engine/migrations/v6.0.ps1:true"
+  "engine/skeleton/ENGINE_MAP.md:engine/ENGINE_MAP.md:false"
+  "engine/skeleton/CONTEXT.md:engine/CONTEXT.md:false"
+  "engine/skeleton/HANDOFF.md:engine/HANDOFF.md:false"
   ".claude/settings.json:.claude/settings.json:false"
 )
 

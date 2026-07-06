@@ -4,7 +4,7 @@
 
 ## 立即恢复点
 
-下一步：Phase 1 进行中——T-019 done(prompt 中立分发 + engine init + bin 同步),T-020(agent 检测器)与 T-021(安装骨架)排队(paused)。D-018(Phase 1 实施设计)status: proposed 等架构师拍板;Q2 试点库待拍板。
+下一步：① 架构师批 D-019(行为引擎化)与 D-018(Phase 1 实施设计),两者互不阻塞;② D-019 批后先开 P0 防护前置卡(dist 漂移检测全覆盖 / contract src 入 protected_paths / T-017 校验去空转 / verify 孪生治理),再 P1 技能+路由 → P2 胶囊+账本;③ Phase 1 剩余 T-020/T-021(paused)照走;④ Q2 试点库待拍板。
 
 > Phase 1 = 通用化核心(prompt 抽离 / CLI 扩展 / 快速安装 / agent 检测——D-017 原文口径;实施细化与「薄壳」口径修正见 D-018)。
 
@@ -12,6 +12,7 @@
 
 | 日期 | 完成了什么 | 下一步 | 改动文件 |
 |------|-----------|--------|---------|
+| 2026-07-06 | **D-019 行为引擎化提案(proposed)**: 方向勘察(对标 Superpowers/Agent Teams:引擎三件套是底座,缺技能面+编排面,均为编译器新输出靶)+ 架构师三项拍板(独立立项分期 / 技能层+任务胶囊 / 先补防护再扩面)+ 五子项落稿(a 防护前置 P0 / b 行为技能首批 5 个 / c 路由表 routing.json / d engine capsule / e token 账本+HANDOFF 裁剪)。7-05 评估四发现收编进 a/e。 | 架构师批 D-019 → 批后开 P0 防护卡 | engine/decisions/D-019.md, engine/CONTEXT.md, engine/HANDOFF.md, engine/ENGINE_MAP.md, engine/changes/CHANGE-2026-07-06-01.md |
 | 2026-07-06 | **全脚本错误处理**: Bash 17文件(+set -euo pipefail+trap ERR,hooks保持fail-open+stderr日志,测试保持set -u),PS 23文件(+$ErrorActionPreference Stop+trap,param()必须���首行,plugin/编译同步)。check.sh 全PASS(0 failures,0 warnings,PS语法/兼容性全PASS)。 | Phase 1 剩余:T-020/T-021 | 28 .sh + 23 .ps1 文件, CONTEXT/HANDOFF/ENGINE_MAP, contract/compile.sh输出(18 plugin scripts + 3 bin files) |
 | 2026-07-06 | **Windows CLI 修复**: install.sh 新增 engine.cmd/engine.ps1 到 PATH,修复 Windows 终端 `engine` 命令打开文本编辑器问题。远端 6 个未推送提交已 push。 | Phase 1 剩余:T-020/T-021 | install.sh |
 | 2026-07-05 | **D-018 设计 + T-019 done**: Phase 1 核心设计决策(D-018 proposed: prompt 中立分发/engine init/agent 检测器/安装骨架/bin 同步,修正 D-017a「薄壳」口径)+ T-019 实施(compile 第 5 dist → engine/prompts/init.md 正本 + plugin 镜像 + `engine init` 子命令 bash/ps1 孪生(指引+--print) + bin 纳入 compile 同步 + manifest/install 三件套分发)+ engine verify 9/9 全绿 | T-020(agent 检测)→ T-021(骨架)→ 架构师批 D-018 + 拍板 Q2 试点库 | contract/src/agent-preamble.md, contract/compile.{sh,ps1}, engine/bin/*, plugin/bin/*, engine/prompts/init.md, plugin/engine/prompts/init.md, plugin/manifest.json, install.sh, install.ps1, engine/decisions/D-018.md, engine/tasks/T-019/020/021.md, engine/evidence/T-019/*, engine/changes/CHANGE-2026-07-05-05.md, engine/CONTEXT.md, engine/HANDOFF.md, engine/ENGINE_MAP.md |

@@ -372,6 +372,11 @@ if [[ -n "$VERSION_TAG" ]] && [[ -z "$LOCAL_DIR" ]]; then
   fi
 fi
 
+# 创建 v6 数据层目录结构(tasks/decisions/domains/changes/evidence)
+if [ -f "engine/scripts/engine-migrate-contract.sh" ]; then
+  bash "engine/scripts/engine-migrate-contract.sh" "." 2>/dev/null || true
+fi
+
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo -e "${GREEN}Done.${RESET} $install_count files installed, $skip_count skipped."
@@ -386,28 +391,12 @@ if $UPDATE_MODE; then
   echo "Doctor parity, and other current Engine System mechanisms."
   echo "Future remote updates can use: engine update"
 else
-  echo "Next steps:"
+  echo "═══ 引擎已安装 ═══"
+  echo "下一步(选一):"
+  echo "  Claude Code  → /engine-init"
+  echo "  其他 agent   → engine init"
+  echo "  终端         → engine init"
   echo ""
-  echo "  Option A — Claude Code (recommended):"
-  echo "    Open Claude Code in this project, then type:  /engine-init"
-  echo "    Claude interviews you, picks a profile (WEB-FULL / CLI-LEAN),"
-  echo "    and writes engine/ENGINE_MAP.md + all engine files to disk."
-  echo ""
-  echo "  Option B — Web Claude:"
-  echo "    Copy the contents of .claude/commands/engine-init.md"
-  echo "    Paste into claude.ai to start the interview."
-  echo ""
-  echo "  After init, use these commands in Claude Code:"
-  echo "    /engine-update     — sync state + handoff after each session"
-  echo "    /add-pitfall       — record a bug or footgun immediately"
-  echo "    /engine-status     — print current project snapshot"
-  echo "    /engine-ingest     — file a new plan (design doc) into engine/plans/"
-  echo "    /engine-extend     — register a new authority engine file type"
-  echo "    /engine-doctor     — validate engine registry, anchors, plans, budgets"
-  echo "    /engine-sync       — update Engine System tooling, then reconcile engine files"
-  echo "    /engine-reconcile  — audit engine files vs real code, fix drift"
-  echo ""
-  echo "  Terminal updater:"
-  echo "    engine update      — fetch latest Engine System tooling from remote"
+  echo "engine init 会引导 agent 采访你的项目,生成 ENGINE_MAP / CONTEXT / SYSTEM / ARCHITECTURE。"
 fi
 echo ""

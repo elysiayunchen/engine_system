@@ -312,6 +312,15 @@ if ($Version -and -not $LocalDir) {
   }
 }
 
+# 创建 v6 数据层目录结构(tasks/decisions/domains/changes/evidence)
+if (Test-Path "engine\scripts\engine-migrate-contract.ps1") {
+  try {
+    & powershell -NoProfile -ExecutionPolicy Bypass -File "engine\scripts\engine-migrate-contract.ps1" "." 2>$null
+  } catch {
+    # fail-open: migrator 失败不阻塞安装
+  }
+}
+
 Write-Host ""
 Write-Host "-------------------------------------"
 Write-Host "Done. $installed files installed, $skipped skipped." -ForegroundColor Green
@@ -326,18 +335,13 @@ if ($Update) {
   Write-Host "Doctor parity, and other current Engine System mechanisms."
   Write-Host "Future remote updates can use: engine update"
 } else {
-  Write-Host "Next steps:"
+  Write-Host "═══ 引擎已安装 ═══"
+  Write-Host "下一步(选一):"
+  Write-Host "  Claude Code  → /engine-init"
+  Write-Host "  其他 agent   → engine init"
+  Write-Host "  终端         → engine init"
   Write-Host ""
-  Write-Host "  Option A - Claude Code (recommended):"
-  Write-Host "    Open Claude Code, then type: /engine-init"
-  Write-Host "    Claude interviews you, picks a profile, writes engine/ENGINE_MAP.md + all files."
-  Write-Host ""
-  Write-Host "  Option B - Web Claude:"
-  Write-Host "    Copy .claude\commands\engine-init.md and paste into claude.ai"
-  Write-Host ""
-  Write-Host "  After init:  /engine-update  /add-pitfall  /engine-status  /engine-ingest  /engine-extend  /engine-doctor  /engine-sync  /engine-reconcile"
-  Write-Host ""
-  Write-Host "  Terminal updater:"
-  Write-Host "    engine update      - fetch latest Engine System tooling from remote"
+  Write-Host "engine init 会引导 agent 采访你的项目,生成 ENGINE_MAP / CONTEXT / SYSTEM / ARCHITECTURE。"
 }
 Write-Host ""
+

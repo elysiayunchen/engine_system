@@ -3,6 +3,8 @@
 # Creates or updates thin Engine System pointers for agent tools that do not read
 # AGENTS.md directly. Existing user content is preserved outside the managed block.
 
+$ErrorActionPreference = "Stop"
+
 param(
   [string]$Root = $(if ($env:CLAUDE_PROJECT_DIR) { $env:CLAUDE_PROJECT_DIR } else { (Get-Location).Path })
 )

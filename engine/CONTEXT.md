@@ -7,7 +7,7 @@
 | 维度 | 状态 |
 |------|------|
 | 构建 | ✅ 正常（纯 markdown + shell 脚本，无构建步骤） |
-| 上次完成 | **install.sh PATH fix**: 修复 Windows 终端下 `engine` 命令无 .cmd/.ps1 联动导致打开文本编辑器的 bug。install.sh 新增复制 engine.cmd/engine.ps1 到 PATH,三种 Shell 均可直接使用。 |
+| 上次完成 | **全脚本错误处理强化**: 所有 .sh 脚本新增 `set -euo pipefail` + ERR trap(17个)、hooks 保持 fail-open + stderr 日志、所有 .ps1 脚本新增 `$ErrorActionPreference = "Stop"` + trap(23个)、测试脚本保持 `set -u`(定制计数器)。check.sh 全 PASS: 0 failures, 0 warnings。 |
 | 进行中 | ① Phase 1 剩余:T-020(agent 检测器)/ T-021(安装骨架),均 paused; ② D-018 待架构师批准(proposed); ③ Q2 试点库待拍板 |
 | 阻塞 | 无 |
 

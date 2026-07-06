@@ -8,7 +8,9 @@
 # 用法:bash engine/scripts/engine-verify.sh T-NNN
 # 安全:verify 命令由任务卡声明,架构师批准任务卡时即批准 verify。用户主动跑,非 hook 自动。
 
-set -u
+set -euo pipefail
+on_error() { echo "[engine-verify] error on line $1 (${BASH_SOURCE[0]})" >&2; exit 1; }
+trap 'on_error ${LINENO}' ERR
 ROOT="${CLAUDE_PROJECT_DIR:-$PWD}"
 ENGINE_DIR="$ROOT/engine"
 task="${1:-}"
@@ -46,8 +48,8 @@ while IFS= read -r line; do
   echo "── $ac_id ──"
   echo "verify: $verify_cmd"
   tmp_out="$(mktemp)"
-  ( cd "$ROOT" && eval "$verify_cmd" ) >"$tmp_out" 2>&1
-  rc=$?
+  ( cd "$ROOT" && eval "$verify_cmd" ) >"$tmp_out" 2>&1 || rc=$?
+  rc=${rc:-0}
   fp="$(sha256sum "$tmp_out" | cut -d' ' -f1)"
   if [ "$rc" -eq 0 ]; then
     status="pass"; pass_count=$((pass_count+1))

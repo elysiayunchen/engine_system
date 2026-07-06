@@ -8,6 +8,8 @@
 # can fully operate the current v6 mechanisms.
 
 set -euo pipefail
+on_error() { echo "[engine-migrate-contract] error on line $1 (${BASH_SOURCE[0]})" >&2; exit 1; }
+
 # histexpand 防御(D-015):交互式/被 source 的 bash 会对双引号里的 `!-` 做历史展开,
 # 击穿 MARK 赋值 -> set -u unbound。set +H 关掉展开,MARK 用单引号双保险。
 set +H
@@ -179,11 +181,17 @@ upsert_block() {
 }
 
 # Step 1: ensure v6 data-layer structure.
+# || true is safe here: ensure_structure returns 1 when it creates directories
+# (change detected = success, not error). With set -e, return 1 would abort the
+# script. The true guard allows the script to continue whether or not directories
+# already existed — both outcomes are acceptable for an idempotent migration step.
 ensure_structure || true
 
 session_tmp="$(mktemp)"
 doctor_tmp="$(mktemp)"
-trap 'rm -f "$session_tmp" "$doctor_tmp"' EXIT
+cleanup() { rm -f "${session_tmp:-}" "${doctor_tmp:-}" 2>/dev/null || true; }
+trap 'on_error ${LINENO}; cleanup' ERR
+trap 'cleanup' EXIT
 
 # v6 session contract block (replaces v5.7 content).
 cat > "$session_tmp" <<'EOF'

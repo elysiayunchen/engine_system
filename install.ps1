@@ -12,6 +12,8 @@ param(
   [string]$Local = ""
 )
 
+$ErrorActionPreference = "Stop"
+
 $REPO = "elysiayunchen/engine_system"
 $BRANCH = "main"
 

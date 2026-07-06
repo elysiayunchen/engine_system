@@ -66,6 +66,55 @@ jobs:
           echo "--- Generated release notes ---"
           cat "$NOTES_FILE"
 
+      - name: Verify release health
+        run: bash scripts/check.sh
+
+      - name: Verify migrate E2E
+        run: |
+          set -euo pipefail
+          SANDBOX=$(mktemp -d)
+
+          # 1. Simulate install from plugin/
+          sed \
+            -e "s|^BASE_URL=.*|BASE_URL=\"file://$PWD/plugin\"|" \
+            -e 's|curl -sSL "\$url" -o "\$dest"|cp "$url" "$dest"|' \
+            -e 's|wget -qO "\$dest" "\$url"|cp "$url" "$dest"|' \
+            -e "s|https://raw.githubusercontent.com/\${REPO}/\${BRANCH}/runtime-law.md|file://${PWD}/runtime-law.md|" \
+            install.sh > "$SANDBOX/install-local.sh"
+          (cd "$SANDBOX" && bash install-local.sh)
+          echo "PASS install completed"
+
+          # 2. Simulate initialized project + run migrate
+          echo "# ENGINE_MAP — release E2E" > "$SANDBOX/engine/ENGINE_MAP.md"
+          bash "$SANDBOX/engine/bin/engine" migrate 2>&1
+          echo "PASS migrate (first run)"
+
+          # 3. Verify v6 structure
+          errors=0
+          for dir in tasks decisions domains changes evidence .cache; do
+            [[ -d "$SANDBOX/engine/$dir" ]] || { echo "FAIL $dir/ missing"; errors=$((errors + 1)); }
+          done
+          for f in federation.json rules.json AGENTS.md SYSTEM.md; do
+            case "$f" in
+              federation.json) [[ -f "$SANDBOX/engine/domains/$f" ]] || { echo "FAIL $f missing"; errors=$((errors + 1)); } ;;
+              rules.json)      [[ -f "$SANDBOX/engine/decisions/$f" ]] || { echo "FAIL $f missing"; errors=$((errors + 1)); } ;;
+              AGENTS.md)       [[ -f "$SANDBOX/$f" ]] || { echo "FAIL $f missing"; errors=$((errors + 1)); } ;;
+              SYSTEM.md)       [[ -f "$SANDBOX/engine/$f" ]] || { echo "FAIL $f missing"; errors=$((errors + 1)); } ;;
+            esac
+          done
+
+          # 4. Idempotent re-run
+          bash "$SANDBOX/engine/bin/engine" migrate 2>&1 | grep -q "already current" \
+            && echo "PASS migrate idempotent" \
+            || { echo "FAIL migrate should be idempotent"; errors=$((errors + 1)); }
+
+          # 5. Doctor
+          bash "$SANDBOX/engine/scripts/engine-doctor.sh" "$SANDBOX" 2>&1 | head -1
+
+          rm -rf "$SANDBOX"
+          [[ "$errors" -eq 0 ]] || { echo "Migrate E2E failed ($errors errors)"; exit 1; }
+          echo "PASS release migrate E2E"
+
       - name: Package plugin/
         run: |
           VERSION="${{ steps.version.outputs.version }}"

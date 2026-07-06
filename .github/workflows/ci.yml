@@ -113,3 +113,87 @@ jobs:
           fi
 
           [[ "$errors" -eq 0 ]] || exit 1
+
+      - name: Test migrate (install → migrate → verify → idempotency)
+        run: |
+          cd target
+          errors=0
+
+          # Simulate a project that was /engine-init'd (has ENGINE_MAP but no v6 layer)
+          echo "# ENGINE_MAP — CI sandbox" > engine/ENGINE_MAP.md
+
+          echo "--- 1. Run engine migrate (first time) ---"
+          bash engine/bin/engine migrate 2>&1
+          if [[ $? -eq 0 ]]; then
+            echo "PASS migrate exit 0"
+          else
+            echo "FAIL migrate unexpected exit"
+            errors=$((errors + 1))
+          fi
+
+          echo ""
+          echo "--- 2. Verify v6 data-layer structure ---"
+          for dir in tasks decisions domains changes evidence .cache; do
+            if [[ -d "engine/$dir" ]]; then
+              echo "PASS engine/$dir/"
+            else
+              echo "FAIL engine/$dir/ missing"
+              errors=$((errors + 1))
+            fi
+          done
+          for f in engine/domains/federation.json engine/decisions/rules.json AGENTS.md engine/SYSTEM.md; do
+            if [[ -f "$f" ]]; then
+              echo "PASS $f exists"
+            else
+              echo "FAIL $f missing"
+              errors=$((errors + 1))
+            fi
+          done
+
+          # rules.json must contain protected_paths
+          if grep -q '"protected_paths"' engine/decisions/rules.json; then
+            echo "PASS rules.json has protected_paths"
+          else
+            echo "FAIL rules.json missing protected_paths"
+            errors=$((errors + 1))
+          fi
+
+          echo ""
+          echo "--- 3. Run engine migrate again (idempotency) ---"
+          OUT2=$(bash engine/bin/engine migrate 2>&1)
+          rc2=$?
+          if [[ "$rc2" -eq 0 ]]; then
+            echo "PASS migrate idempotent (exit 0)"
+          else
+            echo "FAIL migrate idempotent (exit $rc2)"
+            errors=$((errors + 1))
+          fi
+          if echo "$OUT2" | grep -q "already current"; then
+            echo "PASS migrate reports 'already current'"
+          else
+            echo "FAIL migrate should report 'already current'"
+            errors=$((errors + 1))
+          fi
+
+          echo ""
+          echo "--- 4. Verify bootloader line budget ---"
+          actions_lines=$(wc -l < AGENTS.md)
+          if [[ "$actions_lines" -le 45 ]]; then
+            echo "PASS AGENTS.md $actions_lines lines <= 45"
+          else
+            echo "FAIL AGENTS.md $actions_lines lines > 45"
+            errors=$((errors + 1))
+          fi
+
+          echo ""
+          echo "--- 5. Run engine doctor ---"
+          bash engine/scripts/engine-doctor.sh . 2>&1 | tail -3
+          if [[ ${PIPESTATUS[0]} -eq 0 ]]; then
+            echo "PASS engine doctor exit 0"
+          else
+            echo "WARN engine doctor reported issues"
+          fi
+
+          echo ""
+          [[ "$errors" -eq 0 ]] || exit 1
+          echo "All migrate checks PASSED"

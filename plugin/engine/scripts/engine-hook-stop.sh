@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 # Engine System — Stop hook · "收尾守门员 / session-close gatekeeper"（硬门禁）
+# Fail-open by design: errors are logged to stderr but never block the agent session.
+set -u
+log_error() { echo "[engine-hook-stop] ERROR: $*" >&2; }
 #
 # 职责（三层，从严到宽）:
 #   1. 任务卡校验（v6 S1+S2）:有 active 任务卡时——
@@ -39,6 +42,7 @@ engine_written=0
 capsule_written=0
 code_paths=()
 skip_next=0
+git -C "$ROOT" status --porcelain -z -uall >/dev/null 2>&1 || log_error "git status failed; proceeding without change validation"
 while IFS= read -r -d '' rec || [ -n "$rec" ]; do
   if [ "$skip_next" -eq 1 ]; then skip_next=0; continue; fi
   [ "${#rec}" -ge 4 ] || continue
@@ -76,6 +80,7 @@ done
 
 if [ -n "$active_task" ] && [ "${#code_paths[@]}" -gt 0 ]; then
   # 解析 WRITE-SET / FORBIDDEN（首行,逗号分隔 glob）。
+  [ -r "$active_task" ] || log_error "task card not readable, header parse skipped: $active_task"
   write_set="$(grep '^WRITE-SET:' "$active_task" 2>/dev/null | head -1 | sed 's/^WRITE-SET://')"
   forbidden="$(grep '^FORBIDDEN:' "$active_task" 2>/dev/null | head -1 | sed 's/^FORBIDDEN://')"
 
@@ -126,6 +131,7 @@ if [ -n "$active_task" ] && [ "${#code_paths[@]}" -gt 0 ]; then
       in_paths && /\]/ { in_paths=0; next }
       in_paths { s=$0; while (match(s, /"([^"]+)"/, m)) { if (domain!="") print domain "\t" m[1]; s=substr(s, RSTART+RLENGTH) } }
     ' "$fed" 2>/dev/null)"
+    [ -z "$federation" ] && log_error "federation.json parse returned empty; domain routing check skipped"
     default_dom="$(printf '%s\n' "$federation" | awk -F'\t' '/^DEFAULT/{print $2; exit}')"
     if [ -n "$federation" ]; then
       for path in "${code_paths[@]}"; do

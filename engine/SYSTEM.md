@@ -1,20 +1,3 @@
-# AGENTS.md — Engine System (engine_system)
-
-> Bootloader / anchor (class: anchor). 把 agent 引到 ENGINE_MAP;权威规则在引擎文件,不在这里。
-
-## Session Protocol（强制）
-
-1. **会话开始**:读 `engine/ENGINE_MAP.md` → `engine/CONTEXT.md` → active 任务卡。SessionStart hook 自动注入。
-2. **动工前**:改动 ⊆ active 任务卡 WRITE-SET ∉ FORBIDDEN。受保护路径须 approved 决策(D-NNN)覆盖。
-3. **回写**:每完成一个单元,增量更新 `engine/CONTEXT.md` + `engine/HANDOFF.md`。代码改动不回写 → Stop hook 拦截。
-
-## 入口
-
-- 契约:`ENGINE_FILE_SYSTEM_v5.md`(由 `contract/src/*.md` 编译,勿手改 dist)
-- 索引+联邦表:`engine/ENGINE_MAP.md`
-- 当前状态:`engine/CONTEXT.md`
-- 健康检查:`bash scripts/check.sh`,驾驶舱:`/engine-status`
-
 <!-- ENGINE_SYSTEM_CONTRACT_MIGRATIONS_START -->
 <!-- contract-version: 6.0.1 -->
 ## Engine System Current Contract

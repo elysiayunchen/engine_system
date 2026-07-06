@@ -6,9 +6,9 @@
 # Idempotent and fail-open: a missing local version falls back to parsing
 # ENGINE_FILE_SYSTEM_v5.md; a network failure exits 8 without touching state.
 
-$ErrorActionPreference = "Stop"
-
 param([Parameter(Mandatory=$false)][string]$Root)
+
+$ErrorActionPreference = "Stop"
 
 $Repo = $env:ENGINE_SYSTEM_REPO
 if (-not $Repo) { $Repo = "elysiayunchen/engine_system" }

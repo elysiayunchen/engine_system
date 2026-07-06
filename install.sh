@@ -3,7 +3,10 @@
 # Usage: bash <(curl -sSL https://raw.githubusercontent.com/elysiayunchen/engine_system/main/install.sh)
 # Or:    bash install.sh [--update]
 
-set -e
+set -euo pipefail
+INSTALL_SCRIPT="install.sh"
+on_error() { echo "[${INSTALL_SCRIPT}] error on line $1" >&2; exit 1; }
+trap 'on_error ${LINENO}' ERR
 
 REPO="elysiayunchen/engine_system"
 BRANCH="main"
@@ -151,6 +154,8 @@ verify_checksums() {
     echo -e "  ${YELLOW}WARN${RESET} $fail_count file(s) failed checksum verification"
   elif [[ "$verify_count" -gt 0 ]]; then
     echo -e "  ${GREEN}✓${RESET} $verify_count file(s) verified (SHA256)"
+  else
+    echo -e "  ${YELLOW}NOTE${RESET} checksum verification skipped (no verifiable file pairs found)"
   fi
 }
 
@@ -238,10 +243,13 @@ for entry in "${FILES[@]}"; do
   if $UPDATE_MODE && [[ "$protect" == "true" ]]; then
     if [[ -n "$LOCAL_DIR" ]]; then
       cp "$LOCAL_DIR/$src" "$dest"
+      [[ -s "$dest" ]] || { echo -e "  ${RED}FAIL${RESET} $dest (copy failed, file empty or missing)" >&2; exit 1; }
     elif [[ -n "$VERSION_TAG" ]]; then
       download_versioned "$src" "$dest"
+      [[ -s "$dest" ]] || { echo -e "  ${RED}FAIL${RESET} $dest (download failed, file empty or missing)" >&2; exit 1; }
     else
       download "$url" "$dest"
+      [[ -s "$dest" ]] || { echo -e "  ${RED}FAIL${RESET} $dest (download failed, file empty or missing)" >&2; exit 1; }
     fi
     echo -e "  ${GREEN}updated${RESET} $dest"
     ((install_count += 1))
@@ -257,10 +265,13 @@ for entry in "${FILES[@]}"; do
 
   if [[ -n "$LOCAL_DIR" ]]; then
     cp "$LOCAL_DIR/$src" "$dest"
+    [[ -s "$dest" ]] || { echo -e "  ${RED}FAIL${RESET} $dest (copy failed, file empty or missing)" >&2; exit 1; }
   elif [[ -n "$VERSION_TAG" ]]; then
     download_versioned "$src" "$dest"
+    [[ -s "$dest" ]] || { echo -e "  ${RED}FAIL${RESET} $dest (download failed, file empty or missing)" >&2; exit 1; }
   else
     download "$url" "$dest"
+    [[ -s "$dest" ]] || { echo -e "  ${RED}FAIL${RESET} $dest (download failed, file empty or missing)" >&2; exit 1; }
   fi
   echo -e "  ${GREEN}✓${RESET} $dest"
   ((install_count += 1))

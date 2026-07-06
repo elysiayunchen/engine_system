@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# Fail-open by design: errors are logged to stderr but never block the agent session.
+set -u
+log_error() { echo "[engine-hook-session-start] ERROR: $*" >&2; }
 # Engine System — SessionStart hook · "自动接手 / auto-handoff"
 #
 # 在新会话开始时读取项目记忆,把状态摘要打到 stdout 注入 agent 上下文,
@@ -64,7 +67,7 @@ if [ -n "$active_task" ]; then
   task_id="$(basename "$active_task" .md)"
   echo "──── 🎯 当前任务卡 ($task_id) ────"
   echo "⚠️ 你的所有代码改动必须在 WRITE-SET 内;FORBIDDEN 是架构师否决权,碰了即被拦截。"
-  cat "$active_task" 2>/dev/null
+  cat "$active_task" 2>/dev/null || log_error "failed to read active task card: $active_task"
   echo ""
 fi
 

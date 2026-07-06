@@ -3,6 +3,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+trap { Write-Error "[check.ps1] error: $_"; exit 1 }
 $failures = 0
 
 function Step([string]$Name) {

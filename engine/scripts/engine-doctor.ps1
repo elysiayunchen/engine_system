@@ -499,7 +499,7 @@ function Test-ContractDebt {
     $content = Get-Content -Raw $m.FullName -Encoding UTF8
     $totalMust += ([regex]::Matches($content, '\bMUST\b')).Count
   }
-  $ruleLines = $modules | ForEach-Object { Get-Content $_.FullName -Encoding UTF8 | Select-String -Pattern '\*\*[^*]*Rule \(v' }
+  $ruleLines = $modules | ForEach-Object { Get-Content $_.FullName -Encoding UTF8 -ErrorAction SilentlyContinue | Select-String -Pattern '\*\*[^*]*Rule \(v' -ErrorAction SilentlyContinue }
   $ruleCount = if ($ruleLines) { @($ruleLines).Count } else { 0 }
   $debt = $totalMust - $ruleCount
   $budget = Join-Path $Root "contract/budget.json"

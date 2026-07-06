@@ -8,6 +8,8 @@ param(
   [switch]$Print
 )
 
+$ErrorActionPreference = "Stop"
+
 $Repo = if ($env:ENGINE_SYSTEM_REPO) { $env:ENGINE_SYSTEM_REPO } else { "elysiayunchen/engine_system" }
 $Branch = if ($env:ENGINE_SYSTEM_BRANCH) { $env:ENGINE_SYSTEM_BRANCH } else { "main" }
 

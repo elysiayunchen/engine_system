@@ -13,7 +13,9 @@
 # 幂等:compile(src) == dist。
 # 用法:bash contract/compile.sh
 
-set -u
+set -euo pipefail
+on_error() { echo "[compile] error on line $1" >&2; exit 1; }
+trap 'on_error ${LINENO}' ERR
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SRC_DIR="$ROOT/contract/src"
 DIST="$ROOT/ENGINE_FILE_SYSTEM_v5.md"
@@ -97,7 +99,12 @@ if [ -f "$AGENT_PREAMBLE" ]; then
   } > "$tmp"
   mv "$tmp" "$PROMPTS_DIST"
   mkdir -p "$ROOT/plugin/engine/prompts"
-  cp "$PROMPTS_DIST" "$ROOT/plugin/engine/prompts/init.md"
+  if [[ -f "$PROMPTS_DIST" ]]; then
+    cp "$PROMPTS_DIST" "$ROOT/plugin/engine/prompts/init.md"
+  else
+    echo "compile: source not found for plugin sync: $PROMPTS_DIST" >&2
+    exit 1
+  fi
 fi
 
 echo "compile: 5 dist files (web-prompt $(wc -l < "$DIST") lines, runtime-law, rules.json, engine-init, prompts/init)"

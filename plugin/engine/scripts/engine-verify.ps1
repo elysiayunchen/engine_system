@@ -7,6 +7,8 @@
 # Safety: verify commands are declared in the task card; approving the card
 # approves verify. User-run, not hook-automated.
 
+$ErrorActionPreference = "Stop"
+
 param([Parameter(Mandatory=$false)][string]$Task)
 
 $Root = $env:CLAUDE_PROJECT_DIR

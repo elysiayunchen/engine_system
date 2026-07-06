@@ -4,7 +4,10 @@
 # Creates or updates thin Engine System pointers for agent tools that do not read
 # AGENTS.md directly. Existing user content is preserved outside the managed block.
 
-set -u
+set -euo pipefail
+on_error() { echo "[engine-sync-agent-anchors] error on line $1 (${BASH_SOURCE[0]})" >&2; exit 1; }
+trap 'on_error ${LINENO}' ERR
+
 # histexpand 防御(D-015):同 engine-migrate-contract.sh,防交互式 bash 历史展开击穿 MARK 赋值。
 set +H
 
@@ -40,6 +43,8 @@ upsert_markdown_block() {
   local tmp
   tmp="$(mktemp)"
 
+  mkdir -p "$(dirname "$file")" || { echo "Error: failed to create directory for $file" >&2; return 1; }
+
   if [ ! -f "$file" ]; then
     {
       [ -n "$header" ] && printf '%s\n\n' "$header"
@@ -62,7 +67,7 @@ upsert_markdown_block() {
       $0 == end { skip=0; next }
       !skip { print }
     ' "$file" > "$tmp"
-    mv "$tmp" "$file"
+    [ -s "$tmp" ] && mv "$tmp" "$file" || echo "Warning: failed to write updated $file" >&2
     rm -f "$block_tmp" 2>/dev/null || true
     echo "updated ${file#$ROOT/}"
     return
@@ -73,7 +78,7 @@ upsert_markdown_block() {
     printf '\n\n'
     managed_block
   } > "$tmp"
-  mv "$tmp" "$file"
+  [ -s "$tmp" ] && mv "$tmp" "$file" || echo "Warning: failed to write appended $file" >&2
   echo "appended ${file#$ROOT/}"
 }
 

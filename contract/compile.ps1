@@ -12,6 +12,9 @@
 # Idempotent: compile(src) == dist.
 
 param()
+
+$ErrorActionPreference = "Stop"
+
 $Root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $SrcDir = Join-Path $Root "contract\src"
 $Dist = Join-Path $Root "ENGINE_FILE_SYSTEM_v5.md"

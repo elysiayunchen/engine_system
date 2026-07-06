@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
-set -u
+# Strict error handling: fail on any error, unbound var, or pipe failure.
+# Intentional soft-fail sites (where we checked that failure is safe) use || true.
+set -euo pipefail
+on_error() { echo "[engine-doctor] error on line $1" >&2; exit 1; }
+trap 'on_error ${LINENO}' ERR
 
 ROOT="$(pwd)"
 PACKAGE_MODE=false
@@ -156,9 +160,9 @@ fi
 
 pass "ENGINE_MAP exists"
 
-profile="$(grep -E '^\|[[:space:]]*Active profile[[:space:]]*\|' "$MAP" | head -n 1 | awk -F'|' '{print $3}' | tr -d ' `')"
+profile="$(grep -E '^\|[[:space:]]*Active profile[[:space:]]*\|' "$MAP" | head -n 1 | awk -F'|' '{print $3}' | tr -d ' `' || true)"
 if [[ -z "$profile" ]]; then
-  profile="$(grep -E 'Active profile:' "$MAP" | head -n 1 | sed -E 's/.*Active profile:[[:space:]]*\**([^* （(]+).*/\1/' | tr -d ' `')"
+  profile="$(grep -E 'Active profile:' "$MAP" | head -n 1 | sed -E 's/.*Active profile:[[:space:]]*\**([^* （(]+).*/\1/' | tr -d ' `' || true)"
 fi
 [[ -z "$profile" ]] && warn "Active profile not found in ENGINE_MAP §0"
 
@@ -166,7 +170,9 @@ registered_tmp="$(mktemp)"
 section_tmp="$(mktemp)"
 anchor_tmp="$(mktemp)"
 plan_tmp="$(mktemp)"
-trap 'rm -f "$registered_tmp" "$section_tmp" "$anchor_tmp" "$plan_tmp"' EXIT
+cleanup() { rm -f "${registered_tmp:-}" "${section_tmp:-}" "${anchor_tmp:-}" "${plan_tmp:-}" "${tmp:-}" "${tmp2:-}" "${tmp3:-}" "${tmp4:-}"; }
+trap 'on_error ${LINENO}; cleanup' ERR
+trap 'cleanup' EXIT
 
 awk '
   /^## (1\.|§1[[:space:]])/ { in_reg=1; next }
@@ -409,8 +415,8 @@ check_contract_compile() {
   fi
   local budget="$ROOT/contract/budget.json"
   if [ -f "$budget" ]; then
-    local max_lines; max_lines="$(grep -o '"max_lines"[[:space:]]*:[[:space:]]*[0-9]*' "$budget" | grep -o '[0-9]*$')"
-    local src_lines; src_lines="$(cat "$src_dir"/[0-9]*.md | wc -l)"
+    local max_lines; max_lines="$(grep -o '"max_lines"[[:space:]]*:[[:space:]]*[0-9]*' "$budget" | grep -o '[0-9]*$' || true)"
+    local src_lines; src_lines="$(cat "$src_dir"/[0-9]*.md 2>/dev/null | wc -l || true)"
     if [ -n "$max_lines" ] && [ "$src_lines" -le "$max_lines" ]; then
       pass "contract budget: src $src_lines lines <= $max_lines"
     elif [ -n "$max_lines" ]; then
@@ -422,8 +428,8 @@ check_contract_compile() {
 check_contract_debt() {
   local src_dir="$ROOT/contract/src"
   [ -d "$src_dir" ] || return 0
-  local total_must; total_must="$(grep -hoE '\bMUST\b' "$src_dir"/[0-9]*.md 2>/dev/null | wc -l)"
-  local rule_count; rule_count="$(grep -hE '\*\*[^*]*Rule \(v' "$src_dir"/[0-9]*.md 2>/dev/null | wc -l)"
+  local total_must; total_must="$(grep -hoE '\bMUST\b' "$src_dir"/[0-9]*.md 2>/dev/null | wc -l || true)"
+  local rule_count; rule_count="$(grep -hE '\*\*[^*]*Rule \(v' "$src_dir"/[0-9]*.md 2>/dev/null | wc -l || true)"
   local debt=$((total_must - rule_count))
   local budget="$ROOT/contract/budget.json"
   local baseline=""
@@ -453,7 +459,7 @@ check_task_card_done_evidence() {
       continue
     fi
     if [ -d "$ev_dir" ] && ls "$ev_dir"/AC-*.json >/dev/null 2>&1; then
-      local n; n="$(ls "$ev_dir"/AC-*.json 2>/dev/null | wc -l)"
+      local n; n="$(ls "$ev_dir"/AC-*.json 2>/dev/null | wc -l || true)"
       pass "task $tid done with $n evidence file(s)"
     else
       fail "task $tid done but no evidence (engine/evidence/$tid/AC-*.json) and no exempt marker - run 'engine verify $tid' or mark exempt"

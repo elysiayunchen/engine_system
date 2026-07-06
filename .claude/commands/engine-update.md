@@ -1,0 +1,183 @@
+# /engine-update — Session Handoff
+
+You are updating the project's engine files at the end of a work session.
+
+## Step 1: Read Current State (re-anchor before any write-back)
+Use the Read tool to load — re-reading guards against stale context from a long session:
+- `engine/ENGINE_MAP.md`  ← the index; read FIRST
+- `engine/CONTEXT.md`
+- `engine/HANDOFF.md`
+- `engine/PITFALLS.md`
+Also read the relevant SYSTEM sections for session end, Engine Doctor Contract, and engine
+file maintenance. Record read-gate evidence in the final summary.
+If `engine/ENGINE_DOCTOR.md` exists, read it so session updates preserve the current
+maintenance contract.
+
+When multiple agents are active, treat engine files as single-writer state: collect
+inputs in parallel if needed, but only one agent may perform the final write-back to
+`ENGINE_MAP.md`, `CONTEXT.md`, `HANDOFF.md`, `PITFALLS.md`, `SYSTEM.md`, `REPO_GUIDE.md`,
+anchors, or plan/spec twins for this change set. Re-anchor target files before writing,
+merge sibling-agent diffs first, then run `/engine-doctor` after the write-back if
+maintenance files changed.
+
+## Step 2: Ask Three Questions (one at a time, wait for answer each time)
+
+1. "这次完成了什么？（一句话描述）"
+2. "现在正在做 / 下一步准备做什么？"
+3. "有没有新发现的坑、奇怪的行为、或者要提醒下一个 AI 的事？（没有就说『无』）"
+
+Also infer the architect-facing audit facts from the session transcript and `git status`.
+Ask follow-up questions ONLY if a field cannot be inferred safely:
+- user-visible goal
+- actual changes
+- affected feature/module/path
+- risk level and what could break
+- verification result or missing verification
+- rollback / recovery path
+- responsibility boundary: what the AI checked vs what the architect still needs to decide
+
+## Step 3: Write Updates
+
+### Update engine/CONTEXT.md
+Edit the 状态面板 table in place:
+- `上次完成` → answer from Q1
+- `进行中` → answer from Q2, but preserve lane structure if multiple workstreams exist
+- Update `构建` status if relevant info was mentioned
+
+For long sessions, do not wait until the final turn: after each meaningful feature, fix,
+or decision, perform this same minimal CONTEXT update and HANDOFF append immediately.
+That incremental write-back is the A-layer contract for Web AI and the data that B/C-layer
+hooks verify.
+
+### Append to engine/HANDOFF.md
+Add a new session entry at the TOP of the session history table (time-ordered):
+
+```
+| [today's date] | [Q1 answer] | [Q2 answer] | [files touched this session if known] |
+```
+
+If the project runs multiple workstreams, also capture the lane handoff summary:
+- lane ID
+- current owner
+- merge point
+- next checkpoint
+
+### Create a Change Capsule (for meaningful implementation/doc/engine changes)
+If this session changed code, docs, engine files, commands, scripts, dependencies, tests, or
+project behavior, create one architect-readable capsule:
+
+Path:
+`engine/changes/CHANGE-[yyyy-mm-dd]-[nn].md`
+
+Rules:
+- Create `engine/changes/` if needed.
+- Use the next same-day sequence number, starting at `01`.
+- The capsule is operational evidence, not an authority file; do NOT register it in
+  ENGINE_MAP §1. Reference it from HANDOFF and ENGINE_MAP §4 freshness instead.
+- Keep it short enough that a non-technical architect can scan it in one minute.
+- Do not paste raw diffs. Translate code changes into project facts.
+
+Template:
+```
+# CHANGE-[yyyy-mm-dd]-[nn] — [plain-language title]
+
+> Created: [today] · Status: [draft / verified / needs-verification] · Related plan: [PLAN-NN / none]
+
+## Goal
+[What the architect wanted or what problem this work solved.]
+
+## Actual Changes
+[What changed in user-visible or project-behavior language.]
+
+## Impact Scope
+[Feature/module/path/platform affected. Use "global" only when truly global.]
+
+## Risk & Watchpoints
+[What could break, including linked PITFALLS IDs if any. Write "No known extra risk" only
+after checking changed paths against PITFALLS and SYSTEM rules.]
+
+## Verification
+| Check | Result | Evidence |
+|-------|--------|----------|
+| [test/build/manual check] | [pass/fail/not run] | [command output summary / observation / reason skipped] |
+
+## Rollback
+[Smallest safe revert or recovery path. If rollback is unknown, write "Unknown - requires architect decision".]
+
+## Next Step
+[One concrete next action.]
+
+## Responsibility Boundary
+- AI checked: [read-gate, changed files, tests/doctor/reconcile, risk scan]
+- Architect should decide: [product choice, release approval, manual check, or "none"]
+```
+
+If an active plan/spec twin exists, map each touched AC to the Verification table. A plan
+may become `done` only when every AC is marked ✅ with evidence in the spec twin or capsule.
+
+### Append to engine/PITFALLS.md (only if Q3 has real content)
+Record it as a FULL entry — match the structure `/engine-init` generates, not a bare row:
+
+1. Append a structured entry to the **条目** section, using the next P-ID (current max
+   across the 索引 table and 条目 section, + 1, zero-padded to three digits):
+   ```
+   ### P00X — [标题]
+   - **严重程度：** [🔴 CRITICAL / 🟠 HIGH / 🟡 MEDIUM / 🔵 INFO — infer from impact; ask if unclear]
+   - **类别：** [tooling / deps / arch / api / config / data / testing / security]
+   - **状态：** Active
+   - **你能观察到的现象：** [from Q3]
+   - **根因：** [if known, else TBD]
+   - **错误做法：** [if known, else TBD]
+   - **正确做法：** [the fix / workaround, if known, else TBD]
+   - **触发条件：** [command, file path, environment, user action, or TBD]
+   - **影响范围：** [path / module / platform / agent type, or global/TBD]
+   - **验证方式：** [smallest repeatable check that proves the pitfall is avoided]
+   - **发现时间：** [today's date]
+   ```
+2. Append the matching row to the **索引** table:
+   `| P00X | [严重程度] | [标题] | [类别] | Active |`
+3. Bump the header 条目计数 and set its `Last updated` to today.
+
+### Update engine/ENGINE_MAP.md (the index — MUST NOT be skipped)
+The session ended, so the map's freshness metadata is now stale. You already re-anchored it
+in Step 1; now write back (metadata only — NEVER copy any file's body into the map):
+- **§1 文件注册表** — set `Last verified` = today's date for every file you touched this
+  session (CONTEXT, HANDOFF, and PITFALLS if a pitfall was added). If a pitfall was added,
+  also bump PITFALLS' per-file `Revision`.
+- **§4 完整性与新鲜度** — bump `全局 revision` by 1.
+- **§4 完整性与新鲜度** — add or update `最近 change capsule：[path]` when a capsule was
+  created.
+- **§4 完整性与新鲜度** — keep it to short freshness metadata, warning pointers, and
+  revision only; long session prose belongs in HANDOFF.
+- **Header** — set `Last updated` = today's date and mirror the new revision into `Revision:`.
+
+### Sync header dates
+Every engine file you wrote above MUST have its header `Last updated` date set to today.
+
+### Run Doctor if maintenance files changed
+If this session touched `ENGINE_MAP.md`, `SYSTEM.md`, `REPO_GUIDE.md`, `ENGINE_DOCTOR.md`,
+`engine/agents/*`, anchors, plans, or any engine registration row, run `/engine-doctor`
+before final confirmation. If Doctor scripts are missing, note that `/engine-sync` is
+required.
+
+If `engine/.cache/pending.txt` exists, read it before confirming. It contains the latest
+SessionEnd Doctor result cached by the hook; resolve it with `/engine-doctor` or
+`/engine-reconcile`, then delete the pending note only after the issue is no longer true.
+
+## Step 4: Confirm
+Output the change summary (for the architect's review), then the resume pointer:
+```
+## 引擎文件变更摘要
+| 文件 | 变更类型 | 变更内容 |
+|------|---------|---------|
+| CONTEXT.md    | 修改 | 状态面板：上次完成 / 进行中 |
+| HANDOFF.md    | 追加 | 新会话交接行 |
+| PITFALLS.md   | 追加 | [P00X：一句话]  ← 仅当记录了坑 |
+| CHANGE capsule| 新增 | [CHANGE-YYYY-MM-DD-NN：目标 / 风险 / 验证 / 回滚] ← 仅当有实质改动 |
+| ENGINE_MAP.md | 修改 | §1 Last verified + §4 全局 revision → [新值] |
+
+read-gate: ENGINE_MAP, SYSTEM 会话结束/维护/Doctor, CONTEXT, HANDOFF, PITFALLS
+doctor: [not needed / passed / failed / missing scripts]
+architect view: [verified / needs verification / needs architect decision]
+引擎同步完成。下次会话直接继续：[Q2 answer]
+```

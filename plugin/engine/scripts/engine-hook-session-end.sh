@@ -6,6 +6,7 @@
 # Stop gatekeeping is handled by engine-hook-stop.sh.
 
 set -u
+log_error() { echo "[engine-hook-session-end] ERROR: $*" >&2; }
 
 ROOT="${CLAUDE_PROJECT_DIR:-$PWD}"
 ENGINE_DIR="$ROOT/engine"
@@ -15,7 +16,7 @@ LOG_FILE="$CACHE_DIR/session-end-doctor.log"
 SCRIPT_DIR="$(cd "$(dirname "$0")" 2>/dev/null && pwd)"
 
 [ -d "$ENGINE_DIR" ] || exit 0
-mkdir -p "$CACHE_DIR" 2>/dev/null || exit 0
+mkdir -p "$CACHE_DIR" 2>/dev/null || { log_error "failed to create cache directory: $CACHE_DIR"; exit 0; }
 
 doctor="$ENGINE_DIR/scripts/engine-doctor.sh"
 if [ ! -f "$doctor" ] && [ -n "$SCRIPT_DIR" ] && [ -f "$SCRIPT_DIR/engine-doctor.sh" ]; then
@@ -34,6 +35,7 @@ fi
 
 output="$("$doctor" "$ROOT" 2>&1)"
 status=$?
+[ "$status" -eq 0 ] || log_error "doctor execution failed with status $status"
 printf '%s\n' "$output" > "$LOG_FILE" 2>/dev/null || true
 
 summary="$(printf '%s\n' "$output" | grep 'Engine Doctor:' | tail -n 1)"

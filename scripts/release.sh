@@ -16,6 +16,8 @@
 # 不会自动 push——跑完后看结果手动 push。
 
 set -euo pipefail
+on_error() { echo "[release] error on line $1" >&2; exit 1; }
+trap 'on_error ${LINENO}' ERR
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"

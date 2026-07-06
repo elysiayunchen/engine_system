@@ -18,6 +18,9 @@
 # same script works in both trees.
 
 set -euo pipefail
+on_error() { echo "[v6.0] error on line $1 (${BASH_SOURCE[0]})" >&2; exit 1; }
+trap 'on_error ${LINENO}' ERR
+
 ROOT="${1:-${CLAUDE_PROJECT_DIR:-$PWD}}"
 DIR="$(cd "$(dirname "$0")" && pwd)"
 

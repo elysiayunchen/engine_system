@@ -7,6 +7,9 @@
 
 param()
 
+$ErrorActionPreference = "Continue"
+trap { Write-Warning "[engine-hook-session-start.ps1] error: $_"; continue }
+
 $Root = $env:CLAUDE_PROJECT_DIR
 if (-not $Root) { $Root = $PWD.Path }
 $EngineDir = Join-Path $Root "engine"

@@ -33,3 +33,23 @@
 ## 后续
 
 当前文件是 CLI-LEAN dogfood 精简版。正式发布前，用 `/engine-reconcile` 将本实例升级为完整 v5.5 注册表结构。
+
+
+<!-- ENGINE_SYSTEM_CONTRACT_MIGRATIONS_START -->
+<!-- contract-version: 6.0.1 -->
+## Current Contract Checks
+> Managed by Engine System contract migration. Preserve project-specific rules outside this block.
+
+Doctor MUST validate the current Engine System v6 contract in addition to registry health:
+
+1. Task cards (`engine/tasks/T-*.md`) carry v6 machine-readable headers (GOAL / WRITE-SET / FORBIDDEN / AC+verify / CONSTRAINTS + status / lane / decision / domain).
+2. Done task cards have acceptance evidence (`engine/evidence/T-NNN/AC-*.json`) or an `exempt` marker (N3 done-gate).
+3. Federation table `engine/domains/federation.json` is valid JSON with at least a `default_domain`.
+4. Session injection budget (N1): session-start hook output <= 400 lines.
+5. Contract debt (N4): MUST count + gate Rule count + debt vs baseline tracked.
+6. `engine/VERSION` exists and matches the installed tooling version.
+7. Recent meaningful changes have an architect-readable `engine/changes/CHANGE-*.md` capsule with required sections.
+8. Plans marked `done` point to acceptance evidence in the spec twin Evidence column, `engine/evidence/*`, or a related capsule.
+9. Bootloaders (AGENTS.md / CLAUDE.md) stay thin: target 30 lines, hard cap 45 lines.
+10. Generated self-view snapshots, when used, live under `engine/.cache/` and are never registered as authority.
+<!-- ENGINE_SYSTEM_CONTRACT_MIGRATIONS_END -->

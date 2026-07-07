@@ -60,7 +60,7 @@ done < <(git -C "$ROOT" status --porcelain -z -uall 2>/dev/null)
 
 # ── 第 2 层:硬门禁（回写检查）──────────────────────────────────────────
 if [ "$code_changed" -eq 1 ] && [ "$engine_written" -eq 0 ]; then
-  reason="【Engine System · 收尾守门员】本次会话改动了代码,但项目记忆(engine/CONTEXT.md / HANDOFF.md)还没同步。结束前请先增量回写:1) 更新 CONTEXT 状态面板的『上次完成』『进行中』;2) 在 HANDOFF 顶部追加一行交接(日期 | 做了什么 | 下一步 | 改动文件);3) 若这是一次有意义的改动,建议补一份 change capsule(engine/changes/CHANGE-YYYY-MM-DD-nn.md)。完成后即可结束。"
+  reason="[Engine System] Code was changed but project memory was not updated. | developer: The AI needs to save its notes about what was done before ending the session. Please update engine/CONTEXT.md (project status) and engine/HANDOFF.md (session handoff record). Think of it like updating meeting notes after a meeting — before you leave, write down what was decided and what comes next."
   printf '{"decision":"block","reason":"%s"}\n' "$reason"
   exit 0
 fi
@@ -105,13 +105,13 @@ if [ -n "$active_task" ] && [ "${#code_paths[@]}" -gt 0 ]; then
   for path in "${code_paths[@]}"; do
     # FORBIDDEN 优先（架构师否决权）。
     if [ -n "$forbidden" ] && match_glob "$path" "$forbidden"; then
-      reason="【Engine System · 任务卡禁区】路径 $path 在任务卡 $active_task_id 的 FORBIDDEN 列表中。这是架构师的否决权——禁止触碰。若需解禁,请创建新决策(engine/decisions/D-NNN.md)并更新任务卡。"
+      reason="[Engine System] Path $path is in the FORBIDDEN list of task $active_task_id. | developer: This path is locked by an architect decision — it is off-limits for the current task. To unblock, create a new decision (engine/decisions/D-NNN.md) explaining why access is needed, then update the task card."
       printf '{"decision":"block","reason":"%s"}\n' "$reason"
       exit 0
     fi
     # WRITE-SET 越界。
     if [ -n "$write_set" ] && ! match_glob "$path" "$write_set"; then
-      reason="【Engine System · 写集越界】路径 $path 不在任务卡 $active_task_id 的 WRITE-SET 中。若需扩展写集,请更新 engine/tasks/$active_task_id.md 的 WRITE-SET,或创建新决策。当前 WRITE-SET: $write_set"
+      reason="[Engine System] Path $path is not in the WRITE-SET of task $active_task_id. | developer: This file is outside the current task's approved scope. To expand the scope, update the WRITE-SET in engine/tasks/$active_task_id.md, or create a new decision. Current WRITE-SET: $write_set"
       printf '{"decision":"block","reason":"%s"}\n' "$reason"
       exit 0
     fi
@@ -145,7 +145,7 @@ if [ -n "$active_task" ] && [ "${#code_paths[@]}" -gt 0 ]; then
         done <<< "$federation"
         [ -n "$path_dom" ] || path_dom="${default_dom:-root}"
         if ! printf '%s' ",$task_domains," | grep -qF ",$path_dom,"; then
-          reason="【Engine System · 路由越域】路径 $path 属于域「$path_dom」,但任务卡 $active_task_id 的 domain 只覆盖 [$task_domains]。若需跨域工作,请更新任务卡的 domain 字段(逗号分隔)。"
+          reason="[Engine System] Path $path belongs to domain '$path_dom', but task $active_task_id domain covers only [$task_domains]. | developer: This file belongs to a different project area ('$path_dom') than the one the current task is scoped for ([$task_domains]). To work across areas, update the task card's domain field to include the needed domain."
           printf '{"decision":"block","reason":"%s"}\n' "$reason"
           exit 0
         fi
@@ -156,7 +156,7 @@ fi
 
 # ── 第 3 层:软门禁 WARN（capsule 缺失）─────────────────────────────────
 if [ "$code_changed" -eq 1 ] && [ "$engine_written" -eq 1 ] && [ "$capsule_written" -eq 0 ]; then
-  printf '{"systemMessage":"【Engine System】代码改动已回写 CONTEXT/HANDOFF,但未见 change capsule(engine/changes/CHANGE-*.md)。若这是一次有意义的改动,建议让 agent 补一份架构师可读的变更胶囊。(WARN,不拦截)"}\n'
+  printf '{"systemMessage":"[Engine System] Code changes were saved to CONTEXT/HANDOFF, but no change capsule (engine/changes/CHANGE-*.md) was found. | developer: Consider writing a change summary — a short note explaining what was changed and why. This helps future you (or teammates) understand the intent behind the change. (WARN, non-blocking)"}\n'
   exit 0
 fi
 

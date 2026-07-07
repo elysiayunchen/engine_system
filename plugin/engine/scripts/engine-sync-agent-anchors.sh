@@ -28,11 +28,22 @@ managed_block() {
 <!-- ENGINE_SYSTEM_SYNC_START -->
 # Engine System
 
+## Session Start (MANDATORY for non-Claude Code agents)
+Run `engine context` (or `bash engine/scripts/engine-context.sh`) at the start of
+every session to load project memory. This is equivalent to what Claude Code gets
+automatically via hooks.
+
+## Session Protocol
 Read `engine/ENGINE_MAP.md` before editing. Follow the session protocol in `AGENTS.md`:
 run the path-driven read-gate before edits, write incremental updates to `engine/CONTEXT.md`
 and `engine/HANDOFF.md` after meaningful changes, create/update an architect-readable
 `engine/changes/CHANGE-*.md` capsule with impact/risk/verification/rollback, preserve
 multi-lane workstream structure, and keep shared engine-file writes single-writer.
+
+## Developer Communication (v6.2)
+Detect the developer's language and use it for all explanations. When discussing engine
+concepts, use plain language — never assume the developer knows engine-specific jargon.
+Frame operations in terms of the developer's workflow, not engine internals.
 <!-- ENGINE_SYSTEM_SYNC_END -->
 EOF
 }

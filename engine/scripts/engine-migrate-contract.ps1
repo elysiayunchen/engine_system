@@ -50,13 +50,102 @@ function Normalize-Text([string]$Value) {
 # Ensure v6 data-layer structure exists. Idempotent: only creates what is missing.
 function Ensure-Structure {
   $changed = $false
-  foreach ($d in @("tasks", "decisions", "domains", "changes", "evidence", ".cache")) {
+  foreach ($d in @("tasks", "decisions", "domains", "changes", "evidence", "plans", ".cache")) {
     $p = Join-Path $EngineDir $d
     if (-not (Test-Path $p)) {
       New-Item -ItemType Directory -Force -Path $p | Out-Null
       Write-Host "created $(Get-Relative $p)/"
       $changed = $true
     }
+  }
+  # Task card template: helps agents and developers understand the T-NNN format.
+  $taskReadme = Join-Path $EngineDir "tasks\README.md"
+  if (-not (Test-Path $taskReadme)) {
+    $taskContent = @"
+# Task Cards (T-NNN.md)
+
+Each task card tracks one unit of work. Create with: ``T-001.md``, ``T-002.md``, etc.
+
+## Required Header (machine-readable)
+
+``````
+---
+goal: One-line description of what this task achieves
+write-set: [list of path-globs this task is allowed to modify]
+forbidden: [list of path-globs this task must NOT touch]
+status: proposed | active | done
+lane: main | <workstream-name>
+decision: D-NNN (reference to approved decision, if touching protected paths)
+domain: <domain-name from federation.json>
+---
+``````
+
+## Acceptance Criteria Section
+
+After the header, list ACs with verify commands:
+
+``````
+## AC
+
+| # | Criterion | Verify |
+|---|-----------|--------|
+| 1 | Description of expected behavior | ``command to verify`` |
+| 2 | Another criterion | ``another command`` |
+``````
+
+## Lifecycle
+
+- **proposed**: task is planned, not yet started
+- **active**: work in progress; Stop hook enforces WRITE-SET
+- **done**: all ACs verified green (via ``engine verify T-NNN``) or architect grants ``exempt``
+"@
+    Set-Content -Path $taskReadme -Value $taskContent -Encoding UTF8
+    Write-Host "created $(Get-Relative $taskReadme)"
+    $changed = $true
+  }
+  # Glossary: plain-language bridge between engine terminology and developer understanding.
+  $glossary = Join-Path $EngineDir "GLOSSARY.md"
+  if (-not (Test-Path $glossary)) {
+    $glossaryContent = @"
+# Engine System Glossary
+
+> Agent: when explaining engine concepts to the developer, use the "Plain meaning" column.
+> Match the developer's language — do not hardcode any specific language.
+
+## Core Terms (engine-managed)
+
+<!-- The terms below are maintained by the engine system. Do not edit manually. -->
+
+| Engine term | Plain meaning | Example |
+|-------------|--------------|---------|
+| Engine file | A project memory file that the AI reads/writes to stay oriented | ENGINE_MAP.md, CONTEXT.md |
+| ENGINE_MAP | The table of contents for all engine files — read this first each session | Like a book's index |
+| CONTEXT | Current project status dashboard — what's happening right now | Like a morning briefing |
+| HANDOFF | Session handoff notes — where we left off and what to do next | Like a relay baton |
+| Task card (T-NNN) | A structured work item with clear scope, acceptance criteria, and constraints | Like a Jira ticket |
+| Decision (D-NNN) | A recorded non-obvious choice with rationale and scope | Like an ADR (architecture decision record) |
+| Change capsule | A human-readable summary of what was changed and why | Like a detailed commit message |
+| Federation table | A routing map that groups project files into domains for context management | Like folders with smart labels |
+| Doctor | Health check that validates engine file consistency | Like a linter for project memory |
+| Write-back | Updating engine files after making code changes | Like updating meeting notes after a meeting |
+| Gate / Hook | Automatic checks that run before/after actions to prevent mistakes | Like a spell-checker that runs before you send |
+| Contract | The set of rules governing how engine files work together | Like a team's working agreement |
+| Pitfall | A documented mistake to avoid repeating | Like a "lessons learned" entry |
+| Plan / Spec | A design document (plan) paired with its technical specification (spec) | Like a blueprint + engineering drawing |
+| reconcile | Comparing engine memory against actual code and fixing any drift | Like proofreading a document against the source |
+| Irreducible | Knowledge that can't be regenerated from code — must be preserved | Decisions, rationale, lessons learned |
+| Derivable | Knowledge that can be regenerated from code on demand | File listings, module maps |
+
+## Project Terms (developer-managed)
+
+<!-- Add project-specific terms below. This section is preserved across engine upgrades. -->
+
+| Term | Plain meaning | Added by |
+|------|--------------|----------|
+"@
+    Set-Content -Path $glossary -Value $glossaryContent -Encoding UTF8
+    Write-Host "created $(Get-Relative $glossary)"
+    $changed = $true
   }
   $fed = Join-Path $EngineDir "domains\federation.json"
   if (-not (Test-Path $fed)) {
@@ -156,8 +245,57 @@ $End
   return $true
 }
 
+# Reconcile known schema drifts in engine files. Fixes safe vocabulary mappings;
+# warns about structural issues that require human judgment. Addresses P014.
+function Reconcile-Schema {
+  $changed = $false
+  if (Test-Path $Map) {
+    $content = Get-Content $Map -Raw -Encoding UTF8
+    $original = $content
+    # Status vocabulary mapping (old -> v6 canonical)
+    $mappings = @{
+      'planning'                 = 'proposed'
+      'design-pending-approval'  = 'proposed'
+      'in-progress'              = 'proposed'
+      'wip'                      = 'proposed'
+      'implemented'              = 'done'
+      'completed'                = 'done'
+      'done-verified'            = 'done'
+      'finished'                 = 'done'
+      'deprecated'               = 'archived'
+      'superseded'               = 'archived'
+    }
+    foreach ($pair in $mappings.GetEnumerator()) {
+      # Match bold status in table cells: | **old** |
+      $content = $content -replace "\*\*$($pair.Key)\*\*", "**$($pair.Value)**"
+      # Match plain status surrounded by spaces in table cells: | old |
+      $content = $content -replace "\s$($pair.Key)\s", " $($pair.Value) "
+    }
+    if ($content -ne $original) {
+      Set-Content -Path $Map -Value $content -Encoding UTF8
+      Write-Host "reconciled $(Get-Relative $Map) (status vocabulary normalized)"
+      $changed = $true
+    }
+    # Warn about table column count mismatches (P014: structural issues need human judgment)
+    $lines = Get-Content $Map -Encoding UTF8
+    $inPlanSection = $false
+    foreach ($line in $lines) {
+      if ($line -match '## .*Plan.*Registr|## .*§2') { $inPlanSection = $true; continue }
+      if ($inPlanSection -and $line -match '^\| [A-Z]') {
+        $cols = ($line -split '\|').Count - 2
+        if ($cols -lt 6) {
+          Write-Host "WARN: ENGINE_MAP §2 plan registry has $cols columns (v6 expects 6-7). Manual reconcile recommended."
+        }
+        break
+      }
+    }
+  }
+  return $changed
+}
+
 # Step 1: ensure v6 data-layer structure.
 Ensure-Structure | Out-Null
+Reconcile-Schema | Out-Null
 
 # v6 session contract block (replaces v5.7 content).
 $sessionProtocol = @"
@@ -224,12 +362,15 @@ $capsule = Join-Path $changesDir "$changeId.md"
 Migrate an existing project with old engine files to the current Engine System v6 contract without rerunning /engine-init or overwriting project-specific memory.
 
 ## Actual Changes
-- Ensured v6 data-layer directories exist: tasks, decisions, domains, changes, evidence, .cache.
+- Ensured v6 data-layer directories exist: tasks, decisions, domains, changes, evidence, plans, .cache.
+- Created task card template (engine/tasks/README.md) and glossary (engine/GLOSSARY.md) if missing.
 - Created federation table (engine/domains/federation.json) if missing, with standard engine-runtime + project-meta domains.
 - Created decision rules baseline (engine/decisions/rules.json) if missing.
 - Created local VERSION stamp (engine/VERSION) if missing.
+- Reconciled known schema drifts in ENGINE_MAP.md (status vocabulary normalization).
 - Updated managed contract blocks (contract-version $ContractVersion) in: $($Touched -join ", ").
 - The v6 block covers: task card headers, decision ledger, fractal memory, three-layer gate, contract compile, cockpit verify, change capsules, single-writer merges, update check.
+- Ran Doctor post-migration to validate migration output.
 
 ## Impact Scope
 Engine memory layer only. Project source code and project-specific engine prose outside managed migration blocks are preserved.
@@ -240,21 +381,61 @@ If the project already had custom rules in the same files, they remain outside t
 ## Verification
 | Check | Result | Evidence |
 |-------|--------|----------|
-| v6 structure created | pass | tasks/decisions/domains/changes/evidence/.cache + federation.json + rules.json + VERSION |
+| v6 structure created | pass | tasks/decisions/domains/changes/evidence/plans/.cache + federation.json + rules.json + VERSION |
+| Templates created | pass | tasks/README.md + GLOSSARY.md |
+| Schema reconcile | pass | ENGINE_MAP.md status vocabulary normalized |
 | Contract blocks written | pass | $($Touched -join ", ") |
-| Doctor | not run | Run /engine-doctor after migration |
+| Doctor | chained | See Doctor output below |
 
 ## Rollback
-Remove the managed blocks between ENGINE_SYSTEM_CONTRACT_MIGRATIONS_START and ENGINE_SYSTEM_CONTRACT_MIGRATIONS_END, then remove this capsule if the migration is rejected. The created directories and federation.json can be kept (harmless empty scaffolding) or removed manually.
+Remove the managed blocks between ENGINE_SYSTEM_CONTRACT_MIGRATIONS_START and ENGINE_SYSTEM_CONTRACT_MIGRATIONS_END, then remove this capsule if the migration is rejected. The created directories, templates, and federation.json can be kept (harmless scaffolding) or removed manually.
 
 ## Next Step
-Run /engine-doctor, then /engine-reconcile if Doctor reports drift.
+Review Doctor output above. If Doctor reports warnings, run /engine-reconcile for structural issues.
 
 ## Responsibility Boundary
-- AI checked: existing ENGINE_MAP presence, v6 structure creation, managed migration block insertion.
+- AI checked: existing ENGINE_MAP presence, v6 structure creation, template generation, schema reconcile, managed migration block insertion, Doctor chain.
 - Architect should decide: whether to keep the migration wording as-is or tighten missing change capsules into hard failures.
 "@ | Set-Content -Path $capsule -Encoding UTF8
 Write-Host "created $(Get-Relative $capsule)"
 
-Write-Host "Engine contract migration to v6 complete. Next: run /engine-doctor."
+# Chain Doctor post-migration to validate output.
+$doctorScript = Join-Path $EngineDir "scripts\engine-doctor.ps1"
+if (Test-Path $doctorScript) {
+  Write-Host ""
+  Write-Host "=== Post-migration Doctor check ==="
+  try {
+    & pwsh -NoProfile -File $doctorScript $Root 2>&1
+  } catch {
+    & powershell -NoProfile -File $doctorScript $Root 2>&1
+  }
+  Write-Host "==================================="
+}
+
+Write-Host ""
+Write-Host "Engine contract migration to v6 complete."
+
+Write-Host ""
+Write-Host "═══════════════════════════════════════"
+Write-Host " Developer Summary"
+Write-Host "═══════════════════════════════════════"
+Write-Host ""
+Write-Host "What was done: Engine contract upgraded to v6"
+Write-Host ""
+Write-Host "What this means for your project:"
+Write-Host "  - Task cards: structured work items with clear scope and constraints"
+Write-Host "  - Decisions: your recorded choices that the AI must respect"
+Write-Host "  - Change capsules: human-readable summaries of what was changed and why"
+Write-Host "  - Glossary: helps the AI explain engine concepts in plain language"
+Write-Host ""
+Write-Host "What you need to do:"
+Write-Host "  - Nothing extra — the migration is complete"
+Write-Host "  - Run 'engine doctor' if you want to check project health"
+Write-Host "  - All changes are logged and can be reviewed or reverted"
+Write-Host ""
+Write-Host "If something goes wrong:"
+Write-Host "  - All migration changes are in engine/changes/ — review or revert"
+Write-Host "  - Run 'engine doctor' for a health check"
+Write-Host "═══════════════════════════════════════"
+
 exit 0

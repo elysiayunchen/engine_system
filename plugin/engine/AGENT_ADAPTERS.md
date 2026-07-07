@@ -74,12 +74,39 @@
 
 ---
 
+## Universal Context Loader: `engine context`
+
+> **This is the most critical feature for multi-agent support.**
+
+`engine context` is an agent-agnostic CLI command that outputs the full session memory snapshot — the same content Claude Code gets automatically via the SessionStart hook. Any AI agent can run it to bootstrap context.
+
+| Command | Bash | PowerShell |
+|---------|------|-----------|
+| Via CLI shim | `engine context` | `engine context` |
+| Direct script | `bash engine/scripts/engine-context.sh` | `powershell -File engine/scripts/engine-context.ps1` |
+
+**Output sections** (same as Claude Code SessionStart hook):
+1. L0 Constitution (runtime-law.md)
+2. Glossary header (GLOSSARY.md — plain-language bridge)
+3. Current state (CONTEXT.md, first 50 lines)
+4. Last handoff (HANDOFF.md, newest 4 rows)
+5. Domain dashboard (federation.json summaries)
+6. Active task card (full content)
+7. L2 domain assembly (domain CONTEXT + PITFALLS)
+8. Pending decisions (proposed queue)
+9. Previous session pending notes
+
+**Agent integration**: Agents that read AGENTS.md will see the Session Protocol requiring `engine context` at session start. Agents with rule files (Cursor `.cursor/rules/engine.md`, Copilot `copilot-instructions.md`, Gemini `GEMINI.md`) should include the same instruction, synced by `engine-sync-agent-anchors.sh`.
+
+---
+
 ## 设计原则
 
 1. **B 档(git pre-commit)是真正的最大公约数** — 任何 agent、任何平台，只要走 git，门禁就生效。这是唯一不需要 agent 配合的机制。
 2. **A 档(锚点契约)覆盖 Web 端** — 网页版 AI 读不到 hook 脚本，但能读到 AGENTS.md 里的 SESSION PROTOCOL。配合"增量回写"契约(边干边记)，是 Web 端最现实的兜底。
 3. **C 档(原生 hook)追求体验最优** — 在支持的 CLI 上做到"架构师零操作"。不需要覆盖所有 agent，有几个算几个。
 4. **三档独立兜底** — 任何一档失效(比如 C 档的 agent 不支持 hook)，B 档 pre-commit 照样拦截。
+5. **`engine context` 是 A/B 档 agent 的核心桥梁** — 非 C 档 agent 没有自动上下文注入，`engine context` 提供了等效的 agent-agnostic 命令，任何能执行 shell 的 agent 都能获取完整会话上下文。
 
 ---
 

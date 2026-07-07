@@ -1,14 +1,14 @@
 # CONTEXT — 当前状态
 
-> Engine System (engine_system) · Last updated: 2026-07-06 · Profile: CLI-LEAN
+> Engine System (engine_system) · Last updated: 2026-07-07 · Profile: CLI-LEAN
 
 ## 状态面板
 
 | 维度 | 状态 |
 |------|------|
 | 构建 | ✅ 正常（纯 markdown + shell 脚本，无构建步骤） |
-| 上次完成 | **T-022 P0 防护卡 done + 分发盲区修复**(7 commit,67d08e6..7c5d518):dist 漂移全覆盖 / protected_paths 补齐 / manifest 43 条真哈希硬校验(去空转)/ engine-verify 孪生修三 bug(ps1 从未启动/bash 探测/sh rc)。分发盲区:skeleton 骨架 + install 自动 migrator + 引导 → 用户项目引擎不再不可见。engine verify T-022 6/6 全绿。 |
-| 进行中 | ① D-019 P0 完成,P1(技能+路由)排队; ② D-018 待架构师批准(proposed); ③ T-020(agent 检测器)paused; ④ Q2 试点库待拍板(引擎现已可见可用,试点条件成熟) |
+| 上次完成 | **v6.2 Developer Communication Rule + engine context CLI + 多 agent 支持**(AC 12/12 全绿):engine context sh/ps1 孪生命令(任何 agent 的通用会话上下文加载器,等效 Claude Code SessionStart hook)/ DevComm Rule v6.2(动态语言检测+反馈信号+comm_level 自适应+全 agent 适用)/ GLOSSARY 双分区(Core Terms 引擎维护+Project Terms 开发者维护)/ Doctor human: 翻译行(~50 条)/ Stop hook 开发者可读消息/ migrate 开发者摘要/ sync-agent-anchors 注入 engine context+DevComm v6.2/ AGENTS.md 重写为 agent-agnostic Session Protocol+Agent Tiers 表/ D-020 预算背书 2455/13。四维 review+深度 review+回归测试 3/3 PASS+plugin 18 对 byte-identical。 |
+| 进行中 | ① 推送 v6.2 到 GitHub; ② D-019 P1(技能+路由)排队; ③ D-018 待架构师批准(proposed); ④ T-020(agent 检测器)paused; ⑤ Q2 试点库待拍板 |
 | 阻塞 | 无 |
 
 ## 当前假设 / 决策（本轮拍板）

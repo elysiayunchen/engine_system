@@ -85,6 +85,8 @@ match_any_glob() {
 }
 
 # 逐个检查暂存文件:受保护路径须有 approved 决策且 scope 覆盖。
+# set -f:禁用 glob,否则 ** 在 match_any_glob 的 for 循环中被展开为目录内容。
+set -f
 violation=""
 oldIFS="$IFS"
 IFS='
@@ -108,25 +110,17 @@ for file in $staged; do
     break
   fi
   # scope 覆盖检查:scope 是逗号分隔的 glob,在同一行 > 开头。
+  # 转成换行分隔后用 match_any_glob,避免 for 循环中 ** 被文件系统展开。
   scope_line="$(grep 'scope:' "$decision_file" 2>/dev/null | head -1)"
   scope_raw="$(printf '%s' "$scope_line" | sed 's/.*scope:[[:space:]]*//' | sed 's/|[[:space:]].*//' | tr -d '\r')"
-  scope_matched=0
-  IFS_csv="$IFS"
-  IFS=','
-  for sp in $scope_raw; do
-    sp="$(printf '%s' "$sp" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
-    [ -n "$sp" ] || continue
-    case "$file" in
-      $sp) scope_matched=1; break ;;
-    esac
-  done
-  IFS="$IFS_csv"
-  if [ "$scope_matched" -eq 0 ]; then
+  scope_pats="$(printf '%s' "$scope_raw" | sed 's/,[[:space:]]*/\n/g' | sed '/^[[:space:]]*$/d')"
+  if ! match_any_glob "$file" "$scope_pats"; then
     violation="$file (决策 $task_decision 的 scope 不覆盖此路径)"
     break
   fi
 done
 IFS="$oldIFS"
+set +f
 
 if [ -n "$violation" ]; then
   printf '\n' >&2

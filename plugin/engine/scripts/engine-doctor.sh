@@ -56,6 +56,7 @@ package_mode() {
   local manifest="$ROOT/manifest.json"
   if [[ ! -f "$manifest" ]]; then
     fail "plugin/manifest.json is missing"
+    echo "  human: The plugin manifest file is missing. Run 'engine init' to generate it, or create manifest.json with the required file list."
     return
   fi
 
@@ -64,6 +65,7 @@ package_mode() {
   srcs="$(package_manifest_srcs "$manifest")"
   if [[ -z "$srcs" ]]; then
     fail "plugin manifest has no files"
+    echo "  human: The plugin manifest lists no files. Add at least one file entry to manifest.json under the 'files' array."
     return
   fi
 
@@ -73,12 +75,14 @@ package_mode() {
     [[ -z "$src" ]] && continue
     if grep -Fx "$src" "$seen_tmp" >/dev/null 2>&1; then
       fail "duplicate manifest src: $src"
+      echo "  human: The file '$src' appears more than once in the manifest. Remove the duplicate entry from manifest.json."
     fi
     printf '%s\n' "$src" >> "$seen_tmp"
     if [[ -f "$ROOT/$src" ]]; then
       pass "package file exists: $src"
     else
       fail "package file missing: $src"
+      echo "  human: The file '$src' is listed in the manifest but does not exist on disk. Create it or remove the entry from manifest.json."
     fi
   done <<< "$srcs"
 
@@ -101,6 +105,7 @@ package_mode() {
   do
     if ! grep -Fx "$required" "$seen_tmp" >/dev/null 2>&1; then
       fail "required package file is not in manifest: $required"
+      echo "  human: The required file '$required' is not listed in the manifest. Add it to the 'files' array in manifest.json."
     fi
   done
   rm -f "$seen_tmp"
@@ -110,9 +115,11 @@ package_mode() {
       pass "Claude hook settings declare SessionStart and Stop"
     else
       fail ".claude/settings.json is missing SessionStart or Stop hooks"
+      echo "  human: The Claude settings file is missing required hook definitions. Add both 'SessionStart' and 'Stop' hooks to .claude/settings.json. Run 'engine sync' to regenerate them."
     fi
   else
     fail ".claude/settings.json is missing"
+    echo "  human: The .claude/settings.json file is missing entirely. Run 'engine sync' to generate it with the required hook configuration."
   fi
 }
 
@@ -154,6 +161,7 @@ budget_cap() {
 
 if [[ ! -f "$MAP" ]]; then
   fail "engine/ENGINE_MAP.md is missing"
+  echo "  human: The project's main index file (ENGINE_MAP.md) is missing. Run 'engine init' to create it."
   printf '\nEngine Doctor: %s failure(s), %s warning(s)\n' "$fail_count" "$warn_count"
   exit 1
 fi
@@ -164,7 +172,7 @@ profile="$(grep -E '^\|[[:space:]]*Active profile[[:space:]]*\|' "$MAP" | head -
 if [[ -z "$profile" ]]; then
   profile="$(grep -E 'Active profile:' "$MAP" | head -n 1 | sed -E 's/.*Active profile:[[:space:]]*\**([^* （(]+).*/\1/' | tr -d ' `' || true)"
 fi
-[[ -z "$profile" ]] && warn "Active profile not found in ENGINE_MAP §0"
+[[ -z "$profile" ]] && warn "Active profile not found in ENGINE_MAP §0" && echo "  human: The active profile (e.g. CLI-LEAN, FULL) is not declared in ENGINE_MAP. Add an 'Active profile' row to section 0 of ENGINE_MAP.md."
 
 registered_tmp="$(mktemp)"
 section_tmp="$(mktemp)"
@@ -208,30 +216,35 @@ while IFS='|' read -r _ file class priority revision verified _; do
   registered_names="$registered_names $file"
   case "$class" in
     index|irreducible|derivable|mixed|anchor|generated-cache) ;;
-    *) fail "$file has illegal class '$class' in ENGINE_MAP §1" ;;
+    *) fail "$file has illegal class '$class' in ENGINE_MAP §1"
+       echo "  human: The file '$file' has an invalid class type '$class' in ENGINE_MAP. Valid classes are: index, irreducible, derivable, mixed, anchor, generated-cache." ;;
   esac
-  [[ -z "$priority" ]] && fail "$file has empty read priority"
+  [[ -z "$priority" ]] && fail "$file has empty read priority" && echo "  human: The file '$file' has no read priority set in ENGINE_MAP. Add a priority value (e.g. must, should, optional) in the priority column."
   path="$(engine_path "$file")"
   if [[ -f "$path" ]]; then
     pass "registered file exists: $file"
   else
     fail "registered file missing: $file"
+    echo "  human: The file '$file' is registered in ENGINE_MAP but does not exist on disk. Create the file or remove its entry from ENGINE_MAP."
   fi
   cap="$(budget_cap "$file")"
   if [[ "$cap" -gt 0 && -f "$path" ]]; then
     lines="$(wc -l < "$path" | tr -d ' ')"
     if [[ "$lines" -gt "$cap" ]]; then
       warn "$file exceeds hard budget ($lines > $cap lines)"
+      echo "  human: The file '$file' has $lines lines, exceeding its $cap-line size limit. Trim it down to stay within the budget."
     fi
   fi
   if [[ "$class" == "mixed" ]] && ! grep -F "| $file |" "$section_tmp" >/dev/null 2>&1; then
     fail "$file is mixed but missing §1.1 section-class row"
+    echo "  human: The file '$file' is classified as 'mixed' but has no section breakdown in ENGINE_MAP section 1.1. Add a row for it in the section-class table."
   fi
   if [[ "$profile" == "CLI-LEAN" && "$class" == "derivable" && -f "$path" ]]; then
     lines="$(wc -l < "$path" | tr -d ' ')"
-    [[ "$lines" -gt 120 ]] && warn "$file is derivable in CLI-LEAN and longer than stub budget"
+    [[ "$lines" -gt 120 ]] && warn "$file is derivable in CLI-LEAN and longer than stub budget" && echo "  human: The file '$file' is auto-derivable and too long for CLI-LEAN mode ($lines lines > 120). Replace its content with a short stub or summary."
     if grep -E '^[[:space:]]*(├|└|│)|file inventory|directory tree|module count|version dump' "$path" >/dev/null 2>&1; then
       warn "$file may contain live derivable inventory in CLI-LEAN"
+      echo "  human: The file '$file' appears to contain live file/directory listings that should be auto-generated, not stored. In CLI-LEAN mode, replace this with a pointer to the generation command."
     fi
   fi
 done < "$registered_tmp"
@@ -257,6 +270,7 @@ require_section() {
   local file="$1" path="$2" pattern="$3" label="$4"
   if ! grep -Eq "$pattern" "$path"; then
     warn "$file is missing semantic section: $label"
+    echo "  human: The file '$file' is missing a required section titled '$label'. Add this section to keep the engine file complete."
   fi
 }
 
@@ -271,11 +285,13 @@ check_context_semantics() {
     row="$(grep -E "^\|[[:space:]]*$label[[:space:]]*\|" "$path" | head -n 1 || true)"
     if [[ -z "$row" ]]; then
       warn "CONTEXT.md status panel missing row: $label"
+      echo "  human: CONTEXT.md is missing the '$label' row in its status panel. Add a table row for '$label' with current information."
       continue
     fi
     value="$(printf '%s' "$row" | awk -F'|' '{print $3}' | xargs)"
     if [[ -z "$value" || "$value" =~ ^\[.*\]$ || "$value" == "TBD" || "$value" == "TODO" ]]; then
       warn "CONTEXT.md status row '$label' is placeholder or empty"
+      echo "  human: The '$label' row in CONTEXT.md has no real value (placeholder or empty). Fill in the actual status."
     fi
   done
 }
@@ -289,9 +305,11 @@ check_handoff_semantics() {
   require_section "HANDOFF.md" "$path" '^##[[:space:]]+会话历史' "会话历史"
   if ! grep -Eq '^下一步[:：][[:space:]]*[^[:space:]\[]' "$path"; then
     warn "HANDOFF.md has no concrete next-step resume pointer"
+    echo "  human: HANDOFF.md does not have a clear next-step instruction. Add a concrete '下一步' entry so the next session knows where to resume."
   fi
   if ! grep -Eq '^\|[[:space:]]*[0-9]{4}-[0-9]{2}-[0-9]{2}[[:space:]]*\|' "$path"; then
     warn "HANDOFF.md has no dated session history rows"
+    echo "  human: HANDOFF.md has no dated session history entries. Add rows with dates (YYYY-MM-DD) to the session history table so future sessions can trace past work."
   fi
 }
 
@@ -300,8 +318,8 @@ check_pitfalls_semantics() {
   local path="$ENGINE_DIR/PITFALLS.md"
   [[ -f "$path" ]] || return 0
 
-  grep -Eq '^##[[:space:]]+(条目|Entries)' "$path" || warn "PITFALLS.md is missing entries section"
-  grep -Eq '^##[[:space:]]+(索引|Index)' "$path" || warn "PITFALLS.md is missing index section"
+  grep -Eq '^##[[:space:]]+(条目|Entries)' "$path" || { warn "PITFALLS.md is missing entries section"; echo "  human: PITFALLS.md is missing the 'Entries' (条目) section. Add a '## Entries' heading with your pitfall records."; }
+  grep -Eq '^##[[:space:]]+(索引|Index)' "$path" || { warn "PITFALLS.md is missing index section"; echo "  human: PITFALLS.md is missing the 'Index' (索引) section. Add a '## Index' heading with a searchable index of all pitfalls."; }
 
   local ids
   ids="$(grep -E '^###[[:space:]]+P[0-9]{3}[[:space:]]+[—-]' "$path" | sed -E 's/^###[[:space:]]+(P[0-9]{3}).*/\1/' || true)"
@@ -316,6 +334,7 @@ check_pitfalls_semantics() {
     for field in 严重程度 类别 状态 你能观察到的现象 错误做法 正确做法 触发条件 验证方式; do
       if ! printf '%s\n' "$body" | grep -F "**$field：**" >/dev/null 2>&1; then
         warn "$id is missing pitfall field: $field"
+        echo "  human: Pitfall entry $id is missing the required '$field' field. Add it to make the pitfall record complete."
       fi
     done
   done <<< "$ids"
@@ -326,8 +345,8 @@ check_sprint_semantics() {
   local path="$ENGINE_DIR/SPRINT.md"
   [[ -f "$path" ]] || return 0
 
-  grep -Eq '完成标准|验收|Acceptance' "$path" || warn "SPRINT.md has no completion criteria"
-  grep -Eiq '验证方法|verify|verification' "$path" || warn "SPRINT.md has no verification method pointers"
+  grep -Eq '完成标准|验收|Acceptance' "$path" || { warn "SPRINT.md has no completion criteria"; echo "  human: SPRINT.md does not define when work is considered complete. Add a 'Completion Criteria' or 'Acceptance' section."; }
+  grep -Eiq '验证方法|verify|verification' "$path" || { warn "SPRINT.md has no verification method pointers"; echo "  human: SPRINT.md has no pointers to verification methods. Add a section describing how to verify sprint deliverables."; }
 }
 
 changed_paths() {
@@ -357,6 +376,7 @@ check_change_capsule_semantics() {
 
   if [[ "$meaningful" == true && -z "$latest" ]]; then
     warn "meaningful changed files exist but no change capsule was found in engine/changes"
+    echo "  human: You have uncommitted changes but no change log file. Create a CHANGE-*.md file in engine/changes/ to document what you changed and why."
     return 0
   fi
 
@@ -376,10 +396,12 @@ check_change_capsule_semantics() {
   do
     if ! grep -Eq "^##[[:space:]]+$section[[:space:]]*$" "$latest"; then
       warn "$(basename "$latest") is missing change capsule section: $section"
+      echo "  human: The change log '$(basename "$latest")' is missing the '$section' section. Add a '## $section' heading with the relevant content."
     fi
   done
   if grep -Eq '\[.*\]|TBD|TODO' "$latest"; then
     warn "$(basename "$latest") still contains placeholders"
+    echo "  human: The change log '$(basename "$latest")' still has unfilled placeholders like [TBD] or TODO. Replace them with actual content."
   fi
 }
 
@@ -388,8 +410,8 @@ check_contract_compile() {
   local dist="$ROOT/ENGINE_FILE_SYSTEM_v5.md"
   local compile_sh="$ROOT/contract/compile.sh"
   [ -d "$src_dir" ] || return 0
-  [ -f "$dist" ] || { warn "contract dist missing: $dist"; return; }
-  [ -f "$compile_sh" ] || { warn "contract compile.sh missing"; return; }
+  [ -f "$dist" ] || { warn "contract dist missing: $dist"; echo "  human: The compiled contract file is missing. Run 'bash contract/compile.sh' to generate it from source."; return; }
+  [ -f "$compile_sh" ] || { warn "contract compile.sh missing"; echo "  human: The contract compile script is missing. Ensure contract/compile.sh exists in your project."; return; }
   local tmp; tmp="$(mktemp)"
   local banner='<!-- ENGINE_FILE_SYSTEM_v5.md: compiled from contract/src/*.md by engine compile. Do not edit dist directly; edit src and recompile. -->'
   { printf '%s\n' "$banner"; for m in "$src_dir"/[0-9]*.md; do [ -f "$m" ] || continue; cat "$m"; done; } > "$tmp"
@@ -397,6 +419,7 @@ check_contract_compile() {
     pass "contract compile idempotent (compile(src) == dist)"
   else
     fail "contract dist is not compile(src) - run bash contract/compile.sh; do not edit dist directly"
+    echo "  human: The compiled contract file is out of date. Run 'bash contract/compile.sh' to regenerate it. Do not edit the dist file directly."
   fi
   rm -f "$tmp"
   # D-015: 第 4 dist(engine-init.md = 横幅 + cli-preamble + 同一模块)同样幂等
@@ -410,6 +433,7 @@ check_contract_compile() {
       pass "contract compile idempotent (engine-init.md == compile(preamble+src))"
     else
       fail "engine-init.md is not compile(src) - run bash contract/compile.sh; do not edit dist directly"
+      echo "  human: The engine-init command file is out of date. Run 'bash contract/compile.sh' to regenerate it. Do not edit the output file directly."
     fi
     rm -f "$tmp2"
   fi
@@ -421,6 +445,7 @@ check_contract_compile() {
       pass "contract budget: src $src_lines lines <= $max_lines"
     elif [ -n "$max_lines" ]; then
       fail "contract budget exceeded: src $src_lines lines > $max_lines (subtraction rule: net-zero growth)"
+      echo "  human: The contract source files have grown beyond the allowed budget ($src_lines > $max_lines lines). Trim content or apply the subtraction rule: new rules must offset existing ones to keep net-zero growth."
     fi
   fi
 }
@@ -442,6 +467,7 @@ check_contract_debt() {
       pass "contract debt <= baseline ($debt <= $baseline) - net-zero holding"
     else
       warn "contract debt > baseline ($debt > $baseline) - move MUST into data tables (Rules/rules.json/federation.json)"
+      echo "  human: There are more ungated MUST rules than allowed ($debt > $baseline). Move standalone MUST statements into structured data tables like Rules or federation.json to reduce contract debt."
     fi
   fi
 }
@@ -463,6 +489,7 @@ check_task_card_done_evidence() {
       pass "task $tid done with $n evidence file(s)"
     else
       fail "task $tid done but no evidence (engine/evidence/$tid/AC-*.json) and no exempt marker - run 'engine verify $tid' or mark exempt"
+      echo "  human: Task $tid is marked 'done' but has no verification evidence. Run 'engine verify $tid' to generate evidence, or add 'exempt' to the task card if verification is not needed."
     fi
   done
 }
@@ -471,17 +498,25 @@ check_engine_version() {
   local ev="$ENGINE_DIR/VERSION"
   if [ ! -f "$ev" ]; then
     warn "engine/VERSION missing - run 'engine migrate' to stamp the local version"
+    echo "  human: The engine version file is missing. Run 'engine migrate' to create it and stamp the current version."
     return 0
   fi
   local v; v="$(tr -d '[:space:]' < "$ev")"
   if [ -z "$v" ]; then
     fail "engine/VERSION is empty"
+    echo "  human: The engine version file exists but is empty. Run 'engine migrate' to fill it with the current version number."
     return 0
   fi
-  if [ -f "$ROOT/VERSION" ]; then
+  # Only compare engine/VERSION with repo root VERSION when this IS the
+  # engine_system source repo (contract/src/ exists). In user projects,
+  # $ROOT/VERSION is the product's own version (e.g. 1.0.0) with different
+  # semantics — comparing it against the engine tooling version (e.g. 6.0.1)
+  # is always a false positive. See P014 + CHANGE-2026-07-06-08.
+  if [ -d "$ROOT/contract/src" ] && [ -f "$ROOT/VERSION" ]; then
     local rv; rv="$(tr -d '[:space:]' < "$ROOT/VERSION")"
     if [ "$v" != "$rv" ]; then
       warn "engine/VERSION ($v) differs from repo VERSION ($rv) - run 'engine migrate' to sync"
+      echo "  human: The engine tooling version ($v) does not match the project version ($rv). Run 'engine migrate' to synchronize them."
     else
       pass "engine/VERSION ($v) matches repo VERSION"
     fi
@@ -501,6 +536,7 @@ check_plan_acceptance_evidence() {
     [[ -f "$ROOT/$spec" ]] || continue
     if ! grep -Eq 'Evidence|证据|engine/changes/CHANGE-|engine/evidence/' "$ROOT/$spec"; then
       warn "$id is marked done but has no acceptance evidence pointer"
+      echo "  human: Plan $id is marked 'done' but the spec file has no evidence pointers. Add references to evidence files, change capsules, or engine/evidence/ in the spec."
     fi
   done < "$plan_tmp"
 }
@@ -516,6 +552,7 @@ while IFS= read -r path; do
   fi
   if ! is_registered "$rel" && ! is_registered "${rel#engine/}"; then
     fail "authority-looking file is not registered or explained: $rel"
+    echo "  human: The file '$rel' looks like a project authority file but is not registered in ENGINE_MAP. Either register it in ENGINE_MAP section 1 or move it out of the engine/ directory."
   fi
 done < <(find "$ENGINE_DIR" -maxdepth 1 -type f -name '*.md' 2>/dev/null)
 
@@ -524,6 +561,7 @@ if [[ -d "$ENGINE_DIR/agents" ]]; then
     rel="${path#"$ROOT/"}"
     if ! is_registered "$rel"; then
       fail "agent adapter is not registered: $rel"
+      echo "  human: The agent adapter file '$rel' is not registered in ENGINE_MAP. Register it in the file registry or remove it if it's no longer needed."
     fi
   done < <(find "$ENGINE_DIR/agents" -maxdepth 1 -type f -name '*.md' 2>/dev/null)
 fi
@@ -545,7 +583,7 @@ while IFS='|' read -r _ path type authority verified _; do
   if [[ "$path" == *archived* || "$path" == *superseded* || "$path" == *external* ]]; then
     continue
   fi
-  [[ -f "$ROOT/$path" ]] || warn "registered anchor missing: $path"
+  [[ -f "$ROOT/$path" ]] || { warn "registered anchor missing: $path"; echo "  human: The anchor file '$path' is registered in ENGINE_MAP but does not exist. Create it or remove the anchor entry."; }
 done < "$anchor_tmp"
 
 allowed_status=' draft proposed accepted active blocked done archived superseded '
@@ -557,32 +595,35 @@ while IFS='|' read -r _ id title status plan spec notes verified _; do
   [[ -z "$id" || "$id" == "ID" || "$id" =~ ^-+$ || "$id" == \[* || "$id" == "无"* ]] && continue
   if [[ "$allowed_status" != *" $status "* ]]; then
     fail "$id has invalid plan status '$status'"
+    echo "  human: Plan $id has an unrecognized status '$status'. Valid statuses are: draft, proposed, accepted, active, blocked, done, archived, superseded."
   fi
   # Inline markers and composite paths are not single files on disk.
   if [[ -n "$plan" && "$plan" != \(* && "$plan" != *"+"* ]]; then
-    [[ -f "$ROOT/$plan" ]] || fail "$id plan file missing: $plan"
+    [[ -f "$ROOT/$plan" ]] || { fail "$id plan file missing: $plan"; echo "  human: The plan file '$plan' for $id does not exist. Create it or update the ENGINE_MAP plan registry."; }
   fi
   has_inline=false; [[ "$spec" == *"内联"* ]] && has_inline=true
   has_spec_path=false; [[ "$spec" == engine/* ]] && has_spec_path=true
   if [[ "$has_inline" == false && "$has_spec_path" == false ]]; then
     case " $status " in
-      " accepted "|" active "|" done ") fail "$id must have a spec twin path or inline spec marker: $spec" ;;
+      " accepted "|" active "|" done ") fail "$id must have a spec twin path or inline spec marker: $spec"
+        echo "  human: Plan $id is in status '$status' but has no spec twin file. Add a spec file path in the Spec column of ENGINE_MAP, or use an inline spec marker." ;;
     esac
   fi
   if [[ "$has_spec_path" == true && "$spec" != *"+"* ]]; then
-    [[ -f "$ROOT/$spec" ]] || fail "$id spec twin missing: $spec"
+    [[ -f "$ROOT/$spec" ]] || { fail "$id spec twin missing: $spec"; echo "  human: The spec twin file '$spec' for plan $id does not exist. Create the spec file or update the path in ENGINE_MAP."; }
   fi
 done < "$plan_tmp"
 
 for anchor in AGENTS.md CLAUDE.md; do
   if [[ -f "$ROOT/$anchor" ]]; then
     lines="$(wc -l < "$ROOT/$anchor" | tr -d ' ')"
-    [[ "$lines" -gt 45 ]] && warn "$anchor exceeds bootloader hard cap ($lines > 45 lines)"
+    [[ "$lines" -gt 45 ]] && warn "$anchor exceeds bootloader hard cap ($lines > 45 lines)" && echo "  human: The bootloader file '$anchor' has $lines lines, exceeding the 45-line limit. Bootloader files should only contain pointers to engine files, not content. Trim it down."
   fi
 done
 
 if [[ " $registered_names " != *" ENGINE_DOCTOR.md "* ]]; then
   warn "ENGINE_DOCTOR.md is not registered in ENGINE_MAP §1"
+  echo "  human: The ENGINE_DOCTOR.md file is not listed in the ENGINE_MAP file registry. Add it to section 1 so the doctor can track its health."
 fi
 
 for script in \
@@ -607,6 +648,7 @@ do
     pass "bundled maintenance script exists: engine/scripts/$script"
   else
     warn "bundled maintenance script missing: engine/scripts/$script"
+    echo "  human: The maintenance script 'engine/scripts/$script' is missing. Run 'engine sync' to restore bundled scripts."
   fi
 done
 
@@ -615,6 +657,7 @@ for cli in engine engine.ps1 engine.cmd; do
     pass "bundled CLI shim exists: engine/bin/$cli"
   else
     warn "bundled CLI shim missing: engine/bin/$cli"
+    echo "  human: The CLI entry point 'engine/bin/$cli' is missing. Run 'engine sync' to restore bundled CLI shims."
   fi
 done
 

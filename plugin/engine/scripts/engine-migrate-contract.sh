@@ -49,13 +49,100 @@ ensure_structure() {
   local changed=0
   # v6 data-layer directories
   local d
-  for d in tasks decisions domains changes evidence .cache; do
+  for d in tasks decisions domains changes evidence plans .cache; do
     if [ ! -d "$ENGINE_DIR/$d" ]; then
       mkdir -p "$ENGINE_DIR/$d"
       echo "created $(relpath "$ENGINE_DIR/$d")/"
       changed=1
     fi
   done
+  # Task card template: helps agents and developers understand the T-NNN format.
+  # Only created if missing — existing task card setups are never overwritten.
+  if [ ! -f "$ENGINE_DIR/tasks/README.md" ]; then
+    cat > "$ENGINE_DIR/tasks/README.md" <<'TDOC'
+# Task Cards (T-NNN.md)
+
+Each task card tracks one unit of work. Create with: `T-001.md`, `T-002.md`, etc.
+
+## Required Header (machine-readable)
+
+```
+---
+goal: One-line description of what this task achieves
+write-set: [list of path-globs this task is allowed to modify]
+forbidden: [list of path-globs this task must NOT touch]
+status: proposed | active | done
+lane: main | <workstream-name>
+decision: D-NNN (reference to approved decision, if touching protected paths)
+domain: <domain-name from federation.json>
+---
+```
+
+## Acceptance Criteria Section
+
+After the header, list ACs with verify commands:
+
+```
+## AC
+
+| # | Criterion | Verify |
+|---|-----------|--------|
+| 1 | Description of expected behavior | `command to verify` |
+| 2 | Another criterion | `another command` |
+```
+
+## Lifecycle
+
+- **proposed**: task is planned, not yet started
+- **active**: work in progress; Stop hook enforces WRITE-SET
+- **done**: all ACs verified green (via `engine verify T-NNN`) or architect grants `exempt`
+TDOC
+    echo "created $(relpath "$ENGINE_DIR/tasks/README.md")"
+    changed=1
+  fi
+  # Glossary: plain-language bridge between engine terminology and developer understanding.
+  # Injected into agent context so agents explain things in accessible language.
+  if [ ! -f "$ENGINE_DIR/GLOSSARY.md" ]; then
+    cat > "$ENGINE_DIR/GLOSSARY.md" <<'GDOC'
+# Engine System Glossary
+
+> Agent: when explaining engine concepts to the developer, use the "Plain meaning" column.
+> Match the developer's language — do not hardcode any specific language.
+
+## Core Terms (engine-managed)
+
+<!-- The terms below are maintained by the engine system. Do not edit manually. -->
+
+| Engine term | Plain meaning | Example |
+|-------------|--------------|---------|
+| Engine file | A project memory file that the AI reads/writes to stay oriented | ENGINE_MAP.md, CONTEXT.md |
+| ENGINE_MAP | The table of contents for all engine files — read this first each session | Like a book's index |
+| CONTEXT | Current project status dashboard — what's happening right now | Like a morning briefing |
+| HANDOFF | Session handoff notes — where we left off and what to do next | Like a relay baton |
+| Task card (T-NNN) | A structured work item with clear scope, acceptance criteria, and constraints | Like a Jira ticket |
+| Decision (D-NNN) | A recorded non-obvious choice with rationale and scope | Like an ADR (architecture decision record) |
+| Change capsule | A human-readable summary of what was changed and why | Like a detailed commit message |
+| Federation table | A routing map that groups project files into domains for context management | Like folders with smart labels |
+| Doctor | Health check that validates engine file consistency | Like a linter for project memory |
+| Write-back | Updating engine files after making code changes | Like updating meeting notes after a meeting |
+| Gate / Hook | Automatic checks that run before/after actions to prevent mistakes | Like a spell-checker that runs before you send |
+| Contract | The set of rules governing how engine files work together | Like a team's working agreement |
+| Pitfall | A documented mistake to avoid repeating | Like a "lessons learned" entry |
+| Plan / Spec | A design document (plan) paired with its technical specification (spec) | Like a blueprint + engineering drawing |
+| reconcile | Comparing engine memory against actual code and fixing any drift | Like proofreading a document against the source |
+| Irreducible | Knowledge that can't be regenerated from code — must be preserved | Decisions, rationale, lessons learned |
+| Derivable | Knowledge that can be regenerated from code on demand | File listings, module maps |
+
+## Project Terms (developer-managed)
+
+<!-- Add project-specific terms below. This section is preserved across engine upgrades. -->
+
+| Term | Plain meaning | Added by |
+|------|--------------|----------|
+GDOC
+    echo "created $(relpath "$ENGINE_DIR/GLOSSARY.md")"
+    changed=1
+  fi
   # Federation table: standard engine-runtime + project-meta + default. Routes engine
   # files (not user business code), so it applies to any project using Engine System.
   if [ ! -f "$ENGINE_DIR/domains/federation.json" ]; then
@@ -185,7 +272,74 @@ upsert_block() {
 # (change detected = success, not error). With set -e, return 1 would abort the
 # script. The true guard allows the script to continue whether or not directories
 # already existed — both outcomes are acceptable for an idempotent migration step.
+# Reconcile known schema drifts in engine files. Fixes safe vocabulary mappings;
+# warns about structural issues that require human judgment. Addresses P014.
+reconcile_schema() {
+  local changed=0
+  # Normalize plan/task status vocabulary in ENGINE_MAP.md.
+  # Old engine versions used free-text statuses; v6 requires restricted vocabulary.
+  if [ -f "$MAP" ]; then
+    local map_tmp; map_tmp="$(mktemp)"
+    cp "$MAP" "$map_tmp"
+    # Status vocabulary mapping (old -> v6 canonical):
+    #   planning / design-pending-approval / in-progress / wip -> proposed
+    #   implemented / completed / done-verified / finished -> done
+    #   archived / deprecated / superseded -> archived
+    local sed_script
+    sed_script="$(mktemp)"
+    # Write sed commands to file (avoids glob expansion)
+    cat > "$sed_script" <<'SEDCMD'
+s/| \*planning\* */| **proposed**/g
+s/ planning / proposed /g
+s/| \*design-pending-approval\* */| **proposed**/g
+s/ design-pending-approval / proposed /g
+s/| \*in-progress\* */| **proposed**/g
+s/ in-progress / proposed /g
+s/| \*wip\* */| **proposed**/g
+s/ wip / proposed /g
+s/| \*implemented\* */| **done**/g
+s/ implemented / done /g
+s/| \*completed\* */| **done**/g
+s/ completed / done /g
+s/| \*done-verified\* */| **done**/g
+s/ done-verified / done /g
+s/| \*finished\* */| **done**/g
+s/ finished / done /g
+s/| \*archived\* */| **archived**/g
+s/ archived / archived /g
+s/| \*deprecated\* */| **archived**/g
+s/ deprecated / archived /g
+s/| \*superseded\* */| **archived**/g
+s/ superseded / archived /g
+SEDCMD
+    sed -f "$sed_script" "$map_tmp" > "$map_tmp.2" || true
+    rm -f "$sed_script"
+    if ! cmp -s "$map_tmp" "$map_tmp.2"; then
+      cp "$map_tmp.2" "$MAP"
+      echo "reconciled $(relpath "$MAP") (status vocabulary normalized)"
+      changed=1
+    fi
+    rm -f "$map_tmp.2"
+    rm -f "$map_tmp"
+    # Warn about table column count mismatches (5-col vs 7-col plan registry).
+    # This is too risky to auto-fix — the semantic mapping requires human judgment.
+    local plan_section; plan_section="$(grep -n '## .*Plan.*Registr\|## .*§2' "$MAP" 2>/dev/null | head -1 || true)"
+    if [ -n "$plan_section" ]; then
+      local start_line; start_line="$(echo "$plan_section" | cut -d: -f1)"
+      local sample_row; sample_row="$(tail -n +"$start_line" "$MAP" | grep -E '^\| [A-Z]' | head -1 || true)"
+      if [ -n "$sample_row" ]; then
+        local col_count; col_count="$(echo "$sample_row" | awk -F'|' '{print NF-2}')"
+        if [ "$col_count" -lt 6 ]; then
+          echo "WARN: ENGINE_MAP §2 plan registry has $col_count columns (v6 expects 6-7). Manual reconcile recommended."
+        fi
+      fi
+    fi
+  fi
+  return $changed
+}
+
 ensure_structure || true
+reconcile_schema || true
 
 session_tmp="$(mktemp)"
 doctor_tmp="$(mktemp)"
@@ -256,12 +410,15 @@ cat > "$capsule" <<EOF
 Migrate an existing project with old engine files to the current Engine System v6 contract without rerunning /engine-init or overwriting project-specific memory.
 
 ## Actual Changes
-- Ensured v6 data-layer directories exist: tasks, decisions, domains, changes, evidence, .cache.
+- Ensured v6 data-layer directories exist: tasks, decisions, domains, changes, evidence, plans, .cache.
+- Created task card template (engine/tasks/README.md) and glossary (engine/GLOSSARY.md) if missing.
 - Created federation table (engine/domains/federation.json) if missing, with standard engine-runtime + project-meta domains.
 - Created decision rules baseline (engine/decisions/rules.json) if missing.
 - Created local VERSION stamp (engine/VERSION) if missing.
+- Reconciled known schema drifts in ENGINE_MAP.md (status vocabulary normalization).
 - Updated managed contract blocks (contract-version $CONTRACT_VERSION) in: ${TOUCHED[*]}.
 - The v6 block covers: task card headers, decision ledger, fractal memory, three-layer gate, contract compile, cockpit verify, change capsules, single-writer merges, update check.
+- Ran Doctor post-migration to validate migration output.
 
 ## Impact Scope
 Engine memory layer only. Project source code and project-specific engine prose outside managed migration blocks are preserved.
@@ -272,21 +429,58 @@ If the project already had custom rules in the same files, they remain outside t
 ## Verification
 | Check | Result | Evidence |
 |-------|--------|----------|
-| v6 structure created | pass | tasks/decisions/domains/changes/evidence/.cache + federation.json + rules.json + VERSION |
+| v6 structure created | pass | tasks/decisions/domains/changes/evidence/plans/.cache + federation.json + rules.json + VERSION |
+| Templates created | pass | tasks/README.md + GLOSSARY.md |
+| Schema reconcile | pass | ENGINE_MAP.md status vocabulary normalized |
 | Contract blocks written | pass | ${TOUCHED[*]} |
-| Doctor | not run | Run /engine-doctor after migration |
+| Doctor | chained | See Doctor output below |
 
 ## Rollback
-Remove the managed blocks between ENGINE_SYSTEM_CONTRACT_MIGRATIONS_START and ENGINE_SYSTEM_CONTRACT_MIGRATIONS_END, then remove this capsule if the migration is rejected. The created directories and federation.json can be kept (they are harmless empty scaffolding) or removed manually.
+Remove the managed blocks between ENGINE_SYSTEM_CONTRACT_MIGRATIONS_START and ENGINE_SYSTEM_CONTRACT_MIGRATIONS_END, then remove this capsule if the migration is rejected. The created directories, templates, and federation.json can be kept (they are harmless scaffolding) or removed manually.
 
 ## Next Step
-Run /engine-doctor, then /engine-reconcile if Doctor reports drift.
+Review Doctor output above. If Doctor reports warnings, run /engine-reconcile for structural issues.
 
 ## Responsibility Boundary
-- AI checked: existing ENGINE_MAP presence, v6 structure creation, managed migration block insertion.
+- AI checked: existing ENGINE_MAP presence, v6 structure creation, template generation, schema reconcile, managed migration block insertion, Doctor chain.
 - Architect should decide: whether to keep the migration wording as-is or tighten missing change capsules into hard failures.
 EOF
 echo "created $(relpath "$capsule")"
 
-echo "Engine contract migration to v6 complete. Next: run /engine-doctor."
+# Chain Doctor post-migration to validate output (addresses: standalone migrate
+# previously did not validate its own results).
+doctor_script="$ENGINE_DIR/scripts/engine-doctor.sh"
+if [ -f "$doctor_script" ]; then
+  echo ""
+  echo "=== Post-migration Doctor check ==="
+  bash "$doctor_script" "$ROOT" || echo "(Doctor exited with warnings/failures — review above)"
+  echo "==================================="
+fi
+
+echo ""
+echo "Engine contract migration to v6 complete."
+
+echo ""
+echo "═══════════════════════════════════════"
+echo " Developer Summary"
+echo "═══════════════════════════════════════"
+echo ""
+echo "What was done: Engine contract upgraded to v6"
+echo ""
+echo "What this means for your project:"
+echo "  - Task cards: structured work items with clear scope and constraints"
+echo "  - Decisions: your recorded choices that the AI must respect"
+echo "  - Change capsules: human-readable summaries of what was changed and why"
+echo "  - Glossary: helps the AI explain engine concepts in plain language"
+echo ""
+echo "What you need to do:"
+echo "  - Nothing extra — the migration is complete"
+echo "  - Run 'engine doctor' if you want to check project health"
+echo "  - All changes are logged and can be reviewed or reverted"
+echo ""
+echo "If something goes wrong:"
+echo "  - All migration changes are in engine/changes/ — review or revert"
+echo "  - Run 'engine doctor' for a health check"
+echo "═══════════════════════════════════════"
+
 exit 0

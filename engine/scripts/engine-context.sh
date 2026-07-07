@@ -1,0 +1,158 @@
+#!/usr/bin/env bash
+# Engine System — engine-context · "universal context loader"
+#
+# Agent-agnostic session context dump. Any AI agent (Claude Code, Cursor,
+# Copilot, Codex CLI, Gemini CLI, Aider, web chat) can run this command to
+# get the full project memory snapshot that Claude Code gets automatically
+# via the SessionStart hook.
+#
+# Usage: engine context          (via CLI shim)
+#        bash engine/scripts/engine-context.sh [project_root]
+#
+# Safety: read-only. No engine writes, no code writes, no network calls.
+# Always exits 0 (fail-open).
+
+set -u
+log_error() { echo "[engine-context] ERROR: $*" >&2; }
+
+ROOT="${1:-${CLAUDE_PROJECT_DIR:-$PWD}}"
+ENGINE_DIR="$ROOT/engine"
+
+if [ ! -d "$ENGINE_DIR" ]; then
+  echo "[Engine System] engine/ directory not found in $ROOT."
+  echo "Run 'engine init' or 'engine migrate' to set up the project memory layer."
+  exit 0
+fi
+
+echo "═══════════════════════════════════════════════════"
+echo " Engine System — Session Context"
+echo " Agent: read the sections below to understand"
+echo " the current project state before taking action."
+echo "═══════════════════════════════════════════════════"
+echo ""
+
+# L0 constitution injection (runtime-law.md <=40 lines, top anti-drift anchor).
+if [ -f "$ROOT/runtime-law.md" ]; then
+  echo "──── ⚖️  L0 Constitution (runtime-law.md) ────"
+  sed -n '1,40p' "$ROOT/runtime-law.md" 2>/dev/null
+  echo ""
+fi
+
+# GLOSSARY injection — agent must use Plain meaning column with developer.
+glossary="$ENGINE_DIR/GLOSSARY.md"
+if [ -f "$glossary" ]; then
+  echo "──── 📖 Glossary (engine/GLOSSARY.md) ────"
+  echo "When communicating with the developer, use the Plain meaning column."
+  echo "Match the developer's language. Full glossary: engine/GLOSSARY.md"
+  echo ""
+fi
+
+# CONTEXT.md — current project status dashboard.
+if [ -f "$ENGINE_DIR/CONTEXT.md" ]; then
+  echo "──── 📊 Current State (engine/CONTEXT.md, first 50 lines) ────"
+  sed -n '1,50p' "$ENGINE_DIR/CONTEXT.md" 2>/dev/null
+  echo ""
+fi
+
+# HANDOFF.md — latest session handoff records.
+if [ -f "$ENGINE_DIR/HANDOFF.md" ]; then
+  echo "──── 🔀 Last Handoff (engine/HANDOFF.md, newest first) ────"
+  grep -m 4 '^|' "$ENGINE_DIR/HANDOFF.md" 2>/dev/null
+  echo ""
+fi
+
+# Domain dashboard — one-line summary per domain from federation.json.
+fed="$ENGINE_DIR/domains/federation.json"
+if [ -f "$fed" ]; then
+  echo "──── 🗺️  Domain Dashboard (federation.json) ────"
+  awk '
+    /^[[:space:]]*"[A-Za-z0-9_-]+"[[:space:]]*:[[:space:]]*\{/ { if (match($0, /"([A-Za-z0-9_-]+)"/, m)) { domain=m[1]; next } }
+    /"summary"/ { if (match($0, /"summary"[[:space:]]*:[[:space:]]*"([^"]+)"/, m)) print "• " domain ": " m[1]; next }
+  ' "$fed" 2>/dev/null
+  echo ""
+fi
+
+# Active task card — core anti-drift anchor.
+active_task=""
+for f in "$ENGINE_DIR"/tasks/T-*.md; do
+  [ -f "$f" ] || continue
+  if grep -q 'status:.*active' "$f" 2>/dev/null; then
+    active_task="$f"
+    break
+  fi
+done
+if [ -n "$active_task" ]; then
+  task_id="$(basename "$active_task" .md)"
+  echo "──── 🎯 Active Task Card ($task_id) ────"
+  echo "All code changes MUST be within WRITE-SET; FORBIDDEN is the architect's veto."
+  cat "$active_task" 2>/dev/null || log_error "failed to read active task card: $active_task"
+  echo ""
+fi
+
+# L2 domain assembly — CONTEXT + PITFALLS for each domain in the task card.
+if [ -n "$active_task" ] && [ -f "$fed" ]; then
+  task_domains_l2="$(grep '^>.*domain:' "$active_task" 2>/dev/null | head -1 | sed 's/.*domain:[[:space:]]*//' | sed 's/|.*//' | tr -d ' ')"
+  if [ -n "$task_domains_l2" ]; then
+    saved_IFS="$IFS"; IFS=','
+    for dom in $task_domains_l2; do
+      [ -n "$dom" ] || continue
+      dom_ctx="$ENGINE_DIR/domains/$dom/CONTEXT.md"
+      dom_pit="$ENGINE_DIR/domains/$dom/PITFALLS.md"
+      if [ -f "$dom_ctx" ] || [ -f "$dom_pit" ]; then
+        echo "──── 📦 L2 Domain: $dom ────"
+        [ -f "$dom_ctx" ] && sed -n '1,50p' "$dom_ctx" 2>/dev/null
+        [ -f "$dom_pit" ] && sed -n '1,40p' "$dom_pit" 2>/dev/null
+        echo ""
+      fi
+    done
+    IFS="$saved_IFS"
+  fi
+fi
+
+# Pending decisions queue.
+proposed_count=0
+for f in "$ENGINE_DIR"/decisions/D-*.md; do
+  [ -f "$f" ] || continue
+  if grep -q 'status:.*proposed' "$f" 2>/dev/null; then
+    if [ "$proposed_count" -eq 0 ]; then
+      echo "──── ⏳ Pending Decisions (proposed) ────"
+    fi
+    head -3 "$f" 2>/dev/null
+    echo ""
+    proposed_count=$((proposed_count + 1))
+  fi
+done
+
+# Previous session pending notes (from SessionEnd hook).
+if [ -f "$ENGINE_DIR/.cache/pending.txt" ]; then
+  echo "──── ⚠️  Pending from Previous Session ────"
+  cat "$ENGINE_DIR/.cache/pending.txt" 2>/dev/null
+  echo ""
+fi
+
+# Update check (read from cache, non-blocking).
+cache="$ENGINE_DIR/.cache/update-check.json"
+if [ -f "$cache" ]; then
+  norm_v() {
+    v="$(printf '%s' "${1:-}" | tr -d '[:space:]')"
+    case "$v" in ''|*[!0-9.]*) printf '%s' "$v"; return ;; esac
+    case "$v" in *.*.*) ;; *.*) v="$v.0" ;; *) v="$v.0.0" ;; esac
+    printf '%s' "$v"
+  }
+  latest="$(grep -oE '"latest":[[:space:]]*"[^"]*"' "$cache" 2>/dev/null | head -1 | sed 's/.*"latest":[[:space:]]*"//;s/"//')"
+  current="$(grep -oE '"current":[[:space:]]*"[^"]*"' "$cache" 2>/dev/null | head -1 | sed 's/.*"current":[[:space:]]*"//;s/"//')"
+  if [ -n "$latest" ] && [ "$latest" != "" ] && [ "$(norm_v "$latest")" != "$(norm_v "$current")" ]; then
+    echo "──── 🔄 Engine Update Available ────"
+    echo "Local $current -> Remote $latest. Run: engine update"
+    echo ""
+  fi
+fi
+
+echo "═══════════════════════════════════════════════════"
+echo " End of Engine System context."
+echo " Key files: engine/ENGINE_MAP.md (index)"
+echo "            engine/CONTEXT.md    (current state)"
+echo "            engine/HANDOFF.md    (session history)"
+echo "═══════════════════════════════════════════════════"
+
+exit 0

@@ -19,7 +19,7 @@ if (-not (Test-Path $EngineDir)) {
   exit 0
 }
 
-Write-Output "[Engine System - auto handoff] Current project memory snapshot. Restate the current state in one Simplified Chinese sentence before acting."
+Write-Output "[Engine System - auto handoff] Current project memory snapshot. Detect the developer's language, then restate the current state in that language before acting."
 Write-Output ""
 
 # v6 mid-priority: L0 constitution injection (runtime-law.md <=40 lines, top anti-drift anchor).
@@ -27,6 +27,16 @@ $LawFile = Join-Path $Root "runtime-law.md"
 if (Test-Path $LawFile) {
   Write-Output "---- L0 constitution (runtime-law) ----"
   Get-Content $LawFile -TotalCount 40 | ForEach-Object { Write-Output $_ }
+  Write-Output ""
+}
+
+# v6.1: GLOSSARY injection - agent must use Plain meaning column when talking to developer.
+# Only inject header + instruction (3 lines), full glossary read on demand to save tokens.
+$GlossaryFile = Join-Path $EngineDir "GLOSSARY.md"
+if (Test-Path $GlossaryFile) {
+  Write-Output "---- Glossary (engine/GLOSSARY.md) ----"
+  Write-Output "When communicating with the developer, use the Plain meaning column from GLOSSARY.md."
+  Write-Output "Match the developer's language (not hardcoded Chinese). Full glossary: engine/GLOSSARY.md"
   Write-Output ""
 }
 

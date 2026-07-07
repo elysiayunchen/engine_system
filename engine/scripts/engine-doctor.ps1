@@ -73,6 +73,7 @@ function Test-PackageMode {
   $manifestPath = Join-Path $Root "manifest.json"
   if (-not (Test-Path $manifestPath)) {
     Write-Fail "plugin/manifest.json is missing"
+    Write-Output "  human: The plugin manifest file is missing. Run 'engine init' to generate it, or create manifest.json with your file list."
     return
   }
 
@@ -81,12 +82,14 @@ function Test-PackageMode {
     $manifest = Get-Content -Raw -Path $manifestPath -Encoding UTF8 | ConvertFrom-Json
   } catch {
     Write-Fail "plugin/manifest.json is not valid JSON: $($_.Exception.Message)"
+    Write-Output "  human: The manifest file has a JSON syntax error. Open manifest.json and fix the formatting (missing commas, brackets, or quotes)."
     return
   }
 
   $files = @($manifest.files)
   if ($files.Count -eq 0) {
     Write-Fail "plugin manifest has no files"
+    Write-Output "  human: The manifest lists no files to package. Add src/dest entries to the files array in manifest.json."
     return
   }
 
@@ -94,14 +97,17 @@ function Test-PackageMode {
   foreach ($file in $files) {
     if (-not $file.src) {
       Write-Fail "manifest entry has empty src"
+      Write-Output "  human: A manifest file entry has no source path. Every file in manifest.json needs a non-empty 'src' field."
       continue
     }
     if (-not $file.dest) {
       Write-Fail "$($file.src) has empty dest"
+      Write-Output "  human: The manifest entry for '$($file.src)' has no destination path. Add a 'dest' field specifying where it should be installed."
       continue
     }
     if (-not $seen.Add([string]$file.src)) {
       Write-Fail "duplicate manifest src: $($file.src)"
+      Write-Output "  human: The file '$($file.src)' appears more than once in the manifest. Remove the duplicate entry."
     }
 
     $sourcePath = Join-Path $Root ($file.src -replace "/", [IO.Path]::DirectorySeparatorChar)
@@ -109,6 +115,7 @@ function Test-PackageMode {
       Write-Pass "package file exists: $($file.src)"
     } else {
       Write-Fail "package file missing: $($file.src)"
+      Write-Output "  human: The file '$($file.src)' is listed in the manifest but does not exist on disk. Create the file or remove it from manifest.json."
     }
   }
 
@@ -131,12 +138,14 @@ function Test-PackageMode {
   )) {
     if ($files.src -notcontains $required) {
       Write-Fail "required package file is not in manifest: $required"
+      Write-Output "  human: The required file '$required' is not listed in manifest.json. Add it to the manifest's files array."
     }
   }
 
   $settingsPath = Join-Path $Root ".claude\settings.json"
   if (-not (Test-Path $settingsPath)) {
     Write-Fail ".claude/settings.json is missing"
+    Write-Output "  human: The Claude settings file is missing. Run 'engine init' to create .claude/settings.json with the required hook configuration."
     return
   }
 
@@ -146,9 +155,11 @@ function Test-PackageMode {
       Write-Pass "Claude hook settings declare SessionStart and Stop"
     } else {
       Write-Fail ".claude/settings.json is missing SessionStart or Stop hooks"
+      Write-Output "  human: The Claude settings file is missing SessionStart or Stop hook definitions. Run 'engine init' to regenerate the hook configuration."
     }
   } catch {
     Write-Fail ".claude/settings.json is not valid JSON: $($_.Exception.Message)"
+    Write-Output "  human: The Claude settings file has a JSON syntax error. Open .claude/settings.json and fix the formatting."
   }
 }
 
@@ -162,6 +173,7 @@ if ($PackageMode) {
 
 if (-not (Test-Path $map)) {
   Write-Fail "engine/ENGINE_MAP.md is missing"
+  Write-Output "  human: The project's table of contents file (ENGINE_MAP.md) is missing. Run 'engine init' to create it."
   Write-Host ""
   Write-Host "Engine Doctor: $failCount failure(s), $warnCount warning(s)"
   exit 1
@@ -185,7 +197,8 @@ if (-not $profile) {
     }
   }
 }
-if (-not $profile) { Write-Warn "Active profile not found in ENGINE_MAP section 0" }
+if (-not $profile) { Write-Warn "Active profile not found in ENGINE_MAP section 0"
+  Write-Output "  human: Could not find the active profile (e.g. CLI-LEAN, FULL) in ENGINE_MAP. Add an 'Active profile' row to section 0 so the doctor knows which checks to run." }
 
 $sectionMark = [string][char]0x00A7
 $regStart = "^## (1\.|${sectionMark}1\s)"
@@ -213,18 +226,22 @@ foreach ($row in $registeredRows) {
   $fileHeaderZh = [string][char]0x6587 + [string][char]0x4EF6
   if (-not $file -or $file -eq "File" -or $file -eq $fileHeaderZh -or $file -match "^-+$" -or $file.StartsWith("[")) { continue }
   $registeredNames.Add($file)
-  if ($validClasses -notcontains $class) { Write-Fail "$file has illegal class '$class' in ENGINE_MAP section 1" }
-  if (-not $priority) { Write-Fail "$file has empty read priority" }
+  if ($validClasses -notcontains $class) { Write-Fail "$file has illegal class '$class' in ENGINE_MAP section 1"
+    Write-Output "  human: The file '$file' has an invalid class type '$class' in the ENGINE_MAP registry. Use one of: index, irreducible, derivable, mixed, anchor, generated-cache." }
+  if (-not $priority) { Write-Fail "$file has empty read priority"
+    Write-Output "  human: The file '$file' is missing a read-priority value in the ENGINE_MAP registry. Add a priority level (e.g. always, on-demand) to its row." }
   $path = Resolve-EnginePath $file
   if (Test-Path $path) {
     Write-Pass "registered file exists: $file"
   } else {
     Write-Fail "registered file missing: $file"
+    Write-Output "  human: The file '$file' is registered in ENGINE_MAP but does not exist on disk. Create the file or remove it from the registry."
   }
   $cap = Get-BudgetCap $file
   if ($cap -gt 0 -and (Test-Path $path)) {
     $count = (Get-Content -Path $path -Encoding UTF8 | Measure-Object -Line).Lines
-    if ($count -gt $cap) { Write-Warn "$file exceeds hard budget ($count > $cap lines)" }
+    if ($count -gt $cap) { Write-Warn "$file exceeds hard budget ($count > $cap lines)"
+      Write-Output "  human: The file '$file' is too long ($count lines, max $cap). Trim it to stay within the size budget." }
   }
   if ($class -eq "mixed") {
     $hasSection = $false
@@ -232,14 +249,17 @@ foreach ($row in $registeredRows) {
       $sectionCells = Split-Row $sectionRow
       if ($sectionCells.Count -gt 0 -and $sectionCells[0] -eq $file) { $hasSection = $true; break }
     }
-    if (-not $hasSection) { Write-Fail "$file is mixed but missing section 1.1 section-class row" }
+    if (-not $hasSection) { Write-Fail "$file is mixed but missing section 1.1 section-class row"
+      Write-Output "  human: The file '$file' is classified as 'mixed' but has no section-class mapping in ENGINE_MAP section 1.1. Add a row for it in the section-class table." }
   }
   if ($profile -eq "CLI-LEAN" -and $class -eq "derivable" -and (Test-Path $path)) {
     $count = (Get-Content -Path $path -Encoding UTF8 | Measure-Object -Line).Lines
-    if ($count -gt 120) { Write-Warn "$file is derivable in CLI-LEAN and longer than stub budget" }
+    if ($count -gt 120) { Write-Warn "$file is derivable in CLI-LEAN and longer than stub budget"
+      Write-Output "  human: The file '$file' is auto-derivable but too long for CLI-LEAN mode (>120 lines). Replace its content with a short stub that points to the derivation source." }
     $content = Get-Content -Raw -Path $path -Encoding UTF8
     if ($content -match "(?m)file inventory|directory tree|module count|version dump") {
       Write-Warn "$file may contain live derivable inventory in CLI-LEAN"
+      Write-Output "  human: The file '$file' looks like it contains auto-generated inventory (file lists, directory trees, etc.). In CLI-LEAN mode, replace this with a stub that derives the data on demand."
     }
   }
 }
@@ -263,6 +283,7 @@ function Test-RequiredMarkdownSection([string[]]$Lines, [string]$File, [string]$
     if ($line -match $Pattern) { return $true }
   }
   Write-Warn "$File is missing semantic section: $Label"
+  Write-Output "  human: The file '$File' is missing a required section ('$Label'). Add a '## $Label' heading with the expected content."
   return $false
 }
 
@@ -292,12 +313,14 @@ function Test-ContextSemantics {
         $value = $Matches[1].Trim()
         if (-not $value -or $value -match "^\[.*\]$|^TBD$|^TODO$") {
           Write-Warn "CONTEXT.md status row '$($label.Key)' is placeholder or empty"
+          Write-Output "  human: The CONTEXT.md status panel row '$($label.Key)' has a placeholder value (like TBD or TODO). Fill in the actual current status."
         }
         $found = $true
         break
       }
     }
-    if (-not $found) { Write-Warn "CONTEXT.md status panel missing row: $($label.Key)" }
+    if (-not $found) { Write-Warn "CONTEXT.md status panel missing row: $($label.Key)"
+      Write-Output "  human: The CONTEXT.md status panel is missing the '$($label.Key)' row. Add a table row for it with the current status." }
   }
 }
 
@@ -320,13 +343,15 @@ function Test-HandoffSemantics {
       if ($value -and $value -notmatch "^\[.*\]$|^TBD$|^TODO$") { $hasResume = $true }
     }
   }
-  if (-not $hasResume) { Write-Warn "HANDOFF.md has no concrete next-step resume pointer" }
+  if (-not $hasResume) { Write-Warn "HANDOFF.md has no concrete next-step resume pointer"
+    Write-Output "  human: HANDOFF.md does not specify what to do next. Add a concrete next-step description so the next session knows where to pick up." }
 
   $hasHistory = $false
   foreach ($line in $handoffLines) {
     if ($line -match "^\|\s*\d{4}-\d{2}-\d{2}\s*\|") { $hasHistory = $true; break }
   }
-  if (-not $hasHistory) { Write-Warn "HANDOFF.md has no dated session history rows" }
+  if (-not $hasHistory) { Write-Warn "HANDOFF.md has no dated session history rows"
+    Write-Output "  human: HANDOFF.md has no session history table. Add dated rows (| YYYY-MM-DD | ...) summarizing what was done in each session." }
 }
 
 function Test-PitfallsSemantics {
@@ -339,9 +364,11 @@ function Test-PitfallsSemantics {
   $index = New-Text @(0x7D22, 0x5F15)
   if ($content -notmatch ("##\s+(" + [regex]::Escape($entries) + "|Entries)")) {
     Write-Warn "PITFALLS.md is missing entries section"
+    Write-Output "  human: PITFALLS.md is missing an 'Entries' section. Add a '## Entries' heading and list known pitfalls under it."
   }
   if ($content -notmatch ("##\s+(" + [regex]::Escape($index) + "|Index)")) {
     Write-Warn "PITFALLS.md is missing index section"
+    Write-Output "  human: PITFALLS.md is missing an 'Index' section. Add a '## Index' heading with a keyword index for quick lookup of pitfalls."
   }
 
   $entryMatches = [regex]::Matches($content, "(?m)^###\s+(P\d{3})\s+[" + [char]0x2014 + "-]\s+(.+)$")
@@ -363,6 +390,7 @@ function Test-PitfallsSemantics {
       $marker = "**$($field.Text)$([char]0xFF1A)**"
       if ($body -notmatch [regex]::Escape($marker)) {
         Write-Warn "$($entry.Groups[1].Value) is missing pitfall field: $($field.Key)"
+        Write-Output "  human: Pitfall entry '$($entry.Groups[1].Value)' is missing the '$($field.Key)' field. Add it with the required information."
       }
     }
   }
@@ -379,9 +407,11 @@ function Test-SprintSemantics {
   $verification = New-Text @(0x9A8C, 0x8BC1, 0x65B9, 0x6CD5)
   if ($content -notmatch ([regex]::Escape($completion) + "|" + [regex]::Escape($acceptance) + "|Acceptance")) {
     Write-Warn "SPRINT.md has no completion criteria"
+    Write-Output "  human: SPRINT.md does not define when the sprint is done. Add an 'Acceptance' or completion criteria section so everyone knows the definition of done."
   }
   if ($content -notmatch ([regex]::Escape($verification) + "|verify|verification")) {
     Write-Warn "SPRINT.md has no verification method pointers"
+    Write-Output "  human: SPRINT.md does not describe how to verify the work. Add a 'Verification' section with concrete steps to confirm correctness."
   }
 }
 
@@ -416,6 +446,7 @@ function Test-ChangeCapsuleSemantics {
 
   if ($meaningfulChanges.Count -gt 0 -and $capsules.Count -eq 0) {
     Write-Warn "meaningful changed files exist but no change capsule was found in engine/changes"
+    Write-Output "  human: You have code or doc changes but no change-log entry. Create a CHANGE-*.md file in engine/changes/ describing what changed and why."
     return
   }
 
@@ -437,10 +468,12 @@ function Test-ChangeCapsuleSemantics {
   foreach ($section in $requiredSections) {
     if ($content -notmatch $section.Pattern) {
       Write-Warn "$($latest.Name) is missing change capsule section: $($section.Key)"
+      Write-Output "  human: The change log '$($latest.Name)' is missing a '$($section.Key)' section. Add a '## $($section.Key)' heading with the relevant details."
     }
   }
   if ($content -match "\[.*\]|TBD|TODO") {
     Write-Warn "$($latest.Name) still contains placeholders"
+    Write-Output "  human: The change log '$($latest.Name)' still has unfilled placeholders ([...], TBD, or TODO). Replace them with actual content before committing."
   }
 }
 
@@ -449,8 +482,8 @@ function Test-ContractCompile {
   $dist = Join-Path $Root "ENGINE_FILE_SYSTEM_v5.md"
   $compileSh = Join-Path $Root "contract/compile.sh"
   if (-not (Test-Path $srcDir)) { return }
-  if (-not (Test-Path $dist)) { Write-Warn "contract dist missing: $dist"; return }
-  if (-not (Test-Path $compileSh)) { Write-Warn "contract compile.sh missing"; return }
+  if (-not (Test-Path $dist)) { Write-Warn "contract dist missing: $dist"; Write-Output "  human: The compiled contract file is missing. Run 'bash contract/compile.sh' to generate it."; return }
+  if (-not (Test-Path $compileSh)) { Write-Warn "contract compile.sh missing"; Write-Output "  human: The contract compile script is missing. The contract/src/ directory exists but compile.sh is not present to build the dist file."; return }
   $banner = '<!-- ENGINE_FILE_SYSTEM_v5.md: compiled from contract/src/*.md by engine compile. Do not edit dist directly; edit src and recompile. -->'
   $modules = Get-ChildItem -Path $srcDir -File | Where-Object { $_.Name -match '^\d.*\.md$' } | Sort-Object Name
   $srcContent = ""
@@ -461,6 +494,7 @@ function Test-ContractCompile {
     Write-Pass "contract compile idempotent (compile(src) == dist)"
   } else {
     Write-Fail "contract dist is not compile(src) - run bash contract/compile.sh; do not edit dist directly"
+    Write-Output "  human: The compiled contract file is out of date or was edited by hand. Run 'bash contract/compile.sh' to regenerate it from the source files."
   }
   # D-015: 4th dist (engine-init.md = banner + cli-preamble + same modules) must be idempotent too
   $initDist = Join-Path $Root "plugin/.claude/commands/engine-init.md"
@@ -473,6 +507,7 @@ function Test-ContractCompile {
       Write-Pass "contract compile idempotent (engine-init.md == compile(preamble+src))"
     } else {
       Write-Fail "engine-init.md is not compile(src) - run bash contract/compile.sh; do not edit dist directly"
+      Write-Output "  human: The engine-init command file is out of date or was edited by hand. Run 'bash contract/compile.sh' to regenerate it from source files."
     }
   }
   $budget = Join-Path $Root "contract/budget.json"
@@ -485,6 +520,7 @@ function Test-ContractCompile {
         Write-Pass "contract budget: src $srcLines lines <= $maxLines"
       } else {
         Write-Fail "contract budget exceeded: src $srcLines lines > $maxLines (subtraction rule: net-zero growth)"
+        Write-Output "  human: The contract source files are too long ($srcLines lines, max $maxLines). Remove or consolidate rules to bring the total back under budget."
       }
     }
   }
@@ -515,6 +551,7 @@ function Test-ContractDebt {
       Write-Pass "contract debt <= baseline ($debt <= $baseline) - net-zero holding"
     } else {
       Write-Warn "contract debt > baseline ($debt > $baseline) - move MUST into data tables"
+      Write-Output "  human: There are more ungated MUST rules than the baseline allows ($debt > $baseline). Move MUST requirements into data tables or wrap them in named Rules to reduce debt."
     }
   }
 }
@@ -536,6 +573,7 @@ function Test-TaskCardDoneEvidence {
       Write-Pass "task $tid done with $n evidence file(s)"
     } else {
       Write-Fail "task $tid done but no evidence (engine/evidence/$tid/AC-*.json) and no exempt marker - run 'engine verify $tid' or mark exempt"
+      Write-Output "  human: Task '$tid' is marked as done but has no verification evidence. Run 'engine verify $tid' to generate evidence files, or add 'exempt' to the task card if verification is not needed."
     }
   }
 }
@@ -544,18 +582,27 @@ function Test-EngineVersion {
   $ev = Join-Path $EngineDir "VERSION"
   if (-not (Test-Path $ev)) {
     Write-Warn "engine/VERSION missing - run 'engine migrate' to stamp the local version"
+    Write-Output "  human: The engine version stamp file is missing. Run 'engine migrate' to create it with the current version."
     return
   }
   $v = (Get-Content $ev -Raw -Encoding UTF8).Trim()
   if (-not $v) {
     Write-Fail "engine/VERSION is empty"
+    Write-Output "  human: The engine version file exists but is empty. Run 'engine migrate' to stamp it with the current version number."
     return
   }
+  # Only compare engine/VERSION with repo root VERSION when this IS the
+  # engine_system source repo (contract/src/ exists). In user projects,
+  # $Root/VERSION is the product's own version (e.g. 1.0.0) with different
+  # semantics — comparing it against the engine tooling version (e.g. 6.0.1)
+  # is always a false positive. See P014 + CHANGE-2026-07-06-08.
+  $contractSrc = Join-Path $Root "contract/src"
   $repoVer = Join-Path $Root "VERSION"
-  if (Test-Path $repoVer) {
+  if ((Test-Path $contractSrc) -and (Test-Path $repoVer)) {
     $rv = (Get-Content $repoVer -Raw -Encoding UTF8).Trim()
     if ($v -ne $rv) {
       Write-Warn "engine/VERSION ($v) differs from repo VERSION ($rv) - run 'engine migrate' to sync"
+      Write-Output "  human: The engine tooling version ($v) does not match the repo version ($rv). Run 'engine migrate' to sync them."
     } else {
       Write-Pass "engine/VERSION ($v) matches repo VERSION"
     }
@@ -576,6 +623,7 @@ function Test-PlanAcceptanceEvidence {
     $content = Get-Content -Raw -Path $specPath -Encoding UTF8
     if ($content -notmatch "Evidence|证据|engine/changes/CHANGE-|engine/evidence/") {
       Write-Warn "$id is marked done but has no acceptance evidence pointer"
+      Write-Output "  human: Plan '$id' is marked as done but the spec file has no evidence reference. Add pointers to engine/evidence/ or engine/changes/ in the spec twin's Evidence column."
     }
   }
 }
@@ -588,13 +636,15 @@ if (Test-Path $engineDir) {
     if ($_.Name -eq "ENGINE_FILE_SYSTEM_v5.md") { return }
     if (-not (Test-Registered $rel) -and -not (Test-Registered $_.Name)) {
       Write-Fail "authority-looking file is not registered or explained: $rel"
+      Write-Output "  human: The file '$rel' exists in the engine directory but is not registered in ENGINE_MAP. Register it or move it elsewhere."
     }
   }
   $agentsDir = Join-Path $engineDir "agents"
   if (Test-Path $agentsDir) {
     Get-ChildItem -Path $agentsDir -File -Filter "*.md" | ForEach-Object {
       $rel = "engine/agents/$($_.Name)"
-      if (-not (Test-Registered $rel)) { Write-Fail "agent adapter is not registered: $rel" }
+      if (-not (Test-Registered $rel)) { Write-Fail "agent adapter is not registered: $rel"
+        Write-Output "  human: The agent adapter '$rel' is not listed in ENGINE_MAP. Register it so the system knows about this environment-specific adapter." }
     }
   }
 }
@@ -605,7 +655,8 @@ foreach ($row in $anchorRows) {
   $path = $cells[0]
   if (-not $path -or $path -eq "Path" -or $path -match "^-+$" -or $path.StartsWith("[")) { continue }
   if ($path -match "archived|superseded|external") { continue }
-  if (-not (Test-Path (Join-Path $Root $path))) { Write-Warn "registered anchor missing: $path" }
+  if (-not (Test-Path (Join-Path $Root $path))) { Write-Warn "registered anchor missing: $path"
+    Write-Output "  human: The anchor file '$path' is registered in ENGINE_MAP but does not exist on disk. Create it or remove it from the anchor registry." }
 }
 
 $allowedStatuses = @("draft", "proposed", "accepted", "active", "blocked", "done", "archived", "superseded")
@@ -616,19 +667,23 @@ foreach ($row in $planRows) {
   $id = $cells[0]; $status = $cells[2]; $plan = $cells[3]; $spec = $cells[4]
   $nonePrefix = [string][char]0x65E0
   if (-not $id -or $id -eq "ID" -or $id -match "^-+$" -or $id.StartsWith("[") -or $id.StartsWith($nonePrefix)) { continue }
-  if ($allowedStatuses -notcontains $status) { Write-Fail "$id has invalid plan status '$status'" }
+  if ($allowedStatuses -notcontains $status) { Write-Fail "$id has invalid plan status '$status'"
+    Write-Output "  human: Plan '$id' has an unrecognized status '$status'. Use one of: draft, proposed, accepted, active, blocked, done, archived, superseded." }
   # Inline markers and composite paths are not single files on disk.
   if ($plan -and -not $plan.StartsWith("(") -and ($plan -notmatch "\+") -and -not (Test-Path (Join-Path $Root $plan))) {
     Write-Fail "$id plan file missing: $plan"
+    Write-Output "  human: Plan '$id' references a plan file at '$plan' but it does not exist. Create the plan file or update the ENGINE_MAP entry."
   }
   $inlineMarker = New-Text @(0x5185, 0x8054)
   $hasInline = $spec -match [regex]::Escape($inlineMarker)
   $hasSpecPath = $spec.StartsWith("engine/")
   if (-not $hasInline -and -not $hasSpecPath -and (@("accepted", "active", "done") -contains $status)) {
     Write-Fail "$id must have a spec twin path or inline spec marker: $spec"
+    Write-Output "  human: Plan '$id' is active but has no spec twin file path and no inline spec marker. Add a spec twin path (engine/...) or an inline marker to the ENGINE_MAP plan row."
   }
   if ($hasSpecPath -and ($spec -notmatch "\+") -and -not (Test-Path (Join-Path $Root $spec))) {
     Write-Fail "$id spec twin missing: $spec"
+    Write-Output "  human: Plan '$id' references a spec twin at '$spec' but the file does not exist. Create the spec file or update the ENGINE_MAP entry."
   }
 }
 
@@ -647,12 +702,14 @@ foreach ($anchor in @("AGENTS.md", "CLAUDE.md")) {
   $path = Join-Path $Root $anchor
   if (Test-Path $path) {
     $count = (Get-Content -Path $path -Encoding UTF8 | Measure-Object -Line).Lines
-    if ($count -gt 45) { Write-Warn "$anchor exceeds bootloader hard cap ($count > 45 lines)" }
+    if ($count -gt 45) { Write-Warn "$anchor exceeds bootloader hard cap ($count > 45 lines)"
+      Write-Output "  human: The bootloader file '$anchor' is too long ($count lines, max 45). It should be a minimal entry point that directs agents to ENGINE_MAP. Trim it down." }
   }
 }
 
 if ($registeredNames -notcontains "ENGINE_DOCTOR.md") {
   Write-Warn "ENGINE_DOCTOR.md is not registered in ENGINE_MAP section 1"
+  Write-Output "  human: The ENGINE_DOCTOR.md file is not listed in the ENGINE_MAP file registry. Add it to section 1 so the system can track it."
 }
 
 foreach ($script in @(
@@ -678,6 +735,7 @@ foreach ($script in @(
     Write-Pass "bundled maintenance script exists: engine/scripts/$script"
   } else {
     Write-Warn "bundled maintenance script missing: engine/scripts/$script"
+    Write-Output "  human: The maintenance script 'engine/scripts/$script' is missing. Run 'engine sync' to restore bundled scripts from the engine package."
   }
 }
 
@@ -687,6 +745,7 @@ foreach ($cli in @("engine", "engine.ps1", "engine.cmd")) {
     Write-Pass "bundled CLI shim exists: engine/bin/$cli"
   } else {
     Write-Warn "bundled CLI shim missing: engine/bin/$cli"
+    Write-Output "  human: The CLI entry point 'engine/bin/$cli' is missing. Run 'engine sync' to restore bundled CLI shims from the engine package."
   }
 }
 

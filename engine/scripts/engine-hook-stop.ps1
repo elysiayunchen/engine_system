@@ -71,7 +71,7 @@ foreach ($rec in ($raw -split "`0")) {
 
 # Layer 2: hard gate (write-back check).
 if ($codeChanged -and -not $engineWritten) {
-  $reason = "[Engine System gatekeeper] Code changed, but engine memory was not updated. Before stopping: 1) update the engine/CONTEXT.md status panel; 2) append a HANDOFF.md row (date | what | next | touched files); 3) for a meaningful change, add a change capsule under engine/changes/CHANGE-YYYY-MM-DD-nn.md."
+  $reason = "[Engine System] Code was changed but project memory was not updated. | developer: The AI needs to save its notes about what was done before ending the session. Please update engine/CONTEXT.md (project status) and engine/HANDOFF.md (session handoff record). Think of it like updating meeting notes after a meeting — before you leave, write down what was decided and what comes next."
   Write-Output "{`"decision`":`"block`",`"reason`":`"$reason`"}"
   exit 0
 }
@@ -116,13 +116,13 @@ if ($activeTask -and $codePaths.Count -gt 0) {
   foreach ($path in $codePaths) {
     # FORBIDDEN takes precedence (architect veto).
     if ($forbidden -and (Match-Glob $path $forbidden)) {
-      $reason = "[Engine System task-card FORBIDDEN] Path $path is in the FORBIDDEN list of task $activeTaskId. This is the architect's veto. To unblock, create a new decision (engine/decisions/D-NNN.md) and update the task card."
+      $reason = "[Engine System] Path $path is in the FORBIDDEN list of task $activeTaskId. | developer: This path is locked by an architect decision — it is off-limits for the current task. To unblock, create a new decision (engine/decisions/D-NNN.md) explaining why access is needed, then update the task card."
       Write-Output "{`"decision`":`"block`",`"reason`":`"$reason`"}"
       exit 0
     }
     # WRITE-SET boundary.
     if ($writeSet -and -not (Match-Glob $path $writeSet)) {
-      $reason = "[Engine System task-card write-set] Path $path is not in the WRITE-SET of task $activeTaskId. To expand the write-set, update engine/tasks/$activeTaskId.md or create a new decision. WRITE-SET: $writeSet"
+      $reason = "[Engine System] Path $path is not in the WRITE-SET of task $activeTaskId. | developer: This file is outside the current task's approved scope. To expand the scope, update the WRITE-SET in engine/tasks/$activeTaskId.md, or create a new decision. Current WRITE-SET: $writeSet"
       Write-Output "{`"decision`":`"block`",`"reason`":`"$reason`"}"
       exit 0
     }
@@ -159,7 +159,7 @@ if ($activeTask -and $codePaths.Count -gt 0) {
         }
         if (-not $pathDom) { $pathDom = $defaultDom }
         if ($taskDomainList -notcontains $pathDom) {
-          $reason = "[Engine System route-violation] Path $path belongs to domain '$pathDom', but task $activeTaskId domain covers only [$taskDomains]. To work cross-domain, update the task card's domain field."
+          $reason = "[Engine System] Path $path belongs to domain '$pathDom', but task $activeTaskId domain covers only [$taskDomains]. | developer: This file belongs to a different project area ('$pathDom') than the one the current task is scoped for ([$taskDomains]). To work across areas, update the task card's domain field to include the needed domain."
           Write-Output "{`"decision`":`"block`",`"reason`":`"$reason`"}"
           exit 0
         }
@@ -170,7 +170,7 @@ if ($activeTask -and $codePaths.Count -gt 0) {
 
 # Layer 3: soft WARN (missing capsule).
 if ($codeChanged -and $engineWritten -and -not $capsuleWritten) {
-  $msg = "[Engine System] Code change was written back to CONTEXT/HANDOFF, but no change capsule (engine/changes/CHANGE-*.md) was touched. For a meaningful change, ask the agent to add an architect-readable capsule. (WARN, non-blocking)"
+  $msg = "[Engine System] Code changes were saved to CONTEXT/HANDOFF, but no change capsule (engine/changes/CHANGE-*.md) was found. | developer: Consider writing a change summary — a short note explaining what was changed and why. This helps future you (or teammates) understand the intent behind the change. (WARN, non-blocking)"
   Write-Output "{`"systemMessage`":`"$msg`"}"
   exit 0
 }

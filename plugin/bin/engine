@@ -13,6 +13,7 @@ Engine System CLI
 Usage:
   engine init           Show how to run the init interview with any AI agent
   engine init --print   Print the raw agent-neutral init prompt (pipe/copy it)
+  engine context        Load full session context (agent-agnostic, any AI agent)
   engine check-update   Check if a newer Engine System version is available
   engine update         Update tooling, then migrate + doctor (one-shot)
   engine update --check-only   Only check for updates, change nothing
@@ -182,6 +183,13 @@ case "${1:-help}" in
       exit 2
     fi
     bash "$PWD/engine/scripts/engine-verify.sh" "$task"
+    ;;
+  context)
+    if [ ! -d "$PWD/engine" ]; then
+      echo "Error: engine/ not found in $PWD. Run 'engine init' first." >&2
+      exit 2
+    fi
+    bash "$PWD/engine/scripts/engine-context.sh" "$PWD"
     ;;
   check-update)
     bash "$PWD/engine/scripts/engine-check-update.sh" "$PWD"

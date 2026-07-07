@@ -17,28 +17,38 @@ ROOT="${CLAUDE_PROJECT_DIR:-$PWD}"
 ENGINE_DIR="$ROOT/engine"
 
 if [ ! -d "$ENGINE_DIR" ]; then
-  echo "【Engine System】未检测到 engine/ 目录。建议运行 /engine-init 生成项目记忆层。"
+  echo "[Engine System] engine/ directory not found. Run /engine-init to create the project memory layer."
   exit 0
 fi
 
-echo "【Engine System · 自动接手】下面是项目记忆当前快照。请先用一句简体中文复述当前状态,再开始工作。"
+echo "【Engine System · 自动接手】下面是项目记忆当前快照。请先检测开发者使用的语言,然后用该语言复述当前状态,再开始工作。"
 echo ""
 
 # v6 中优先: L0 宪法注入(runtime-law.md ≤40 行常驻法,对抗漂移的顶层锚点)。
 if [ -f "$ROOT/runtime-law.md" ]; then
-  echo "──── ⚖️ L0 宪法 (runtime-law) ────"
+  echo "──── ⚖️  L0 Constitution (runtime-law) ────"
   sed -n '1,40p' "$ROOT/runtime-law.md" 2>/dev/null
   echo ""
 fi
 
+# v6.1: GLOSSARY 术语表注入——agent 与开发者交流时必须使用 Plain meaning 列。
+# 只注入 header + 指令(3 行),完整术语表按需读取,节省 token 预算。
+glossary="$ENGINE_DIR/GLOSSARY.md"
+if [ -f "$glossary" ]; then
+  echo "──── 📖 术语表 (engine/GLOSSARY.md) ────"
+  echo "与开发者交流时,必须使用 GLOSSARY.md 的 Plain meaning 列解释引擎概念。"
+  echo "用开发者使用的语言(非固定中文)解释。完整术语表: engine/GLOSSARY.md"
+  echo ""
+fi
+
 if [ -f "$ENGINE_DIR/CONTEXT.md" ]; then
-  echo "──── 当前状态 (engine/CONTEXT.md) ────"
+  echo "──── 📊 Current State (engine/CONTEXT.md) ────"
   sed -n '1,50p' "$ENGINE_DIR/CONTEXT.md" 2>/dev/null
   echo ""
 fi
 
 if [ -f "$ENGINE_DIR/HANDOFF.md" ]; then
-  echo "──── 上次交接 (engine/HANDOFF.md，最新在上) ────"
+  echo "──── 🔀 Last Handoff (engine/HANDOFF.md, newest first) ────"
   grep -m 4 '^|' "$ENGINE_DIR/HANDOFF.md" 2>/dev/null
   echo ""
 fi
@@ -46,7 +56,7 @@ fi
 # v6 S2: 域仪表盘(汇总协议)——每个域一句话摘要,根文件规模 = O(域数),不是 O(仓库)。
 fed="$ENGINE_DIR/domains/federation.json"
 if [ -f "$fed" ]; then
-  echo "──── 🗺️ 域仪表盘 (federation) ────"
+  echo "──── 🗺️  Domain Dashboard (federation) ────"
   awk '
     /^[[:space:]]*"[A-Za-z0-9_-]+"[[:space:]]*:[[:space:]]*\{/ { if (match($0, /"([A-Za-z0-9_-]+)"/, m)) { domain=m[1]; next } }
     /"summary"/ { if (match($0, /"summary"[[:space:]]*:[[:space:]]*"([^"]+)"/, m)) print "• " domain ": " m[1]; next }
@@ -65,7 +75,7 @@ for f in "$ENGINE_DIR"/tasks/T-*.md; do
 done
 if [ -n "$active_task" ]; then
   task_id="$(basename "$active_task" .md)"
-  echo "──── 🎯 当前任务卡 ($task_id) ────"
+  echo "──── 🎯 Active Task Card ($task_id) ────"
   echo "⚠️ 你的所有代码改动必须在 WRITE-SET 内;FORBIDDEN 是架构师否决权,碰了即被拦截。"
   cat "$active_task" 2>/dev/null || log_error "failed to read active task card: $active_task"
   echo ""
@@ -81,7 +91,7 @@ if [ -n "$active_task" ] && [ -f "$fed" ]; then
       dom_ctx="$ENGINE_DIR/domains/$dom/CONTEXT.md"
       dom_pit="$ENGINE_DIR/domains/$dom/PITFALLS.md"
       if [ -f "$dom_ctx" ] || [ -f "$dom_pit" ]; then
-        echo "──── 📦 L2 域: $dom ────"
+        echo "──── 📦 L2 Domain: $dom ────"
         [ -f "$dom_ctx" ] && sed -n '1,50p' "$dom_ctx" 2>/dev/null
         [ -f "$dom_pit" ] && sed -n '1,40p' "$dom_pit" 2>/dev/null
         echo ""
@@ -97,7 +107,7 @@ for f in "$ENGINE_DIR"/decisions/D-*.md; do
   [ -f "$f" ] || continue
   if grep -q 'status:.*proposed' "$f" 2>/dev/null; then
     if [ "$proposed_count" -eq 0 ]; then
-      echo "──── ⏳ 等你拍板 (proposed 决策) ────"
+      echo "──── ⏳ Pending Decisions (proposed) ────"
     fi
     head -3 "$f" 2>/dev/null
     echo ""
@@ -107,7 +117,7 @@ done
 
 # SessionEnd hook 会把遗留待办/Doctor 结果写到这里，由本钩子读出。
 if [ -f "$ENGINE_DIR/.cache/pending.txt" ]; then
-  echo "──── ⚠️ 上次会话遗留待办 ────"
+  echo "──── ⚠️  Pending from Previous Session ────"
   cat "$ENGINE_DIR/.cache/pending.txt" 2>/dev/null
   echo ""
 fi
@@ -156,7 +166,7 @@ if [ -f "$cache" ]; then
   latest="$(grep -oE '"latest":[[:space:]]*"[^"]*"' "$cache" 2>/dev/null | head -1 | sed 's/.*"latest":[[:space:]]*"//;s/"//')"
   current="$(grep -oE '"current":[[:space:]]*"[^"]*"' "$cache" 2>/dev/null | head -1 | sed 's/.*"current":[[:space:]]*"//;s/"//')"
   if [ -n "$latest" ] && [ "$latest" != "" ] && [ "$(norm_v "$latest")" != "$(norm_v "$current")" ]; then
-    echo "──── 🔄 引擎更新可用 ────"
+    echo "──── 🔄 Engine Update Available ────"
     echo "本地 $current -> 远程 $latest。运行 engine update 更新。"
     echo ""
   fi

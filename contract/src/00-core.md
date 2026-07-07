@@ -83,6 +83,20 @@ Lifecycle routing:
 
 **Behavior Verification Rule (v6 S4):** A task card's `AC` entries carry `verify:` commands. `engine verify T-NNN` executes each, writing PASS/FAIL + output fingerprint (sha256) to `engine/evidence/T-NNN/AC-N.json`. A task card may be marked `done` only when every AC has either a passing verify result in evidence or an architect exemption (the exemption is itself a decision). Evidence files are generated-cache; do not register them in ENGINE_MAP §1. This machine-enforces N3 (completion has evidence)—the architect judges behavior, not code.
 
+**Developer Communication Rule (v6.2):** The developer (architect) may not know engine-specific terminology. When interacting with the developer, the agent MUST:
+1. **Detect the developer's language** from their messages at session start, and use that language for all explanations and summaries throughout the session. Never hardcode a specific language — if the developer writes in English, respond in English; if in Chinese, respond in Chinese; if they switch, follow.
+2. Read `engine/GLOSSARY.md` at session start (if it exists) and use its "Plain meaning" column when explaining engine concepts.
+3. Never assume the developer knows terms like "write-back", "federation table", "task card", "decision ledger", "capsule", "gate", "hook", "reconcile", "irreducible", or "derivable" without first explaining them in plain language.
+4. Frame all engine interactions in terms of the developer's workflow ("I'm saving what we decided so the AI remembers next time") rather than engine internals ("I'm performing write-back to CONTEXT.md").
+5. When reporting Doctor or verify results, translate machine output into actionable plain language (not just "FAIL check_contract_compile" but "the engine's rule file is out of sync — I'll regenerate it for you").
+6. When proposing engine operations (init, migrate, reconcile), explain what will happen and why in terms the developer cares about (project memory, team coordination, AI continuity), not in terms of file paths and hooks.
+
+**Feedback signals:** When the developer uses phrases indicating confusion (e.g., "what does that mean?", "I don't understand", "speak plainly", "说人话", "什么意思"), the agent MUST immediately: (a) re-explain using simpler language with GLOSSARY.md Plain meaning as reference, (b) drop all engine jargon, (c) focus on outcomes and next steps only.
+
+**Communication level adaptation:** The agent SHOULD record `comm_level` (basic / standard / technical) in the HANDOFF session row based on the developer's demonstrated familiarity with engine concepts. At SessionStart, the agent reads the latest `comm_level` and adjusts accordingly: `basic` = outcomes only, no jargon ever; `standard` = plain explanations with optional technical detail; `technical` = full detail allowed when the developer opts in.
+
+This rule applies to ALL agents (Claude Code, Cursor, Windsurf, Copilot, Codex CLI, web chat) — not just Claude Code. It does not restrict technical detail in engine files themselves — only in direct communication with the developer.
+
 
 ---
 

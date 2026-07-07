@@ -1,17 +1,18 @@
 # HANDOFF — 会话交接
 
-> Engine System (engine_system) · Last updated: 2026-07-06
+> Engine System (engine_system) · Last updated: 2026-07-07
 
 ## 立即恢复点
 
-下一步：**T-022 P0 防护卡 done**(engine verify 6/6 全绿)+ 分发盲区修复 done(skeleton + migrator + 引导)。D-019 P0 完成。其后:① Q2 试点库待拍板(引擎现已可见可用,试点条件成熟); ② D-018 待批; ③ T-020(agent 检测器)paused; ④ D-019 P1(技能+路由)排队。架构师已指示分发盲区是最高优先级——现已落地,可转向试点验证或 P1。
+下一步:**v6.2 Developer Communication Rule + engine context CLI + 多 agent 支持** 已实施(AC 12/12 全绿,回归 3/3 PASS,plugin 18 对 byte-identical)。待推送 GitHub。其后:① D-019 P1(技能+路由)排队; ② D-018 待批; ③ T-020(agent 检测器)paused; ④ Q2 试点库待拍板(引擎现已多 agent 可用,试点条件更成熟)。
 
-> Phase 1 = 通用化核心(prompt 抽离 / CLI 扩展 / 快速安装 / agent 检测——D-017 原文口径;实施细化与「薄壳」口径修正见 D-018)。
+> Phase 1 = 通用化核心(prompt 抽离 / CLI 扩展 / 快速安装 / agent 检测——D-017 原文口径;实施细化与「薄壳」口径修正见 D-018)。v6.2 = 多 agent 通信层(engine context + DevComm Rule 扩展)。
 
 ## 会话历史（最新在上）
 
 | 日期 | 完成了什么 | 下一步 | 改动文件 |
 |------|-----------|--------|---------|
+| 2026-07-07 | **v6.2 Developer Communication Rule + engine context CLI + 多 agent 支持**: 实施交流设计 plan v6.2(架构师两项关键修改:动态语言+全 agent 支持)。新增 engine context sh/ps1 孪生(任何 agent 的通用会话上下文加载器);DevComm Rule v6.2(6 条动态规则+反馈信号+comm_level 自适应 basic/standard/technical);GLOSSARY 双分区(Core Terms 引擎维护+Project Terms 开发者维护);Doctor ~50 条 human: 翻译行;Stop hook 5 条开发者可读消息;migrate 开发者摘要(无文件路径);sync-agent-anchors 注入 engine context+DevComm v6.2;AGENTS.md 重写为 agent-agnostic Session Protocol+Agent Tiers 表(C/B/A 三档);D-020 预算背书 2455/13;四维并行 review+深度 review+回归测试 3/3 PASS+plugin 18 对 byte-identical。修复:PS1 managed block 严重落后、SessionStart.sh 中文 headers、Theary 拼写、reconcile_schema sed glob 展开(eval→sed -f)、Developer Summary 含路径。 | 推送 GitHub → D-019 P1 或 D-018 批或 Q2 试点 | 42 文件: contract/{budget.json,src/00-core.md}, engine/{bin/*,scripts/engine-context.{sh,ps1},scripts/engine-doctor.{sh,ps1},scripts/engine-hook-session-start.{sh,ps1},scripts/engine-hook-stop.{sh,ps1},scripts/engine-migrate-contract.{sh,ps1},scripts/engine-sync-agent-anchors.{sh,ps1},decisions/D-020.md,prompts/init.md}, plugin/(镜像), AGENTS.md, ENGINE_FILE_SYSTEM_v5.md, rules.json |
 | 2026-07-06 | **D-019 行为引擎化提案(proposed)**: 方向勘察(对标 Superpowers/Agent Teams:引擎三件套是底座,缺技能面+编排面,均为编译器新输出靶)+ 架构师三项拍板(独立立项分期 / 技能层+任务胶囊 / 先补防护再扩面)+ 五子项落稿(a 防护前置 P0 / b 行为技能首批 5 个 / c 路由表 routing.json / d engine capsule / e token 账本+HANDOFF 裁剪)。7-05 评估四发现收编进 a/e。 | 架构师批 D-019 → 批后开 P0 防护卡 | engine/decisions/D-019.md, engine/CONTEXT.md, engine/HANDOFF.md, engine/ENGINE_MAP.md, engine/changes/CHANGE-2026-07-06-01.md |
 | 2026-07-06 | **全脚本错误处理**: Bash 17文件(+set -euo pipefail+trap ERR,hooks保持fail-open+stderr日志,测试保持set -u),PS 23文件(+$ErrorActionPreference Stop+trap,param()必须���首行,plugin/编译同步)。check.sh 全PASS(0 failures,0 warnings,PS语法/兼容性全PASS)。 | Phase 1 剩余:T-020/T-021 | 28 .sh + 23 .ps1 文件, CONTEXT/HANDOFF/ENGINE_MAP, contract/compile.sh输出(18 plugin scripts + 3 bin files) |
 | 2026-07-06 | **Windows CLI 修复**: install.sh 新增 engine.cmd/engine.ps1 到 PATH,修复 Windows 终端 `engine` 命令打开文本编辑器问题。远端 6 个未推送提交已 push。 | Phase 1 剩余:T-020/T-021 | install.sh |

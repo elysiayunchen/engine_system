@@ -20,6 +20,7 @@ Engine System CLI
 Usage:
   engine init           Show how to run the init interview with any AI agent
   engine init --print   Print the raw agent-neutral init prompt (pipe/copy it)
+  engine context        Load full session context (agent-agnostic, any AI agent)
   engine check-update   Check if a newer Engine System version is available
   engine update         Update tooling, then migrate + doctor (one-shot)
   engine update -CheckOnly       Only check for updates, change nothing
@@ -150,6 +151,14 @@ switch ($Command) {
     }
     $verifyScript = Join-Path $PWD.Path "engine\scripts\engine-verify.ps1"
     & $verifyScript -Task $Task
+  }
+  "context" {
+    if (-not (Test-Path "engine")) {
+      Write-Error "Error: engine/ not found in $PWD. Run 'engine init' first."
+      exit 2
+    }
+    $ctxScript = Join-Path $PWD.Path "engine\scripts\engine-context.ps1"
+    & $ctxScript -Root $PWD.Path
   }
   "check-update" {
     $chk = Join-Path $PWD.Path "engine\scripts\engine-check-update.ps1"

@@ -26,8 +26,8 @@
     { "src": ".claude/skills/engine-scout/SKILL.md", "sha256": "f3a05d037c644ef227ecd5b80b9016688d94f69b433eced79c17df1b518db0dc", "dest": ".claude/skills/engine-scout/SKILL.md", "protect": true },
     { "src": ".claude/skills/engine-task-run/SKILL.md", "sha256": "937ade032d5e49b6237ddfdbcc6afd2334b9c36764c53256bba6a4a97e810eba", "dest": ".claude/skills/engine-task-run/SKILL.md", "protect": true },
     { "src": ".claude/skills/engine-verify-writeback/SKILL.md", "sha256": "902e6ad0bf988802c4dfae41641b093a347259a3b3563e7f88c9f25e59528817", "dest": ".claude/skills/engine-verify-writeback/SKILL.md", "protect": true },
-    { "src": "engine/scripts/engine-doctor.sh", "sha256": "43b3f4b001eaf2a90fb74e4724a417653f9630218244469c3275cc9c1492e8e4", "dest": "engine/scripts/engine-doctor.sh", "protect": true },
-    { "src": "engine/scripts/engine-doctor.ps1", "sha256": "4de6a8fe3f3a2c595fa2924bb5f401572f6befc3c113dd738599ba647396a3c4", "dest": "engine/scripts/engine-doctor.ps1", "protect": true },
+    { "src": "engine/scripts/engine-doctor.sh", "sha256": "57eabc267304283dc172847d5fa1558572f7ab1e0f83250992b9ac31597db034", "dest": "engine/scripts/engine-doctor.sh", "protect": true },
+    { "src": "engine/scripts/engine-doctor.ps1", "sha256": "2a832d52e54a5fc0b8b720a182b971558f5b048b8badf71b59ce54acc16710be", "dest": "engine/scripts/engine-doctor.ps1", "protect": true },
     { "src": "engine/scripts/engine-hook-session-start.sh", "sha256": "6090e259ca634c25af5a44746fcf70e0c37e42df4384cf0f09ab0ef66ecfc262", "dest": "engine/scripts/engine-hook-session-start.sh", "protect": true },
     { "src": "engine/scripts/engine-hook-session-start.ps1", "sha256": "ab026eda0bdb4e5cb5476e24d72de753d58aaca45603877a83f70ff9e29d038c", "dest": "engine/scripts/engine-hook-session-start.ps1", "protect": true },
     { "src": "engine/scripts/engine-hook-stop.sh", "sha256": "e8931ca82b5dcc37e9fc0f381e0b119a770da3bfc7ce097c9068e332bd9f40db", "dest": "engine/scripts/engine-hook-stop.sh", "protect": true },
@@ -53,6 +53,7 @@
     { "src": ".claude/settings.json", "sha256": "5565c56c38ecc3f050f58639e30f4f3897b00d70be533799e28d5471b629d766", "dest": ".claude/settings.json", "protect": false },
     { "src": "engine/skeleton/ENGINE_MAP.md", "sha256": "f4df2745ce062cc2e8347295b982920d9ceb301b6aebad8ddc194a1a734c6ca2", "dest": "engine/ENGINE_MAP.md", "protect": false },
     { "src": "engine/skeleton/CONTEXT.md", "sha256": "0e35a8b94dc28c73c761d42d4450f485cc658c439f01f9d15f004fe454bfbd8d", "dest": "engine/CONTEXT.md", "protect": false },
-    { "src": "engine/skeleton/HANDOFF.md", "sha256": "83e96bd9dfa47ea38e5cc81dd4cd2955d1a431351ce0d17070ce7a18a788168a", "dest": "engine/HANDOFF.md", "protect": false }
+    { "src": "engine/skeleton/HANDOFF.md", "sha256": "83e96bd9dfa47ea38e5cc81dd4cd2955d1a431351ce0d17070ce7a18a788168a", "dest": "engine/HANDOFF.md", "protect": false },
+    { "src": "engine/checks/README.md", "sha256": "771a2e881b2ab3570e822a9efa7781f75a23083a2ca79dd771822615229e5c5c", "dest": "engine/checks/README.md", "protect": false }
   ]
 }

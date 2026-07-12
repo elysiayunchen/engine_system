@@ -698,6 +698,39 @@ Test-ContractDebt
 Test-TaskCardDoneEvidence
 Test-EngineVersion
 
+# ── Project-custom checks (engine/checks/) ──
+function Run-CustomChecks {
+  $checksDir = Join-Path $EngineDir "checks"
+  if (-not (Test-Path $checksDir)) { return }
+  $found = $false
+  $patterns = @("check-*.ps1", "warn-*.ps1")
+  foreach ($pattern in $patterns) {
+    $scripts = Get-ChildItem -Path $checksDir -Filter $pattern -ErrorAction SilentlyContinue | Sort-Object Name
+    foreach ($script in $scripts) {
+      $found = $true
+      $name = $script.Name
+      $isWarn = $name.StartsWith("warn-")
+      $output = & $script.FullName 2>&1 | Out-String
+      if ($LASTEXITCODE -eq 0) {
+        Write-Pass "custom check $($name): PASS"
+        if ($output.Trim()) { Write-Host $output.Trim() }
+      } else {
+        $outputText = if ($output.Trim()) { $output.Trim() } else { "" }
+        if ($isWarn) {
+          Write-Warn "custom check $($name): FAIL"
+        } else {
+          Write-Fail "custom check $($name): FAIL"
+        }
+        if ($outputText) { Write-Host $outputText }
+      }
+    }
+  }
+  if (-not $found) {
+    Write-Pass "custom checks directory exists but is empty (engine/checks/)"
+  }
+}
+Run-CustomChecks
+
 foreach ($anchor in @("AGENTS.md", "CLAUDE.md")) {
   $path = Join-Path $Root $anchor
   if (Test-Path $path) {

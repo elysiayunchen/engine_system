@@ -238,11 +238,12 @@ FILES=(
   "engine/skeleton/ENGINE_MAP.md:engine/ENGINE_MAP.md:false"
   "engine/skeleton/CONTEXT.md:engine/CONTEXT.md:false"
   "engine/skeleton/HANDOFF.md:engine/HANDOFF.md:false"
+  "engine/checks/README.md:engine/checks/README.md:false"
   ".claude/settings.json:.claude/settings.json:false"
 )
 
 # Create directories
-mkdir -p .claude/commands .claude/skills engine engine/scripts engine/scripts/githooks engine/bin engine/migrations engine/prompts engine/prompts/behaviors engine/domains engine/.cache
+mkdir -p .claude/commands .claude/skills engine engine/scripts engine/scripts/githooks engine/bin engine/migrations engine/prompts engine/prompts/behaviors engine/domains engine/checks engine/.cache
 
 install_count=0
 skip_count=0

@@ -577,6 +577,44 @@ check_contract_debt
 check_task_card_done_evidence
 check_engine_version
 
+# ── Project-custom checks (engine/checks/) ──
+# Each project may place executable check-*.sh (FAIL on non-zero) or warn-*.sh
+# (WARN on non-zero) scripts into engine/checks/.  Doctor discovers and runs
+# them after all built-in checks.  Stdout becomes the result message.
+run_custom_checks() {
+  local checks_dir="$ENGINE_DIR/checks"
+  [ -d "$checks_dir" ] || return 0
+  local found=false
+  local script
+  for script in "$checks_dir"/check-*.sh "$checks_dir"/warn-*.sh; do
+    [ -f "$script" ] || continue
+    found=true
+    local name; name="$(basename "$script")"
+    local is_warn=false
+    [[ "$name" == warn-* ]] && is_warn=true
+    if [ ! -x "$script" ]; then
+      warn "custom check $name exists but is not executable"
+      continue
+    fi
+    local output
+    if output="$(bash "$script" 2>&1)"; then
+      pass "custom check $name: PASS"
+      [ -n "$output" ] && printf '%s\n' "$output"
+    else
+      if $is_warn; then
+        warn "custom check $name: FAIL"
+      else
+        fail "custom check $name: FAIL"
+      fi
+      [ -n "$output" ] && printf '%s\n' "$output"
+    fi
+  done
+  if ! $found; then
+    pass "custom checks directory exists but is empty (engine/checks/)"
+  fi
+}
+run_custom_checks
+
 while IFS='|' read -r _ path type authority verified _; do
   path="$(trim "$path")"
   [[ -z "$path" || "$path" == "Path" || "$path" =~ ^-+$ || "$path" == \[* ]] && continue

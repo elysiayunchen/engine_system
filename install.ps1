@@ -169,6 +169,7 @@ $FILES = @(
   @{ src = "engine/skeleton/ENGINE_MAP.md";         dest = "engine\ENGINE_MAP.md";         protect = $false }
   @{ src = "engine/skeleton/CONTEXT.md";            dest = "engine\CONTEXT.md";            protect = $false }
   @{ src = "engine/skeleton/HANDOFF.md";            dest = "engine\HANDOFF.md";            protect = $false }
+  @{ src = "engine/checks/README.md";                 dest = "engine\checks\README.md";                 protect = $false }
   @{ src = ".claude/settings.json";                dest = ".claude\settings.json";                protect = $false }
 )
 
@@ -176,7 +177,7 @@ Write-Host ""
 Write-Host "Engine System installer" -ForegroundColor Cyan
 Write-Host "-------------------------------------"
 
-New-Item -ItemType Directory -Force -Path ".claude\commands", ".claude\skills", "engine", "engine\scripts", "engine\scripts\githooks", "engine\bin", "engine\migrations", "engine\prompts", "engine\prompts\behaviors", "engine\domains", "engine\.cache" | Out-Null
+New-Item -ItemType Directory -Force -Path ".claude\commands", ".claude\skills", "engine", "engine\scripts", "engine\scripts\githooks", "engine\bin", "engine\migrations", "engine\prompts", "engine\prompts\behaviors", "engine\domains", "engine\checks", "engine\.cache" | Out-Null
 
 $installed = 0; $skipped = 0
 

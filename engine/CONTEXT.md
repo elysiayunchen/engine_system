@@ -7,7 +7,7 @@
 | 维度 | 状态 |
 |------|------|
 | 构建 | ✅ 正常（纯 markdown + shell 脚本，无构建步骤） |
-| 上次完成 | **VERSION 6.0.1 → 6.2.0**: v6.2 提交(3f23fa2)漏更新 VERSION 文件,本次补回。VERSION、engine/VERSION、plugin/VERSION 三处同步为 6.2.0;contract-version 注释(agents.md/engine/SYSTEM.md/engine/ENGINE_DOCTOR.md)更新为 6.2.0;plugin/manifest.json VERSION sha256 重新计算。Doctor: 0 FAIL/1 WARN(契约负债 +1,已有问题)。 |
+| 上次完成 | **engine/checks/ 自定义检查扩展点**:Doctor 新增 `run_custom_checks()` 自动发现并执行 `engine/checks/check-*.sh|.ps1`(FAIL)和 `warn-*.sh|.ps1`(WARN)。本项目 `check-version-consistency` 检查 VERSION 三处一致。Doctor: 0 FAIL/1 WARN。 |
 | 进行中 | ① D-019 P2(任务胶囊 + token 账本/HANDOFF 裁剪)待开卡; ② T-020(agent 检测器)paused; ③ D-018 待架构师批准(proposed); ④ Q2 试点库待拍板 |
 | 阻塞 | 无 |
 

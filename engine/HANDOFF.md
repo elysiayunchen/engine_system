@@ -1,10 +1,10 @@
 # HANDOFF — 会话交接
 
-> Engine System (engine_system) · Last updated: 2026-07-07
+> Engine System (engine_system) · Last updated: 2026-07-12
 
 ## 立即恢复点
 
-下一步:**v6.2 Developer Communication Rule + engine context CLI + 多 agent 支持** 已实施(AC 12/12 全绿,回归 3/3 PASS,plugin 18 对 byte-identical)。待推送 GitHub。其后:① D-019 P1(技能+路由)排队; ② D-018 待批; ③ T-020(agent 检测器)paused; ④ Q2 试点库待拍板(引擎现已多 agent 可用,试点条件更成熟)。
+下一步:**T-024 SYSTEM/Doctor 职责边界修正** 已实施:发布可用性是 `engine/SYSTEM.md` 的项目级开发准则;Doctor 不承载、不指向、不检查该准则。T-023 行为层仍已验收并可通过 plugin/install 进入其他项目。其后:① D-019 P2(任务胶囊 + token 账本/HANDOFF 裁剪)可开卡; ② T-020(agent 检测器)paused; ③ D-018 待批; ④ Q2 真实库试点待拍板。
 
 > Phase 1 = 通用化核心(prompt 抽离 / CLI 扩展 / 快速安装 / agent 检测——D-017 原文口径;实施细化与「薄壳」口径修正见 D-018)。v6.2 = 多 agent 通信层(engine context + DevComm Rule 扩展)。
 
@@ -12,6 +12,8 @@
 
 | 日期 | 完成了什么 | 下一步 | 改动文件 |
 |------|-----------|--------|---------|
+| 2026-07-12 | **T-024 SYSTEM/Doctor 职责边界修正**:纠正 T-023 收尾中的职责边界错误;`engine/SYSTEM.md` 作为“发布可用性优先”项目开发准则的唯一权威来源;`engine/ENGINE_DOCTOR.md` 与 `plugin/engine/ENGINE_DOCTOR.md` 删除相关承载/指向/检查文案,恢复为健康检查契约。`engine verify T-024` 3/3 PASS;bash check PASS。 | D-019 P2 胶囊+账本 或 T-020 agent 检测器;Q2 真实库试点待拍板 | engine/SYSTEM.md, engine/ENGINE_DOCTOR.md, plugin/engine/ENGINE_DOCTOR.md, plugin/manifest.json, engine/tasks/T-024.md, engine/evidence/T-024/*, engine/changes/CHANGE-2026-07-12-02.md, engine/CONTEXT.md, engine/HANDOFF.md, engine/ENGINE_MAP.md |
+| 2026-07-12 | **T-023 / D-019 P1 行为技能层 + 路由 + 发布可用性准则**:新增 5 个单源 behavior 源(task-run/scout/verify-writeback/decision-draft/handoff),编译到 Claude Code skills + agent-neutral prompts + plugin 镜像;新增 routing.json;manifest/install 双端分发 54 条哈希;新增 behavior-skills 测试(含隔离目录 local install);`engine/SYSTEM.md` 写入“发布可用性优先”项目开发准则(准则仅属 SYSTEM,Doctor 不承载/不指向/不检查);修复 nested skill 安装父目录、compile.ps1 SHA256、engine-migrate-contract.ps1 PS5.1 编码、WSL bash harness 对 Windows PowerShell 的混合路径假失败。`engine verify T-023` 5/5 PASS;bash+PowerShell check 均 PASS。 | D-019 P2 胶囊+账本 或 T-020 agent 检测器;Q2 真实库试点待拍板 | contract/src/behaviors/*, contract/compile.*, engine/prompts/behaviors/*, plugin/.claude/skills/*, engine/domains/routing.json, plugin/engine/prompts/behaviors/*, plugin/engine/domains/routing.json, install.*, plugin/manifest.json, scripts/check.*, tests/behavior-skills/*, tests/{dist-drift,hook-parity,task-card,fractal-memory,behavior-verify}/*, engine/SYSTEM.md, engine/tasks/T-023.md, engine/evidence/T-023/*, engine/changes/CHANGE-2026-07-12-01.md |
 | 2026-07-07 | **v6.2 Developer Communication Rule + engine context CLI + 多 agent 支持**: 实施交流设计 plan v6.2(架构师两项关键修改:动态语言+全 agent 支持)。新增 engine context sh/ps1 孪生(任何 agent 的通用会话上下文加载器);DevComm Rule v6.2(6 条动态规则+反馈信号+comm_level 自适应 basic/standard/technical);GLOSSARY 双分区(Core Terms 引擎维护+Project Terms 开发者维护);Doctor ~50 条 human: 翻译行;Stop hook 5 条开发者可读消息;migrate 开发者摘要(无文件路径);sync-agent-anchors 注入 engine context+DevComm v6.2;AGENTS.md 重写为 agent-agnostic Session Protocol+Agent Tiers 表(C/B/A 三档);D-020 预算背书 2455/13;四维并行 review+深度 review+回归测试 3/3 PASS+plugin 18 对 byte-identical。修复:PS1 managed block 严重落后、SessionStart.sh 中文 headers、Theary 拼写、reconcile_schema sed glob 展开(eval→sed -f)、Developer Summary 含路径。 | 推送 GitHub → D-019 P1 或 D-018 批或 Q2 试点 | 42 文件: contract/{budget.json,src/00-core.md}, engine/{bin/*,scripts/engine-context.{sh,ps1},scripts/engine-doctor.{sh,ps1},scripts/engine-hook-session-start.{sh,ps1},scripts/engine-hook-stop.{sh,ps1},scripts/engine-migrate-contract.{sh,ps1},scripts/engine-sync-agent-anchors.{sh,ps1},decisions/D-020.md,prompts/init.md}, plugin/(镜像), AGENTS.md, ENGINE_FILE_SYSTEM_v5.md, rules.json |
 | 2026-07-06 | **D-019 行为引擎化提案(proposed)**: 方向勘察(对标 Superpowers/Agent Teams:引擎三件套是底座,缺技能面+编排面,均为编译器新输出靶)+ 架构师三项拍板(独立立项分期 / 技能层+任务胶囊 / 先补防护再扩面)+ 五子项落稿(a 防护前置 P0 / b 行为技能首批 5 个 / c 路由表 routing.json / d engine capsule / e token 账本+HANDOFF 裁剪)。7-05 评估四发现收编进 a/e。 | 架构师批 D-019 → 批后开 P0 防护卡 | engine/decisions/D-019.md, engine/CONTEXT.md, engine/HANDOFF.md, engine/ENGINE_MAP.md, engine/changes/CHANGE-2026-07-06-01.md |
 | 2026-07-06 | **全脚本错误处理**: Bash 17文件(+set -euo pipefail+trap ERR,hooks保持fail-open+stderr日志,测试保持set -u),PS 23文件(+$ErrorActionPreference Stop+trap,param()必须���首行,plugin/编译同步)。check.sh 全PASS(0 failures,0 warnings,PS语法/兼容性全PASS)。 | Phase 1 剩余:T-020/T-021 | 28 .sh + 23 .ps1 文件, CONTEXT/HANDOFF/ENGINE_MAP, contract/compile.sh输出(18 plugin scripts + 3 bin files) |

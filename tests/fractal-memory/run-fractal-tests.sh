@@ -19,9 +19,22 @@ START_PS1="$REPO_ROOT/plugin/engine/scripts/engine-hook-session-start.ps1"
 PAYLOAD='{"stop_hook_active":false}'
 
 PS_BIN=""
-for c in powershell.exe powershell pwsh; do
+for c in pwsh powershell powershell.exe; do
   if command -v "$c" >/dev/null 2>&1; then PS_BIN="$c"; break; fi
 done
+if [ -n "$PS_BIN" ] && command -v wslpath >/dev/null 2>&1 && [[ "$PS_BIN" == *powershell.exe ]]; then
+  PS_BIN=""
+fi
+
+ps_path() {
+  if command -v cygpath >/dev/null 2>&1; then
+    cygpath -w "$1"
+  elif command -v wslpath >/dev/null 2>&1; then
+    wslpath -w "$1"
+  else
+    printf '%s\n' "$1"
+  fi
+}
 
 pass=0
 fail=0
@@ -122,9 +135,9 @@ run_stop() {
     echo "FAIL  sh  $name -> expect=$expect got=$got out=${out:0:90}"; fail=$((fail+1))
   fi
   if [ -n "$PS_BIN" ]; then
-    repo_ps="$repo"
-    command -v cygpath >/dev/null 2>&1 && repo_ps="$(cygpath -w "$repo")"
-    out_ps="$(printf '%s' "$PAYLOAD" | CLAUDE_PROJECT_DIR="$repo_ps" "$PS_BIN" -NoProfile -ExecutionPolicy Bypass -File "$STOP_PS1" 2>/dev/null)"
+    repo_ps="$(ps_path "$repo")"
+    stop_ps1="$(ps_path "$STOP_PS1")"
+    out_ps="$(printf '%s' "$PAYLOAD" | CLAUDE_PROJECT_DIR="$repo_ps" "$PS_BIN" -NoProfile -ExecutionPolicy Bypass -File "$stop_ps1" 2>/dev/null)"
     got_ps="$(classify "$out_ps")"
     if [ "$got_ps" = "$expect" ]; then
       echo "PASS  ps1 $name -> $got_ps"; pass=$((pass+1))
@@ -144,9 +157,9 @@ run_start() {
     echo "FAIL  sh  $name -> expect_present=$expect_present out=${out:0:90}"; fail=$((fail+1))
   fi
   if [ -n "$PS_BIN" ]; then
-    repo_ps="$repo"
-    command -v cygpath >/dev/null 2>&1 && repo_ps="$(cygpath -w "$repo")"
-    out_ps="$(CLAUDE_PROJECT_DIR="$repo_ps" "$PS_BIN" -NoProfile -ExecutionPolicy Bypass -File "$START_PS1" 2>/dev/null)"
+    repo_ps="$(ps_path "$repo")"
+    start_ps1="$(ps_path "$START_PS1")"
+    out_ps="$(CLAUDE_PROJECT_DIR="$repo_ps" "$PS_BIN" -NoProfile -ExecutionPolicy Bypass -File "$start_ps1" 2>/dev/null)"
     if printf '%s' "$out_ps" | grep -q "$pattern"; then present_ps=1; else present_ps=0; fi
     if [ "$present_ps" = "$expect_present" ]; then
       echo "PASS  ps1 $name"; pass=$((pass+1))

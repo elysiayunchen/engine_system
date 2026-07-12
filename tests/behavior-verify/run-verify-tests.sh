@@ -15,9 +15,12 @@ CLI_SH="$REPO_ROOT/engine/bin/engine"
 CLI_PS1="$REPO_ROOT/engine/bin/engine.ps1"
 
 PS_BIN=""
-for c in powershell.exe powershell pwsh; do
+for c in pwsh powershell powershell.exe; do
   if command -v "$c" >/dev/null 2>&1; then PS_BIN="$c"; break; fi
 done
+if [ -n "$PS_BIN" ] && command -v wslpath >/dev/null 2>&1 && [[ "$PS_BIN" == *powershell.exe ]]; then
+  PS_BIN=""
+fi
 
 pass=0
 fail=0
@@ -88,8 +91,20 @@ repo_ps1() {
   repo="$1"
   if command -v cygpath >/dev/null 2>&1; then
     cygpath -w "$repo"
+  elif command -v wslpath >/dev/null 2>&1; then
+    wslpath -w "$repo"
   else
     printf '%s' "$repo"
+  fi
+}
+
+ps_path() {
+  if command -v cygpath >/dev/null 2>&1; then
+    cygpath -w "$1"
+  elif command -v wslpath >/dev/null 2>&1; then
+    wslpath -w "$1"
+  else
+    printf '%s' "$1"
   fi
 }
 
@@ -108,7 +123,8 @@ check_no_file "A4 ac3-skip" "$r" "AC-3"
 
 if [ -n "$PS_BIN" ]; then
   r_ps1="$(new_repo)"; write_task_mixed "$r_ps1"
-  out_ps1="$(CLAUDE_PROJECT_DIR="$(repo_ps1 "$r_ps1")" "$PS_BIN" -NoProfile -ExecutionPolicy Bypass -File "$VERIFY_PS1" -Task T-TEST 2>&1)"; rc_ps1=$?
+  verify_ps1="$(ps_path "$VERIFY_PS1")"
+  out_ps1="$(CLAUDE_PROJECT_DIR="$(repo_ps1 "$r_ps1")" "$PS_BIN" -NoProfile -ExecutionPolicy Bypass -File "$verify_ps1" -Task T-TEST 2>&1)"; rc_ps1=$?
   if [ "$rc_ps1" = "1" ]; then
     echo "PASS  A1-ps1 verify-mixed-exit1"; pass=$((pass+1))
   else
@@ -175,7 +191,8 @@ fi
 
 if [ -n "$PS_BIN" ]; then
   r2_ps1="$(new_repo)"
-  out_ps1="$(CLAUDE_PROJECT_DIR="$(repo_ps1 "$r2_ps1")" "$PS_BIN" -NoProfile -ExecutionPolicy Bypass -File "$VERIFY_PS1" -Task T-NOPE 2>&1)"; rc_ps1=$?
+  verify_ps1="$(ps_path "$VERIFY_PS1")"
+  out_ps1="$(CLAUDE_PROJECT_DIR="$(repo_ps1 "$r2_ps1")" "$PS_BIN" -NoProfile -ExecutionPolicy Bypass -File "$verify_ps1" -Task T-NOPE 2>&1)"; rc_ps1=$?
   if [ "$rc_ps1" = "2" ]; then
     echo "PASS  C1-ps1 missing-task-exit2"; pass=$((pass+1))
   else
@@ -216,7 +233,8 @@ FORBIDDEN: none
 AC: AC-1 ok → verify: true
 CONSTRAINTS: none
 EOF
-  out_ps1="$(CLAUDE_PROJECT_DIR="$(repo_ps1 "$r3_ps1")" "$PS_BIN" -NoProfile -ExecutionPolicy Bypass -File "$VERIFY_PS1" -Task T-OK 2>&1)"; rc_ps1=$?
+  verify_ps1="$(ps_path "$VERIFY_PS1")"
+  out_ps1="$(CLAUDE_PROJECT_DIR="$(repo_ps1 "$r3_ps1")" "$PS_BIN" -NoProfile -ExecutionPolicy Bypass -File "$verify_ps1" -Task T-OK 2>&1)"; rc_ps1=$?
   if [ "$rc_ps1" = "0" ]; then
     echo "PASS  D1-ps1 all-pass-exit0"; pass=$((pass+1))
   else
@@ -237,7 +255,8 @@ else
 fi
 
 if [ -n "$PS_BIN" ]; then
-  out_ps1="$(CLAUDE_PROJECT_DIR="$(repo_ps1 "$r3_ps1")" "$PS_BIN" -NoProfile -ExecutionPolicy Bypass -File "$CLI_PS1" verify T-OK 2>&1)"; rc_ps1=$?
+  cli_ps1="$(ps_path "$CLI_PS1")"
+  out_ps1="$(CLAUDE_PROJECT_DIR="$(repo_ps1 "$r3_ps1")" "$PS_BIN" -NoProfile -ExecutionPolicy Bypass -File "$cli_ps1" verify T-OK 2>&1)"; rc_ps1=$?
   if [ "$rc_ps1" = "0" ]; then
     echo "PASS  E1-ps1 cli-verify-pass"; pass=$((pass+1))
   else
@@ -261,7 +280,8 @@ check_json_field "F2 ac2-pass-after-fail" "$r4" "AC-2" "status" "pass"
 
 if [ -n "$PS_BIN" ]; then
   r4_ps1="$(new_repo)"; write_task_fail_then_pass "$r4_ps1"
-  out_ps1="$(CLAUDE_PROJECT_DIR="$(repo_ps1 "$r4_ps1")" "$PS_BIN" -NoProfile -ExecutionPolicy Bypass -File "$VERIFY_PS1" -Task T-TEST 2>&1)"; rc_ps1=$?
+  verify_ps1="$(ps_path "$VERIFY_PS1")"
+  out_ps1="$(CLAUDE_PROJECT_DIR="$(repo_ps1 "$r4_ps1")" "$PS_BIN" -NoProfile -ExecutionPolicy Bypass -File "$verify_ps1" -Task T-TEST 2>&1)"; rc_ps1=$?
   if [ "$rc_ps1" = "1" ]; then
     echo "PASS  F1-ps1 fail-then-pass-exit1"; pass=$((pass+1))
   else

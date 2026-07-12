@@ -200,6 +200,17 @@ FILES=(
   "engine/README.zh.md:engine/README.zh.md:false"
   "engine/ENGINE_DOCTOR.md:engine/ENGINE_DOCTOR.md:false"
   "engine/prompts/init.md:engine/prompts/init.md:true"
+  "engine/prompts/behaviors/decision-draft.md:engine/prompts/behaviors/decision-draft.md:true"
+  "engine/prompts/behaviors/handoff.md:engine/prompts/behaviors/handoff.md:true"
+  "engine/prompts/behaviors/scout.md:engine/prompts/behaviors/scout.md:true"
+  "engine/prompts/behaviors/task-run.md:engine/prompts/behaviors/task-run.md:true"
+  "engine/prompts/behaviors/verify-writeback.md:engine/prompts/behaviors/verify-writeback.md:true"
+  "engine/domains/routing.json:engine/domains/routing.json:true"
+  ".claude/skills/engine-decision-draft/SKILL.md:.claude/skills/engine-decision-draft/SKILL.md:true"
+  ".claude/skills/engine-handoff/SKILL.md:.claude/skills/engine-handoff/SKILL.md:true"
+  ".claude/skills/engine-scout/SKILL.md:.claude/skills/engine-scout/SKILL.md:true"
+  ".claude/skills/engine-task-run/SKILL.md:.claude/skills/engine-task-run/SKILL.md:true"
+  ".claude/skills/engine-verify-writeback/SKILL.md:.claude/skills/engine-verify-writeback/SKILL.md:true"
   "engine/scripts/engine-doctor.sh:engine/scripts/engine-doctor.sh:true"
   "engine/scripts/engine-doctor.ps1:engine/scripts/engine-doctor.ps1:true"
   "engine/scripts/engine-hook-session-start.sh:engine/scripts/engine-hook-session-start.sh:true"
@@ -231,7 +242,7 @@ FILES=(
 )
 
 # Create directories
-mkdir -p .claude/commands engine engine/scripts engine/scripts/githooks engine/bin engine/migrations engine/prompts engine/.cache
+mkdir -p .claude/commands .claude/skills engine engine/scripts engine/scripts/githooks engine/bin engine/migrations engine/prompts engine/prompts/behaviors engine/domains engine/.cache
 
 install_count=0
 skip_count=0
@@ -239,6 +250,7 @@ skip_count=0
 for entry in "${FILES[@]}"; do
   IFS=':' read -r src dest protect <<< "$entry"
   url="${BASE_URL}/${src}"
+  mkdir -p "$(dirname "$dest")"
 
   # Root anchor files (CLAUDE.md / AGENTS.md): never clobber an existing one, in any mode.
   # .claude/settings.json: same rule — don't overwrite an existing one.

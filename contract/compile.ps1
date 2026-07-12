@@ -6,7 +6,7 @@
 # BOM-less .ps1 source using the system codepage, which mangles non-ASCII
 # literals; the BOM forces correct UTF-8 decoding. Do not strip it.
 #
-# Produces 5 dist files:
+# Produces 6 dist groups:
 #   1. ENGINE_FILE_SYSTEM_v5.md (banner + 4 modules concatenated) - web-prompt
 #   2. runtime-law.md (L0 constitution, from L0-runtime-law.md) - <=40 lines
 #   3. rules.json (machine-readable rule table aggregate index)
@@ -14,6 +14,8 @@
 #      - kills the init.md dual implementation (design 5.5 / D-015)
 #   5. engine/prompts/init.md (agent-neutral preamble + same contract modules,
 #      mirrored to plugin/) - in-project pickup point for ANY agent (D-018a)
+#   6. behavior skills/prompts (contract/src/behaviors/*.md -> Claude Code
+#      skills + agent-neutral prompts, mirrored to plugin/) - D-019 P1
 #
 # Idempotent: compile(src) == dist.
 
@@ -23,6 +25,7 @@ $ErrorActionPreference = "Stop"
 
 $Root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $SrcDir = Join-Path $Root "contract\src"
+$BehaviorSrcDir = Join-Path $SrcDir "behaviors"
 # ENGINE_COMPILE_OUT: dist output root (defaults to repo root). All write paths hang off
 # this; read paths (contract/src, engine/scripts, engine/bin) always resolve under $Root
 # so test sandboxes can recompute into isolation and compare against the real dist
@@ -33,6 +36,11 @@ $LawDist = Join-Path $OutRoot "runtime-law.md"
 $RulesDist = Join-Path $OutRoot "rules.json"
 $InitDist = Join-Path $OutRoot "plugin\.claude\commands\engine-init.md"
 $PromptsDist = Join-Path $OutRoot "engine\prompts\init.md"
+$BehaviorPromptsDist = Join-Path $OutRoot "engine\prompts\behaviors"
+$BehaviorPromptsPlugin = Join-Path $OutRoot "plugin\engine\prompts\behaviors"
+$BehaviorSkillsPlugin = Join-Path $OutRoot "plugin\.claude\skills"
+$RoutingSrc = Join-Path $Root "engine\domains\routing.json"
+$RoutingPlugin = Join-Path $OutRoot "plugin\engine\domains\routing.json"
 
 if (-not (Test-Path $SrcDir)) {
   Write-Error "compile: source dir not found: $SrcDir"
@@ -48,6 +56,18 @@ foreach ($m in $modules) {
   $compiled += Get-Content -Raw -Path $m.FullName -Encoding UTF8
 }
 $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+
+function Get-Sha256Hex([string]$Path) {
+  $sha = [System.Security.Cryptography.SHA256]::Create()
+  $stream = [System.IO.File]::OpenRead((Resolve-Path $Path).Path)
+  try {
+    $bytes = $sha.ComputeHash($stream)
+    return (($bytes | ForEach-Object { $_.ToString("x2") }) -join "")
+  } finally {
+    $stream.Dispose()
+    $sha.Dispose()
+  }
+}
 [System.IO.File]::WriteAllText($Dist, $compiled, $utf8NoBom)
 
 # 2. runtime-law.md (L0 constitution)
@@ -114,7 +134,40 @@ if (Test-Path $agentPreamble) {
 $lines = (Get-Content $Dist).Count
 Write-Output "compile: 5 dist files (web-prompt $lines lines, runtime-law, rules.json, engine-init, prompts/init)"
 
-# 6. plugin/engine/scripts/ mirror sync (engine/scripts/ is single source of truth)
+# 6. behavior skills/prompts (D-019 P1)
+$behaviorCount = 0
+if (Test-Path $BehaviorSrcDir) {
+  foreach ($dir in @($BehaviorPromptsDist, $BehaviorPromptsPlugin)) {
+    if (Test-Path $dir) { Remove-Item -Path $dir -Recurse -Force }
+    New-Item -ItemType Directory -Path $dir -Force | Out-Null
+  }
+  if (-not (Test-Path $BehaviorSkillsPlugin)) {
+    New-Item -ItemType Directory -Path $BehaviorSkillsPlugin -Force | Out-Null
+  }
+  $behaviorFiles = Get-ChildItem -Path $BehaviorSrcDir -File -Filter "*.md" | Sort-Object Name
+  foreach ($bf in $behaviorFiles) {
+    $base = $bf.BaseName
+    $skillName = "engine-$base"
+    $skillDir = Join-Path $BehaviorSkillsPlugin $skillName
+    if (Test-Path $skillDir) { Remove-Item -Path $skillDir -Recurse -Force }
+    New-Item -ItemType Directory -Path $skillDir -Force | Out-Null
+    Copy-Item -Path $bf.FullName -Destination (Join-Path $BehaviorPromptsDist "$base.md") -Force
+    Copy-Item -Path $bf.FullName -Destination (Join-Path $BehaviorPromptsPlugin "$base.md") -Force
+    Copy-Item -Path $bf.FullName -Destination (Join-Path $skillDir "SKILL.md") -Force
+    $behaviorCount++
+  }
+}
+Write-Output "compile: behavior skills/prompts synced ($behaviorCount behaviors)"
+
+# 7. behavior routing table mirror (engine/domains/routing.json is source)
+if (Test-Path $RoutingSrc) {
+  $routingDir = Split-Path -Parent $RoutingPlugin
+  if (-not (Test-Path $routingDir)) { New-Item -ItemType Directory -Path $routingDir -Force | Out-Null }
+  Copy-Item -Path $RoutingSrc -Destination $RoutingPlugin -Force
+  Write-Output "compile: behavior routing table synced"
+}
+
+# 8. plugin/engine/scripts/ mirror sync (engine/scripts/ is single source of truth)
 # Edit scripts in engine/scripts/ only; compile.ps1 auto-syncs to plugin/.
 # check.sh drift check catches manual edits to plugin/engine/scripts/.
 $syncList = @(
@@ -150,7 +203,7 @@ foreach ($f in $syncList) {
 }
 Write-Output "compile: plugin\engine\scripts\ synced ($syncCount files from engine\scripts\)"
 
-# 7. plugin/bin/ mirror sync (engine/bin/ is single source of truth, D-018e)
+# 9. plugin/bin/ mirror sync (engine/bin/ is single source of truth, D-018e)
 $binCount = 0
 foreach ($f in @("engine", "engine.ps1", "engine.cmd")) {
   $srcBin = Join-Path $Root "engine\bin\$f"
@@ -163,7 +216,7 @@ foreach ($f in @("engine", "engine.ps1", "engine.cmd")) {
 }
 Write-Output "compile: plugin\bin\ synced ($binCount files from engine\bin\)"
 
-# 8. manifest sha256 backfill (compute hash of plugin\<src> bytes, keep single-line format)
+# 10. manifest sha256 backfill (compute hash of plugin\<src> bytes, keep single-line format)
 $manifest = Join-Path $OutRoot "plugin\manifest.json"
 if (Test-Path $manifest) {
   $content = Get-Content -Raw -Path $manifest -Encoding UTF8
@@ -175,7 +228,7 @@ if (Test-Path $manifest) {
     $src = $m.Groups[1].Value
     $srcFile = Join-Path $OutRoot "plugin\$src"
     if (Test-Path $srcFile) {
-      $hash = (Get-FileHash $srcFile -Algorithm SHA256).Hash.ToLower()
+      $hash = Get-Sha256Hex $srcFile
       $pattern = '"src": "' + [regex]::Escape($src) + '"'
       $replacement = '"src": "' + $src + '", "sha256": "' + $hash + '"'
       $content = $content -replace $pattern, $replacement

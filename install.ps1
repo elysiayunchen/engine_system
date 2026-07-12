@@ -131,6 +131,17 @@ $FILES = @(
   @{ src = "engine/README.zh.md";                  dest = "engine\README.zh.md";                  protect = $false }
   @{ src = "engine/ENGINE_DOCTOR.md";              dest = "engine\ENGINE_DOCTOR.md";              protect = $false }
   @{ src = "engine/prompts/init.md";               dest = "engine\prompts\init.md";               protect = $true }
+  @{ src = "engine/prompts/behaviors/decision-draft.md";    dest = "engine\prompts\behaviors\decision-draft.md";    protect = $true }
+  @{ src = "engine/prompts/behaviors/handoff.md";           dest = "engine\prompts\behaviors\handoff.md";           protect = $true }
+  @{ src = "engine/prompts/behaviors/scout.md";             dest = "engine\prompts\behaviors\scout.md";             protect = $true }
+  @{ src = "engine/prompts/behaviors/task-run.md";          dest = "engine\prompts\behaviors\task-run.md";          protect = $true }
+  @{ src = "engine/prompts/behaviors/verify-writeback.md";  dest = "engine\prompts\behaviors\verify-writeback.md";  protect = $true }
+  @{ src = "engine/domains/routing.json";          dest = "engine\domains\routing.json";          protect = $true }
+  @{ src = ".claude/skills/engine-decision-draft/SKILL.md";   dest = ".claude\skills\engine-decision-draft\SKILL.md";   protect = $true }
+  @{ src = ".claude/skills/engine-handoff/SKILL.md";          dest = ".claude\skills\engine-handoff\SKILL.md";          protect = $true }
+  @{ src = ".claude/skills/engine-scout/SKILL.md";            dest = ".claude\skills\engine-scout\SKILL.md";            protect = $true }
+  @{ src = ".claude/skills/engine-task-run/SKILL.md";         dest = ".claude\skills\engine-task-run\SKILL.md";         protect = $true }
+  @{ src = ".claude/skills/engine-verify-writeback/SKILL.md"; dest = ".claude\skills\engine-verify-writeback\SKILL.md"; protect = $true }
   @{ src = "engine/scripts/engine-doctor.sh";      dest = "engine\scripts\engine-doctor.sh";      protect = $true }
   @{ src = "engine/scripts/engine-doctor.ps1";     dest = "engine\scripts\engine-doctor.ps1";     protect = $true }
   @{ src = "engine/scripts/engine-hook-session-start.sh";   dest = "engine\scripts\engine-hook-session-start.sh";   protect = $true }
@@ -165,13 +176,17 @@ Write-Host ""
 Write-Host "Engine System installer" -ForegroundColor Cyan
 Write-Host "-------------------------------------"
 
-New-Item -ItemType Directory -Force -Path ".claude\commands", "engine", "engine\scripts", "engine\scripts\githooks", "engine\bin", "engine\migrations", "engine\prompts", "engine\.cache" | Out-Null
+New-Item -ItemType Directory -Force -Path ".claude\commands", ".claude\skills", "engine", "engine\scripts", "engine\scripts\githooks", "engine\bin", "engine\migrations", "engine\prompts", "engine\prompts\behaviors", "engine\domains", "engine\.cache" | Out-Null
 
 $installed = 0; $skipped = 0
 
 foreach ($f in $FILES) {
   $url = "$BASE_URL/$($f.src)"
   $dest = $f.dest
+  $destDir = Split-Path -Parent $dest
+  if ($destDir -and -not (Test-Path $destDir)) {
+    New-Item -ItemType Directory -Force -Path $destDir | Out-Null
+  }
 
   # Root anchor files (CLAUDE.md / AGENTS.md) and .claude/settings.json:
   # never clobber an existing one, in any mode.

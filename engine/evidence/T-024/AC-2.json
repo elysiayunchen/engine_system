@@ -1,0 +1,1 @@
+{"ac":"AC-2","verify":"! grep -q '发布可用性优先\\\\|项目开发准则\\\\|Release usability\\\\|Project-level development rules' engine/ENGINE_DOCTOR.md plugin/engine/ENGINE_DOCTOR.md","status":"pass","exit":0,"fingerprint":"sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855","timestamp":"2026-07-12T20:28:27Z"}

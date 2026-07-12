@@ -3,3 +3,8 @@ engine/.cache/
 
 # subagent-driven-development scratch (task briefs, reports, review packages)
 .superpowers/
+
+# Downloaded/extracted engine snapshot + scratch outputs (not part of the deliverable)
+engine1.zip
+engine1_extracted/
+outputs/

@@ -4,7 +4,7 @@
 
 ## 立即恢复点
 
-下一步:**VERSION 已更新为 6.2.0**(补 v6.2 提交遗漏的版本号更新)。其后:① D-019 P2(任务胶囊 + token 账本/HANDOFF 裁剪)可开卡; ② T-020(agent 检测器)paused; ③ D-018 待批; ④ Q2 真实库试点待拍板。
+下一步:**engine/checks/ 自定义检查扩展点已实现**:Doctor 继承引擎检查后,自动发现 `engine/checks/check-*.sh|.ps1`(FAIL)和 `warn-*.sh|.ps1`(WARN)。本项目挂 `check-version-consistency`(三处 VERSION 一致校验)。其后:① D-019 P2(任务胶囊 + token 账本/HANDOFF 裁剪)可开卡; ② T-020(agent 检测器)paused; ③ D-018 待批; ④ Q2 真实库试点待拍板。
 
 > Phase 1 = 通用化核心(prompt 抽离 / CLI 扩展 / 快速安装 / agent 检测——D-017 原文口径;实施细化与「薄壳」口径修正见 D-018)。v6.2 = 多 agent 通信层(engine context + DevComm Rule 扩展)。
 
@@ -12,6 +12,7 @@
 
 | 日期 | 完成了什么 | 下一步 | 改动文件 |
 |------|-----------|--------|---------|
+| 2026-07-12 | **engine/checks/ 自定义检查扩展点**:Doctor(sh+ps1)新增 custom checks runner 自动发现 `engine/checks/` 下脚本;本项目挂 `check-version-consistency`(VERSION 三处一致性);插件骨架 + manifest + install 分发。Doctor: 0 FAIL/1 WARN。 | D-019 P2 或 T-020 或 D-018 批 | engine/scripts/engine-doctor.{sh,ps1}, plugin/engine/scripts/engine-doctor.{sh,ps1}, engine/checks/*, plugin/engine/checks/README.md, plugin/manifest.json, install.{sh,ps1}, engine/{ENGINE_MAP,CONTEXT,HANDOFF}.md |
 | 2026-07-12 | **fix: VERSION 6.0.1 → 6.2.0 补回遗漏更新**:v6.2 提交(3f23fa2)引入 2508 行变更但漏更新 VERSION,本次补回三处 VERSION 为 6.2.0 + contract-version 注释三处同步 + plugin/manifest.json sha256 重新计算。 | D-019 P2 或 T-020 或 D-018 批 | VERSION, engine/VERSION, plugin/VERSION, agents.md, engine/SYSTEM.md, engine/ENGINE_DOCTOR.md, plugin/manifest.json, engine/CONTEXT.md, engine/HANDOFF.md |
 | 2026-07-12 | **chore: .gitignore 收纳 scratch 产物**(engine1.zip/engine1_extracted/outputs,7月7 下载解包与 scratch 输出,非交付内容) | 推送两个本地提交(main 领先 origin/main 2) | .gitignore, engine/HANDOFF.md |
 | 2026-07-12 | **T-024 SYSTEM/Doctor 职责边界修正**:纠正 T-023 收尾中的职责边界错误;`engine/SYSTEM.md` 作为“发布可用性优先”项目开发准则的唯一权威来源;`engine/ENGINE_DOCTOR.md` 与 `plugin/engine/ENGINE_DOCTOR.md` 删除相关承载/指向/检查文案,恢复为健康检查契约。`engine verify T-024` 3/3 PASS;bash check PASS。 | D-019 P2 胶囊+账本 或 T-020 agent 检测器;Q2 真实库试点待拍板 | engine/SYSTEM.md, engine/ENGINE_DOCTOR.md, plugin/engine/ENGINE_DOCTOR.md, plugin/manifest.json, engine/tasks/T-024.md, engine/evidence/T-024/*, engine/changes/CHANGE-2026-07-12-02.md, engine/CONTEXT.md, engine/HANDOFF.md, engine/ENGINE_MAP.md |

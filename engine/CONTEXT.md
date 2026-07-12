@@ -7,7 +7,7 @@
 | 维度 | 状态 |
 |------|------|
 | 构建 | ✅ 正常（纯 markdown + shell 脚本，无构建步骤） |
-| 上次完成 | **T-024 SYSTEM/Doctor 职责边界修正**:发布可用性作为项目级开发准则,权威位置仅在 `engine/SYSTEM.md`;`engine/ENGINE_DOCTOR.md` 与 `plugin/engine/ENGINE_DOCTOR.md` 不承载、不指向、不检查该准则。T-023 行为技能层仍保持已验收状态:`engine verify T-023` 5/5 PASS,`bash scripts/check.sh` PASS,`powershell ... scripts/check.ps1` PASS。 |
+| 上次完成 | **VERSION 6.0.1 → 6.2.0**: v6.2 提交(3f23fa2)漏更新 VERSION 文件,本次补回。VERSION、engine/VERSION、plugin/VERSION 三处同步为 6.2.0;contract-version 注释(agents.md/engine/SYSTEM.md/engine/ENGINE_DOCTOR.md)更新为 6.2.0;plugin/manifest.json VERSION sha256 重新计算。Doctor: 0 FAIL/1 WARN(契约负债 +1,已有问题)。 |
 | 进行中 | ① D-019 P2(任务胶囊 + token 账本/HANDOFF 裁剪)待开卡; ② T-020(agent 检测器)paused; ③ D-018 待架构师批准(proposed); ④ Q2 试点库待拍板 |
 | 阻塞 | 无 |
 

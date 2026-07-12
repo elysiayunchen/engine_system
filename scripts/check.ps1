@@ -151,6 +151,34 @@ try {
     }
   }
 
+  Step "Behavior skills distribution"
+  foreach ($b in @("decision-draft", "handoff", "scout", "task-run", "verify-writeback")) {
+    $src = "contract\src\behaviors\$b.md"
+    $prompt = "engine\prompts\behaviors\$b.md"
+    $pluginPrompt = "plugin\engine\prompts\behaviors\$b.md"
+    $skill = "plugin\.claude\skills\engine-$b\SKILL.md"
+    if ((Test-Path $src) -and (Test-Path $prompt) -and (Test-Path $pluginPrompt) -and (Test-Path $skill)) {
+      $h1 = (Get-FileHash $src -Algorithm SHA256).Hash
+      $h2 = (Get-FileHash $prompt -Algorithm SHA256).Hash
+      $h3 = (Get-FileHash $pluginPrompt -Algorithm SHA256).Hash
+      $h4 = (Get-FileHash $skill -Algorithm SHA256).Hash
+      if ($h1 -eq $h2 -and $h1 -eq $h3 -and $h1 -eq $h4) {
+        Pass "behavior mirrors match: $b"
+      } else {
+        Fail "behavior mirror drift: $b"
+      }
+    } else {
+      Fail "behavior files missing: $b"
+    }
+  }
+  if ((Test-Path "engine\domains\routing.json") -and (Test-Path "plugin\engine\domains\routing.json")) {
+    $rh1 = (Get-FileHash "engine\domains\routing.json" -Algorithm SHA256).Hash
+    $rh2 = (Get-FileHash "plugin\engine\domains\routing.json" -Algorithm SHA256).Hash
+    if ($rh1 -eq $rh2) { Pass "routing table mirrored" } else { Fail "routing table drift" }
+  } else {
+    Fail "routing table missing"
+  }
+
   Step "Web prompt entrypoint"
   $rootPrompts = @(Get-ChildItem -Path . -File -Filter "ENGINE_FILE_SYSTEM*" | ForEach-Object { $_.Name })
   $unexpectedRootPrompts = @($rootPrompts | Where-Object { $_ -ne "ENGINE_FILE_SYSTEM_v5.md" })
@@ -190,6 +218,7 @@ try {
     @("engine/scripts/engine-verify.sh", "plugin/engine/scripts/engine-verify.sh"),
     @("engine/scripts/engine-check-update.ps1", "plugin/engine/scripts/engine-check-update.ps1"),
     @("engine/scripts/engine-check-update.sh", "plugin/engine/scripts/engine-check-update.sh"),
+    @("engine/domains/routing.json", "plugin/engine/domains/routing.json"),
     @("engine/scripts/githooks/pre-commit", "plugin/engine/scripts/githooks/pre-commit")
   )
   foreach ($pair in $pairs) {

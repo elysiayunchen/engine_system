@@ -16,3 +16,18 @@
 - Claude Code hooks and git pre-commit are enforcement layers; Web/other agents follow this contract manually.
 - Update check: `engine check-update` compares local `engine/VERSION` against the remote; session-start prints a non-blocking hint when a newer version exists.
 <!-- ENGINE_SYSTEM_CONTRACT_MIGRATIONS_END -->
+
+## 项目开发准则
+
+### 发布可用性优先
+
+Engine System 是一个要发布给其他项目使用的项目系统,不是只服务本仓库的 dogfood 配置。
+
+本项目的开发唯一目的,是让引擎能力能稳定安装、迁移、更新并运行在其他真实项目中。任何只在 `E:\projects\engine_system` 成立、但不能通过发布包进入外部项目的实现,都不能算完成。
+
+开发和验收必须遵守:
+
+- 涉及运行时、行为、prompt、skill、hook、迁移、安装、manifest、验证的改动,必须证明能通过 `plugin/` + installer 进入隔离外部项目。
+- 本仓自测通过只是必要条件,不是完成条件。分发面改动还必须覆盖 `plugin/manifest.json`、`install.sh`、`install.ps1`、plugin 镜像、哈希回填和隔离目录 local install 验证。
+- Claude Code 原生增强可以存在,但面向通用 agent 的能力必须同时提供 agent-neutral 项目内入口,避免把引擎锁死在单一 agent 工具里。
+- 项目级开发准则以本文件为唯一权威来源;Doctor 不承载、不指向、不检查该准则。

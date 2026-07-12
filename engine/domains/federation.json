@@ -4,7 +4,11 @@
     "engine-runtime": {
       "paths": [
         "plugin/engine/scripts/**",
+        "plugin/.claude/skills/**",
+        "plugin/engine/prompts/**",
+        "plugin/engine/domains/**",
         "engine/scripts/**",
+        "engine/prompts/**",
         "plugin/.claude/commands/**",
         "engine/ENGINE_DOCTOR.md",
         "ENGINE_FILE_SYSTEM_v5.md",

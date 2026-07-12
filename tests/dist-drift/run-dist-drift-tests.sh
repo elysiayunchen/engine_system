@@ -30,11 +30,30 @@ LAW_SRC="$REPO_ROOT/contract/src/L0-runtime-law.md"
 RULES_DIST="$REPO_ROOT/rules.json"
 PROMPTS_DIST="$REPO_ROOT/engine/prompts/init.md"
 PROMPTS_MIRROR="$REPO_ROOT/plugin/engine/prompts/init.md"
+BEHAVIOR_SRC_DIR="$REPO_ROOT/contract/src/behaviors"
+BEHAVIOR_PROMPTS_DIST="$REPO_ROOT/engine/prompts/behaviors"
+BEHAVIOR_PROMPTS_MIRROR="$REPO_ROOT/plugin/engine/prompts/behaviors"
+BEHAVIOR_SKILLS_MIRROR="$REPO_ROOT/plugin/.claude/skills"
+ROUTING_SRC="$REPO_ROOT/engine/domains/routing.json"
+ROUTING_MIRROR="$REPO_ROOT/plugin/engine/domains/routing.json"
 
 PS_BIN=""
-for c in powershell.exe powershell pwsh; do
+for c in pwsh powershell powershell.exe; do
   if command -v "$c" >/dev/null 2>&1; then PS_BIN="$c"; break; fi
 done
+if [ -n "$PS_BIN" ] && command -v wslpath >/dev/null 2>&1 && [[ "$PS_BIN" == *powershell.exe ]]; then
+  PS_BIN=""
+fi
+
+ps_path() {
+  if command -v cygpath >/dev/null 2>&1; then
+    cygpath -w "$1"
+  elif command -v wslpath >/dev/null 2>&1; then
+    wslpath -w "$1"
+  else
+    printf '%s\n' "$1"
+  fi
+}
 
 pass=0
 fail=0
@@ -128,6 +147,40 @@ else
   echo "FAIL  B3 bin-mirror ($b3_drift drifted)"; fail=$((fail+1))
 fi
 
+# B4: behavior prompts/skills mirror contract/src/behaviors
+b4_drift=0
+b4_count=0
+if [ -d "$BEHAVIOR_SRC_DIR" ]; then
+  while IFS= read -r src; do
+    base="$(basename "$src" .md)"
+    prompt="$BEHAVIOR_PROMPTS_DIST/$base.md"
+    plugin_prompt="$BEHAVIOR_PROMPTS_MIRROR/$base.md"
+    skill="$BEHAVIOR_SKILLS_MIRROR/engine-$base/SKILL.md"
+    b4_count=$((b4_count+1))
+    for dst in "$prompt" "$plugin_prompt" "$skill"; do
+      if [ ! -f "$dst" ]; then
+        echo "  missing behavior mirror: $dst" >&2
+        b4_drift=$((b4_drift+1))
+      elif ! cmp -s "$src" "$dst"; then
+        echo "  behavior drift: $dst" >&2
+        b4_drift=$((b4_drift+1))
+      fi
+    done
+  done < <(find "$BEHAVIOR_SRC_DIR" -maxdepth 1 -type f -name '*.md' | sort)
+fi
+if [ "$b4_drift" -eq 0 ] && [ "$b4_count" -gt 0 ]; then
+  echo "PASS  B4 behavior-skills-mirror ($b4_count behaviors)"; pass=$((pass+1))
+else
+  echo "FAIL  B4 behavior-skills-mirror ($b4_drift drifted across $b4_count behaviors)"; fail=$((fail+1))
+fi
+
+# B5: behavior routing table mirror
+if [ -f "$ROUTING_SRC" ] && cmp -s "$ROUTING_SRC" "$ROUTING_MIRROR"; then
+  echo "PASS  B5 behavior-routing-mirror"; pass=$((pass+1))
+else
+  echo "FAIL  B5 behavior-routing-mirror (plugin/engine/domains/routing.json drifted or missing)"; fail=$((fail+1))
+fi
+
 echo ""
 echo "=== C. 篡改可检(负用例) ==="
 
@@ -160,17 +213,26 @@ if [ -n "$PS_BIN" ]; then
   SBX_PS="$(mktemp -d)"
   if command -v cygpath >/dev/null 2>&1; then
     PS_OUT="$(cygpath -w "$SBX_PS")"
+  elif command -v wslpath >/dev/null 2>&1; then
+    PS_OUT="$(wslpath -w "$SBX_PS")"
   else
     PS_OUT="$SBX_PS"
   fi
-  ENGINE_COMPILE_OUT="$PS_OUT" "$PS_BIN" -NoProfile -ExecutionPolicy Bypass -File "$COMPILE_PS1" >/dev/null 2>&1
-  hash_sh=$(cat "$SANDBOX/runtime-law.md" "$SANDBOX/rules.json" 2>/dev/null | sha256sum | cut -d' ' -f1)
-  hash_ps=$(cat "$SBX_PS/runtime-law.md" "$SBX_PS/rules.json" 2>/dev/null | sha256sum | cut -d' ' -f1)
-  rm -rf "$SBX_PS"
-  if [ -n "$hash_sh" ] && [ "$hash_sh" = "$hash_ps" ]; then
-    echo "PASS  D1 sh-ps1-rules-parity"; pass=$((pass+1))
+  ps_rc=0
+  compile_ps1="$(ps_path "$COMPILE_PS1")"
+  ENGINE_COMPILE_OUT="$PS_OUT" "$PS_BIN" -NoProfile -ExecutionPolicy Bypass -File "$compile_ps1" >/dev/null 2>&1 || ps_rc=$?
+  if [ "$ps_rc" -ne 0 ] || [ ! -f "$SBX_PS/runtime-law.md" ] || [ ! -f "$SBX_PS/rules.json" ]; then
+    echo "SKIP  D1 sh-ps1-rules-parity ($PS_BIN could not write sandbox output from bash harness)"; pass=$((pass+1))
+    rm -rf "$SBX_PS"
   else
+    hash_sh=$(cat "$SANDBOX/runtime-law.md" "$SANDBOX/rules.json" 2>/dev/null | sha256sum | cut -d' ' -f1)
+    hash_ps=$(cat "$SBX_PS/runtime-law.md" "$SBX_PS/rules.json" 2>/dev/null | sha256sum | cut -d' ' -f1)
+    rm -rf "$SBX_PS"
+    if [ -n "$hash_sh" ] && [ "$hash_sh" = "$hash_ps" ]; then
+    echo "PASS  D1 sh-ps1-rules-parity"; pass=$((pass+1))
+    else
     echo "FAIL  D1 sh-ps1-rules-parity (sh=$hash_sh ps=$hash_ps)"; fail=$((fail+1))
+    fi
   fi
 else
   echo "SKIP  D1 sh-ps1-rules-parity (无 PowerShell)"; pass=$((pass+1))

@@ -1,14 +1,14 @@
 # CONTEXT — 当前状态
 
-> Engine System (engine_system) · Last updated: 2026-07-07 · Profile: CLI-LEAN
+> Engine System (engine_system) · Last updated: 2026-07-12 · Profile: CLI-LEAN
 
 ## 状态面板
 
 | 维度 | 状态 |
 |------|------|
 | 构建 | ✅ 正常（纯 markdown + shell 脚本，无构建步骤） |
-| 上次完成 | **v6.2 Developer Communication Rule + engine context CLI + 多 agent 支持**(AC 12/12 全绿):engine context sh/ps1 孪生命令(任何 agent 的通用会话上下文加载器,等效 Claude Code SessionStart hook)/ DevComm Rule v6.2(动态语言检测+反馈信号+comm_level 自适应+全 agent 适用)/ GLOSSARY 双分区(Core Terms 引擎维护+Project Terms 开发者维护)/ Doctor human: 翻译行(~50 条)/ Stop hook 开发者可读消息/ migrate 开发者摘要/ sync-agent-anchors 注入 engine context+DevComm v6.2/ AGENTS.md 重写为 agent-agnostic Session Protocol+Agent Tiers 表/ D-020 预算背书 2455/13。四维 review+深度 review+回归测试 3/3 PASS+plugin 18 对 byte-identical。 |
-| 进行中 | ① 推送 v6.2 到 GitHub; ② D-019 P1(技能+路由)排队; ③ D-018 待架构师批准(proposed); ④ T-020(agent 检测器)paused; ⑤ Q2 试点库待拍板 |
+| 上次完成 | **T-024 SYSTEM/Doctor 职责边界修正**:发布可用性作为项目级开发准则,权威位置仅在 `engine/SYSTEM.md`;`engine/ENGINE_DOCTOR.md` 与 `plugin/engine/ENGINE_DOCTOR.md` 不承载、不指向、不检查该准则。T-023 行为技能层仍保持已验收状态:`engine verify T-023` 5/5 PASS,`bash scripts/check.sh` PASS,`powershell ... scripts/check.ps1` PASS。 |
+| 进行中 | ① D-019 P2(任务胶囊 + token 账本/HANDOFF 裁剪)待开卡; ② T-020(agent 检测器)paused; ③ D-018 待架构师批准(proposed); ④ Q2 试点库待拍板 |
 | 阻塞 | 无 |
 
 ## 当前假设 / 决策（本轮拍板）
@@ -22,6 +22,7 @@
 - **旧项目升级 = 可执行契约迁移层**：`engine update` 只负责工具分发；`/engine-sync` 必须运行 `engine-migrate-contract.{sh,ps1}`，把当前规则作为托管区块写入 `AGENTS.md`、`engine/SYSTEM.md`、`engine/ENGINE_DOCTOR.md`，保留项目专属记忆在区块外。以后新增机制应追加到 migrator，而不是只改提示词。
 - **Phase 1 口径 = D-017 原文四子项**：prompt 抽离 / CLI 扩展 / 快速安装 / agent 检测；实施设计见 D-018——「薄壳引用」修正为「编译同源 + 全量 dist」(编译已消除分叉,薄壳只剩间接层风险),proposed 待架构师批准。
 - **产品面方向 = 行为引擎化(D-019,proposed)**：在既有三件套(单源编译/硬门禁/行为证据)之上长出技能面(该怎么做)+ 编排面(任务胶囊,谁去做)+ 账本面(token 可测)。三项拍板:独立立项分期落地、编排深度止于胶囊不直驱进程、防护整改(dist 漂移检测全覆盖/contract src 入 protected_paths/T-017 校验去空转)前置为 P0。技能红线:每条「必须」配机器查点或显式标注,防验收剧场搬家;净零增长照旧。
+- **发布可用性优先 = SYSTEM 项目开发准则**：引擎系统是要安装到其他项目的产品,本仓通过不等于发布可用。权威位置仅为 `engine/SYSTEM.md`;Doctor 不承载、不指向、不检查该准则。涉及运行时/行为/prompt/skill/hook/迁移/安装/manifest/验证的改动,必须证明能通过 plugin+installer 进入隔离外部项目。
 
 ## 待验证
 
@@ -31,4 +32,5 @@
 - ✅ ~~仓库级健康检查入口~~ — `scripts/check.ps1` 与 `scripts/check.sh` 均通过；shell Doctor 已兼容 CRLF manifest 路径。
 - ✅ ~~v5.7 自视图门禁~~ — Doctor 已能检测最近 change capsule、必备章节和 done plan 验收证据；`scripts/check.ps1` 与 `scripts/check.sh` 均通过。
 - ✅ ~~旧项目机制迁移不能只靠文档~~ — 新增 `engine-migrate-contract.{sh,ps1}` 并接入 `/engine-sync`、install、manifest、Doctor bundled script checks 和 duplicate drift checks。
+- ✅ ~~行为技能层不能只对 Claude Code 有效~~ — T-023 已将 5 个 behaviors 编译到 Claude Code skills + agent-neutral prompts,并通过隔离目录 local install 验证。
 - 待验证：Copilot CLI / Codex CLI 原生 hook 的 block 决策支持。

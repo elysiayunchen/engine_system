@@ -65,6 +65,13 @@ else
   fail "dist drift"
 fi
 
+step "Behavior skills (source -> skills/prompts -> install)"
+if bash tests/behavior-skills/run-behavior-skills-tests.sh; then
+  pass "behavior skills distribution fixtures"
+else
+  fail "behavior skills distribution"
+fi
+
 step "Behavior verify (AC verify commands)"
 if bash tests/behavior-verify/run-verify-tests.sh; then
   pass "behavior verify fixtures"

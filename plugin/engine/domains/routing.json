@@ -1,0 +1,41 @@
+{
+  "_comment": "Behavior routing table. Maps task events to behavior skills/prompts and machine-checkable completion signals.",
+  "version": 1,
+  "behaviors": {
+    "engine-task-run": {
+      "source": "contract/src/behaviors/task-run.md",
+      "claude_skill": ".claude/skills/engine-task-run/SKILL.md",
+      "agent_prompt": "engine/prompts/behaviors/task-run.md",
+      "triggers": ["implement", "fix", "modify", "continue", "complete task card"],
+      "completion_checks": ["task_card_ac", "context_handoff_writeback"]
+    },
+    "engine-scout": {
+      "source": "contract/src/behaviors/scout.md",
+      "claude_skill": ".claude/skills/engine-scout/SKILL.md",
+      "agent_prompt": "engine/prompts/behaviors/scout.md",
+      "triggers": ["investigate", "scout", "compare release surfaces", "plan before coding"],
+      "completion_checks": ["findings_summary", "release_portability_path_named"]
+    },
+    "engine-verify-writeback": {
+      "source": "contract/src/behaviors/verify-writeback.md",
+      "claude_skill": ".claude/skills/engine-verify-writeback/SKILL.md",
+      "agent_prompt": "engine/prompts/behaviors/verify-writeback.md",
+      "triggers": ["verify", "write back", "mark done", "finish implementation"],
+      "completion_checks": ["evidence_or_direct_verify", "change_capsule", "context_handoff_writeback"]
+    },
+    "engine-decision-draft": {
+      "source": "contract/src/behaviors/decision-draft.md",
+      "claude_skill": ".claude/skills/engine-decision-draft/SKILL.md",
+      "agent_prompt": "engine/prompts/behaviors/decision-draft.md",
+      "triggers": ["draft decision", "architecture choice", "protected path", "scope decision"],
+      "completion_checks": ["decision_header", "scope_paths", "status_matches_user_approval"]
+    },
+    "engine-handoff": {
+      "source": "contract/src/behaviors/handoff.md",
+      "claude_skill": ".claude/skills/engine-handoff/SKILL.md",
+      "agent_prompt": "engine/prompts/behaviors/handoff.md",
+      "triggers": ["handoff", "pause", "summarize progress", "session end"],
+      "completion_checks": ["handoff_newest_row", "context_status_updated", "verification_status_recorded"]
+    }
+  }
+}

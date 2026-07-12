@@ -110,7 +110,7 @@ After the header, list ACs with verify commands:
 # Engine System Glossary
 
 > Agent: when explaining engine concepts to the developer, use the "Plain meaning" column.
-> Match the developer's language — do not hardcode any specific language.
+> Match the developer's language - do not hardcode any specific language.
 
 ## Core Terms (engine-managed)
 
@@ -119,9 +119,9 @@ After the header, list ACs with verify commands:
 | Engine term | Plain meaning | Example |
 |-------------|--------------|---------|
 | Engine file | A project memory file that the AI reads/writes to stay oriented | ENGINE_MAP.md, CONTEXT.md |
-| ENGINE_MAP | The table of contents for all engine files — read this first each session | Like a book's index |
-| CONTEXT | Current project status dashboard — what's happening right now | Like a morning briefing |
-| HANDOFF | Session handoff notes — where we left off and what to do next | Like a relay baton |
+| ENGINE_MAP | The table of contents for all engine files - read this first each session | Like a book's index |
+| CONTEXT | Current project status dashboard - what's happening right now | Like a morning briefing |
+| HANDOFF | Session handoff notes - where we left off and what to do next | Like a relay baton |
 | Task card (T-NNN) | A structured work item with clear scope, acceptance criteria, and constraints | Like a Jira ticket |
 | Decision (D-NNN) | A recorded non-obvious choice with rationale and scope | Like an ADR (architecture decision record) |
 | Change capsule | A human-readable summary of what was changed and why | Like a detailed commit message |
@@ -133,7 +133,7 @@ After the header, list ACs with verify commands:
 | Pitfall | A documented mistake to avoid repeating | Like a "lessons learned" entry |
 | Plan / Spec | A design document (plan) paired with its technical specification (spec) | Like a blueprint + engineering drawing |
 | reconcile | Comparing engine memory against actual code and fixing any drift | Like proofreading a document against the source |
-| Irreducible | Knowledge that can't be regenerated from code — must be preserved | Decisions, rationale, lessons learned |
+| Irreducible | Knowledge that can't be regenerated from code - must be preserved | Decisions, rationale, lessons learned |
 | Derivable | Knowledge that can be regenerated from code on demand | File listings, module maps |
 
 ## Project Terms (developer-managed)
@@ -416,9 +416,9 @@ Write-Host ""
 Write-Host "Engine contract migration to v6 complete."
 
 Write-Host ""
-Write-Host "═══════════════════════════════════════"
+Write-Host "======================================="
 Write-Host " Developer Summary"
-Write-Host "═══════════════════════════════════════"
+Write-Host "======================================="
 Write-Host ""
 Write-Host "What was done: Engine contract upgraded to v6"
 Write-Host ""
@@ -429,13 +429,13 @@ Write-Host "  - Change capsules: human-readable summaries of what was changed an
 Write-Host "  - Glossary: helps the AI explain engine concepts in plain language"
 Write-Host ""
 Write-Host "What you need to do:"
-Write-Host "  - Nothing extra — the migration is complete"
+Write-Host "  - Nothing extra - the migration is complete"
 Write-Host "  - Run 'engine doctor' if you want to check project health"
 Write-Host "  - All changes are logged and can be reviewed or reverted"
 Write-Host ""
 Write-Host "If something goes wrong:"
-Write-Host "  - All migration changes are in engine/changes/ — review or revert"
+Write-Host "  - All migration changes are in engine/changes/ - review or revert"
 Write-Host "  - Run 'engine doctor' for a health check"
-Write-Host "═══════════════════════════════════════"
+Write-Host "======================================="
 
 exit 0

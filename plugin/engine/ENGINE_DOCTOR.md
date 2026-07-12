@@ -1,5 +1,5 @@
 # ENGINE_DOCTOR — Engine System Maintenance Checker
-> Last updated: 2026-06-22 | Class: irreducible | This file is the authoritative maintenance spec for engine health checks.
+> Last updated: 2026-07-12 | Class: irreducible | This file is the authoritative maintenance spec for engine health checks.
 
 ## Scope
 ENGINE_DOCTOR defines how the project validates the engine memory layer itself. It is an
@@ -16,7 +16,6 @@ silently treat the script as legacy.
 - Scripts must be registry-driven where possible, so extension does not make Doctor stale.
 - Generated cache and archive files are intentionally outside hot-path authority unless
   `ENGINE_MAP.md` explicitly says otherwise.
-
 ## Required Checks
 1. `engine/ENGINE_MAP.md` exists and can be read first.
 2. §1 registered authority files exist on disk, with legal class values and non-empty read priorities.

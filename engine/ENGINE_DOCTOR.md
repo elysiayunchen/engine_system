@@ -36,7 +36,7 @@
 
 
 <!-- ENGINE_SYSTEM_CONTRACT_MIGRATIONS_START -->
-<!-- contract-version: 6.0.1 -->
+<!-- contract-version: 6.2.0 -->
 ## Current Contract Checks
 > Managed by Engine System contract migration. Preserve project-specific rules outside this block.
 

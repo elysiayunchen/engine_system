@@ -4,7 +4,7 @@
 
 ## 立即恢复点
 
-下一步:**T-024 SYSTEM/Doctor 职责边界修正** 已实施:发布可用性是 `engine/SYSTEM.md` 的项目级开发准则;Doctor 不承载、不指向、不检查该准则。T-023 行为层仍已验收并可通过 plugin/install 进入其他项目。其后:① D-019 P2(任务胶囊 + token 账本/HANDOFF 裁剪)可开卡; ② T-020(agent 检测器)paused; ③ D-018 待批; ④ Q2 真实库试点待拍板。
+下一步:**VERSION 已更新为 6.2.0**(补 v6.2 提交遗漏的版本号更新)。其后:① D-019 P2(任务胶囊 + token 账本/HANDOFF 裁剪)可开卡; ② T-020(agent 检测器)paused; ③ D-018 待批; ④ Q2 真实库试点待拍板。
 
 > Phase 1 = 通用化核心(prompt 抽离 / CLI 扩展 / 快速安装 / agent 检测——D-017 原文口径;实施细化与「薄壳」口径修正见 D-018)。v6.2 = 多 agent 通信层(engine context + DevComm Rule 扩展)。
 
@@ -12,6 +12,7 @@
 
 | 日期 | 完成了什么 | 下一步 | 改动文件 |
 |------|-----------|--------|---------|
+| 2026-07-12 | **fix: VERSION 6.0.1 → 6.2.0 补回遗漏更新**:v6.2 提交(3f23fa2)引入 2508 行变更但漏更新 VERSION,本次补回三处 VERSION 为 6.2.0 + contract-version 注释三处同步 + plugin/manifest.json sha256 重新计算。 | D-019 P2 或 T-020 或 D-018 批 | VERSION, engine/VERSION, plugin/VERSION, agents.md, engine/SYSTEM.md, engine/ENGINE_DOCTOR.md, plugin/manifest.json, engine/CONTEXT.md, engine/HANDOFF.md |
 | 2026-07-12 | **chore: .gitignore 收纳 scratch 产物**(engine1.zip/engine1_extracted/outputs,7月7 下载解包与 scratch 输出,非交付内容) | 推送两个本地提交(main 领先 origin/main 2) | .gitignore, engine/HANDOFF.md |
 | 2026-07-12 | **T-024 SYSTEM/Doctor 职责边界修正**:纠正 T-023 收尾中的职责边界错误;`engine/SYSTEM.md` 作为“发布可用性优先”项目开发准则的唯一权威来源;`engine/ENGINE_DOCTOR.md` 与 `plugin/engine/ENGINE_DOCTOR.md` 删除相关承载/指向/检查文案,恢复为健康检查契约。`engine verify T-024` 3/3 PASS;bash check PASS。 | D-019 P2 胶囊+账本 或 T-020 agent 检测器;Q2 真实库试点待拍板 | engine/SYSTEM.md, engine/ENGINE_DOCTOR.md, plugin/engine/ENGINE_DOCTOR.md, plugin/manifest.json, engine/tasks/T-024.md, engine/evidence/T-024/*, engine/changes/CHANGE-2026-07-12-02.md, engine/CONTEXT.md, engine/HANDOFF.md, engine/ENGINE_MAP.md |
 | 2026-07-12 | **T-023 / D-019 P1 行为技能层 + 路由 + 发布可用性准则**:新增 5 个单源 behavior 源(task-run/scout/verify-writeback/decision-draft/handoff),编译到 Claude Code skills + agent-neutral prompts + plugin 镜像;新增 routing.json;manifest/install 双端分发 54 条哈希;新增 behavior-skills 测试(含隔离目录 local install);`engine/SYSTEM.md` 写入“发布可用性优先”项目开发准则(准则仅属 SYSTEM,Doctor 不承载/不指向/不检查);修复 nested skill 安装父目录、compile.ps1 SHA256、engine-migrate-contract.ps1 PS5.1 编码、WSL bash harness 对 Windows PowerShell 的混合路径假失败。`engine verify T-023` 5/5 PASS;bash+PowerShell check 均 PASS。 | D-019 P2 胶囊+账本 或 T-020 agent 检测器;Q2 真实库试点待拍板 | contract/src/behaviors/*, contract/compile.*, engine/prompts/behaviors/*, plugin/.claude/skills/*, engine/domains/routing.json, plugin/engine/prompts/behaviors/*, plugin/engine/domains/routing.json, install.*, plugin/manifest.json, scripts/check.*, tests/behavior-skills/*, tests/{dist-drift,hook-parity,task-card,fractal-memory,behavior-verify}/*, engine/SYSTEM.md, engine/tasks/T-023.md, engine/evidence/T-023/*, engine/changes/CHANGE-2026-07-12-01.md |

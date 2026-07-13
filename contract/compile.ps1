@@ -97,7 +97,9 @@ $rulesJson = @"
   "max_rules": $maxRules,
   "debt_baseline": $debt
 }
-"@ + "`n"
+"@
+# Normalize line endings: ensure LF-only and exactly one trailing newline (parity with compile.sh)
+$rulesJson = ($rulesJson -replace "`r`n", "`n").TrimEnd() + "`n"
 [System.IO.File]::WriteAllText($RulesDist, $rulesJson, $utf8NoBom)
 
 # 4. engine-init.md (CLI command dist: preamble + same contract modules, D-015)

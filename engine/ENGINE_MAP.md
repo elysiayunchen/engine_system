@@ -1,6 +1,6 @@
 # ENGINE_MAP — 引擎索引
 
-> Engine System (engine_system) · Revision: 25 · Last updated: 2026-07-12
+> Engine System (engine_system) · Revision: 26 · Last updated: 2026-07-13
 > ⚠️ MVP dogfood 实例（精简版）。完整 v5.5 注册表（§1.1 / §1.2 / §2 / §3 / 预算）待 `/engine-reconcile` 或 `/engine-init` 补全。
 
 ## §0 Profile & Read-Gate
@@ -17,6 +17,7 @@
 | HANDOFF.md | irreducible | 会话交接历史 + 立即恢复点 | 2026-07-03 |
 | SYSTEM.md | irreducible | 项目环境/门禁配置（managed block 由 contract migrator 维护） | 2026-07-05 |
 | AGENT_ADAPTERS.md | irreducible | 跨 agent 自维护适配策略（A/B/C 三档） | 2026-06-21 |
+| GLOSSARY.md | irreducible | v6.2 开发者沟通规则-术语表（Developer Communication Rule 配套） | 2026-07-13 |
 | ENGINE_DOCTOR.md | irreducible | 引擎健康检查、自维护脚本契约与旧项目 contract migrator 契约 | 2026-06-22 |
 
 > 维护脚本：`plugin/engine/scripts/engine-hook-session-start.{sh,ps1}`、`engine-hook-stop.{sh,ps1}`、`engine-doctor.{sh,ps1}`、`engine-migrate-contract.{sh,ps1}`、`githooks/pre-commit`。
@@ -36,7 +37,7 @@ path-glob → domain 路由表。机读源:`engine/domains/federation.json`;Sess
 
 ## §4 完整性与新鲜度
 
-- 全局 revision：25
+- 全局 revision：26
 - 状态：MVP dogfood 阶段,已注册 hooks 闭环所需的最小文件集;v5.7 已加入 Project Self-View、change capsule、Doctor 自审门禁;**v6 方向已获架构师批准**。S0「诚实门禁」已落地:stop hook porcelain -z + capsule WARN、engine-hook.cmd 垫片、contract-version 标记、tests/hook-parity 等价测试。S1「意图内核数据层」已落地:任务卡 + 决策台账 + 三层门禁 + SessionStart 重注入 + pre-commit 决策引用 + tests/task-card。S2「分形记忆」已落地:联邦表 + 域引擎 + 路由 read-gate + L2 装配 + 汇总协议 + 检索配方 + INIT 采访加「项目分几大块」+ tests/fractal-memory。S3「契约编译」已落地:contract/src 单源 + compile.sh/ps1 + dist 幂等 + 减法预算。S4「驾驶舱」已落地:engine verify + evidence。**D-019 P1 行为技能层已落地**(2026-07-12):`contract/src/behaviors/*.md` 单源生成 Claude Code skills + agent-neutral prompts + plugin 镜像;`engine/domains/routing.json` 行为路由表;manifest/install 双端分发;behavior-skills 测试含隔离目录 local install。**T-024 已纠正 SYSTEM/Doctor 边界**:`engine/SYSTEM.md` 是“发布可用性优先”项目开发准则的唯一权威来源;Doctor 不承载、不指向、不检查该准则。
 - 运营工件层（不登记为权威文件,不进 §1）：`engine/tasks/T-*.md`、`engine/decisions/D-*.md`、`engine/decisions/rules.json`、`engine/domains/**`（联邦表 + 域文件）、`engine/changes/CHANGE-*.md`、`engine/evidence/*`（验收证据,generated-cache）、`engine/checks/**`（项目自定义 Doctor 检查脚本,不随引擎分发内容）、`contract/**`（契约源 + 编译器 + 减法基线——引擎产品本身的源码,非用户项目内容）。
 - 最近 change capsule：`engine/changes/CHANGE-2026-07-12-02.md`

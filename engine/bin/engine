@@ -20,6 +20,7 @@ Usage:
   engine update --no-migrate   Update tooling but skip migration/doctor
   engine migrate        Run contract migration on existing engine files
   engine verify T-NNN   Run behavior verification for a task card
+  engine doctor         Run engine health check
   engine help           Show this help
 
 `engine init` is the agent-agnostic entry to initialize the engine layer: it
@@ -221,6 +222,13 @@ case "${1:-help}" in
       echo "Migration + doctor complete."
     fi
     echo "Next: run /engine-sync in your AI agent if cross-agent anchors need syncing."
+    ;;
+  doctor)
+    if [ ! -d "$PWD/engine" ]; then
+      echo "Error: engine/ not found in $PWD. Run 'engine init' first." >&2
+      exit 2
+    fi
+    run_doctor "$PWD"
     ;;
   help|-h|--help)
     usage

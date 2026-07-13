@@ -1,1 +1,1 @@
-{"ac":"AC-2","verify":"grep -q 'contract/src/\\*\\*' engine/decisions/rules.json && grep -q 'runtime-law.md' engine/decisions/rules.json","status":"pass","exit":0,"fingerprint":"sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855","timestamp":"2026-07-06T17:53:13Z"}
+{"ac":"AC-2","verify":"grep -q 'contract/src/\\*\\*' engine/decisions/rules.json && grep -q 'runtime-law.md' engine/decisions/rules.json","status":"pass","exit":0,"fingerprint":"sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855","timestamp":"2026-07-12T22:10:31Z"}

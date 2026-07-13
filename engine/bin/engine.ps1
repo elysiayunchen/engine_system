@@ -27,6 +27,7 @@ Usage:
   engine update -NoMigrate       Update tooling but skip migration/doctor
   engine migrate        Run contract migration on existing engine files
   engine verify T-NNN   Run behavior verification for a task card
+  engine doctor         Run engine health check
   engine help           Show this help
 
 `engine init` is the agent-agnostic entry to initialize the engine layer: it
@@ -196,6 +197,13 @@ switch ($Command) {
     } finally {
       Remove-Item -Path $tmp -ErrorAction SilentlyContinue
     }
+  }
+  "doctor" {
+    if (-not (Test-Path "engine")) {
+      Write-Error "Error: engine/ not found in $PWD. Run 'engine init' first."
+      exit 2
+    }
+    Run-Doctor -Root $PWD.Path
   }
   { $_ -in @("help", "-h", "--help") } {
     Show-Help

@@ -133,4 +133,24 @@ if [ -n "$violation" ]; then
   exit 1
 fi
 
+# ── 第 3 层:锚点原创规则警告(非阻塞)──────────────────────────────
+# 检测引导器中疑似原创规则(含 MUST/NEVER/ALWAYS 但无 source: 标注)。
+# 仅打印警告,不阻塞提交——给开发者一个信号,真正的规则应写入 SYSTEM.md。
+for anchor in AGENTS.md CLAUDE.md; do
+  staged_anchor="$(printf '%s\n' "$staged" | grep -x "$anchor" | head -1)"
+  [ -n "$staged_anchor" ] || continue
+  suspect="$(git diff --cached -- "$anchor" 2>/dev/null | \
+    grep '^+' | grep -v '^+++' | \
+    grep -iE '(MUST|NEVER|ALWAYS)' | \
+    grep -vi 'source:' | \
+    wc -l | tr -d ' ')"
+  if [ "$suspect" -gt 0 ]; then
+    printf '\n' >&2
+    printf '【Engine System · 锚点守卫】%s 有 %s 行含 MUST/NEVER/ALWAYS 但无 source: 标注。\n' "$anchor" "$suspect" >&2
+    printf '锚点是引导器,新规则写入 engine/SYSTEM.md,然后在此摘抄并标注 source:。\n' >&2
+    printf '(警告,不阻塞提交)\n' >&2
+    printf '\n' >&2
+  fi
+done
+
 exit 0

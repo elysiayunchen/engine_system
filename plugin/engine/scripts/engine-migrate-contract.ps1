@@ -194,13 +194,16 @@ After the header, list ACs with verify commands:
     $changed = $true
   }
   $ver = Join-Path $EngineDir "VERSION"
-  # In the engine source repo: always sync engine/VERSION to $ROOT/VERSION.
+  # In the engine source repo ($ROOT/VERSION is the engine tooling version AND
+  # $ROOT/plugin/manifest.json exists): always sync engine/VERSION to $ROOT/VERSION.
   # Prior "create-if-missing" left engine/VERSION stuck at an older version
   # after run_migrate wrote it, causing Doctor to warn in a loop that could
   # not self-heal. Always-sync is idempotent (same value => no-op).
-  # In user projects ($ROOT/VERSION is the product version - see P014):
-  # keep create-if-missing; engine/VERSION is managed by install.sh.
-  if (Test-Path $repoVersionFile) {
+  # In user projects ($ROOT/VERSION is the product version - see P014; and
+  # plugin/manifest.json does NOT exist): keep create-if-missing; engine/VERSION
+  # is managed by install.sh.
+  $isSourceRepo = (Test-Path $repoVersionFile) -and (Test-Path (Join-Path $Root "plugin/manifest.json"))
+  if ($isSourceRepo) {
     $rootV = (Get-Content $repoVersionFile -Raw -Encoding UTF8).Trim()
     $engineV = ""
     if (Test-Path $ver) { $engineV = (Get-Content $ver -Raw -Encoding UTF8).Trim() }

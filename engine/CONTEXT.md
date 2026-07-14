@@ -7,7 +7,7 @@
 | 维度 | 状态 |
 |------|------|
 | 构建 | ✅ 正常（纯 markdown + shell 脚本，无构建步骤） |
-| 上次完成 | **T-026: Doctor 字节上限 + 单行宽度上限检查**:补齐 budget_cap 盲区——旧版只查行数,漏检单行 bloat(诺识 CONTEXT.md 317KB/145 行,单行 ~19600 字符)。新增字节预算(byte_cap = 行数 cap × 200)+ 单行宽度上限(>2000 字符报 WARN)。双实现 parity,源仓库 0 FAIL/0 WARN,诺识实测抓出 4 个膨胀文件。commit 6782eed。待发 6.3.1 patch release。 |
+| 上次完成 | **锚点执行力加固(v6.4.0)**:SYSTEM.md 模板移除 8 个项目特定 section→REPO_GUIDE.md 指针;AGENTS.md 模板增 verification gate + ANCHOR IMMUTABILITY + REPO_GUIDE 指针;plugin/AGENTS.md 72→40 行(溢出→plugin-adapter.md);pre-commit Layer 3 锚点守卫(WARN);Doctor TOP RULES source 归因检查;RECONCILE 吸收协议增强无 source 条目;sync-agent-anchors 同步。预算 2455→2417。 |
 | 进行中 | ① D-019 P2(任务胶囊 + token 账本/HANDOFF 裁剪)待开卡; ② T-020(agent 检测器)paused; ③ D-018 待架构师批准(proposed); ④ Q2 试点库待拍板 |
 | 阻塞 | 无 |
 

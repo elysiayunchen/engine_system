@@ -881,42 +881,10 @@ AGENTS.md / CLAUDE.md 里的 `SESSION PROTOCOL` 是写给 agent 的强制契约�
 | Web 端 AI | N/A | N/A | ✅ 契约 |
 
 
-## 文件编辑规则
-[文件怎么修改？允许/禁止什么工具？有没有必须保护、不能直接编辑的文件（自动生成的）？]
+## 项目级开发规范
+构建、依赖、代码规范、测试、Git、安全、危险命令等项目级开发规则，
+权威位置在 `engine/REPO_GUIDE.md`。SYSTEM.md 只保留跨项目工作协议和 Prime Directives。
 
-
-## 依赖管理
-| 规则 | 详情 |
-|------|------|
-| 包管理器 | [name and version] |
-| 添加依赖 | `[exact command]` |
-| 添加开发依赖 | `[exact command]` |
-| 禁止 | [如「不要手动编辑 lockfile」] |
-
-
-## 构建与运行命令
-| 操作 | 命令 | 说明 |
-|------|------|------|
-| 安装 | [exact command] | 下载所有需要的工具包 |
-| 开发 | [exact command] | 启动开发模式，实时预览 |
-| 构建 | [exact command] | 打包成可发布版本 |
-| 测试 | [exact command] | 运行自动化检查 |
-| 部署 | [exact command] | 发布到服务器或托管平台 |
-| 迁移 | [exact command if applicable] | 更新数据库结构 |
-
-
-## 代码规范
-[命名规范、import 排序、错误处理、日志、注释语言；如有 linter/formatter：名称和配置文件位置]
-
-
-## 危险命令
-⚠️ `[COMMAND]` — [为什么危险] — [安全替代或前置条件]
-[新危险命令追加到本节末尾。]
-
-
-## 测试策略
-[提交前必须测试什么；测试框架和命令；明确排除在测试之外的内容]
-> 注：具体功能的验收，由对应 SPRINT 任务的「验证方法」/ plan 的 spec twin 承载。本节是项目级的通用测试约定。
 
 ## Engine Doctor Contract
 > v5.5 初始化时必须生成 `ENGINE_DOCTOR.md`。本节只保留指针；权威契约在 `engine/ENGINE_DOCTOR.md`，脚本实现随仓库打包在 `engine/scripts/`。
@@ -950,19 +918,6 @@ AGENTS.md / CLAUDE.md 里的 `SESSION PROTOCOL` 是写给 agent 的强制契约�
 16. 标记为 `done` 的 plan/spec twin 必须能指向验收证据：spec twin Evidence 列、`engine/evidence/*` 或相关 `engine/changes/CHANGE-*.md`。
 
 If the scripts are missing, run `/engine-sync` to restore bundled tooling. If the contract changes, update `ENGINE_DOCTOR.md` first, then update scripts, run `/engine-doctor`, and finish with `/engine-reconcile`.
-
-
-## Git 与版本控制
-[分支命名规范；提交消息格式；绝对不能提交的内容（.env、密钥、大文件）]
-
-
-## 安全边界
-[来自 Block I 或 Block H Q48]
-- 认证模型：[summary 或「无」]
-- 密钥管理：[方式]
-- AI 禁区：[AI 绝对不能碰的文件/目录/操作]
-- 敏感数据：[存在什么、如何保护]
-[安全边界变更需架构师批准。]
 
 
 ## AI Agent Rules
@@ -1344,6 +1299,7 @@ find . -maxdepth 3 -type f -name 'package.json' -o -name 'pnpm-workspace.yaml'
 Read `engine/ENGINE_MAP.md` BEFORE anything else. Active profile: [WEB-FULL / CLI-LEAN].
 按其 §0 读取流程加载引擎文件，用一句中文复述当前状态理解，架构师确认后动手。
 开发/编辑前还必须按 ENGINE_MAP §0 的 read-gate 读取候选路径相关锚点、plan/spec、SYSTEM/REPO_GUIDE 章节，并声明 `read-gate:` 证据。
+Before any edit, output: `read-gate: ENGINE_MAP ✓, SYSTEM ✓, state: [一句话]`。No output = no edit.
 
 
 ## TOP RULES (source: engine/SYSTEM.md — 完整规则以彼为准)
@@ -1351,6 +1307,11 @@ Read `engine/ENGINE_MAP.md` BEFORE anything else. Active profile: [WEB-FULL / CL
 2. [Prime Directive 摘抄 2]
 3. [最关键的 NEVER，e.g. NEVER touch [AI 禁区]]
 [最多 5 条。只摘抄，NEVER 在此新增引擎里没有的规则 —— 新规则先进 SYSTEM.md。]
+
+
+## ANCHOR IMMUTABILITY
+This file is a managed bootloader. Do NOT add original rules here.
+All new rules → engine/SYSTEM.md; this file only excerpts with `source:` tags.
 
 
 ## SESSION PROTOCOL
@@ -1361,6 +1322,7 @@ Read `engine/ENGINE_MAP.md` BEFORE anything else. Active profile: [WEB-FULL / CL
 
 ## MAP
 - 引擎索引：engine/ENGINE_MAP.md ｜ 规则：engine/SYSTEM.md ｜ 当前状态：engine/CONTEXT.md
+- 开发规范：engine/REPO_GUIDE.md
 - [若有包级锚点] 各代码包的局部上下文见各包根部 README.md
 - [若有环境适配] 当前 agent 工具细则见 engine/agents/[ENV].md
 

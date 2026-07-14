@@ -723,6 +723,26 @@ for anchor in AGENTS.md CLAUDE.md; do
   fi
 done
 
+# Anchor content quality: TOP RULES source attribution
+for anchor in AGENTS.md CLAUDE.md; do
+  if [[ -f "$ROOT/$anchor" ]]; then
+    in_top_rules=false; unsourced=0
+    while IFS= read -r line; do
+      [[ "$line" == *"TOP RULES"* ]] && { in_top_rules=true; continue; }
+      if $in_top_rules; then
+        [[ "$line" == "## "* ]] && break
+        [[ "$line" =~ ^[0-9]+\.\  ]] && [[ "$line" != *"source:"* ]] && unsourced=$((unsourced+1))
+      fi
+    done < "$ROOT/$anchor"
+    if [[ "$unsourced" -gt 0 ]]; then
+      warn "$anchor has $unsourced TOP RULES line(s) without source: attribution"
+      echo "  human: The bootloader '$anchor' contains rule excerpts without 'source:' annotation."
+      echo "  Each excerpted rule should cite its authority (e.g., 'source: engine/SYSTEM.md')."
+      echo "  Unsourced rules may be originals that belong in engine/SYSTEM.md, not in the bootloader."
+    fi
+  fi
+done
+
 if [[ " $registered_names " != *" ENGINE_DOCTOR.md "* ]]; then
   warn "ENGINE_DOCTOR.md is not registered in ENGINE_MAP §1"
   echo "  human: The ENGINE_DOCTOR.md file is not listed in the ENGINE_MAP file registry. Add it to section 1 so the doctor can track its health."

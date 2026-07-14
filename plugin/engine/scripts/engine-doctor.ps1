@@ -800,6 +800,28 @@ foreach ($anchor in @("AGENTS.md", "CLAUDE.md")) {
   }
 }
 
+# Anchor content quality: TOP RULES source attribution
+foreach ($anchor in @("AGENTS.md", "CLAUDE.md")) {
+  $path = Join-Path $Root $anchor
+  if (Test-Path $path) {
+    $lines = Get-Content -Path $path -Encoding UTF8
+    $inTopRules = $false; $unsourced = 0
+    foreach ($line in $lines) {
+      if ($line -match "TOP RULES") { $inTopRules = $true; continue }
+      if ($inTopRules) {
+        if ($line -match "^## ") { break }
+        if ($line -match "^\d+\.\s" -and $line -notmatch "source:") { $unsourced++ }
+      }
+    }
+    if ($unsourced -gt 0) {
+      Write-Warn "$anchor has $unsourced TOP RULES line(s) without source: attribution"
+      Write-Output "  human: The bootloader '$anchor' contains rule excerpts without 'source:' annotation."
+      Write-Output "  Each excerpted rule should cite its authority (e.g., 'source: engine/SYSTEM.md')."
+      Write-Output "  Unsourced rules may be originals that belong in engine/SYSTEM.md, not in the bootloader."
+    }
+  }
+}
+
 if ($registeredNames -notcontains "ENGINE_DOCTOR.md") {
   Write-Warn "ENGINE_DOCTOR.md is not registered in ENGINE_MAP section 1"
   Write-Output "  human: The ENGINE_DOCTOR.md file is not listed in the ENGINE_MAP file registry. Add it to section 1 so the system can track it."

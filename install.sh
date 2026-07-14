@@ -337,8 +337,19 @@ if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   if [[ -n "$git_dir" ]]; then
     mkdir -p "$git_dir/hooks"
     if [[ -f "$git_dir/hooks/pre-commit" ]]; then
-      echo -e "  ${YELLOW}keep${RESET}  $git_dir/hooks/pre-commit (已存在；如需 B 层门禁，请手动合并 engine/scripts/githooks/pre-commit)"
-      ((skip_count += 1))
+      if grep -q 'Engine System.*pre-commit hook' "$git_dir/hooks/pre-commit" 2>/dev/null && [[ -f "engine/scripts/githooks/pre-commit" ]]; then
+        if diff -q "engine/scripts/githooks/pre-commit" "$git_dir/hooks/pre-commit" >/dev/null 2>&1; then
+          echo -e "  ${GREEN}✓${RESET} $git_dir/hooks/pre-commit (up to date)"
+        else
+          cp "engine/scripts/githooks/pre-commit" "$git_dir/hooks/pre-commit"
+          chmod +x "$git_dir/hooks/pre-commit" 2>/dev/null || true
+          echo -e "  ${GREEN}update${RESET} $git_dir/hooks/pre-commit (engine-managed, updated to latest)"
+          ((install_count += 1))
+        fi
+      else
+        echo -e "  ${YELLOW}keep${RESET}  $git_dir/hooks/pre-commit (user-defined; merge engine/scripts/githooks/pre-commit manually if needed)"
+        ((skip_count += 1))
+      fi
     elif [[ -f "engine/scripts/githooks/pre-commit" ]]; then
       cp "engine/scripts/githooks/pre-commit" "$git_dir/hooks/pre-commit"
       chmod +x "$git_dir/hooks/pre-commit" 2>/dev/null || true

@@ -36,7 +36,7 @@ if ($Local) {
   }
 }
 
-# Build BASE_URL — use version tag or default branch
+# Build BASE_URL -- use version tag or default branch
 if ($Version) {
   $BASE_URL = "https://raw.githubusercontent.com/$REPO/v$Version/plugin"
 } else {
@@ -54,7 +54,7 @@ function Download-File {
       Invoke-WebRequest -Uri $releaseUrl -OutFile $Dest -UseBasicParsing -TimeoutSec 30 -ErrorAction Stop
       return
     } catch {
-      # Release artifact not found — fallback to raw content
+      # Release artifact not found -- fallback to raw content
     }
   }
 
@@ -342,12 +342,12 @@ if ($Version -and -not $LocalDir) {
   }
 }
 
-# 创建 v6 数据层目录结构(tasks/decisions/domains/changes/evidence)
+# Create v6 data layer dirs (tasks/decisions/domains/changes/evidence)
 if (Test-Path "engine\scripts\engine-migrate-contract.ps1") {
   try {
     & powershell -NoProfile -ExecutionPolicy Bypass -File "engine\scripts\engine-migrate-contract.ps1" "." 2>$null
   } catch {
-    # fail-open: migrator 失败不阻塞安装
+    # fail-open: migrator failure does not block install
   }
 }
 

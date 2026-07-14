@@ -234,6 +234,21 @@ while IFS='|' read -r _ file class priority revision verified _; do
       warn "$file exceeds hard budget ($lines > $cap lines)"
       echo "  human: The file '$file' has $lines lines, exceeding its $cap-line size limit. Trim it down to stay within the budget."
     fi
+    # Byte budget: line cap × 200 (normal markdown ~50-100 chars/line; 200 gives headroom).
+    # Catches single-line bloat that line-count misses (e.g. table cells padded to 19K chars).
+    bytes="$(wc -c < "$path" | tr -d ' ')"
+    byte_cap=$((cap * 200))
+    if [[ "$bytes" -gt "$byte_cap" ]]; then
+      warn "$file exceeds byte budget ($bytes > $byte_cap bytes)"
+      echo "  human: The file '$file' is $bytes bytes, exceeding its $byte_cap-byte size limit (likely single-line bloat). Check for table cells padded with excessive whitespace."
+    fi
+    # Line width: 2000 chars max. Normal markdown tables/paragraphs rarely exceed 1200;
+    # 2000 gives headroom. Catches table cells padded to tens of thousands of chars.
+    longest="$(awk '{ if (length > max) max = length } END { print max+0 }' "$path")"
+    if [[ "$longest" -gt 2000 ]]; then
+      warn "$file has very long line ($longest > 2000 chars)"
+      echo "  human: The file '$file' has a line $longest characters long (max 2000). This is likely a padded table row or separator. Remove the excessive padding."
+    fi
   fi
   if [[ "$class" == "mixed" ]] && ! grep -F "| $file |" "$section_tmp" >/dev/null 2>&1; then
     fail "$file is mixed but missing §1.1 section-class row"

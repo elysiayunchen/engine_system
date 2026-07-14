@@ -4,7 +4,7 @@
 
 ## 立即恢复点
 
-下一步:**pre-commit hook grep pattern bug 已修复**。installer 编码修复(全 ASCII)+ 智能覆盖已验证生效(诺识 .git/hooks/pre-commit 从 28 行更新到 123 行新版)。本次修 pre-commit hook 第 108/114/115 行:① `status:.*approved` → `status.*approved`(匹配表格格式 `| status | approved |`);② `grep 'scope:'` → `grep 'scope'`;③ `sed 's/|[[:space:]].*//'` → `sed 's/[[:space:]]*|.*//'`(匹配尾部 ` |`)。验证:D-023 status+scope 检查通过,install.ps1/install.sh 匹配,engine/scripts/* 不匹配(正确拒绝)。待后续:① 排查 `engine update` 命令通过 wrapper 调用时的 `__Safe-Rm-Invoke-PowerShell` 问题;② D-019 P2(任务胶囊 + token 账本/HANDOFF 裁剪)可开卡; ③ T-020(agent 检测器)paused; ④ D-018 待批; ⑤ Q2 真实库试点待拍板。
+下一步:**锚点执行力加固已完成并发 v6.4.0**。六 Phase 修复:SYSTEM.md 模板瘦身(8 section→REPO_GUIDE 指针)、AGENTS.md 模板加固(verification gate+ANCHOR IMMUTABILITY)、plugin/AGENTS.md 压缩(72→40 行+adapter)、pre-commit Layer 3 锚点守卫、Doctor TOP RULES source 归因检查、RECONCILE 吸收增强。预算 2455→2417。后续:① D-019 P2(任务胶囊+token 账本)可开卡; ② T-020(agent 检测器)paused; ③ D-018 待批; ④ Q2 试点待拍板。
 
 > Phase 1 = 通用化核心(prompt 抽离 / CLI 扩展 / 快速安装 / agent 检测——D-017 原文口径;实施细化与「薄壳」口径修正见 D-018)。v6.2 = 多 agent 通信层(engine context + DevComm Rule 扩展)。
 
@@ -12,6 +12,7 @@
 
 | 日期 | 完成了什么 | 下一步 | 改动文件 |
 |------|-----------|--------|---------|
+| 2026-07-14 | **锚点执行力加固(v6.4.0)**:SYSTEM.md 模板移除 8 个项目特定 section→REPO_GUIDE.md 指针(净减 38 行);AGENTS.md 模板增 verification gate+ANCHOR IMMUTABILITY+REPO_GUIDE 指针;plugin/AGENTS.md 72→40 行,溢出→plugin-adapter.md;pre-commit Layer 3 锚点守卫(WARN);Doctor TOP RULES source 归因检查(.sh+.ps1);RECONCILE 吸收协议增强;sync-agent-anchors 同步。8 项验证全通过。 | D-019 P2 / T-020 / D-018 / Q2 试点 | contract/src/{20-file-templates,30-operational}.md, plugin/AGENTS.md, plugin/engine/agents/plugin-adapter.md, engine/scripts/{githooks/pre-commit,engine-doctor.{sh,ps1},engine-sync-agent-anchors.{sh,ps1}}, 编译产物, engine/{CONTEXT,HANDOFF,ENGINE_MAP}.md |
 | 2026-07-14 | **Pre-commit hook grep pattern bug 修复**:第 108 行 `status:.*approved` 要求带冒号,不匹配表格格式 `| status | approved |`(所有决策文档都用表格格式),导致受保护路径 commit 总被误拦。第 114 行 `grep 'scope:'` 同问题。第 115 行 sed 不匹配表格尾部 ` |`。修复:① `status:.*approved` → `status.*approved`;② `grep 'scope:'` → `grep 'scope'`;③ `sed 's/|[[:space:]].*//'` → `sed 's/[[:space:]]*|.*//'`。验证:D-023 status+scope 通过,install.ps1/install.sh 匹配,engine/scripts/* 正确拒绝。 | 后续:engine update wrapper / D-019 P2 / T-020 / D-018 / Q2 试点 | engine/scripts/githooks/pre-commit, plugin/engine/scripts/githooks/pre-commit, engine/HANDOFF.md |
 | 2026-07-14 | **Installer 编码修复(两轮)**:① cf44066:fc5ee2e 的 Edit 工具丢失了 install.ps1 的 UTF-8 BOM(EF BB BF → 23 20 45),PowerShell 5.x 用 GBK 解读 UTF-8 中文时乱码(`下一步(选一)` → `涓嬪竴姝?閫変竴`),`()` 被误解析为语法错误,诺识 engine update 中断。install.ps1/install.sh 首次安装提示从中文改成英文。② 5d31ba4:install.ps1 仍有 4 处非 ASCII(em dash × 2 + 中文注释 × 2),Line 345 中文注释导致 GBK 解读字节错位,Line 346 `if {` 报缺少 `}`。全部改成 ASCII。诺识实测:手动执行 install.ps1 -Update 成功,.git/hooks/pre-commit 从 28 行更新到 123 行新版。 | 修 pre-commit hook grep pattern bug | install.ps1, install.sh, engine/HANDOFF.md |
 | 2026-07-14 | **Installer pre-commit hook 智能覆盖**:修复 keep-existing 逻辑导致 .git/hooks/pre-commit 永远不更新。新逻辑:检测 `Engine System` 标记 → 引擎管理的 hook 用 SHA256/diff 比较内容,不同则覆盖;用户自定义 hook 保留。双实现 parity。 | 诺识项目 engine update 实测 → 验证 hook 从 32 行更新到 136 行 | install.ps1, install.sh, engine/changes/CHANGE-2026-07-14-03.md, engine/HANDOFF.md |

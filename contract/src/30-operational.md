@@ -176,7 +176,7 @@ Routine:
    - WEB-FULL：derivable 声明 vs 真实代码（如「SOURCEMAP 声称 src/foo.ts 存在，实际已删」），写入 §4 漂移警告。
 7. **核对锚点层 (§1.2)**：
    - 引导器（CLAUDE.md / AGENTS.md）：是否仍指向 ENGINE_MAP、CLAUDE.md 与正本 AGENTS.md 是否一致、TOP RULES 摘抄与 SYSTEM.md 是否漂移；超过 45 行必须拆环境适配到 `engine/agents/[ENV].md`。
-   - **吸收再指向**：引导器中出现的、引擎里没有的用户手写规则，MUST 提取吸收进对应引擎文件（SYSTEM / PITFALLS），再把引导器恢复为薄指针。
+   - **吸收再指向**：引导器中出现的、引擎里没有的用户手写规则，MUST 提取吸收进对应引擎文件（SYSTEM / PITFALLS），再把引导器恢复为薄指针。NEVER 不经吸收直接删除用户手写内容。TOP RULES 中无 `source:` 标注的条目视为疑似原创规则，必须逐一核对：若在引擎文件中找到对应原文，补标注；若未找到，先吸收进引擎文件，再标注出处。
    - 包级锚点：「关键文件」表 vs 真实包结构；覆盖率（达到触发条件的新包是否缺锚点，已删除的包是否留有孤儿锚点登记）。
 8. **核对文件预算**：按 PHASE 2 Initial File Budgets 检查；超限文件必须归档历史或拆分权威位置，不能继续堆叙述。
 9. **核对 Engine Doctor Contract**：读取 `ENGINE_DOCTOR.md`，运行 `/engine-doctor` 或脚本；若脚本不存在，先建议 `/engine-sync`，并按 Doctor 契约手工打勾记录缺口；完整注册缺口必须标为 `partial registration`、`misregistered file`、`orphan reference` 或 `lifecycle transaction incomplete`。

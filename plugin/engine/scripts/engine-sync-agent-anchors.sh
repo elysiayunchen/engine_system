@@ -39,6 +39,11 @@ run the path-driven read-gate before edits, write incremental updates to `engine
 and `engine/HANDOFF.md` after meaningful changes, create/update an architect-readable
 `engine/changes/CHANGE-*.md` capsule with impact/risk/verification/rollback, preserve
 multi-lane workstream structure, and keep shared engine-file writes single-writer.
+Before any edit, output: `read-gate: ENGINE_MAP ✓, SYSTEM ✓, state: [一句话]`.
+
+## Anchor Immutability
+Bootloader files (AGENTS.md, CLAUDE.md) are managed by the engine. Do NOT add original
+rules there. All new rules go in `engine/SYSTEM.md`; bootloaders only excerpt with `source:` tags.
 
 ## Developer Communication (v6.2)
 Detect the developer's language and use it for all explanations. When discussing engine

@@ -7,7 +7,7 @@
 | 维度 | 状态 |
 |------|------|
 | 构建 | ✅ 正常（纯 markdown + shell 脚本，无构建步骤） |
-| 上次完成 | **T-025: VERSION 卡死 bug 修复 + Doctor 格式特征检测**:migrator 的 `engine/VERSION` 同步从 create-if-missing 改为 always-sync(源仓库,幂等),Doctor 新增 `check_legacy_data_format` 检测 v5 数据残留(任务卡无 v6 header / changes 有胶囊但 tasks 空 / evidence 松散 .md),migrator 结尾条件化提示。双实现 parity,Doctor: 0 FAIL/0 WARN,check.sh PASS。 |
+| 上次完成 | **T-026: Doctor 字节上限 + 单行宽度上限检查**:补齐 budget_cap 盲区——旧版只查行数,漏检单行 bloat(诺识 CONTEXT.md 317KB/145 行,单行 ~19600 字符)。新增字节预算(byte_cap = 行数 cap × 200)+ 单行宽度上限(>2000 字符报 WARN)。双实现 parity,源仓库 0 FAIL/0 WARN,诺识实测抓出 4 个膨胀文件。commit 6782eed。待发 6.3.1 patch release。 |
 | 进行中 | ① D-019 P2(任务胶囊 + token 账本/HANDOFF 裁剪)待开卡; ② T-020(agent 检测器)paused; ③ D-018 待架构师批准(proposed); ④ Q2 试点库待拍板 |
 | 阻塞 | 无 |
 

@@ -1,5 +1,9 @@
 # Changelog
 
+## v6.3.1 (2026-07-14)
+
+- Doctor 补字节上限 + 单行宽度上限检查 (2026-07-14)
+
 ## v6.3.0 (2026-07-14)
 
 - (no capsules in this release)

@@ -191,17 +191,15 @@ FED
     changed=1
   fi
   # Local VERSION stamp.
-  # In the engine source repo ($ROOT/VERSION exists and is the engine tooling
-  # version): always sync engine/VERSION to $ROOT/VERSION. Prior "create-if-
-  # missing" logic left engine/VERSION stuck at an older version after
-  # run_migrate wrote it via a migration step, causing Doctor to warn
-  # "engine/VERSION differs from repo VERSION" in a loop that could not
-  # self-heal (migrator skipped the existing file, so the version never
-  # advanced). Always-sync is idempotent (same value => no-op).
+  # In the engine source repo ($ROOT/VERSION is the engine tooling version AND
+  # $ROOT/plugin/manifest.json exists): always sync engine/VERSION to $ROOT/
+  # VERSION. Prior "create-if-missing" left engine/VERSION stuck at an older
+  # version after run_migrate wrote it, causing Doctor to warn in a loop that
+  # could not self-heal. Always-sync is idempotent (same value => no-op).
   # In user projects ($ROOT/VERSION is the product version, not the engine
-  # tooling version — see P014): keep create-if-missing semantics; engine/
-  # VERSION is managed by install.sh, not migrator.
-  if [ -f "$ROOT/VERSION" ]; then
+  # tooling version — see P014; and plugin/manifest.json does NOT exist):
+  # keep create-if-missing semantics; engine/VERSION is managed by install.sh.
+  if [ -f "$ROOT/VERSION" ] && [ -f "$ROOT/plugin/manifest.json" ]; then
     local root_v engine_v
     root_v="$(tr -d '[:space:]' < "$ROOT/VERSION")"
     engine_v="$(tr -d '[:space:]' < "$ENGINE_DIR/VERSION" 2>/dev/null || echo "")"

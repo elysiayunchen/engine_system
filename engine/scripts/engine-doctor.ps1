@@ -242,6 +242,17 @@ foreach ($row in $registeredRows) {
     $count = (Get-Content -Path $path -Encoding UTF8 | Measure-Object -Line).Lines
     if ($count -gt $cap) { Write-Warn "$file exceeds hard budget ($count > $cap lines)"
       Write-Output "  human: The file '$file' is too long ($count lines, max $cap). Trim it to stay within the size budget." }
+    # Byte budget: line cap x 200 (normal markdown ~50-100 chars/line; 200 gives headroom).
+    # Catches single-line bloat that line-count misses (e.g. table cells padded to 19K chars).
+    $bytes = (Get-Item $path).Length
+    $byteCap = $cap * 200
+    if ($bytes -gt $byteCap) { Write-Warn "$file exceeds byte budget ($bytes > $byteCap bytes)"
+      Write-Output "  human: The file '$file' is $bytes bytes, exceeding its $byteCap-byte size limit (likely single-line bloat). Check for table cells padded with excessive whitespace." }
+    # Line width: 2000 chars max. Normal markdown tables/paragraphs rarely exceed 1200;
+    # 2000 gives headroom. Catches table cells padded to tens of thousands of chars.
+    $longest = (Get-Content -Path $path -Encoding UTF8 | Measure-Object -Maximum Length).Maximum
+    if ($longest -gt 2000) { Write-Warn "$file has very long line ($longest > 2000 chars)"
+      Write-Output "  human: The file '$file' has a line $longest characters long (max 2000). This is likely a padded table row or separator. Remove the excessive padding." }
   }
   if ($class -eq "mixed") {
     $hasSection = $false

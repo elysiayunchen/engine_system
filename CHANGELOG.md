@@ -2,6 +2,10 @@
 
 ## v6.3.0 (2026-07-14)
 
+- (no capsules in this release)
+
+## v6.3.0 (2026-07-14)
+
 - Architect self-view and change capsules (2026-06-22)
 - CHANGE-2026-07-03-01 (2026-07-03)
 - CHANGE-2026-07-03-02 (2026-07-03)

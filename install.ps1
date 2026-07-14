@@ -1,4 +1,4 @@
-﻿# Engine System installer for Windows
+# Engine System installer for Windows
 # Usage:
 #   Invoke-WebRequest https://raw.githubusercontent.com/elysiayunchen/engine_system/main/install.ps1 -OutFile install.ps1
 #   powershell -NoProfile -File .\install.ps1 [-Update] [-Version TAG]
@@ -284,8 +284,19 @@ if ($insideGit -eq "true") {
     $hookPath = Join-Path $hookDir "pre-commit"
     New-Item -ItemType Directory -Force -Path $hookDir | Out-Null
     if (Test-Path $hookPath) {
-      Write-Host "  keep  $hookPath (already exists; merge engine\scripts\githooks\pre-commit manually if needed)" -ForegroundColor Yellow
-      $skipped++
+      $existing = Get-Content $hookPath -Raw -ErrorAction SilentlyContinue
+      if ($existing -match 'Engine System.*pre-commit hook' -and (Test-Path "engine\scripts\githooks\pre-commit")) {
+        if ((Get-FileHash "engine\scripts\githooks\pre-commit" -Algorithm SHA256).Hash -eq (Get-FileHash $hookPath -Algorithm SHA256).Hash) {
+          Write-Host "  ok    $hookPath (up to date)" -ForegroundColor Green
+        } else {
+          Copy-Item "engine\scripts\githooks\pre-commit" $hookPath -Force
+          Write-Host "  update $hookPath (engine-managed, updated to latest)" -ForegroundColor Green
+          $installed++
+        }
+      } else {
+        Write-Host "  keep  $hookPath (user-defined; merge engine\scripts\githooks\pre-commit manually if needed)" -ForegroundColor Yellow
+        $skipped++
+      }
     } elseif (Test-Path "engine\scripts\githooks\pre-commit") {
       Copy-Item "engine\scripts\githooks\pre-commit" $hookPath -Force
       Write-Host "  ok    $hookPath" -ForegroundColor Green

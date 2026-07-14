@@ -365,13 +365,14 @@ if ($Update) {
   Write-Host "Doctor parity, and other current Engine System mechanisms."
   Write-Host "Future remote updates can use: engine update"
 } else {
-  Write-Host "═══ 引擎已安装 ═══"
-  Write-Host "下一步(选一):"
-  Write-Host "  Claude Code  → /engine-init"
-  Write-Host "  其他 agent   → engine init"
-  Write-Host "  终端         → engine init"
+  Write-Host "=== Engine System installed ==="
+  Write-Host "Next steps (pick one):"
+  Write-Host "  Claude Code  -> /engine-init"
+  Write-Host "  Other agent  -> engine init"
+  Write-Host "  Terminal     -> engine init"
   Write-Host ""
-  Write-Host "engine init 会引导 agent 采访你的项目,生成 ENGINE_MAP / CONTEXT / SYSTEM / ARCHITECTURE。"
+  Write-Host "engine init guides your agent through an interview to generate"
+  Write-Host "ENGINE_MAP / CONTEXT / SYSTEM / ARCHITECTURE."
 }
 Write-Host ""
 

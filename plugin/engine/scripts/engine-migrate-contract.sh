@@ -190,13 +190,28 @@ FED
     echo "created $(relpath "$ENGINE_DIR/decisions/rules.json")"
     changed=1
   fi
-  # Local VERSION stamp: copy from repo root if available, else use contract version.
-  if [ ! -f "$ENGINE_DIR/VERSION" ]; then
-    if [ -f "$ROOT/VERSION" ]; then
-      cp "$ROOT/VERSION" "$ENGINE_DIR/VERSION"
-    else
-      printf '%s\n' "$CONTRACT_VERSION" > "$ENGINE_DIR/VERSION"
+  # Local VERSION stamp.
+  # In the engine source repo ($ROOT/VERSION exists and is the engine tooling
+  # version): always sync engine/VERSION to $ROOT/VERSION. Prior "create-if-
+  # missing" logic left engine/VERSION stuck at an older version after
+  # run_migrate wrote it via a migration step, causing Doctor to warn
+  # "engine/VERSION differs from repo VERSION" in a loop that could not
+  # self-heal (migrator skipped the existing file, so the version never
+  # advanced). Always-sync is idempotent (same value => no-op).
+  # In user projects ($ROOT/VERSION is the product version, not the engine
+  # tooling version — see P014): keep create-if-missing semantics; engine/
+  # VERSION is managed by install.sh, not migrator.
+  if [ -f "$ROOT/VERSION" ]; then
+    local root_v engine_v
+    root_v="$(tr -d '[:space:]' < "$ROOT/VERSION")"
+    engine_v="$(tr -d '[:space:]' < "$ENGINE_DIR/VERSION" 2>/dev/null || echo "")"
+    if [ "$engine_v" != "$root_v" ]; then
+      printf '%s\n' "$root_v" > "$ENGINE_DIR/VERSION"
+      echo "synced $(relpath "$ENGINE_DIR/VERSION")"
+      changed=1
     fi
+  elif [ ! -f "$ENGINE_DIR/VERSION" ]; then
+    printf '%s\n' "$CONTRACT_VERSION" > "$ENGINE_DIR/VERSION"
     echo "created $(relpath "$ENGINE_DIR/VERSION")"
     changed=1
   fi
@@ -460,6 +475,12 @@ fi
 echo ""
 echo "Engine contract migration to v6 complete."
 
+# Detect legacy data residue for conditional messaging.
+legacy_changes=0
+legacy_tasks=0
+[ -d "$ENGINE_DIR/changes" ] && legacy_changes="$(find "$ENGINE_DIR/changes" -maxdepth 1 -name 'CHANGE-*.md' -type f 2>/dev/null | wc -l || echo 0)"
+[ -d "$ENGINE_DIR/tasks" ] && legacy_tasks="$(find "$ENGINE_DIR/tasks" -maxdepth 1 -name 'T-*.md' -type f 2>/dev/null | wc -l || echo 0)"
+
 echo ""
 echo "═══════════════════════════════════════"
 echo " Developer Summary"
@@ -473,10 +494,16 @@ echo "  - Decisions: your recorded choices that the AI must respect"
 echo "  - Change capsules: human-readable summaries of what was changed and why"
 echo "  - Glossary: helps the AI explain engine concepts in plain language"
 echo ""
-echo "What you need to do:"
-echo "  - Nothing extra — the migration is complete"
-echo "  - Run 'engine doctor' if you want to check project health"
-echo "  - All changes are logged and can be reviewed or reverted"
+if [ "$legacy_changes" -gt 0 ] && [ "$legacy_tasks" -eq 0 ]; then
+  echo "What you need to do:"
+  echo "  - Detected $legacy_changes legacy change capsule(s) but 0 v6 task cards"
+  echo "  - New work should use v6 task cards (engine/tasks/T-NNN.md)"
+  echo "  - Run 'engine doctor' for a full health check"
+else
+  echo "What you need to do:"
+  echo "  - No further action needed — the migration is complete"
+  echo "  - Run 'engine doctor' if you want to check project health"
+fi
 echo ""
 echo "If something goes wrong:"
 echo "  - All migration changes are in engine/changes/ — review or revert"

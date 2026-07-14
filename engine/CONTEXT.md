@@ -1,13 +1,13 @@
 # CONTEXT — 当前状态
 
-> Engine System (engine_system) · Last updated: 2026-07-12 · Profile: CLI-LEAN
+> Engine System (engine_system) · Last updated: 2026-07-14 · Profile: CLI-LEAN
 
 ## 状态面板
 
 | 维度 | 状态 |
 |------|------|
 | 构建 | ✅ 正常（纯 markdown + shell 脚本，无构建步骤） |
-| 上次完成 | **engine/checks/ 自定义检查扩展点**:Doctor 新增 `run_custom_checks()` 自动发现并执行 `engine/checks/check-*.sh|.ps1`(FAIL)和 `warn-*.sh|.ps1`(WARN)。本项目 `check-version-consistency` 检查 VERSION 三处一致。Doctor: 0 FAIL/1 WARN。 |
+| 上次完成 | **T-025: VERSION 卡死 bug 修复 + Doctor 格式特征检测**:migrator 的 `engine/VERSION` 同步从 create-if-missing 改为 always-sync(源仓库,幂等),Doctor 新增 `check_legacy_data_format` 检测 v5 数据残留(任务卡无 v6 header / changes 有胶囊但 tasks 空 / evidence 松散 .md),migrator 结尾条件化提示。双实现 parity,Doctor: 0 FAIL/0 WARN,check.sh PASS。 |
 | 进行中 | ① D-019 P2(任务胶囊 + token 账本/HANDOFF 裁剪)待开卡; ② T-020(agent 检测器)paused; ③ D-018 待架构师批准(proposed); ④ Q2 试点库待拍板 |
 | 阻塞 | 无 |
 

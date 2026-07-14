@@ -105,14 +105,14 @@ for file in $staged; do
     violation="$file (决策 $task_decision 文件不存在)"
     break
   fi
-  if ! grep -q 'status:.*approved' "$decision_file" 2>/dev/null; then
+  if ! grep -q 'status.*approved' "$decision_file" 2>/dev/null; then
     violation="$file (决策 $task_decision 未批准)"
     break
   fi
   # scope 覆盖检查:scope 是逗号分隔的 glob,在同一行 > 开头。
   # 转成换行分隔后用 match_any_glob,避免 for 循环中 ** 被文件系统展开。
-  scope_line="$(grep 'scope:' "$decision_file" 2>/dev/null | head -1)"
-  scope_raw="$(printf '%s' "$scope_line" | sed 's/.*scope:[[:space:]]*//' | sed 's/|[[:space:]].*//' | tr -d '\r')"
+  scope_line="$(grep 'scope' "$decision_file" 2>/dev/null | head -1)"
+  scope_raw="$(printf '%s' "$scope_line" | sed 's/.*scope[[:space:]]*[:|][[:space:]]*//' | sed 's/[[:space:]]*|.*//' | tr -d '\r')"
   scope_pats="$(printf '%s' "$scope_raw" | sed 's/,[[:space:]]*/\n/g' | sed '/^[[:space:]]*$/d')"
   if ! match_any_glob "$file" "$scope_pats"; then
     violation="$file (决策 $task_decision 的 scope 不覆盖此路径)"

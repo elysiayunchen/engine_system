@@ -194,12 +194,23 @@ After the header, list ACs with verify commands:
     $changed = $true
   }
   $ver = Join-Path $EngineDir "VERSION"
-  if (-not (Test-Path $ver)) {
-    if (Test-Path $repoVersionFile) {
+  # In the engine source repo: always sync engine/VERSION to $ROOT/VERSION.
+  # Prior "create-if-missing" left engine/VERSION stuck at an older version
+  # after run_migrate wrote it, causing Doctor to warn in a loop that could
+  # not self-heal. Always-sync is idempotent (same value => no-op).
+  # In user projects ($ROOT/VERSION is the product version - see P014):
+  # keep create-if-missing; engine/VERSION is managed by install.sh.
+  if (Test-Path $repoVersionFile) {
+    $rootV = (Get-Content $repoVersionFile -Raw -Encoding UTF8).Trim()
+    $engineV = ""
+    if (Test-Path $ver) { $engineV = (Get-Content $ver -Raw -Encoding UTF8).Trim() }
+    if ($engineV -ne $rootV) {
       Copy-Item $repoVersionFile $ver
-    } else {
-      Set-Content -Path $ver -Value $ContractVersion -Encoding UTF8
+      Write-Host "synced $(Get-Relative $ver)"
+      $changed = $true
     }
+  } elseif (-not (Test-Path $ver)) {
+    Set-Content -Path $ver -Value $ContractVersion -Encoding UTF8
     Write-Host "created $(Get-Relative $ver)"
     $changed = $true
   }
@@ -415,6 +426,18 @@ if (Test-Path $doctorScript) {
 Write-Host ""
 Write-Host "Engine contract migration to v6 complete."
 
+# Detect legacy data residue for conditional messaging.
+$legacyChanges = 0
+$legacyTasks = 0
+$changesDirPath = Join-Path $EngineDir "changes"
+$tasksDirPath = Join-Path $EngineDir "tasks"
+if (Test-Path $changesDirPath) {
+  $legacyChanges = (Get-ChildItem -Path $changesDirPath -Filter "CHANGE-*.md" -File -ErrorAction SilentlyContinue | Measure-Object).Count
+}
+if (Test-Path $tasksDirPath) {
+  $legacyTasks = (Get-ChildItem -Path $tasksDirPath -Filter "T-*.md" -File -ErrorAction SilentlyContinue | Measure-Object).Count
+}
+
 Write-Host ""
 Write-Host "======================================="
 Write-Host " Developer Summary"
@@ -428,10 +451,16 @@ Write-Host "  - Decisions: your recorded choices that the AI must respect"
 Write-Host "  - Change capsules: human-readable summaries of what was changed and why"
 Write-Host "  - Glossary: helps the AI explain engine concepts in plain language"
 Write-Host ""
-Write-Host "What you need to do:"
-Write-Host "  - Nothing extra - the migration is complete"
-Write-Host "  - Run 'engine doctor' if you want to check project health"
-Write-Host "  - All changes are logged and can be reviewed or reverted"
+if ($legacyChanges -gt 0 -and $legacyTasks -eq 0) {
+  Write-Host "What you need to do:"
+  Write-Host "  - Detected $legacyChanges legacy change capsule(s) but 0 v6 task cards"
+  Write-Host "  - New work should use v6 task cards (engine/tasks/T-NNN.md)"
+  Write-Host "  - Run 'engine doctor' for a full health check"
+} else {
+  Write-Host "What you need to do:"
+  Write-Host "  - No further action needed - the migration is complete"
+  Write-Host "  - Run 'engine doctor' if you want to check project health"
+}
 Write-Host ""
 Write-Host "If something goes wrong:"
 Write-Host "  - All migration changes are in engine/changes/ - review or revert"

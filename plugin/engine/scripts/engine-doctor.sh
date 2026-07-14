@@ -525,6 +525,54 @@ check_engine_version() {
   fi
 }
 
+check_legacy_data_format() {
+  # Version-agnostic detection of legacy (pre-v6) data residue.
+  # Detects format features (not version numbers) so any old-format data
+  # is reported. Empty projects (no changes/tasks/evidence) trigger 0 WARNs.
+  local tasks_dir="$ENGINE_DIR/tasks"
+  local changes_dir="$ENGINE_DIR/changes"
+  local evidence_dir="$ENGINE_DIR/evidence"
+
+  # 1. Task cards without v6 headers (write-set: or status:).
+  if [ -d "$tasks_dir" ]; then
+    local legacy_tasks=0
+    local f
+    for f in "$tasks_dir"/T-*.md; do
+      [ -f "$f" ] || continue
+      if ! grep -qi 'write-set:\|status:' "$f" 2>/dev/null; then
+        legacy_tasks=$((legacy_tasks + 1))
+      fi
+    done
+    if [ "$legacy_tasks" -gt 0 ]; then
+      warn "$legacy_tasks task card(s) missing v6 headers (write-set/status) - may be legacy format"
+      echo "  human: $legacy_tasks task card(s) in engine/tasks/ are missing the v6 machine-readable header (write-set: or status:). They may be from an older engine version. New work should use the v6 task card format (see engine/tasks/README.md)."
+    fi
+  fi
+
+  # 2. changes/ has capsules but tasks/ is empty - v5 data residue.
+  local changes_count=0
+  local tasks_count=0
+  [ -d "$changes_dir" ] && changes_count="$(find "$changes_dir" -maxdepth 1 -name 'CHANGE-*.md' -type f 2>/dev/null | wc -l || echo 0)"
+  [ -d "$tasks_dir" ] && tasks_count="$(find "$tasks_dir" -maxdepth 1 -name 'T-*.md' -type f 2>/dev/null | wc -l || echo 0)"
+  if [ "$changes_count" -gt 0 ] && [ "$tasks_count" -eq 0 ]; then
+    warn "$changes_count change capsule(s) in engine/changes/ but 0 task cards - new work should use v6 task cards"
+    echo "  human: Your project has $changes_count change capsules (engine/changes/) but no v6 task cards (engine/tasks/). This suggests the project was upgraded from an older engine version but new work hasn't adopted v6 task cards yet. New work should be tracked as T-NNN.md task cards."
+  fi
+
+  # 3. evidence/ has loose .md files (v5 format) instead of T-NNN/AC-N.json.
+  if [ -d "$evidence_dir" ]; then
+    local legacy_ev=0
+    local ef
+    while IFS= read -r ef; do
+      [ -f "$ef" ] && legacy_ev=$((legacy_ev + 1))
+    done < <(find "$evidence_dir" -maxdepth 1 -name '*.md' -type f 2>/dev/null)
+    if [ "$legacy_ev" -gt 0 ]; then
+      warn "$legacy_ev evidence file(s) are loose .md (legacy format) - new work should use evidence/T-NNN/AC-N.json"
+      echo "  human: $legacy_ev evidence file(s) in engine/evidence/ are loose .md files (v5 format). New verification evidence should be stored as engine/evidence/T-NNN/AC-N.json (machine-readable, with sha256 fingerprint)."
+    fi
+  fi
+}
+
 check_plan_acceptance_evidence() {
   while IFS='|' read -r _ id title status plan spec notes verified _; do
     id="$(trim "$id")"
@@ -576,6 +624,7 @@ check_contract_compile
 check_contract_debt
 check_task_card_done_evidence
 check_engine_version
+check_legacy_data_format
 
 # ── Project-custom checks (engine/checks/) ──
 # Each project may place executable check-*.sh (FAIL on non-zero) or warn-*.sh

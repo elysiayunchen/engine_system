@@ -1,10 +1,10 @@
 # HANDOFF — 会话交接
 
-> Engine System (engine_system) · Last updated: 2026-07-12
+> Engine System (engine_system) · Last updated: 2026-07-14
 
 ## 立即恢复点
 
-下一步:**engine/checks/ 自定义检查扩展点已实现**:Doctor 继承引擎检查后,自动发现 `engine/checks/check-*.sh|.ps1`(FAIL)和 `warn-*.sh|.ps1`(WARN)。本项目挂 `check-version-consistency`(三处 VERSION 一致校验)。其后:① D-019 P2(任务胶囊 + token 账本/HANDOFF 裁剪)可开卡; ② T-020(agent 检测器)paused; ③ D-018 待批; ④ Q2 真实库试点待拍板。
+下一步:**T-025 proposed / D-021 proposed — v6 数据层格式检测 MVP**。根因:`study_engine`(诺识/Noēsis)案例已升级到 v6.2.0,但 v6 数据层完全空转(0 任务卡 / 0 决策 / 0 AC JSON / 80 份 v5 changes 成孤儿)。经四轮子代理批判性审视,三次方案迭代(Option C → Option D → 三层可持续方案)均被否决(语义错位/过度工程/与现有机制冲突)。最终 MVP:① 修复 VERSION 卡死 bug(migrator 始终同步 engine/VERSION,不再 if-not-exists);② Doctor 加 `check_legacy_data_format`(版本无关,检测格式特征:任务卡无 v6 头/rules.json 仍默认值/changes 有但 tasks 空/evidence 是 .md 非 JSON);③ migrator 结尾条件化提示(有残留→提示,无残留→"No further action needed")。不引入新概念/新字段/新目录/新契约规则。改动 2 文件、20-30 行、零预算影响。T-025 含 10 AC,待 architect 批 D-021 后 promote 到 active。其后:① D-019 P2(任务胶囊 + token 账本/HANDOFF 裁剪)可开卡; ② T-020(agent 检测器)paused; ③ D-018 待批; ④ Q2 真实库试点待拍板。
 
 > Phase 1 = 通用化核心(prompt 抽离 / CLI 扩展 / 快速安装 / agent 检测——D-017 原文口径;实施细化与「薄壳」口径修正见 D-018)。v6.2 = 多 agent 通信层(engine context + DevComm Rule 扩展)。
 
@@ -12,7 +12,8 @@
 
 | 日期 | 完成了什么 | 下一步 | 改动文件 |
 |------|-----------|--------|---------|
-| 2026-07-12 | **engine/checks/ 自定义检查扩展点**:Doctor(sh+ps1)新增 custom checks runner 自动发现 `engine/checks/` 下脚本;本项目挂 `check-version-consistency`(VERSION 三处一致性);插件骨架 + manifest + install 分发。Doctor: 0 FAIL/1 WARN。 | D-019 P2 或 T-020 或 D-018 批 | engine/scripts/engine-doctor.{sh,ps1}, plugin/engine/scripts/engine-doctor.{sh,ps1}, engine/checks/*, plugin/engine/checks/README.md, plugin/manifest.json, install.{sh,ps1}, engine/{ENGINE_MAP,CONTEXT,HANDOFF}.md |
+| 2026-07-14 | **T-025 proposed / D-021 proposed — v6 数据层格式检测 MVP**:审计 study_engine 案例(已升 v6.2.0 但 v6 数据层空转:0 任务卡/0 决策/0 AC JSON/80 份 v5 changes 成孤儿)。经四轮子代理批判性审视(新用户友好性/老项目边界 case/引擎自身一致性/语义正确性),三次方案迭代均否决:Option C(promote-v5 helper,语义错位+空转上移一层)→ Option D(v5 归档 prior-art,与 SYNC additive migration 语义互斥)→ 三层可持续方案(schema_version+多跳链+考古层化,过度工程:9+文件/200+行/击穿 budget,而核心问题只需 5-10 行 check)。发现 VERSION 卡死 bug(engine/VERSION 永久卡 6.0.0,修复路径自身循环)。最终 MVP:① 修复 VERSION bug(migrator 始终同步 engine/VERSION);② Doctor 加 `check_legacy_data_format`(版本无关,检测格式特征而非版本号);③ migrator 条件化提示。不引入新概念/新字段/新目录/新契约规则。改动 2 文件、20-30 行、零预算影响。T-025 含 10 AC。 | architect 批 D-021 → promote T-025 active → 实施 | engine/decisions/D-021.md, engine/tasks/T-025.md, engine/HANDOFF.md |
+| 2026-07-12 | **engine/checks/ 自定义检查扩展点已实现**:Doctor(sh+ps1)新增 custom checks runner 自动发现 `engine/checks/` 下脚本;本项目挂 `check-version-consistency`(VERSION 三处一致性);插件骨架 + manifest + install 分发。Doctor: 0 FAIL/1 WARN。 | D-019 P2 或 T-020 或 D-018 批 | engine/scripts/engine-doctor.{sh,ps1}, plugin/engine/scripts/engine-doctor.{sh,ps1}, engine/checks/*, plugin/engine/checks/README.md, plugin/manifest.json, install.{sh,ps1}, engine/{ENGINE_MAP,CONTEXT,HANDOFF}.md |
 | 2026-07-12 | **fix: VERSION 6.0.1 → 6.2.0 补回遗漏更新**:v6.2 提交(3f23fa2)引入 2508 行变更但漏更新 VERSION,本次补回三处 VERSION 为 6.2.0 + contract-version 注释三处同步 + plugin/manifest.json sha256 重新计算。 | D-019 P2 或 T-020 或 D-018 批 | VERSION, engine/VERSION, plugin/VERSION, agents.md, engine/SYSTEM.md, engine/ENGINE_DOCTOR.md, plugin/manifest.json, engine/CONTEXT.md, engine/HANDOFF.md |
 | 2026-07-12 | **chore: .gitignore 收纳 scratch 产物**(engine1.zip/engine1_extracted/outputs,7月7 下载解包与 scratch 输出,非交付内容) | 推送两个本地提交(main 领先 origin/main 2) | .gitignore, engine/HANDOFF.md |
 | 2026-07-12 | **T-024 SYSTEM/Doctor 职责边界修正**:纠正 T-023 收尾中的职责边界错误;`engine/SYSTEM.md` 作为“发布可用性优先”项目开发准则的唯一权威来源;`engine/ENGINE_DOCTOR.md` 与 `plugin/engine/ENGINE_DOCTOR.md` 删除相关承载/指向/检查文案,恢复为健康检查契约。`engine verify T-024` 3/3 PASS;bash check PASS。 | D-019 P2 胶囊+账本 或 T-020 agent 检测器;Q2 真实库试点待拍板 | engine/SYSTEM.md, engine/ENGINE_DOCTOR.md, plugin/engine/ENGINE_DOCTOR.md, plugin/manifest.json, engine/tasks/T-024.md, engine/evidence/T-024/*, engine/changes/CHANGE-2026-07-12-02.md, engine/CONTEXT.md, engine/HANDOFF.md, engine/ENGINE_MAP.md |

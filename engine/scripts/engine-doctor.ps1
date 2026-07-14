@@ -628,6 +628,54 @@ function Test-PlanAcceptanceEvidence {
   }
 }
 
+function Test-LegacyDataFormat {
+  # Version-agnostic detection of legacy (pre-v6) data residue.
+  # Detects format features (not version numbers) so any old-format data
+  # is reported. Empty projects (no changes/tasks/evidence) trigger 0 WARNs.
+  $tasksDir = Join-Path $engineDir "tasks"
+  $changesDir = Join-Path $engineDir "changes"
+  $evidenceDir = Join-Path $engineDir "evidence"
+
+  # 1. Task cards without v6 headers (write-set: or status:).
+  if (Test-Path $tasksDir) {
+    $legacyTasks = 0
+    $taskFiles = @(Get-ChildItem -Path $tasksDir -Filter "T-*.md" -File -ErrorAction SilentlyContinue)
+    foreach ($tf in $taskFiles) {
+      $content = Get-Content -Raw -Path $tf.FullName -Encoding UTF8 -ErrorAction SilentlyContinue
+      if ($content -and ($content -notmatch "(?i)write-set:|status:")) {
+        $legacyTasks++
+      }
+    }
+    if ($legacyTasks -gt 0) {
+      Write-Warn "$legacyTasks task card(s) missing v6 headers (write-set/status) - may be legacy format"
+      Write-Output "  human: $legacyTasks task card(s) in engine/tasks/ are missing the v6 machine-readable header (write-set: or status:). They may be from an older engine version. New work should use the v6 task card format (see engine/tasks/README.md)."
+    }
+  }
+
+  # 2. changes/ has capsules but tasks/ is empty - v5 data residue.
+  $changesCount = 0
+  $tasksCount = 0
+  if (Test-Path $changesDir) {
+    $changesCount = @(Get-ChildItem -Path $changesDir -Filter "CHANGE-*.md" -File -ErrorAction SilentlyContinue).Count
+  }
+  if (Test-Path $tasksDir) {
+    $tasksCount = @(Get-ChildItem -Path $tasksDir -Filter "T-*.md" -File -ErrorAction SilentlyContinue).Count
+  }
+  if ($changesCount -gt 0 -and $tasksCount -eq 0) {
+    Write-Warn "$changesCount change capsule(s) in engine/changes/ but 0 task cards - new work should use v6 task cards"
+    Write-Output "  human: Your project has $changesCount change capsules (engine/changes/) but no v6 task cards (engine/tasks/). This suggests the project was upgraded from an older engine version but new work hasn't adopted v6 task cards yet. New work should be tracked as T-NNN.md task cards."
+  }
+
+  # 3. evidence/ has loose .md files (v5 format) instead of T-NNN/AC-N.json.
+  if (Test-Path $evidenceDir) {
+    $legacyEv = @(Get-ChildItem -Path $evidenceDir -Filter "*.md" -File -ErrorAction SilentlyContinue).Count
+    if ($legacyEv -gt 0) {
+      Write-Warn "$legacyEv evidence file(s) are loose .md (legacy format) - new work should use evidence/T-NNN/AC-N.json"
+      Write-Output "  human: $legacyEv evidence file(s) in engine/evidence/ are loose .md files (v5 format). New verification evidence should be stored as engine/evidence/T-NNN/AC-N.json (machine-readable, with sha256 fingerprint)."
+    }
+  }
+}
+
 if (Test-Path $engineDir) {
   Get-ChildItem -Path $engineDir -File -Filter "*.md" | ForEach-Object {
     $rel = "engine/$($_.Name)"
@@ -697,6 +745,7 @@ Test-ContractCompile
 Test-ContractDebt
 Test-TaskCardDoneEvidence
 Test-EngineVersion
+Test-LegacyDataFormat
 
 # ── Project-custom checks (engine/checks/) ──
 function Run-CustomChecks {

@@ -4,7 +4,7 @@
 
 ## 立即恢复点
 
-下一步：继续 T-030/D-026 收尾。发布提交 `0b63aca` 的远端 main CI 29593949520 已全绿；远端 VERSION=6.5.0，install.sh SHA256 与本地一致。提交本次 release-ready 记录并等 main CI 后，让 `v6.5.0` 指向该提交、推送并等待 Release workflow；成功后置 T-030 done。scratch 不纳入发布。
+下一步：继续 T-030/D-026 收尾。main CI 29593949520、29594763691 全绿；首轮 tag workflow 29595328999 的实际失败点是 `pipefail` 下 `doctor | head -1`，并发现 migrate 忘记 `cd` 到安装 sandbox；GitHub Release 尚未创建。两处均已修复并加公开 annotation；本地验收、提交、main CI 后，仅更新 `v6.5.0` tag 到修复提交并重跑 Release，成功后置 T-030 done。scratch 不纳入发布。
 
 > Phase 1 = 通用化核心(prompt 抽离 / CLI 扩展 / 快速安装 / agent 检测——D-017 原文口径;实施细化与「薄壳」口径修正见 D-018)。v6.2 = 多 agent 通信层(engine context + DevComm Rule 扩展)。
 

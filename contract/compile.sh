@@ -197,7 +197,8 @@ for f in engine engine.ps1 engine.cmd; do
 done
 echo "compile: plugin/bin/ synced ($bin_count files from engine/bin/)"
 
-# 10. manifest sha256 回填(对 plugin/<src> 工作区字节算哈希,保持单行格式)
+# 10. manifest sha256 回填。插件清单均为文本文件；统一按 LF 规范化后哈希，
+# 避免 Windows/Unix checkout 行尾差异被误判为内容篡改。
 MANIFEST="$OUT_ROOT/plugin/manifest.json"
 if [[ -f "$MANIFEST" ]]; then
   # 先清占位/旧值
@@ -205,7 +206,7 @@ if [[ -f "$MANIFEST" ]]; then
   while IFS= read -r src; do
     src_file="$OUT_ROOT/plugin/$src"
     if [[ -f "$src_file" ]]; then
-      hash=$(sha256sum "$src_file" | cut -d' ' -f1)
+      hash=$(sed 's/\r$//' "$src_file" | sha256sum | cut -d' ' -f1)
       sed -i "s|\"src\": \"$src\"|\"src\": \"$src\", \"sha256\": \"$hash\"|" "$MANIFEST"
     fi
   done < <(grep -oE '"src"[[:space:]]*:[[:space:]]*"[^"]*"' "$MANIFEST" | sed 's/.*"src"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')

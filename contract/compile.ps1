@@ -68,6 +68,24 @@ function Get-Sha256Hex([string]$Path) {
     $sha.Dispose()
   }
 }
+
+function Get-NormalizedTextSha256Hex([string]$Path) {
+  [byte[]]$inputBytes = [System.IO.File]::ReadAllBytes((Resolve-Path $Path).Path)
+  $normalized = New-Object System.Collections.Generic.List[byte]
+  for ($i = 0; $i -lt $inputBytes.Length; $i++) {
+    if ($inputBytes[$i] -eq 13 -and ($i + 1) -lt $inputBytes.Length -and $inputBytes[$i + 1] -eq 10) {
+      continue
+    }
+    $normalized.Add($inputBytes[$i])
+  }
+  $sha = [System.Security.Cryptography.SHA256]::Create()
+  try {
+    $hashBytes = $sha.ComputeHash($normalized.ToArray())
+    return (($hashBytes | ForEach-Object { $_.ToString("x2") }) -join "")
+  } finally {
+    $sha.Dispose()
+  }
+}
 [System.IO.File]::WriteAllText($Dist, $compiled, $utf8NoBom)
 
 # 2. runtime-law.md (L0 constitution)
@@ -220,7 +238,8 @@ foreach ($f in @("engine", "engine.ps1", "engine.cmd")) {
 }
 Write-Output "compile: plugin\bin\ synced ($binCount files from engine\bin\)"
 
-# 10. manifest sha256 backfill (compute hash of plugin\<src> bytes, keep single-line format)
+# 10. manifest sha256 backfill. Manifest entries are text files; normalize CRLF
+# to LF so Windows/Linux checkout differences do not look like tampering.
 $manifest = Join-Path $OutRoot "plugin\manifest.json"
 if (Test-Path $manifest) {
   $content = Get-Content -Raw -Path $manifest -Encoding UTF8
@@ -232,7 +251,7 @@ if (Test-Path $manifest) {
     $src = $m.Groups[1].Value
     $srcFile = Join-Path $OutRoot "plugin\$src"
     if (Test-Path $srcFile) {
-      $hash = Get-Sha256Hex $srcFile
+      $hash = Get-NormalizedTextSha256Hex $srcFile
       $pattern = '"src": "' + [regex]::Escape($src) + '"'
       $replacement = '"src": "' + $src + '", "sha256": "' + $hash + '"'
       $content = $content -replace $pattern, $replacement

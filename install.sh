@@ -116,6 +116,15 @@ download_versioned() {
 WRITTEN_FILES=$'\n'
 
 # Verify SHA256 checksums against manifest (hard-fail on mismatch)
+normalized_text_sha256() {
+  local file="$1"
+  if command -v sha256sum &>/dev/null; then
+    sed 's/\r$//' "$file" | sha256sum | cut -d' ' -f1
+  elif command -v shasum &>/dev/null; then
+    sed 's/\r$//' "$file" | shasum -a 256 | cut -d' ' -f1
+  fi
+}
+
 verify_checksums() {
   local manifest_file="$1"
   local verify_count=0
@@ -163,11 +172,7 @@ verify_checksums() {
     [[ -f "$dest_file" ]] || continue
 
     local actual=""
-    if command -v sha256sum &>/dev/null; then
-      actual="$(sha256sum "$dest_file" | cut -d' ' -f1)"
-    elif command -v shasum &>/dev/null; then
-      actual="$(shasum -a 256 "$dest_file" | cut -d' ' -f1)"
-    fi
+    actual="$(normalized_text_sha256 "$dest_file")"
     [[ -z "$actual" ]] && continue
 
     verify_count=$((verify_count + 1))

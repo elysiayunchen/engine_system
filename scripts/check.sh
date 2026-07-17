@@ -177,7 +177,7 @@ if [[ -f "$manifest" ]]; then
           touch "$ROOT/plugin/.manifest-check-fail"
           continue
         fi
-        actual="$(sha256sum "$ROOT/plugin/$src" | cut -d' ' -f1)"
+        actual="$(sed 's/\r$//' "$ROOT/plugin/$src" | sha256sum | cut -d' ' -f1)"
         if [[ "$actual" != "$recorded" ]]; then
           printf '  sha256 mismatch: %s (run: bash contract/compile.sh)\n' "$src" >&2
           touch "$ROOT/plugin/.manifest-check-fail"

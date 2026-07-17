@@ -25,6 +25,7 @@ plugin/AGENTS.md text eol=lf
 plugin/engine/*.md text eol=lf
 plugin/engine/prompts/*.md text eol=lf
 plugin/bin/engine.ps1 text eol=lf
+engine/bin/engine.ps1 text eol=lf
 plugin/VERSION text eol=lf
 plugin/migrations/*.ps1 text eol=lf
 plugin/migrations/*.sh text eol=lf

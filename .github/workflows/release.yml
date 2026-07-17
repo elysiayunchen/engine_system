@@ -77,7 +77,13 @@ jobs:
 
           # 1. Simulate install from plugin/
           mkdir -p "$SANDBOX/home"
-          (cd "$SANDBOX" && HOME="$SANDBOX/home" bash "$SRC/install.sh" --local "$SRC/plugin")
+          if ! (cd "$SANDBOX" && HOME="$SANDBOX/home" bash "$SRC/install.sh" --local "$SRC/plugin") > "$SANDBOX/install.log" 2>&1; then
+            message="$(tail -20 "$SANDBOX/install.log" | tr '\n' '|' | sed 's/%/%25/g; s/|$//')"
+            echo "::error title=Release local install failed::${message}"
+            cat "$SANDBOX/install.log"
+            exit 1
+          fi
+          cat "$SANDBOX/install.log"
           echo "PASS install completed"
 
           # 2. Simulate initialized project + run migrate

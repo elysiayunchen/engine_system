@@ -4,7 +4,7 @@
 
 ## 立即恢复点
 
-下一步：继续 T-030/D-026。第四轮 Linux/Windows 与安装步骤已 PASS，Verify installed files 暴露项目内 CLI 无 executable bit；已补两个 shell shim 100755、installer chmod、I6/CI 断言。重跑 T-030 后提交并等待第五轮 main CI；全绿再写远端结果、置 done、让 `v6.5.0` tag 指向最终提交并推送，等待 Release workflow。scratch 不纳入发布。
+下一步：继续 T-030/D-026 收尾。发布提交 `0b63aca` 的远端 main CI 29593949520 已全绿；远端 VERSION=6.5.0，install.sh SHA256 与本地一致。提交本次 release-ready 记录并等 main CI 后，让 `v6.5.0` 指向该提交、推送并等待 Release workflow；成功后置 T-030 done。scratch 不纳入发布。
 
 > Phase 1 = 通用化核心(prompt 抽离 / CLI 扩展 / 快速安装 / agent 检测——D-017 原文口径;实施细化与「薄壳」口径修正见 D-018)。v6.2 = 多 agent 通信层(engine context + DevComm Rule 扩展)。
 
@@ -12,6 +12,7 @@
 
 | 日期 | 完成了什么 | 下一步 | 改动文件 |
 |------|-----------|--------|---------|
+| 2026-07-17 | **T-030 v6.5.0 远端 main 发布门全绿**：CI 29593949520 的 Linux、Windows、正式 local install+migrate 全部 PASS；远端 VERSION=6.5.0，install.sh SHA256 与本地一致；项目 CLI 的 Git 100755 与安装后 chmod 已生效。 | 推送 release-ready 记录 → main CI → `v6.5.0` tag → Release workflow → T-030 done | install.sh, engine/bin/engine, plugin/bin/engine, CI, I6, D-026, T-030 evidence, CHANGE-2026-07-17-02 |
 | 2026-07-17 | **v6.5.0 长会话/并行写冲突闭环（D-025/T-029）+ T-028 收尾**：全路径 WRITE-SET/FORBIDDEN 同时支持 inline/section；v6.5 无 active/closing 卡时普通写入 fail-closed，done 提交逐 AC 要 PASS evidence；PreToolUse/Stop 用 session+agent 路径归属，worker 只写 `engine/workstreams/<task>/<agent>/`，协调者单写共享记忆。任务粒度定为“一项可独立验收目标一卡”，多轮/worker 共卡、只读免卡；Prompt guard 从约 30 行压到实测 4 行，Doctor 将 24 张 done 卡聚合成 1 行。T-029 5/5（task 44/44、hook 31/31、workstream 12/12、完整发布门禁 PASS）；T-028 修正隔离 HOME 后 5/5 PASS。 | 发布 v6.5；真实下游 `engine update` + `engine migrate` 试点；后续写任务先建 active 卡 | D-025, T-028/T-029, hooks/pre-commit/Doctor/context/workstream CLI, contract+migrator, plugin+manifest+installer, tests, evidence, CHANGE-2026-07-17-01 |
 | 2026-07-17 | **T-029 / D-025 开卡，长会话与并行冲突根因确认**：① Stop 对 `engine/*` 全豁免，engine-only pass 还被 parity 测试固化；② T-025~T-028 使用 section-list WRITE-SET，但 hook 只读 `WRITE-SET:`，机器写集为空；③ Stop 用整个 worktree 的 git status，无 session/agent 归属，兄弟 agent 可互相代写回。决定采用“全路径范围检查 + 写前短重锚 + session 路径清单 + worker 独立 workstream 分片 + 协调者单点汇总”，不自建进程队列。T-028 验收 AC-2~4 PASS、AC-1 FAIL、AC-5 超时，改 paused。 | 实施 T-029 AC-1~5；完成后恢复 T-028 AC-1 | engine/tasks/{T-028,T-029}.md, engine/decisions/D-025.md, engine/evidence/T-028/*, engine/{CONTEXT,HANDOFF}.md |
 | 2026-07-14 | **发布端评估 + T-028 installer 修复(D-024)**:评估结论——常驻 251/400 行达标、check.sh 全绿(manifest 55 条真哈希抽查 5/5 MATCH)、--local 安装实测成功(62 文件+pre-commit+skeleton+5 skills);遗留问题:exempt 14/24 done、T-024 evidence 指纹空串哈希、ENGINE_MAP §4 单行超长、D-019 P2 未开卡。两个安装缺陷已修:① `download()` 查 HTTP 状态码(404 正文写 dest 且 exit 0 的假成功)、runtime-law.md 失败改硬 FAIL、download_versioned fallback 复用;② --local 用包内 manifest.json 跑 SHA256 校验;新增 WRITTEN_FILES 写入清单(只校验本次实际写入的文件,keep 的根锚点/记忆文件不误报);verify_checksums 的 src→dest 映射补 engine/skeleton/* 与 VERSION(原映射错误致这些条目从未被校验)。ps1 parity 同步(Copy-Local 缺文件 FAIL/runtime-law FAIL/-Local 校验/WrittenFiles)。 | engine verify T-028(AC-1~5)+ check.sh → done → 下游项目 engine update 实测 | install.sh, install.ps1, engine/decisions/D-024.md, engine/tasks/T-028.md, engine/changes/CHANGE-2026-07-14-04.md, engine/{CONTEXT,HANDOFF,ENGINE_MAP}.md |

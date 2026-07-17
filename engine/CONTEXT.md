@@ -8,7 +8,7 @@
 |------|------|
 | 构建 | ✅ 正常（纯 markdown + shell 脚本，无构建步骤） |
 | 上次完成 | **v6.5.0 / D-025 / T-029 + T-028**：全路径任务门禁、v6.5 无 active 卡 fail-closed、done 逐 AC evidence、session/agent 路径归属、worker workstream 分片、协调者单写共享记忆已发布就绪；周期重锚实测 4 行，Doctor 将 24 张 done 卡聚合为 1 行。T-029 与 T-028 均 `engine verify` 5/5 PASS。 |
-| 进行中 | **T-030(release)**：main 首次推送后 Linux CI PASS，install-dry-run 暴露旧 sed 模拟与新下载函数不兼容；已改为正式 `--local`，plugin AGENTS 收缩后 fresh install=44 行，T-030 5/5 PASS，等待修复提交的远端 CI。T-020 paused；D-018 待批准。 |
+| 进行中 | **T-030(release) / D-026**：第二轮 Linux CI PASS；Windows 精确定位为 `engine/bin/engine.ps1` 未固定 LF，已补 `.gitattributes`；install-dry-run 仍失败但日志不可读，已增加公开失败 annotation。tag 未推送。T-020 paused；D-018 待批准。 |
 | 阻塞 | tag 尚未推送；需远端 main CI 与 tag Release workflow 全绿后才完成。外部真实下游迁移仍待发布后试点。 |
 
 ## 当前假设 / 决策（本轮拍板）
@@ -16,6 +16,7 @@
 - **并行记忆 = 分片写、单点汇总（D-025）**：worker 只写 `engine/workstreams/<task>/<agent>/`，共享 CONTEXT/HANDOFF 等由协调者在 merge point 汇总；子 agent 直接抢写共享记忆由写前 hook 拦截。
 - **长会话约束 = 写前硬检查 + 短版周期重锚（D-025）**：任务范围覆盖 engine 文件；每次写入不依赖模型记忆，UserPromptSubmit 只补短锚，Stop/pre-commit 收尾。
 - **任务卡粒度 = 一项可独立验收的目标一卡**：多轮消息、多个 AC 与并行 worker 共用任务 ID；只读调查免卡；done 卡不注入上下文，Doctor 成功历史聚合输出，避免任务数线性消耗 token。
+- **发布门 = main CI 全绿后才推 tag（D-026）**：workflow 必须走正式 `--local`；Windows 镜像行尾由 `.gitattributes` 对称固定；失败日志通过公开 annotation 暴露，不绕过门禁。
 - **自维护强度 = 硬门禁**：改了代码不回写引擎记忆，Stop hook 拦截 agent 结束，自动补回写后才放行。
 - **Web 端策略 = 双轨**：hooks 是 Claude Code 专属增强；Web 端 AI 靠「增量回写契约」+ 手动命令。
 - **落地节奏 = 先 MVP 自试**：先验证 hooks 闭环手感，再补全三层（增量契约 + 完整 hooks + 零配置安装）并发版 v5.6。

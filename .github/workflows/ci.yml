@@ -43,7 +43,13 @@ jobs:
           mkdir target && cd target
           SRC="${{ github.workspace }}/source"
           mkdir -p home
-          HOME="$PWD/home" bash "$SRC/install.sh" --local "$SRC/plugin"
+          if ! HOME="$PWD/home" bash "$SRC/install.sh" --local "$SRC/plugin" > install.log 2>&1; then
+            message="$(tail -20 install.log | tr '\n' '|' | sed 's/%/%25/g; s/|$//')"
+            echo "::error title=Local install failed::${message}"
+            cat install.log
+            exit 1
+          fi
+          cat install.log
 
       - name: Verify installed files
         run: |

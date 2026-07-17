@@ -158,6 +158,40 @@ else
 fi
 rm -rf "$sbx3"
 
+# I4: update mode refreshes Engine System-managed settings so new hook events reach old projects
+sbx4="$(mktemp -d)"
+setup_sandbox "$sbx4"
+inject_sha256 "$sbx4"
+cp "$sbx4/runtime-law.md" "$sbx4/plugin/runtime-law.md"
+work4="$(mktemp -d)"
+mkdir -p "$work4/.claude"
+printf '%s\n' '{"_engine_system":"old managed hooks","hooks":{}}' > "$work4/.claude/settings.json"
+(cd "$work4" && HOME="$sbx4/home" bash "$INSTALL_SH" --local "$sbx4/plugin" --update >"$sbx4/i4.out" 2>&1)
+rc=$?
+if [[ "$rc" -eq 0 ]] && grep -q 'UserPromptSubmit' "$work4/.claude/settings.json" && grep -q 'PreToolUse' "$work4/.claude/settings.json"; then
+  ok "I4 managed settings receive v6.5 hooks"
+else
+  bad "I4 managed settings receive v6.5 hooks" "rc=$rc output:$(tail -20 "$sbx4/i4.out")"
+fi
+rm -rf "$work4" "$sbx4"
+
+# I5: custom settings remain user-owned in update mode
+sbx5="$(mktemp -d)"
+setup_sandbox "$sbx5"
+inject_sha256 "$sbx5"
+cp "$sbx5/runtime-law.md" "$sbx5/plugin/runtime-law.md"
+work5="$(mktemp -d)"
+mkdir -p "$work5/.claude"
+printf '%s\n' '{"custom_owner":"keep-me","hooks":{}}' > "$work5/.claude/settings.json"
+(cd "$work5" && HOME="$sbx5/home" bash "$INSTALL_SH" --local "$sbx5/plugin" --update >"$sbx5/i5.out" 2>&1)
+rc=$?
+if [[ "$rc" -eq 0 ]] && grep -q 'keep-me' "$work5/.claude/settings.json" && ! grep -q 'PreToolUse' "$work5/.claude/settings.json"; then
+  ok "I5 custom settings preserved"
+else
+  bad "I5 custom settings preserved" "rc=$rc output:$(tail -20 "$sbx5/i5.out")"
+fi
+rm -rf "$work5" "$sbx5"
+
 echo ""
 echo "=========================================="
 echo "PASS=$pass  FAIL=$fail"

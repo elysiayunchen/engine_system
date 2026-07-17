@@ -10,17 +10,18 @@ rem   1) bash on PATH               -> canonical .sh implementation
 rem   2) Git for Windows bash.exe   -> same .sh, found at standard install paths
 rem   3) PowerShell twin (.ps1)     -> last resort, decision-identical by contract
 rem
-rem Usage: engine-hook.cmd <session-start|stop|session-end>
+rem Usage: engine-hook.cmd <session-start|stop|session-end> [--guard|--pre-tool-use]
 rem stdin (hook JSON payload) and the exit code pass through untouched.
 
 setlocal
 set "HERE=%~dp0"
 set "NAME=%~1"
+set "MODE=%~2"
 if "%NAME%"=="" exit /b 0
 
 where bash >nul 2>nul
 if errorlevel 1 goto find_gitbash
-bash "%HERE%engine-hook-%NAME%.sh"
+if defined MODE (bash "%HERE%engine-hook-%NAME%.sh" "%MODE%") else (bash "%HERE%engine-hook-%NAME%.sh")
 exit /b %errorlevel%
 
 :find_gitbash
@@ -28,9 +29,9 @@ set "GITBASH="
 if exist "%ProgramFiles%\Git\bin\bash.exe" set "GITBASH=%ProgramFiles%\Git\bin\bash.exe"
 if not defined GITBASH if exist "%LocalAppData%\Programs\Git\bin\bash.exe" set "GITBASH=%LocalAppData%\Programs\Git\bin\bash.exe"
 if not defined GITBASH goto find_ps
-"%GITBASH%" "%HERE%engine-hook-%NAME%.sh"
+if defined MODE ("%GITBASH%" "%HERE%engine-hook-%NAME%.sh" "%MODE%") else ("%GITBASH%" "%HERE%engine-hook-%NAME%.sh")
 exit /b %errorlevel%
 
 :find_ps
-powershell -NoProfile -ExecutionPolicy Bypass -File "%HERE%engine-hook-%NAME%.ps1"
+if defined MODE (powershell -NoProfile -ExecutionPolicy Bypass -File "%HERE%engine-hook-%NAME%.ps1" -Mode "%MODE%") else (powershell -NoProfile -ExecutionPolicy Bypass -File "%HERE%engine-hook-%NAME%.ps1")
 exit /b %errorlevel%

@@ -94,6 +94,8 @@ package_mode() {
     engine/ENGINE_DOCTOR.md \
     engine/scripts/engine-doctor.ps1 \
     engine/scripts/engine-doctor.sh \
+    engine/scripts/engine-context.ps1 \
+    engine/scripts/engine-context.sh \
     engine/scripts/engine-migrate-contract.ps1 \
     engine/scripts/engine-migrate-contract.sh \
     engine/scripts/engine-verify.ps1 \
@@ -489,24 +491,37 @@ check_contract_debt() {
 
 check_task_card_done_evidence() {
   local tasks_dir="$ENGINE_DIR/tasks"
+  local done_count=0 exempt_count=0 verified_count=0
   [ -d "$tasks_dir" ] || return 0
   for f in "$tasks_dir"/T-*.md; do
     [ -f "$f" ] || continue
     grep -q 'status:.*done' "$f" 2>/dev/null || continue
+    done_count=$((done_count + 1))
     local tid; tid="$(basename "$f" .md)"
     local ev_dir="$ENGINE_DIR/evidence/$tid"
     if grep -qi 'exempt' "$f" 2>/dev/null; then
-      pass "task $tid done (exempt - no evidence required)"
+      exempt_count=$((exempt_count + 1))
       continue
     fi
-    if [ -d "$ev_dir" ] && ls "$ev_dir"/AC-*.json >/dev/null 2>&1; then
-      local n; n="$(ls "$ev_dir"/AC-*.json 2>/dev/null | wc -l || true)"
-      pass "task $tid done with $n evidence file(s)"
+    local ac_ids ac_count missing ac ev
+    ac_ids="$(sed -n 's/^AC:[[:space:]]*\(AC-[0-9][0-9]*\).*/\1/p' "$f")"
+    ac_count="$(printf '%s\n' "$ac_ids" | sed '/^$/d' | wc -l | tr -d ' ')"
+    missing=""
+    for ac in $ac_ids; do
+      ev="$ev_dir/$ac.json"
+      if [ ! -f "$ev" ] || ! grep -Eq '"status"[[:space:]]*:[[:space:]]*"pass"' "$ev" 2>/dev/null; then
+        missing="${missing}${missing:+,}$ac"
+      fi
+    done
+    if [ "$ac_count" -gt 0 ] 2>/dev/null && [ -z "$missing" ]; then
+      verified_count=$((verified_count + 1))
     else
-      fail "task $tid done but no evidence (engine/evidence/$tid/AC-*.json) and no exempt marker - run 'engine verify $tid' or mark exempt"
-      echo "  human: Task $tid is marked 'done' but has no verification evidence. Run 'engine verify $tid' to generate evidence, or add 'exempt' to the task card if verification is not needed."
+      [ -n "$missing" ] || missing="no declared AC"
+      fail "task $tid done without complete PASS evidence ($missing) - run 'engine verify $tid' or mark exempt"
+      echo "  human: Task $tid is marked 'done', but every declared AC needs a PASS evidence file. Missing/non-pass: $missing."
     fi
   done
+  [ "$done_count" -eq 0 ] || pass "done task evidence summary: $done_count checked ($verified_count verified, $exempt_count exempt)"
 }
 
 check_engine_version() {
@@ -751,6 +766,8 @@ fi
 for script in \
   engine-doctor.sh \
   engine-doctor.ps1 \
+  engine-context.sh \
+  engine-context.ps1 \
   engine-hook-session-start.sh \
   engine-hook-session-start.ps1 \
   engine-hook-stop.sh \

@@ -20,6 +20,7 @@
     "project-meta": {
       "paths": [
         "engine/tasks/**",
+        "engine/workstreams/**",
         "engine/decisions/**",
         "engine/changes/**",
         "engine/domains/**",

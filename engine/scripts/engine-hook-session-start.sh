@@ -15,9 +15,32 @@ log_error() { echo "[engine-hook-session-start] ERROR: $*" >&2; }
 
 ROOT="${CLAUDE_PROJECT_DIR:-$PWD}"
 ENGINE_DIR="$ROOT/engine"
+MODE="${1:-full}"
 
 if [ ! -d "$ENGINE_DIR" ]; then
   echo "[Engine System] engine/ directory not found. Run /engine-init to create the project memory layer."
+  exit 0
+fi
+
+# UserPromptSubmit calls this compact mode. It is deliberately short: enough to
+# restore the non-negotiable boundary after long runs without reinjecting L2.
+if [ "$MODE" = "--guard" ]; then
+  guard_task=""
+  for f in "$ENGINE_DIR"/tasks/T-*.md; do
+    [ -f "$f" ] || continue
+    if grep -q 'status:.*active' "$f" 2>/dev/null; then guard_task="$f"; break; fi
+  done
+  if [ -n "$guard_task" ]; then
+    guard_id="$(basename "$guard_task" .md)"
+    guard_goal="$(grep -m 1 '^GOAL:' "$guard_task" 2>/dev/null | sed 's/^GOAL:[[:space:]]*//')"
+    [ -n "$guard_goal" ] || guard_goal="$(awk '/^##[[:space:]]+GOAL/{on=1;next} on && /^##/{exit} on && NF{print;exit}' "$guard_task" 2>/dev/null)"
+    echo "[Engine Guard] ACTIVE: $guard_id | Re-check before writing."
+    printf 'GOAL: %.240s\n' "$guard_goal"
+    echo "BOUNDARY: read engine/tasks/$guard_id.md before edits; PreToolUse enforces WRITE-SET/FORBIDDEN."
+  else
+    echo "[Engine Guard] ACTIVE: none | v6.5+ ordinary writes are blocked; create/select a task card first."
+  fi
+  echo "PARALLEL: workers share the task and write engine/workstreams/<task>/<agent>/; coordinator owns shared memory."
   exit 0
 fi
 
@@ -76,8 +99,12 @@ done
 if [ -n "$active_task" ]; then
   task_id="$(basename "$active_task" .md)"
   echo "──── 🎯 Active Task Card ($task_id) ────"
-  echo "⚠️ 你的所有代码改动必须在 WRITE-SET 内;FORBIDDEN 是架构师否决权,碰了即被拦截。"
+  echo "⚠️ 所有项目路径(含 engine/*)必须在 WRITE-SET 内;FORBIDDEN 碰了即被拦截。"
   cat "$active_task" 2>/dev/null || log_error "failed to read active task card: $active_task"
+  echo ""
+else
+  echo "──── 🎯 Active Task Card: none ────"
+  echo "contract-version 6.5+ blocks ordinary writes until a task card is active; finish with engine verify T-NNN."
   echo ""
 fi
 

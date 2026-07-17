@@ -1,0 +1,1 @@
+{"ac":"AC-3","verify":"grep -n 'runtime-law' install.sh | head -20 && ! grep -E 'runtime-law.*\\|\\| true' install.sh","status":"pass","exit":0,"fingerprint":"sha256:8f5f574a6a7b2c87ed5d48e5815aab72c0ca1478615fd637b45bff4e3462adf1","timestamp":"2026-07-17T10:30:15Z"}

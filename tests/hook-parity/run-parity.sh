@@ -64,7 +64,7 @@ new_repo() {
   git -C "$d" config core.quotepath true
   git -C "$d" config core.autocrlf false
   git -C "$d" config commit.gpgsign false
-  mkdir -p "$d/engine/changes" "$d/src"
+  mkdir -p "$d/engine/changes" "$d/engine/tasks" "$d/engine/workstreams" "$d/src"
   printf 'ctx\n' > "$d/engine/CONTEXT.md"
   printf 'hf\n'  > "$d/engine/HANDOFF.md"
   printf 'code\n' > "$d/src/app.js"
@@ -72,6 +72,20 @@ new_repo() {
   git -C "$d" add -A
   git -C "$d" commit -qm init
   printf '%s\n' "$d"
+}
+
+write_task() {
+  repo="$1"
+  cat > "$repo/engine/tasks/T-001.md" <<'EOF'
+# TASK CARD — T-001
+> status: active | lane: main | decision: | plan: none | domain: root
+GOAL: parity
+WRITE-SET: src/**,engine/CONTEXT.md,engine/HANDOFF.md,engine/workstreams/**
+FORBIDDEN: engine/SECRET.md
+AC: AC-1 parity → verify: true
+EOF
+  git -C "$repo" add engine/tasks/T-001.md
+  git -C "$repo" commit -qm task
 }
 
 # run_case <场景名> <仓库路径> <期望判定> [payload]
@@ -99,6 +113,31 @@ run_case() {
     else
       echo "FAIL  ps1  $name -> expect=$expect got=$got_ps out=${out_ps:-<empty>}"
       fail=$((fail + 1))
+    fi
+  else
+    echo "SKIP  ps1  $name (no PowerShell on this host)"
+  fi
+}
+
+run_pre_case() {
+  name="$1"; repo="$2"; expect="$3"; payload="$4"
+  out_sh="$(printf '%s' "$payload" | CLAUDE_PROJECT_DIR="$repo" bash "$STOP_SH" --pre-tool-use 2>/dev/null)"
+  got_sh="$(classify "$out_sh")"
+  if [ "$got_sh" = "$expect" ]; then
+    echo "PASS  sh   $name -> $got_sh"; pass=$((pass + 1))
+  else
+    echo "FAIL  sh   $name -> expect=$expect got=$got_sh out=${out_sh:-<empty>}"; fail=$((fail + 1))
+  fi
+
+  if [ -n "$PS_BIN" ]; then
+    repo_ps="$(ps_path "$repo")"
+    stop_ps1="$(ps_path "$STOP_PS1")"
+    out_ps="$(printf '%s' "$payload" | CLAUDE_PROJECT_DIR="$repo_ps" "$PS_BIN" -NoProfile -ExecutionPolicy Bypass -File "$stop_ps1" -Mode --pre-tool-use 2>/dev/null)"
+    got_ps="$(classify "$out_ps")"
+    if [ "$got_ps" = "$expect" ]; then
+      echo "PASS  ps1  $name -> $got_ps"; pass=$((pass + 1))
+    else
+      echo "FAIL  ps1  $name -> expect=$expect got=$got_ps out=${out_ps:-<empty>}"; fail=$((fail + 1))
     fi
   else
     echo "SKIP  ps1  $name (no PowerShell on this host)"
@@ -139,6 +178,34 @@ run_case "stop-hook-active" "$r" pass '{"stop_hook_active":true}'
 # 8. 只写 capsule,没动代码 → 放行(capsule 属引擎层)
 r="$(new_repo)"; printf 'capsule\n' > "$r/engine/changes/CHANGE-2026-01-01-01.md"
 run_case "capsule-only" "$r" pass
+
+echo ""
+echo "=== PreToolUse attribution + worker isolation ==="
+
+# 9. 主 agent 写前也受 WRITE-SET 约束
+r="$(new_repo)"; write_task "$r"
+payload='{"session_id":"s-main","tool_name":"Edit","tool_input":{"file_path":"engine/SYSTEM.md"}}'
+run_pre_case "pre-main-out-of-scope" "$r" block "$payload"
+
+# 10. 子 agent 不能抢写共享 CONTEXT，即使它在任务写集内
+r="$(new_repo)"; write_task "$r"
+payload='{"session_id":"s-worker","agent_id":"worker-1","tool_name":"Edit","tool_input":{"file_path":"engine/CONTEXT.md"}}'
+run_pre_case "pre-worker-shared-block" "$r" block "$payload"
+
+# 11. 子 agent 只能写自己的 workstream 分片
+r="$(new_repo)"; write_task "$r"
+payload='{"session_id":"s-worker","agent_id":"worker-1","tool_name":"Write","tool_input":{"file_path":"engine/workstreams/T-001/worker-1/HANDOFF.md"}}'
+run_pre_case "pre-worker-own-shard" "$r" pass "$payload"
+payload='{"session_id":"s-worker","agent_id":"worker-1","tool_name":"Write","tool_input":{"file_path":"engine/workstreams/T-001/worker-2/HANDOFF.md"}}'
+run_pre_case "pre-worker-sibling-shard" "$r" block "$payload"
+
+# 12. session 路径清单防止兄弟 agent 的 CONTEXT 改动替本 agent 满足回写
+r="$(new_repo)"; write_task "$r"
+payload='{"session_id":"s-owned","agent_id":"worker-1","tool_name":"Edit","tool_input":{"file_path":"src/app.js"}}'
+run_pre_case "pre-owned-code" "$r" pass "$payload"
+printf 'x\n' >> "$r/src/app.js"
+printf 'sibling\n' >> "$r/engine/CONTEXT.md"
+run_case "session-does-not-borrow-sibling-writeback" "$r" block "$payload"
 
 echo ""
 echo "=== pre-commit parity (B 层门禁) ==="

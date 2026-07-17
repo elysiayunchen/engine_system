@@ -1,18 +1,21 @@
 # CONTEXT — 当前状态
 
-> Engine System (engine_system) · Last updated: 2026-07-14 · Profile: CLI-LEAN
+> Engine System (engine_system) · Last updated: 2026-07-17 · Profile: CLI-LEAN
 
 ## 状态面板
 
 | 维度 | 状态 |
 |------|------|
 | 构建 | ✅ 正常（纯 markdown + shell 脚本，无构建步骤） |
-| 上次完成 | **锚点执行力加固(v6.4.0)**:SYSTEM.md 模板移除 8 个项目特定 section→REPO_GUIDE.md 指针;AGENTS.md 模板增 verification gate + ANCHOR IMMUTABILITY + REPO_GUIDE 指针;plugin/AGENTS.md 72→40 行(溢出→plugin-adapter.md);pre-commit Layer 3 锚点守卫(WARN);Doctor TOP RULES source 归因检查;RECONCILE 吸收协议增强无 source 条目;sync-agent-anchors 同步。预算 2455→2417。 |
-| 进行中 | ① D-019 P2(任务胶囊 + token 账本/HANDOFF 裁剪)待开卡; ② T-020(agent 检测器)paused; ③ D-018 待架构师批准(proposed); ④ Q2 试点库待拍板 |
-| 阻塞 | 无 |
+| 上次完成 | **v6.5.0 / D-025 / T-029 + T-028**：全路径任务门禁、v6.5 无 active 卡 fail-closed、done 逐 AC evidence、session/agent 路径归属、worker workstream 分片、协调者单写共享记忆已发布就绪；周期重锚实测 4 行，Doctor 将 24 张 done 卡聚合为 1 行。T-029 与 T-028 均 `engine verify` 5/5 PASS。 |
+| 进行中 | **T-030(release)**：提交 v6.5.0、创建 tag、推送并验证远端可更新；T-020(agent 检测器)paused；D-018 待架构师批准。 |
+| 阻塞 | 无代码阻塞；外部真实下游迁移仍待发布后试点。 |
 
 ## 当前假设 / 决策（本轮拍板）
 
+- **并行记忆 = 分片写、单点汇总（D-025）**：worker 只写 `engine/workstreams/<task>/<agent>/`，共享 CONTEXT/HANDOFF 等由协调者在 merge point 汇总；子 agent 直接抢写共享记忆由写前 hook 拦截。
+- **长会话约束 = 写前硬检查 + 短版周期重锚（D-025）**：任务范围覆盖 engine 文件；每次写入不依赖模型记忆，UserPromptSubmit 只补短锚，Stop/pre-commit 收尾。
+- **任务卡粒度 = 一项可独立验收的目标一卡**：多轮消息、多个 AC 与并行 worker 共用任务 ID；只读调查免卡；done 卡不注入上下文，Doctor 成功历史聚合输出，避免任务数线性消耗 token。
 - **自维护强度 = 硬门禁**：改了代码不回写引擎记忆，Stop hook 拦截 agent 结束，自动补回写后才放行。
 - **Web 端策略 = 双轨**：hooks 是 Claude Code 专属增强；Web 端 AI 靠「增量回写契约」+ 手动命令。
 - **落地节奏 = 先 MVP 自试**：先验证 hooks 闭环手感，再补全三层（增量契约 + 完整 hooks + 零配置安装）并发版 v5.6。
@@ -33,4 +36,8 @@
 - ✅ ~~v5.7 自视图门禁~~ — Doctor 已能检测最近 change capsule、必备章节和 done plan 验收证据；`scripts/check.ps1` 与 `scripts/check.sh` 均通过。
 - ✅ ~~旧项目机制迁移不能只靠文档~~ — 新增 `engine-migrate-contract.{sh,ps1}` 并接入 `/engine-sync`、install、manifest、Doctor bundled script checks 和 duplicate drift checks。
 - ✅ ~~行为技能层不能只对 Claude Code 有效~~ — T-023 已将 5 个 behaviors 编译到 Claude Code skills + agent-neutral prompts,并通过隔离目录 local install 验证。
+- ✅ ~~任务卡在其他项目中没有形成采用闭环~~ — contract-version 6.5+ 无 active/closing 卡拒绝普通写入，任务置 done 时 pre-commit 逐 AC 查 PASS evidence；旧版本保留迁移边界。
+- ✅ ~~周期重锚和历史任务卡线性吃 token~~ — UserPromptSubmit sh/PowerShell 均为 4 行，不重复 L0/完整写集；Doctor 将 24 张 done 卡压成 1 行成功摘要。
+- ✅ ~~并行 agent 抢写共享 CONTEXT/HANDOFF~~ — worker 共享任务卡但各写 `engine/workstreams/<task>/<agent>/`；PreToolUse 拦共享写，Stop 按 session/agent 路径归属。
 - 待验证：Copilot CLI / Codex CLI 原生 hook 的 block 决策支持。
+- 待验证：真实下游项目从旧 contract-version 迁移到 6.5 后的首次任务采用与并行 workstream 手感。

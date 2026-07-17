@@ -65,17 +65,59 @@ new_repo() {
   printf '%s\n' "$d"
 }
 
+enable_strict_v65() {
+  repo="$1"
+  cat > "$repo/AGENTS.md" <<'EOF'
+# AGENTS.md
+<!-- ENGINE_SYSTEM_CONTRACT_MIGRATIONS_START -->
+<!-- contract-version: 6.5.0 -->
+strict fixture
+<!-- ENGINE_SYSTEM_CONTRACT_MIGRATIONS_END -->
+EOF
+  git -C "$repo" add AGENTS.md
+  git -C "$repo" commit -qm 'enable v6.5 strict workflow'
+}
+
 write_task() {
   repo="$1"; id="$2"; status="$3"; write_set="$4"; forbidden="$5"; decision="${6:-}"
   cat > "$repo/engine/tasks/$id.md" <<EOF
 # TASK CARD — $id
 > status: $status | lane: main | decision: $decision | plan: none | domain: root
 GOAL: test task
-WRITE-SET: $write_set
+WRITE-SET: $write_set,engine/CONTEXT.md,engine/HANDOFF.md,engine/changes/**
 FORBIDDEN: $forbidden
 AC: AC-1 test → verify: true
 CONSTRAINTS: none
 EOF
+  git -C "$repo" add "engine/tasks/$id.md"
+  git -C "$repo" commit -qm "task $id"
+}
+
+write_task_section() {
+  repo="$1"; id="$2"; status="$3"; write_set="$4"; forbidden="$5"; decision="${6:-}"
+  cat > "$repo/engine/tasks/$id.md" <<EOF
+# TASK CARD — $id
+> status: $status | lane: main | decision: $decision | plan: none | domain: root
+
+## GOAL
+test task
+
+## WRITE-SET
+- $write_set
+- engine/CONTEXT.md
+- engine/HANDOFF.md
+- engine/changes/**
+
+## FORBIDDEN
+EOF
+  if [ -n "$forbidden" ]; then printf '%s\n' "- $forbidden (architect veto)" >> "$repo/engine/tasks/$id.md"; fi
+  cat >> "$repo/engine/tasks/$id.md" <<EOF
+
+## AC
+AC: AC-1 test → verify: true
+EOF
+  git -C "$repo" add "engine/tasks/$id.md"
+  git -C "$repo" commit -qm "section task $id"
 }
 
 write_decision() {
@@ -131,14 +173,36 @@ run_stop() {
   fi
 }
 
+run_pre() {
+  name="$1"; repo="$2"; expect="$3"; pre_payload="$4"
+  out="$(printf '%s' "$pre_payload" | CLAUDE_PROJECT_DIR="$repo" bash "$STOP_SH" --pre-tool-use 2>/dev/null)"
+  got="$(classify "$out")"
+  if [ "$got" = "$expect" ]; then
+    echo "PASS  sh  $name -> $got"; pass=$((pass+1))
+  else
+    echo "FAIL  sh  $name -> expect=$expect got=$got out=${out:0:120}"; fail=$((fail+1))
+  fi
+  if [ -n "$PS_BIN" ]; then
+    repo_ps="$(ps_path "$repo")"
+    stop_ps1="$(ps_path "$STOP_PS1")"
+    out_ps="$(printf '%s' "$pre_payload" | CLAUDE_PROJECT_DIR="$repo_ps" "$PS_BIN" -NoProfile -ExecutionPolicy Bypass -File "$stop_ps1" -Mode --pre-tool-use 2>/dev/null)"
+    got_ps="$(classify "$out_ps")"
+    if [ "$got_ps" = "$expect" ]; then
+      echo "PASS  ps1 $name -> $got_ps"; pass=$((pass+1))
+    else
+      echo "FAIL  ps1 $name -> expect=$expect got=$got_ps out=${out_ps:0:120}"; fail=$((fail+1))
+    fi
+  fi
+}
+
 run_pc() {
   name="$1"; repo="$2"; expect_rc="$3"
-  ( cd "$repo" && CLAUDE_PROJECT_DIR="$repo" sh "$PRE_COMMIT" >/dev/null 2>&1 )
+  pc_out="$(cd "$repo" && CLAUDE_PROJECT_DIR="$repo" sh "$PRE_COMMIT" 2>&1)"
   rc=$?
   if [ "$rc" -eq "$expect_rc" ]; then
     echo "PASS  pc  $name -> rc=$rc"; pass=$((pass+1))
   else
-    echo "FAIL  pc  $name -> expect rc=$expect_rc got rc=$rc"; fail=$((fail+1))
+    echo "FAIL  pc  $name -> expect rc=$expect_rc got rc=$rc out=${pc_out:0:240}"; fail=$((fail+1))
   fi
 }
 
@@ -164,6 +228,33 @@ r="$(new_repo)"; write_task "$r" T-001 active "src/**" "src/app.js"; write_capsu
 printf 'x\n' >> "$r/src/app.js"; printf 'x\n' >> "$r/engine/CONTEXT.md"
 run_stop "forbidden-overrides-write-set" "$r" block
 
+# A5. 引擎文件不再享有 blanket exemption:不在 WRITE-SET → block
+r="$(new_repo)"; write_task "$r" T-001 active "src/**" ""; write_capsule "$r"
+printf 'system\n' > "$r/engine/SYSTEM.md"
+run_stop "engine-out-of-write-set" "$r" block
+
+# A6. 引擎文件显式进入 WRITE-SET → pass
+r="$(new_repo)"; write_task "$r" T-001 active "src/**,engine/SYSTEM.md" ""; write_capsule "$r"
+printf 'system\n' > "$r/engine/SYSTEM.md"
+run_stop "engine-in-write-set" "$r" pass
+
+# A7. section-list WRITE-SET/FORBIDDEN 与 inline 语义相同
+r="$(new_repo)"; write_task_section "$r" T-001 active "src/**" "lib/**"; write_capsule "$r"
+printf 'x\n' >> "$r/src/app.js"; printf 'x\n' >> "$r/engine/CONTEXT.md"
+run_stop "section-write-set-pass" "$r" pass
+printf 'x\n' >> "$r/lib/section.js"
+run_stop "section-forbidden-block" "$r" block
+
+# A8. active 卡无法解析 WRITE-SET 时 fail-closed
+r="$(new_repo)"
+cat > "$r/engine/tasks/T-001.md" <<'EOF'
+# malformed
+> status: active | lane: main | decision: | domain: root
+EOF
+git -C "$r" add engine/tasks/T-001.md && git -C "$r" commit -qm malformed
+printf 'system\n' > "$r/engine/SYSTEM.md"
+run_stop "malformed-write-set" "$r" block
+
 echo ""
 echo "=== B. 向后兼容(无 active 任务卡) ==="
 
@@ -183,7 +274,39 @@ printf 'x\n' >> "$r/src/app.js"; printf 'x\n' >> "$r/lib/other.js"; printf 'x\n'
 run_stop "paused-task-ignored" "$r" pass
 
 echo ""
-echo "=== C. pre-commit 受保护路径决策引用门禁 ==="
+echo "=== C. v6.5 strict task adoption + done evidence ==="
+
+# C1. v6.5 项目无 active 卡时,即使有旧式回写也不能改普通路径
+r="$(new_repo)"; enable_strict_v65 "$r"; write_capsule "$r"
+printf 'x\n' >> "$r/src/app.js"; printf 'x\n' >> "$r/engine/CONTEXT.md"
+run_stop "strict-no-active-stop-block" "$r" block
+
+# C2. 写入前门禁同样拦普通路径,但允许先创建任务/决策卡来建立边界
+r="$(new_repo)"; enable_strict_v65 "$r"
+pre_payload='{"session_id":"strict-main","tool_name":"Edit","tool_input":{"file_path":"src/app.js"}}'
+run_pre "strict-no-active-pre-block" "$r" block "$pre_payload"
+pre_payload='{"session_id":"strict-main","tool_name":"Write","tool_input":{"file_path":"engine/tasks/T-001.md"}}'
+run_pre "strict-task-bootstrap-pass" "$r" pass "$pre_payload"
+
+# C3. B-tier 提交门禁不能让无任务卡的 engine-only 改动漏过
+r="$(new_repo)"; enable_strict_v65 "$r"
+printf 'x\n' >> "$r/engine/HANDOFF.md"; git -C "$r" add engine/HANDOFF.md
+run_pc "strict-no-active-precommit-block" "$r" 1
+
+# C4. active -> done 必须逐 AC 有 PASS evidence;补齐后才放行
+r="$(new_repo)"; enable_strict_v65 "$r"
+write_task "$r" T-001 active "src/**,engine/tasks/T-001.md,engine/evidence/T-001/**" ""
+printf 'x\n' >> "$r/src/app.js"; printf 'x\n' >> "$r/engine/CONTEXT.md"
+sed -i 's/status: active/status: done/' "$r/engine/tasks/T-001.md"
+git -C "$r" add src/app.js engine/CONTEXT.md engine/tasks/T-001.md
+run_pc "strict-done-without-evidence-block" "$r" 1
+mkdir -p "$r/engine/evidence/T-001"
+printf '{"ac":"AC-1","status":"pass"}\n' > "$r/engine/evidence/T-001/AC-1.json"
+git -C "$r" add engine/evidence/T-001/AC-1.json
+run_pc "strict-done-all-pass-evidence" "$r" 0
+
+echo ""
+echo "=== D. pre-commit 受保护路径决策引用门禁 ==="
 
 # C1. 受保护路径变更,有 approved 决策 + scope 覆盖 → rc=0
 r="$(new_repo)"; write_rules "$r" "engine/decisions/**"
@@ -234,7 +357,7 @@ run_pc "protected-done-fallback-scope-not-covering" "$r" 1
 # C8. runtime-law.md 受保护,有 approved 决策 scope 覆盖 → rc=0
 # 注:必须实际修改 engine/CONTEXT.md 使其进入暂存区,否则第1层回写门禁会拦截。
 r="$(new_repo)"; write_rules "$r" "runtime-law.md"
-write_task "$r" T-001 active "root" "" "D-001"
+write_task "$r" T-001 active "runtime-law.md" "" "D-001"
 write_decision "$r" D-001 approved "runtime-law.md"
 printf 'test\n' > "$r/runtime-law.md"
 printf 'updated\n' > "$r/engine/CONTEXT.md"
@@ -247,6 +370,18 @@ printf 'test\n' > "$r/runtime-law.md"
 printf 'updated\n' > "$r/engine/CONTEXT.md"
 git -C "$r" add runtime-law.md engine/CONTEXT.md
 run_pc "runtime-law-protected-no-task-card" "$r" 1
+
+# C10. pre-commit 对 engine 路径同样执行 WRITE-SET
+r="$(new_repo)"; write_task "$r" T-001 active "src/**" ""
+printf 'system\n' > "$r/engine/SYSTEM.md"
+git -C "$r" add engine/SYSTEM.md
+run_pc "precommit-engine-out-of-scope" "$r" 1
+
+# C11. pre-commit 能解析 section-list WRITE-SET
+r="$(new_repo)"; write_task_section "$r" T-001 active "engine/SYSTEM.md" ""
+printf 'system\n' > "$r/engine/SYSTEM.md"
+git -C "$r" add engine/SYSTEM.md
+run_pc "precommit-section-write-set" "$r" 0
 
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

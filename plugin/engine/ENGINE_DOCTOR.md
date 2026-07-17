@@ -62,6 +62,8 @@ silently treat the script as legacy.
     `engine/evidence/*`, or a relevant `engine/changes/CHANGE-*.md`. Generated self-view
     snapshots belong in `engine/.cache/project-view.generated.md` and are never registered
     as authority.
+22. In contract-version 6.5+ projects, ordinary writes need an active/closing task card;
+    every declared AC on a done card needs PASS evidence or an approved exemption.
 
 ## Script Contract
 Preferred commands:

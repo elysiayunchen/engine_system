@@ -86,12 +86,13 @@ echo ""
 echo "=== C. isolated local install ==="
 
 SANDBOX="$(mktemp -d)"
+mkdir -p "$SANDBOX/home"
 cleanup() { rm -rf "$SANDBOX"; }
 trap cleanup EXIT
 
 (
   cd "$SANDBOX" &&
-  bash "$REPO_ROOT/install.sh" --local "$REPO_ROOT/plugin" >/tmp/engine-behavior-install.log 2>&1
+  HOME="$SANDBOX/home" bash "$REPO_ROOT/install.sh" --local "$REPO_ROOT/plugin" >/tmp/engine-behavior-install.log 2>&1
 )
 install_rc=$?
 

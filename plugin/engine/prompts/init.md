@@ -83,15 +83,15 @@ Lifecycle routing:
 - Delete → only when content is derivable/obsolete or architect approved; purge registry rows and all references in the same transaction.
 - Scope-externalize → mark as external/not registered in the session report; do not leave an ambiguous untracked authority file.
 
-**Multi-Agent Conflict Rule (v5.5.1):** When multiple agents are working in parallel, shared engine state is single-writer only. Only one agent may perform the final write-back to `ENGINE_MAP.md`, `CONTEXT.md`, `HANDOFF.md`, `PITFALLS.md`, `SYSTEM.md`, `REPO_GUIDE.md`, anchors, or plan/spec twins for a given change set. Other agents may work in parallel only on isolated drafts, evidence, scratch notes, or code changes that do not touch shared engine state. Before any shared-engine write-back, the writer MUST re-anchor the target files from disk, merge pending diffs from sibling agents, and run `/engine-doctor` after landing the merge.
+**Multi-Agent Memory Rule (v6.5):** Parallel workers MUST NOT edit shared `ENGINE_MAP.md`, `SYSTEM.md`, `REPO_GUIDE.md`, `PITFALLS.md`, `CONTEXT.md`, `HANDOFF.md`, anchors, or plan/spec files. Run `engine workstream T-NNN <agent-id>` and write only `engine/workstreams/<task>/<agent>/CONTEXT.md|HANDOFF.md` plus task-scoped evidence. The coordinator re-reads every pending shard at the merge point, updates shared memory once, and runs Doctor. Claude PreToolUse blocks identified subagents from shared memory; Stop uses `session_id + agent_id` path ledgers so sibling changes cannot satisfy another agent's write-back; pre-commit accepts either coordinator memory or a worker shard. Other harnesses SHOULD use separate git worktrees for code isolation, but workstream shards remain the engine-memory merge source.
 
-**Parallel Workstream Rule (v5.5.2):** `CONTEXT.md`, `SPRINT.md`, `ROADMAP.md`, and `HANDOFF.md` are multi-lane ledgers. They MAY track several active workstreams at once, each with a lane ID, owner, dependency, merge point, and next checkpoint. Never collapse concurrent work into one monolithic "current task" when multiple lanes exist; instead, keep one row per lane and use a shared merge point only for cross-lane coupling.
+**Parallel Workstream Rule (v6.5):** Root `CONTEXT.md`/`HANDOFF.md` show coordinator-owned merged state. Unmerged lane state lives under `engine/workstreams/` and is summarized by `engine context`; each shard carries task, owner, status, changed paths, evidence, merge state, and next checkpoint. Do not append concurrently to a shared ledger.
 
 **Project Self-View Rule (v5.7):** The architect may be non-technical and must not be forced to review raw code. Every meaningful implementation, documentation, engine-tooling, dependency, test, or behavior change SHOULD produce an architect-readable change capsule under `engine/changes/CHANGE-[yyyy-mm-dd]-[nn].md`. The capsule translates the diff into project facts: Goal, Actual Changes, Impact Scope, Risk & Watchpoints, Verification, Rollback, Next Step, and Responsibility Boundary. Capsules are operational evidence, not authority files; do not register them in ENGINE_MAP §1. Reference the latest capsule from HANDOFF / ENGINE_MAP §4 when useful. `/engine-status` may also generate `engine/.cache/project-view.generated.md` as a disposable self-view snapshot; it is generated-cache and MUST NOT be registered as authority.
 
 **Acceptance Evidence Rule (v5.7):** A plan/spec twin may be marked `done` only when every AC has evidence in the spec twin's Evidence column, `engine/evidence/*`, or a relevant `engine/changes/CHANGE-*.md` capsule. If evidence is missing, keep the plan active/blocked and surface `missing acceptance evidence` in `/engine-reconcile`.
 
-**Task Card Rule (v6 S1):** A task card (`engine/tasks/T-NNN.md`) is a machine-verifiable work order that binds agent intent to architect control. It carries a `WRITE-SET` (paths the agent may touch), optional `FORBIDDEN` (architect veto, data-enforced), `AC` with `verify:` commands, and optional `decision:` / `plan:` / `domain:` references. The Stop hook enforces: code paths touched in the current session MUST be ⊆ the active task card's WRITE-SET ∪ engine files; touching a FORBIDDEN path → `decision:block`. SessionStart always re-injects the active task card to combat drift (especially after compact/resume). Projects without an active task card fall back to v5.6 behavior (backward compatible). Task cards are operational artifacts, not authority files; do not register them in ENGINE_MAP §1.
+**Task Card Rule (v6.5):** A task card (`engine/tasks/T-NNN.md`) carries `WRITE-SET`, optional `FORBIDDEN`, `AC + verify`, and decision/plan/domain references. One card represents one independently verifiable, normally commit/PR-sized goal: reuse it across prompts and ACs; parallel workers share its ID and create workstream shards, not more cards; read-only investigation needs no card. WRITE-SET/FORBIDDEN govern ALL project paths, including `engine/*`; only runtime caches are exempt. Parsers accept both `WRITE-SET: a,b` and `## WRITE-SET` bullet lists, and an active card with no readable WRITE-SET blocks writes. Claude PreToolUse checks each planned Write/Edit and UserPromptSubmit re-injects a ≤5-line pointer guard (not L0 or the full WRITE-SET); Stop and pre-commit re-check changed/staged paths. Projects stamped `contract-version: 6.5.0` or newer block ordinary writes when no active/closing task exists (task/decision card creation remains available); older or unstamped projects retain the legacy write-back fallback until migration. A staged transition to `done` requires PASS evidence for every declared AC or an approved exemption. Done cards are cold operational history and are not injected into session context. Task cards are operational artifacts, not ENGINE_MAP authority rows.
 
 **Decision Ledger Rule (v6 S1):** A decision (`engine/decisions/D-NNN.md`) is the architect's control surface made data. It carries `status` (proposed/approved/rejected/expired/superseded), `scope` (path globs it governs), `expiry`, options, rationale, and consequences. Protected paths (declared in `engine/decisions/rules.json`) require any staged change to be covered by an `approved` decision whose `scope` matches—enforced by the git pre-commit hook via the active task card's `decision:` reference. `/engine-status` surfaces a "pending your decision" queue (all `proposed` decisions). Decisions are operational artifacts, not authority files; do not register them in ENGINE_MAP §1.
 
@@ -246,7 +246,6 @@ Before anything else, determine the mode. Check the project for `/engine/ENGINE_
 
 
 ---
-
 # ════════════════════════════════════════════
 # INIT PATH （首次初始化；运维模式请跳至文末 OPERATIONAL MODES）
 # ════════════════════════════════════════════
@@ -1538,7 +1537,7 @@ MUST NOT silently pick one and proceed on blocked or ambiguous decisions.
 4. 更新 ENGINE_MAP（注册表 revision、关系图、若有结构变更则 bump 全局 revision）
 5. 开发者确认后，手动/自动更新项目中的引擎文件，同步头部日期
 
-> **v5.6 自维护循环：** 在 Claude Code 下，Stop hook 自动执行第 1‑4 步——若本次会话改动了代码但未回写引擎记忆，hook 拦截 agent 结束并要求先增量回写，然后再放行。同时 git pre-commit hook（B 层）在任何 agent、任何平台下做同样的检查。详见「自维护循环架构」章。
+> **v6.5 自维护循环：** Claude 在每次写前校验任务范围、每次用户消息只补 ≤5 行任务指针（不重复 L0/完整写集），Stop 按 session 路径收尾；无 active/closing 任务时普通写入 fail-closed，git pre-commit 对所有 staged 路径（含 engine/*）做跨 agent 兜底。一个可独立验收目标共用一张卡，并行 worker 写独立 workstream 分片，协调者一次汇总共享记忆。
 
 
 ## 自维护循环架构 (v5.6)
@@ -1549,29 +1548,30 @@ Engine System 的"自动更新"在 v5.5 里是软契约——agent 被要求 `MU
 
 | 层 | 机制 | 触发点 | 覆盖范围 | 强度 |
 |----|------|--------|----------|------|
-| **C · 原生 hook** | Claude Code SessionStart / Stop hook | 会话开始 / 每轮结束 | Claude Code | 体验最优 |
+| **C · 原生 hook** | Claude Code SessionStart / UserPromptSubmit / PreToolUse / Stop | 开始 / 每 prompt / 每次写前 / 收尾 | Claude Code | 写前硬约束 |
 | **B · git pre-commit** | `.git/hooks/pre-commit` | `git commit` 时 | 任何 agent · 任何平台 | 硬门禁兜底 |
 | **A · 锚点契约** | AGENTS.md SESSION PROTOCOL | agent 读引导文件时 | 所有读锚点的 agent + Web 端 | 覆盖最广 |
 
 ### C 层 · Claude Code 原生 hook（体验最优）
 
-三个 hook 脚本随仓库分发(`engine/scripts/engine-hook-{session-start,stop,session-end}.{sh,ps1}`):
+hook 脚本随仓库分发(`engine/scripts/engine-hook-{session-start,stop,session-end}.{sh,ps1}`):
 
 - **SessionStart「自动接手」**:开对话瞬间,脚本读取 CONTEXT.md 状态面板 + HANDOFF.md 最新交接行,注入 agent 上下文。架构师什么都不用说,agent 第一句就是准确的状态复述。
-- **Stop「收尾守门员」(硬门禁)**:agent 每轮结束时,脚本用 `git status` 检查——若本轮改了代码但 CONTEXT.md / HANDOFF.md 没跟着更新,拦截 agent 结束(`decision: block`),要求先增量回写。仅拦截一次(`stop_hook_active` 防死循环),纯问答/工作区干净时不打扰。
+- **UserPromptSubmit + PreToolUse**:前者只补 ≤30 行 L0/任务边界,后者在 Write/Edit 前校验全部路径并阻止子 agent 抢写共享记忆；Bash 写入标记为全局保守复查。
+- **Stop「收尾守门员」**:优先按 `session_id + agent_id` 路径清单检查,不借用兄弟 agent 的 CONTEXT/HANDOFF；无清单或用过 Bash 时回退整个 worktree。
 - **SessionEnd「体检缓存」(非阻塞)**:Stop 放行后运行 Engine Doctor,将 warning/failure 写入 `engine/.cache/pending.txt` 与 `session-end-doctor.log`。下一次 SessionStart 会把 pending note 注入上下文,让 agent 先处理引擎漂移。
 
 hook 配置通过 `.claude/settings.json` 随 `install.sh` / `install.ps1` 自动铺设。PowerShell 双版本(.ps1)覆盖 Windows 原生 PowerShell 执行场景。若目标项目已有 settings,安装器保留原文件,`/engine-sync` 负责合并 hook 字段。
 
 ### B 层 · git pre-commit（跨 agent 最大公约数）
 
-`engine/scripts/githooks/pre-commit` 在 `git commit` 时检查暂存区:若本次提交有代码改动但没有同步引擎记忆(CONTEXT/HANDOFF/ENGINE_MAP),拒绝提交并提示先回写。逃生口:`git commit --no-verify`。
+`engine/scripts/githooks/pre-commit` 对全部暂存路径执行 WRITE-SET/FORBIDDEN（含 engine/*）并检查决策；v6.5+ 无 active/closing 卡拒绝普通路径，任务置 done 时逐 AC 检查 PASS evidence；代码提交须带协调者共享记忆或 `engine/workstreams/<task>/<agent>/` 分片。逃生口仍是显式 `--no-verify`。
 
 安装器会在 `.git/hooks/pre-commit` 不存在时自动安装该脚本；若已有 hook,保留用户 hook 并提示手动合并。它是唯一不需要 agent 配合的机制——无论用 Claude Code / Codex / Cursor / Aider / Gemini CLI 还是手敲,只要走 `git commit`,门禁就生效。纯 POSIX sh + git 自带 sh 执行,Linux/macOS/Windows 全覆盖。
 
 ### A 层 · 锚点契约（Web 端也吃得到）
 
-AGENTS.md / CLAUDE.md 里的 `SESSION PROTOCOL` 是写给 agent 的强制契约。配合"增量回写"策略——每完成一个有意义的单元(一个功能/一次修复/一个决策)立即增量更新 CONTEXT 状态面板 + HANDOFF 追加一行,不等会话结束——Web 端 AI 即使没有 hook,也能靠契约保持引擎记忆新鲜。
+AGENTS.md / CLAUDE.md 要求单 agent 每单元增量回写；并行 worker 运行 `engine workstream T-NNN <agent-id>` 后只更新自己的分片，协调者在 merge point 重读分片并一次更新共享 CONTEXT/HANDOFF。Web/无 hook agent 也遵循同一目录协议。
 
 ### 跨 agent 适配
 
@@ -1581,7 +1581,7 @@ AGENTS.md / CLAUDE.md 里的 `SESSION PROTOCOL` 是写给 agent 的强制契约�
 
 | Agent | C 层(原生 hook) | B 层(git) | A 层(锚点) |
 |-------|----------------|-----------|-----------|
-| Claude Code | ✅ SessionStart+Stop | ✅ | ✅ AGENTS.md |
+| Claude Code | ✅ Start+Prompt+PreTool+Stop | ✅ | ✅ AGENTS.md |
 | Copilot CLI | ⚠️ 待适配 | ✅ | ⚠️ 待同步 |
 | Codex CLI | ⚠️ 待核实 | ✅ | ✅ AGENTS.md |
 | Cursor | ⚠️ 待适配 | ✅ | ⚠️ 待同步 |
@@ -2225,8 +2225,6 @@ After outputting this guide, INIT is complete.
 
 ---
 ---
-
-
 # ════════════════════════════════════════════
 # OPERATIONAL HALF （运维：plan 约定 + 三种运维模式）
 # 由 MODE DISPATCH 在已有 ENGINE_MAP 时进入。所有运维模式先读 ENGINE_MAP 取 profile。
@@ -2359,12 +2357,12 @@ Routine:
    迁移脚本负责写入/更新 `AGENTS.md`、`engine/SYSTEM.md`、`engine/ENGINE_DOCTOR.md` 中的 `ENGINE_SYSTEM_CONTRACT_MIGRATIONS` 托管区块；项目专属规则保留在区块外。
 5. **Apply contract migrations additively**：检查迁移脚本结果，并把当前 Engine System 机制迁移进已有引擎文件，NEVER 用模板全文覆盖项目记忆：
    - **v5.5 registration closure**：补 ENGINE_MAP 注册路由、§1/§1.1/§1.2/§2/§3/§4 事务闭环规则；脚本仍不登记为 authority。
-   - **v5.5.2 multi-lane workstreams**：在 SYSTEM/AGENTS 或等价规则文件中补充 `CONTEXT.md`、`SPRINT.md`、`ROADMAP.md`、`HANDOFF.md` 可按 lane ID / owner / dependency / merge point / next checkpoint 记录并行工作；已有单线内容保持原样。
-   - **v5.6 self-maintenance loop**：补增量回写、SessionStart/Stop/SessionEnd hook、git pre-commit 兜底、shared engine single-writer 合并规则。
+   - **v6.5 workstream shards**：创建 `engine/workstreams/`;并行 worker 用 `engine workstream T-NNN <agent-id>` 写独立 CONTEXT/HANDOFF,协调者汇总根记忆；已有单线内容保持原样。
+   - **v6.5 self-maintenance loop**：补全路径 WRITE-SET、UserPromptSubmit 短锚、PreToolUse 写前检查、session 归属 Stop、全路径 pre-commit 与 worker shared-memory block。
    - **v5.7 architect self-view**：补 `engine/changes/CHANGE-*.md` change capsule 规则，要求有意义改动说明 Goal、Actual Changes、Impact Scope、Risk、Verification、Rollback、Next Step、Responsibility Boundary；`/engine-status` 输出 Project Self-View。
    - **v5.7 acceptance evidence**：补 plan/spec `done` gate：每个 AC 必须有 spec Evidence、`engine/evidence/*` 或相关 change capsule 证据。
    - **Doctor parity**：确保 `ENGINE_DOCTOR.md` 记录语义热路径检查、change capsule 完整性、done plan 验收证据；脚本实现跟随契约。
-6. **Migrate anchors**：运行 `engine-sync-agent-anchors.{sh,ps1}`，并确保 managed block 提到 read-gate、增量回写、change capsule、多 lane 和 single-writer。用户手写规则先吸收进 engine authority，再恢复薄指针。
+6. **Migrate anchors**：运行 `engine-sync-agent-anchors.{sh,ps1}`，并确保 managed block 提到 read-gate、全路径写集、workstream 分片、协调者汇总和 change capsule。用户手写规则先吸收进 engine authority，再恢复薄指针。
 7. **Verify migration capsule**：确认迁移脚本创建了 `engine/changes/CHANGE-[date]-[nn].md`，其中说明迁移了哪些机制、保留了哪些项目记忆、触碰了哪些文件、Doctor 结果、回滚方式和架构师待决策项。
 8. **Update ENGINE_MAP freshness**：bump 全局 revision；更新 touched files 的 Last verified；§4 写短摘要和 migration capsule 指针，不写长证据。
 9. **Run Doctor + Reconcile**：运行 `/engine-doctor`；再执行 RECONCILE 核对文档 vs 现实。Doctor warning/failure 必须进入报告；需要架构师拍板的修正先确认再落盘。

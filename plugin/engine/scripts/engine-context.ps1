@@ -97,9 +97,37 @@ if (Test-Path $tasksDir) {
 }
 if ($activeTask) {
   Write-Output "---- Active Task Card ($activeTaskId) ----"
-  Write-Output "All code changes MUST be within WRITE-SET; FORBIDDEN is the architect's veto."
+  Write-Output "Every project path, including engine/*, MUST be within WRITE-SET and outside FORBIDDEN."
   Get-Content $activeTask | ForEach-Object { Write-Output $_ }
   Write-Output ""
+} else {
+  Write-Output "---- Active Task Card: none ----"
+  Write-Output "contract-version 6.5+ blocks ordinary writes until engine/tasks/T-NNN.md is created or activated. Completion requires: engine verify T-NNN."
+  Write-Output ""
+}
+
+# Compact dashboard of unmerged worker shards.
+if ($activeTask) {
+  $workstreamRoot = Join-Path $EngineDir ("workstreams\" + $activeTaskId)
+  if (Test-Path $workstreamRoot) {
+    $ctxFiles = @(Get-ChildItem -Path $workstreamRoot -Filter "CONTEXT.md" -File -Recurse -ErrorAction SilentlyContinue | Sort-Object FullName)
+    if ($ctxFiles.Count -gt 0) {
+      Write-Output "---- Parallel Workstreams (unmerged) ----"
+      foreach ($ctx in $ctxFiles) {
+        $owner = $ctx.Directory.Name
+        $lines = Get-Content $ctx.FullName -ErrorAction SilentlyContinue
+        $state = ($lines | Where-Object { $_ -match '^>' } | Select-Object -First 1) -replace '^>\s*', ''
+        $progress = ""
+        $on = $false
+        foreach ($line in $lines) {
+          if ($line -match '^## Progress') { $on = $true; continue }
+          if ($on -and $line -match '^-\s+') { $progress = $line; break }
+        }
+        Write-Output ("* " + $owner + ": " + $state + $(if ($progress) { " | " + $progress } else { "" }))
+      }
+      Write-Output ""
+    }
+  }
 }
 
 # L2 domain assembly.

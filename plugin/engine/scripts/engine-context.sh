@@ -84,9 +84,33 @@ done
 if [ -n "$active_task" ]; then
   task_id="$(basename "$active_task" .md)"
   echo "──── 🎯 Active Task Card ($task_id) ────"
-  echo "All code changes MUST be within WRITE-SET; FORBIDDEN is the architect's veto."
+  echo "Every project path, including engine/*, MUST be within WRITE-SET and outside FORBIDDEN."
   cat "$active_task" 2>/dev/null || log_error "failed to read active task card: $active_task"
   echo ""
+else
+  echo "──── 🎯 Active Task Card: none ────"
+  echo "contract-version 6.5+ blocks ordinary writes until engine/tasks/T-NNN.md is created or activated. Completion requires: engine verify T-NNN."
+  echo ""
+fi
+
+# Unmerged worker shards. Keep this dashboard compact; full shard content is read on demand.
+if [ -n "$active_task" ]; then
+  workstream_root="$ENGINE_DIR/workstreams/$task_id"
+  if [ -d "$workstream_root" ]; then
+    found_workstream=0
+    for ctx in "$workstream_root"/*/CONTEXT.md; do
+      [ -f "$ctx" ] || continue
+      if [ "$found_workstream" -eq 0 ]; then
+        echo "──── Parallel Workstreams (unmerged) ────"
+        found_workstream=1
+      fi
+      owner="$(basename "$(dirname "$ctx")")"
+      state="$(grep -m 1 '^>' "$ctx" 2>/dev/null)"
+      progress="$(awk '/^## Progress/{on=1;next} on && /^-[[:space:]]/{print;exit}' "$ctx" 2>/dev/null)"
+      echo "* $owner: ${state#> } ${progress:+| $progress}"
+    done
+    [ "$found_workstream" -eq 0 ] || echo ""
+  fi
 fi
 
 # L2 domain assembly — CONTEXT + PITFALLS for each domain in the task card.

@@ -203,6 +203,8 @@ try {
     @("engine/bin/engine.cmd", "plugin/bin/engine.cmd"),
     @("engine/scripts/engine-doctor.ps1", "plugin/engine/scripts/engine-doctor.ps1"),
     @("engine/scripts/engine-doctor.sh", "plugin/engine/scripts/engine-doctor.sh"),
+    @("engine/scripts/engine-context.ps1", "plugin/engine/scripts/engine-context.ps1"),
+    @("engine/scripts/engine-context.sh", "plugin/engine/scripts/engine-context.sh"),
     @("engine/scripts/engine-hook-session-start.ps1", "plugin/engine/scripts/engine-hook-session-start.ps1"),
     @("engine/scripts/engine-hook-session-start.sh", "plugin/engine/scripts/engine-hook-session-start.sh"),
     @("engine/scripts/engine-hook-stop.ps1", "plugin/engine/scripts/engine-hook-stop.ps1"),

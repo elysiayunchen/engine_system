@@ -5,7 +5,7 @@
 #
 # Safety: read-only. No engine writes, code writes, or network calls.
 
-param()
+param([string]$Mode = "full")
 
 $ErrorActionPreference = "Continue"
 trap { Write-Warning "[engine-hook-session-start.ps1] error: $_"; continue }
@@ -16,6 +16,41 @@ $EngineDir = Join-Path $Root "engine"
 
 if (-not (Test-Path $EngineDir)) {
   Write-Output "[Engine System] engine/ was not found. Run /engine-init to create the project memory layer."
+  exit 0
+}
+
+# Compact anti-drift refresh for UserPromptSubmit. Do not inject full L2 here.
+if ($Mode -eq '--guard') {
+  $guardTask = $null
+  $tasksDirGuard = Join-Path $EngineDir "tasks"
+  if (Test-Path $tasksDirGuard) {
+    foreach ($tf in (Get-ChildItem -Path $tasksDirGuard -File -Filter "T-*.md" -ErrorAction SilentlyContinue | Sort-Object Name)) {
+      $content = Get-Content -Raw -Path $tf.FullName -Encoding UTF8 -ErrorAction SilentlyContinue
+      if ($content -match 'status:\s*active') { $guardTask = $tf; break }
+    }
+  }
+  if ($guardTask) {
+    $content = Get-Content -Raw -Path $guardTask.FullName -Encoding UTF8
+    $lines = $content -split "`n"
+    $goalLine = $lines | Where-Object { $_ -match '^GOAL:' } | Select-Object -First 1
+    $goal = if ($goalLine) { $goalLine -replace '^GOAL:\s*', '' } else { '' }
+    if (-not $goal) {
+      $on = $false
+      foreach ($raw in $lines) {
+        $line = $raw.TrimEnd("`r")
+        if ($line -match '^##\s+GOAL\s*$') { $on = $true; continue }
+        if ($on -and $line -match '^##\s+') { break }
+        if ($on -and $line.Trim()) { $goal = $line.Trim(); break }
+      }
+    }
+    if ($goal.Length -gt 240) { $goal = $goal.Substring(0, 240) }
+    Write-Output ("[Engine Guard] ACTIVE: " + $guardTask.BaseName + " | Re-check before writing.")
+    Write-Output ("GOAL: " + $goal)
+    Write-Output ("BOUNDARY: read engine/tasks/" + $guardTask.BaseName + ".md before edits; PreToolUse enforces WRITE-SET/FORBIDDEN.")
+  } else {
+    Write-Output "[Engine Guard] ACTIVE: none | v6.5+ ordinary writes are blocked; create/select a task card first."
+  }
+  Write-Output "PARALLEL: workers share the task and write engine/workstreams/<task>/<agent>/; coordinator owns shared memory."
   exit 0
 }
 
@@ -85,8 +120,12 @@ if (Test-Path $tasksDir) {
 }
 if ($activeTask) {
   Write-Output "---- Target: active task card ($activeTaskId) ----"
-  Write-Output "WARNING: all code changes must be within WRITE-SET; FORBIDDEN is the architect's veto."
+  Write-Output "WARNING: every project path, including engine/*, must be within WRITE-SET and outside FORBIDDEN."
   Get-Content $activeTask | ForEach-Object { Write-Output $_ }
+  Write-Output ""
+} else {
+  Write-Output "---- Target: active task card (none) ----"
+  Write-Output "contract-version 6.5+ blocks ordinary writes until a task card is active; finish with engine verify T-NNN."
   Write-Output ""
 }
 

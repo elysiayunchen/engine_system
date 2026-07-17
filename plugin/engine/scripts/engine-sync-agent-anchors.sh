@@ -35,10 +35,10 @@ automatically via hooks.
 
 ## Session Protocol
 Read `engine/ENGINE_MAP.md` before editing. Follow the session protocol in `AGENTS.md`:
-run the path-driven read-gate before edits, write incremental updates to `engine/CONTEXT.md`
-and `engine/HANDOFF.md` after meaningful changes, create/update an architect-readable
-`engine/changes/CHANGE-*.md` capsule with impact/risk/verification/rollback, preserve
-multi-lane workstream structure, and keep shared engine-file writes single-writer.
+run the path-driven read-gate before edits and keep every path (including `engine/*`)
+inside WRITE-SET and outside FORBIDDEN. Coordinators update shared CONTEXT/HANDOFF;
+parallel workers run `engine workstream T-NNN <agent-id>` and update only their shard
+plus evidence. The coordinator merges shards once and creates the change capsule.
 Before any edit, output: `read-gate: ENGINE_MAP ✓, SYSTEM ✓, state: [一句话]`.
 
 ## Anchor Immutability

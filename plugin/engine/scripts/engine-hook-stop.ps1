@@ -1,22 +1,5 @@
-# Engine System - Stop hook (PowerShell)
-#
-# PowerShell twin of engine-hook-stop.sh. Decisions MUST stay identical to the
-# .sh implementation - tests/hook-parity/run-parity.sh + tests/task-card/run-task-tests.sh
-# enforce this.
-#
-# Responsibilities (strict -> lenient):
-#   1. Task card gate (v6 S1+S2): with an active task card --
-#      (a) WRITE-SET boundary / FORBIDDEN -> block (S1);
-#      (b) route consistency: each code_path's domain (from federation.json)
-#          must be in the task card's domain set, else block (S2).
-#      No active card -> skip (backward compatible).
-#   2. Hard gate (v5.6): code changed without CONTEXT/HANDOFF/ENGINE_MAP -> block.
-#   3. Soft WARN (v6 S0): memory written but no change capsule -> systemMessage.
-#
-# Parsing contract: git status --porcelain -z -uall (NUL separated).
-# Safety: read-only; fail-open; idempotent via stop_hook_active.
-
-param()
+# Engine System - write/stop gate (PowerShell twin of engine-hook-stop.sh).
+param([string]$Mode = "stop")
 
 $ErrorActionPreference = "Continue"
 trap { Write-Warning "[engine-hook-stop.ps1] error: $_"; continue }
@@ -24,17 +7,232 @@ trap { Write-Warning "[engine-hook-stop.ps1] error: $_"; continue }
 $Root = $env:CLAUDE_PROJECT_DIR
 if (-not $Root) { $Root = $PWD.Path }
 $EngineDir = Join-Path $Root "engine"
-
 $payload = $input | Out-String
+
 if ($payload -match '"stop_hook_active"\s*:\s*true') { exit 0 }
 if (-not (Test-Path $EngineDir)) { exit 0 }
+if (-not (Get-Command git -ErrorAction SilentlyContinue)) { exit 0 }
 
-$gitFound = Get-Command git -ErrorAction SilentlyContinue
-if (-not $gitFound) { exit 0 }
 Push-Location $Root
 $inside = git rev-parse --is-inside-work-tree 2>$null
 Pop-Location
 if ($inside -ne "true") { exit 0 }
+
+try { $event = $payload | ConvertFrom-Json -ErrorAction Stop } catch { $event = $null }
+
+function Safe-Id([string]$Value) {
+  if (-not $Value) { return "" }
+  return ($Value -replace '[^A-Za-z0-9._-]', '_')
+}
+
+function Normalize-ProjectPath([string]$Path) {
+  if (-not $Path) { return "" }
+  $p = $Path -replace '\\', '/'
+  $rootNorm = $Root -replace '\\', '/'
+  if ($p.StartsWith($rootNorm + '/', [System.StringComparison]::OrdinalIgnoreCase)) {
+    $p = $p.Substring($rootNorm.Length + 1)
+  }
+  if ($p.StartsWith('./')) { $p = $p.Substring(2) }
+  return $p
+}
+
+function Test-StrictTaskProject {
+  foreach ($markerPath in @(
+    (Join-Path $Root 'AGENTS.md'),
+    (Join-Path $EngineDir 'SYSTEM.md'),
+    (Join-Path $EngineDir 'ENGINE_DOCTOR.md')
+  )) {
+    if (-not (Test-Path $markerPath)) { continue }
+    $markerContent = Get-Content -Raw -Path $markerPath -Encoding UTF8 -ErrorAction SilentlyContinue
+    if ($markerContent -match 'contract-version:\s*([0-9]+(?:\.[0-9]+)+)') {
+      try { return ([version]$Matches[1] -ge [version]'6.5.0') } catch { return $false }
+    }
+  }
+  return $false
+}
+
+function Test-TaskBootstrapPath([string]$Path) {
+  return ($Path -like 'engine/tasks/T-*.md' -or $Path -like 'engine/decisions/D-*.md')
+}
+
+function Find-ActiveTask {
+  $tasksDir = Join-Path $EngineDir "tasks"
+  if (-not (Test-Path $tasksDir)) { return $null }
+  foreach ($tf in (Get-ChildItem -Path $tasksDir -File -Filter "T-*.md" -ErrorAction SilentlyContinue | Sort-Object Name)) {
+    $content = Get-Content -Raw -Path $tf.FullName -Encoding UTF8 -ErrorAction SilentlyContinue
+    if ($content -match 'status:\s*active') { return $tf }
+  }
+  return $null
+}
+
+function Find-ClosingTask {
+  $tasksDir = Join-Path $EngineDir 'tasks'
+  if (-not (Test-Path $tasksDir)) { return $null }
+  foreach ($tf in (Get-ChildItem -Path $tasksDir -File -Filter 'T-*.md' -ErrorAction SilentlyContinue | Sort-Object Name)) {
+    $content = Get-Content -Raw -Path $tf.FullName -Encoding UTF8 -ErrorAction SilentlyContinue
+    if ($content -notmatch 'status:\s*done') { continue }
+    $rel = 'engine/tasks/' + $tf.Name
+    $dirty = git -C $Root status --porcelain -- $rel 2>$null
+    if ($dirty) { return $tf }
+  }
+  return $null
+}
+
+function Get-TaskPatterns([string]$Field, [string]$TaskContent) {
+  $lines = $TaskContent -split "`n"
+  foreach ($lineRaw in $lines) {
+    $line = $lineRaw.TrimEnd("`r")
+    if ($line -match ('^' + [regex]::Escape($Field) + ':\s*(.*)$')) {
+      return $Matches[1].Trim()
+    }
+  }
+  $inSection = $false
+  $items = New-Object System.Collections.Generic.List[string]
+  foreach ($lineRaw in $lines) {
+    $line = $lineRaw.TrimEnd("`r")
+    if ($line -match ('^##\s+' + [regex]::Escape($Field) + '\s*$')) {
+      $inSection = $true
+      continue
+    }
+    if ($inSection -and $line -match '^##\s+') { break }
+    if ($inSection -and $line -match '^-\s+(.+)$') {
+      $item = ($Matches[1] -replace '\s+\(.*$', '').Trim()
+      if ($item) { $items.Add($item) }
+    }
+  }
+  return ($items -join ',')
+}
+
+function Match-Glob([string]$Path, [string]$Patterns) {
+  if (-not $Patterns) { return $false }
+  foreach ($pRaw in ($Patterns -split ',')) {
+    $p = $pRaw.Trim()
+    if ($p -and $Path -like $p) { return $true }
+  }
+  return $false
+}
+
+function Is-RuntimeCache([string]$Path) {
+  return ($Path -like 'engine/.cache/*' -or $Path -like '.engine/*')
+}
+
+function Is-SharedMemory([string]$Path) {
+  $exact = @(
+    'AGENTS.md', 'CLAUDE.md', 'engine/ENGINE_MAP.md', 'engine/SYSTEM.md',
+    'engine/REPO_GUIDE.md', 'engine/CONTEXT.md', 'engine/HANDOFF.md',
+    'engine/PITFALLS.md', 'engine/SPRINT.md', 'engine/ROADMAP.md'
+  )
+  if ($exact -contains $Path) { return $true }
+  return (
+    $Path -like 'engine/domains/*/CONTEXT.md' -or
+    $Path -like 'engine/domains/*/PITFALLS.md' -or
+    $Path -like 'engine/plans/*' -or
+    $Path -like 'docs/*/specs/*' -or
+    $Path -like 'docs/specs/*'
+  )
+}
+
+function Write-Block([string]$Reason) {
+  $obj = @{ decision = 'block'; reason = $Reason }
+  Write-Output ($obj | ConvertTo-Json -Compress)
+  exit 0
+}
+
+$strictTaskMode = Test-StrictTaskProject
+$activeTaskFile = Find-ActiveTask
+if (-not $activeTaskFile -and $strictTaskMode) { $activeTaskFile = Find-ClosingTask }
+$activeTask = $null
+$activeTaskId = ""
+$writeSet = ""
+$forbidden = ""
+if ($activeTaskFile) {
+  $activeTask = Get-Content -Raw -Path $activeTaskFile.FullName -Encoding UTF8
+  $activeTaskId = $activeTaskFile.BaseName
+  $writeSet = Get-TaskPatterns 'WRITE-SET' $activeTask
+  $forbidden = Get-TaskPatterns 'FORBIDDEN' $activeTask
+}
+
+function Get-ScopeViolation([string]$Path) {
+  if (-not $activeTaskFile) {
+    if ($strictTaskMode -and -not (Test-TaskBootstrapPath $Path)) {
+      return "[Engine System] No active task card governs $Path. | developer: This project uses the v6.5 strict workflow. Create or activate engine/tasks/T-NNN.md before editing ordinary project files."
+    }
+    return $null
+  }
+  if ($forbidden -and (Match-Glob $Path $forbidden)) {
+    return "[Engine System] Path $Path is in FORBIDDEN for $activeTaskId. | developer: This file is explicitly off-limits for the current task."
+  }
+  if (-not $writeSet) {
+    return "[Engine System] Active task $activeTaskId has no readable WRITE-SET. | developer: The task boundary is malformed, so writes are paused until the task card is fixed."
+  }
+  if (-not (Match-Glob $Path $writeSet)) {
+    return "[Engine System] Path $Path is outside the WRITE-SET of $activeTaskId. | developer: This file is outside the current task scope. Current WRITE-SET: $writeSet"
+  }
+  return $null
+}
+
+$sessionId = if ($event -and $event.session_id) { [string]$event.session_id } else { "" }
+$agentId = if ($event -and $event.agent_id) { [string]$event.agent_id } else { "" }
+$toolName = if ($event -and $event.tool_name) { [string]$event.tool_name } else { "" }
+$sessionKey = if ($sessionId) { Safe-Id ($sessionId + '-' + $(if ($agentId) { $agentId } else { 'main' })) } else { "" }
+$sessionsDir = Join-Path $EngineDir ".cache\sessions"
+
+if ($Mode -eq '--pre-tool-use') {
+  $filePath = ""
+  if ($event -and $event.tool_input) {
+    if ($event.tool_input.file_path) { $filePath = [string]$event.tool_input.file_path }
+    elseif ($event.tool_input.path) { $filePath = [string]$event.tool_input.path }
+  }
+
+  if ($toolName -in @('Bash', 'Shell')) {
+    if ($sessionKey) {
+      New-Item -ItemType Directory -Force -Path $sessionsDir | Out-Null
+      Set-Content -Path (Join-Path $sessionsDir ($sessionKey + '.global')) -Value '' -Encoding ASCII
+    }
+    exit 0
+  }
+  if (-not $filePath) { exit 0 }
+
+  $path = Normalize-ProjectPath $filePath
+  if (Is-RuntimeCache $path) { exit 0 }
+
+  if ($agentId -and (Is-SharedMemory $path)) {
+    $agentSafe = Safe-Id $agentId
+    $taskLabel = if ($activeTaskId) { $activeTaskId } else { 'T-NNN' }
+    Write-Block "[Engine System] Worker agent $agentId cannot write shared memory $path. | developer: Parallel workers write engine/workstreams/$taskLabel/$agentSafe/; the coordinator merges shared CONTEXT/HANDOFF once."
+  }
+
+  if ($agentId -and $path -like 'engine/workstreams/*') {
+    $agentSafe = Safe-Id $agentId
+    $taskLabel = if ($activeTaskId) { $activeTaskId } else { 'T-NNN' }
+    if ($path -notlike "engine/workstreams/$taskLabel/$agentSafe/*") {
+      Write-Block "[Engine System] Worker $agentId may only write its own workstream shard: engine/workstreams/$taskLabel/$agentSafe/."
+    }
+  }
+
+  $violation = Get-ScopeViolation $path
+  if ($violation) { Write-Block $violation }
+
+  if ($sessionKey) {
+    New-Item -ItemType Directory -Force -Path $sessionsDir | Out-Null
+    $ledger = Join-Path $sessionsDir ($sessionKey + '.paths')
+    $known = @()
+    if (Test-Path $ledger) { $known = @(Get-Content $ledger -ErrorAction SilentlyContinue) }
+    if ($known -notcontains $path) { Add-Content -Path $ledger -Value $path -Encoding UTF8 }
+  }
+  exit 0
+}
+
+$ownedPaths = @()
+$attributed = $false
+if ($sessionKey) {
+  $ledger = Join-Path $sessionsDir ($sessionKey + '.paths')
+  $globalMarker = Join-Path $sessionsDir ($sessionKey + '.global')
+  if ((Test-Path $ledger) -and -not (Test-Path $globalMarker)) {
+    $ownedPaths = @(Get-Content $ledger -ErrorAction SilentlyContinue | Where-Object { $_ })
+    if ($ownedPaths.Count -gt 0) { $attributed = $true }
+  }
+}
 
 try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch {}
 Push-Location $Root
@@ -46,7 +244,8 @@ if (-not $raw) { exit 0 }
 $codeChanged = $false
 $engineWritten = $false
 $capsuleWritten = $false
-$codePaths = @()
+$codePaths = New-Object System.Collections.Generic.List[string]
+$governedPaths = New-Object System.Collections.Generic.List[string]
 $skipNext = $false
 
 foreach ($rec in ($raw -split "`0")) {
@@ -56,123 +255,71 @@ foreach ($rec in ($raw -split "`0")) {
   $st = $rec.Substring(0, 2)
   $path = $rec.Substring(3)
   if ($st -match '[RC]') { $skipNext = $true }
+  if ($attributed -and $ownedPaths -notcontains $path) { continue }
+  if (Is-RuntimeCache $path) { continue }
 
+  $governedPaths.Add($path)
   switch -Wildcard ($path) {
-    "engine/CONTEXT.md"          { $engineWritten = $true; break }
-    "engine/HANDOFF.md"          { $engineWritten = $true; break }
-    "engine/ENGINE_MAP.md"       { $engineWritten = $true; break }
-    "engine/changes/CHANGE-*.md" { $capsuleWritten = $true; break }
-    "engine/.cache/*"            { break }
-    ".engine/*"                  { break }
-    "engine/*"                   { break }
-    default                      { $codeChanged = $true; $codePaths += $path }
+    'engine/CONTEXT.md'          { $engineWritten = $true; break }
+    'engine/HANDOFF.md'          { $engineWritten = $true; break }
+    'engine/ENGINE_MAP.md'       { $engineWritten = $true; break }
+    'engine/workstreams/*/*/CONTEXT.md' { $engineWritten = $true; break }
+    'engine/workstreams/*/*/HANDOFF.md' { $engineWritten = $true; break }
+    'engine/changes/CHANGE-*.md' { $capsuleWritten = $true; break }
+    'engine/*'                   { break }
+    default                      { $codeChanged = $true; $codePaths.Add($path) }
   }
 }
 
-# Layer 2: hard gate (write-back check).
+if ($activeTaskFile -or $strictTaskMode) {
+  foreach ($path in $governedPaths) {
+    if ($agentId -and (Is-SharedMemory $path)) {
+      Write-Block "[Engine System] Worker agent $agentId changed shared memory $path. Use engine/workstreams/$activeTaskId/$(Safe-Id $agentId)/ and let the coordinator merge."
+    }
+    $violation = Get-ScopeViolation $path
+    if ($violation) { Write-Block $violation }
+  }
+}
+
 if ($codeChanged -and -not $engineWritten) {
-  $reason = "[Engine System] Code was changed but project memory was not updated. | developer: The AI needs to save its notes about what was done before ending the session. Please update engine/CONTEXT.md (project status) and engine/HANDOFF.md (session handoff record). Think of it like updating meeting notes after a meeting — before you leave, write down what was decided and what comes next."
-  Write-Output "{`"decision`":`"block`",`"reason`":`"$reason`"}"
-  exit 0
+  Write-Block '[Engine System] Code changed but this session did not update project memory. | developer: Save what changed and what comes next before ending. Parallel workers write their own workstream shard; the coordinator updates shared CONTEXT/HANDOFF.'
 }
 
-# Layer 1: task card WRITE-SET gate (v6 S1).
-$activeTask = $null
-$activeTaskId = $null
-$tasksDir = Join-Path $EngineDir "tasks"
-if (Test-Path $tasksDir) {
-  $taskFiles = Get-ChildItem -Path $tasksDir -File -Filter "T-*.md" -ErrorAction SilentlyContinue | Sort-Object Name
-  foreach ($tf in $taskFiles) {
-    $content = Get-Content -Raw -Path $tf.FullName -Encoding UTF8 -ErrorAction SilentlyContinue
-    if ($content -match 'status:\s*active') {
-      $activeTask = $tf.FullName
-      $activeTaskId = $tf.BaseName
-      break
-    }
-  }
-}
-
-if ($activeTask -and $codePaths.Count -gt 0) {
-  $taskContent = Get-Content -Raw -Path $activeTask -Encoding UTF8
-  $writeSet = ""
-  $forbidden = ""
-  foreach ($line in ($taskContent -split "`n")) {
-    if ($line -match '^WRITE-SET:\s*(.*)') { $writeSet = $Matches[1].Trim() }
-    if ($line -match '^FORBIDDEN:\s*(.*)') { $forbidden = $Matches[1].Trim() }
-  }
-
-  # Glob match: comma-separated patterns, path hits any -> true.
-  # In PS -like, * matches across path separators, so ** behaves as * (identical to bash case).
-  function Match-Glob([string]$Path, [string]$Patterns) {
-    if (-not $Patterns) { return $false }
-    foreach ($p in ($Patterns -split ',')) {
-      $p = $p.Trim()
-      if (-not $p) { continue }
-      if ($Path -like $p) { return $true }
-    }
-    return $false
-  }
-
-  foreach ($path in $codePaths) {
-    # FORBIDDEN takes precedence (architect veto).
-    if ($forbidden -and (Match-Glob $path $forbidden)) {
-      $reason = "[Engine System] Path $path is in the FORBIDDEN list of task $activeTaskId. | developer: This path is locked by an architect decision — it is off-limits for the current task. To unblock, create a new decision (engine/decisions/D-NNN.md) explaining why access is needed, then update the task card."
-      Write-Output "{`"decision`":`"block`",`"reason`":`"$reason`"}"
-      exit 0
-    }
-    # WRITE-SET boundary.
-    if ($writeSet -and -not (Match-Glob $path $writeSet)) {
-      $reason = "[Engine System] Path $path is not in the WRITE-SET of task $activeTaskId. | developer: This file is outside the current task's approved scope. To expand the scope, update the WRITE-SET in engine/tasks/$activeTaskId.md, or create a new decision. Current WRITE-SET: $writeSet"
-      Write-Output "{`"decision`":`"block`",`"reason`":`"$reason`"}"
-      exit 0
-    }
-  }
-
-  # S2: route consistency check.
-  # federation.json present + task card declares domain: each code_path's
-  # domain must be in the task card's domain set, else block. No federation /
-  # no domain -> skip (backward compatible with S1).
-  $fedPath = Join-Path $EngineDir "domains\federation.json"
+# Domain routing stays a code-path concern; engine-memory routing is governed by WRITE-SET.
+if ($activeTaskFile -and $codePaths.Count -gt 0) {
   $taskDomains = ""
-  foreach ($line in ($taskContent -split "`n")) {
+  foreach ($line in ($activeTask -split "`n")) {
     if (($line -match '^>') -and ($line -match 'domain:\s*([^|]+)')) {
       $taskDomains = ($Matches[1] -replace ' ', '')
       break
     }
   }
+  $fedPath = Join-Path $EngineDir 'domains\federation.json'
   if ((Test-Path $fedPath) -and $taskDomains) {
     try { $fed = Get-Content -Raw -Path $fedPath -Encoding UTF8 | ConvertFrom-Json } catch { $fed = $null }
     if ($fed) {
-      $defaultDom = $fed.default_domain
-      if (-not $defaultDom) { $defaultDom = "root" }
+      $defaultDom = if ($fed.default_domain) { $fed.default_domain } else { 'root' }
       $taskDomainList = $taskDomains -split ','
       foreach ($path in $codePaths) {
         $pathDom = $null
         foreach ($domName in $fed.domains.PSObject.Properties.Name) {
-          $dom = $fed.domains.$domName
-          if ($dom.paths) {
-            foreach ($g in $dom.paths) {
-              if ($path -like $g) { $pathDom = $domName; break }
-            }
+          foreach ($g in $fed.domains.$domName.paths) {
+            if ($path -like $g) { $pathDom = $domName; break }
           }
           if ($pathDom) { break }
         }
         if (-not $pathDom) { $pathDom = $defaultDom }
         if ($taskDomainList -notcontains $pathDom) {
-          $reason = "[Engine System] Path $path belongs to domain '$pathDom', but task $activeTaskId domain covers only [$taskDomains]. | developer: This file belongs to a different project area ('$pathDom') than the one the current task is scoped for ([$taskDomains]). To work across areas, update the task card's domain field to include the needed domain."
-          Write-Output "{`"decision`":`"block`",`"reason`":`"$reason`"}"
-          exit 0
+          Write-Block "[Engine System] Path $path belongs to domain $pathDom, outside task $activeTaskId domains [$taskDomains]."
         }
       }
     }
   }
 }
 
-# Layer 3: soft WARN (missing capsule).
 if ($codeChanged -and $engineWritten -and -not $capsuleWritten) {
-  $msg = "[Engine System] Code changes were saved to CONTEXT/HANDOFF, but no change capsule (engine/changes/CHANGE-*.md) was found. | developer: Consider writing a change summary — a short note explaining what was changed and why. This helps future you (or teammates) understand the intent behind the change. (WARN, non-blocking)"
-  Write-Output "{`"systemMessage`":`"$msg`"}"
-  exit 0
+  $msg = @{ systemMessage = '[Engine System] Code and project memory changed, but no change capsule was found. Add engine/changes/CHANGE-*.md before completion. (WARN)' }
+  Write-Output ($msg | ConvertTo-Json -Compress)
 }
 
 exit 0

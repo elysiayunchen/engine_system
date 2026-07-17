@@ -1,5 +1,13 @@
 # Changelog
 
+## v6.5.0 (2026-07-17)
+
+- 长会话与全路径任务边界：v6.5+ 无 active/closing 任务卡时普通写入 fail-closed，done 逐 AC 要 PASS evidence。
+- 并行 agent 记忆分片：worker 使用 `engine/workstreams/<task>/<agent>/`，共享 CONTEXT/HANDOFF 由协调者单写汇总。
+- 低 token 重锚：UserPromptSubmit 周期提示实测 4 行；Doctor 聚合 done 历史，避免任务数量线性消耗上下文。
+- 发布完整性：installer `--local` SHA256 校验、runtime-law 失败硬报错、双实现 parity 与完整隔离安装验证通过。
+- 详见 `engine/changes/CHANGE-2026-07-17-01.md`、`CHANGE-2026-07-17-02.md`。
+
 ## v6.3.1 (2026-07-14)
 
 - Doctor 补字节上限 + 单行宽度上限检查 (2026-07-14)
@@ -39,4 +47,3 @@
 - VERSION 6.0.1 → 6.2.0 补回遗漏更新 (2026-07-12)
 - engine/checks/ 自定义检查扩展点 (2026-07-12)
 - VERSION 卡死 bug 修复 + Doctor 格式特征检测 (2026-07-14)
-

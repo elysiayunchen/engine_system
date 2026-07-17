@@ -64,10 +64,12 @@ jobs:
               echo "PASS VERSION matches ($installed)"
             else
               echo "FAIL VERSION mismatch: installed=$installed source=$src_ver"
+              echo "::error title=Installed VERSION mismatch::installed=$installed source=$src_ver"
               errors=$((errors + 1))
             fi
           else
             echo "FAIL engine/VERSION missing after install"
+            echo "::error::engine/VERSION missing after install"
             errors=$((errors + 1))
           fi
 
@@ -76,6 +78,7 @@ jobs:
             echo "PASS engine CLI executable"
           else
             echo "FAIL engine CLI not executable"
+            echo "::error::engine/bin/engine is not executable after install"
             errors=$((errors + 1))
           fi
 
@@ -85,6 +88,7 @@ jobs:
               echo "PASS $f non-empty"
             else
               echo "FAIL $f missing or empty"
+              echo "::error::installed file missing or empty: $f"
               errors=$((errors + 1))
             fi
           done
@@ -95,6 +99,7 @@ jobs:
             plugin_file="${{ github.workspace }}/source/plugin/$src"
             if [[ ! -f "$plugin_file" ]]; then
               echo "FAIL manifest entry missing in plugin/: $src"
+              echo "::error::manifest entry missing in plugin/: $src"
               missing=$((missing + 1))
             fi
           done < <(python3 -c "

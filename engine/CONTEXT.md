@@ -8,7 +8,7 @@
 |------|------|
 | 构建 | ✅ 正常（纯 markdown + shell 脚本，无构建步骤） |
 | 上次完成 | **v6.5.0 / D-025 / T-029 + T-028**：全路径任务门禁、v6.5 无 active 卡 fail-closed、done 逐 AC evidence、session/agent 路径归属、worker workstream 分片、协调者单写共享记忆已发布就绪；周期重锚实测 4 行，Doctor 将 24 张 done 卡聚合为 1 行。T-029 与 T-028 均 `engine verify` 5/5 PASS。 |
-| 进行中 | **T-030(release) / D-026**：第三轮 Linux/Windows 已 PASS；install annotation 定位 13 个文本文件仅因 CRLF/LF 产生 checksum 假差异，manifest/双安装器/check/测试已统一 LF 规范化哈希。LF 包与 PowerShell Local 安装通过，T-030 5/5 PASS，等待第四轮 main CI。tag 未推送。 |
+| 进行中 | **T-030(release) / D-026**：第四轮 Linux/Windows 与 local install 已 PASS，Verify installed files 暴露项目内 `engine/bin/engine` 非 executable；已补 Git 100755 + installer chmod + I6/CI 断言。此前 manifest CRLF/LF 假差异也已修复。tag 未推送。 |
 | 阻塞 | tag 尚未推送；需远端 main CI 与 tag Release workflow 全绿后才完成。外部真实下游迁移仍待发布后试点。 |
 
 ## 当前假设 / 决策（本轮拍板）

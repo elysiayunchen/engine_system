@@ -8,8 +8,8 @@
 |------|------|
 | 构建 | ✅ 正常（纯 markdown + shell 脚本，无构建步骤） |
 | 上次完成 | **v6.5.0 / D-025 / T-029 + T-028**：全路径任务门禁、v6.5 无 active 卡 fail-closed、done 逐 AC evidence、session/agent 路径归属、worker workstream 分片、协调者单写共享记忆已发布就绪；周期重锚实测 4 行，Doctor 将 24 张 done 卡聚合为 1 行。T-029 与 T-028 均 `engine verify` 5/5 PASS。 |
-| 进行中 | **T-030(release) / D-026**：发布提交 `0b63aca` 的远端 main CI 29593949520 已全绿（Linux / Windows / install-migrate）；远端 VERSION=6.5.0，install.sh SHA256 与本地一致。正在记录验收并推送正式 tag。 |
-| 阻塞 | 无代码/安装阻塞；仅等待 `v6.5.0` tag 的 Release workflow 与附件完成。外部真实下游迁移作为发布后试点，不阻塞本次发布。 |
+| 进行中 | **T-030(release) / D-026**：main CI 29593949520、29594763691 均全绿；远端 VERSION=6.5.0，install.sh SHA256 与本地一致。首轮 tag workflow 29595328999 的实际失败点为 `pipefail` 下 `doctor | head -1`，同时发现 migrate 未切入 sandbox；两处均已修复并补公开 annotation。 |
+| 阻塞 | 无产品代码/安装阻塞；需提交 Release cwd 修复、等待 main CI 后更新尚未生成 Release 的 `v6.5.0` tag，并确认 workflow/附件完成。 |
 
 ## 当前假设 / 决策（本轮拍板）
 

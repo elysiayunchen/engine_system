@@ -127,6 +127,8 @@ function Test-PackageMode {
     "engine/ENGINE_DOCTOR.md",
     "engine/scripts/engine-doctor.ps1",
     "engine/scripts/engine-doctor.sh",
+    "engine/scripts/engine-context.ps1",
+    "engine/scripts/engine-context.sh",
     "engine/scripts/engine-migrate-contract.ps1",
     "engine/scripts/engine-migrate-contract.sh",
     "engine/scripts/engine-verify.ps1",
@@ -570,22 +572,37 @@ function Test-ContractDebt {
 function Test-TaskCardDoneEvidence {
   $tasksDir = Join-Path $engineDir "tasks"
   if (-not (Test-Path $tasksDir)) { return }
+  $doneCount = 0
+  $exemptCount = 0
+  $verifiedCount = 0
   foreach ($f in (Get-ChildItem -Path $tasksDir -File -Filter "T-*.md" -ErrorAction SilentlyContinue)) {
     $content = Get-Content -Raw -Path $f.FullName -Encoding UTF8 -ErrorAction SilentlyContinue
     if ($content -notmatch 'status:\s*done') { continue }
+    $doneCount++
     $tid = $f.BaseName
     $evDir = Join-Path $engineDir ("evidence\" + $tid)
     if ($content -match 'exempt') {
-      Write-Pass "task $tid done (exempt - no evidence required)"
+      $exemptCount++
       continue
     }
-    if ((Test-Path $evDir) -and (Get-ChildItem -Path $evDir -Filter "AC-*.json" -ErrorAction SilentlyContinue)) {
-      $n = (Get-ChildItem -Path $evDir -Filter "AC-*.json").Count
-      Write-Pass "task $tid done with $n evidence file(s)"
-    } else {
-      Write-Fail "task $tid done but no evidence (engine/evidence/$tid/AC-*.json) and no exempt marker - run 'engine verify $tid' or mark exempt"
-      Write-Output "  human: Task '$tid' is marked as done but has no verification evidence. Run 'engine verify $tid' to generate evidence files, or add 'exempt' to the task card if verification is not needed."
+    $acIds = @([regex]::Matches($content, '(?m)^AC:\s*(AC-[0-9]+)') | ForEach-Object { $_.Groups[1].Value })
+    $missing = New-Object System.Collections.Generic.List[string]
+    foreach ($ac in $acIds) {
+      $evPath = Join-Path $evDir ($ac + '.json')
+      if (-not (Test-Path $evPath)) { $missing.Add($ac); continue }
+      $evContent = Get-Content -Raw -Path $evPath -Encoding UTF8 -ErrorAction SilentlyContinue
+      if ($evContent -notmatch '"status"\s*:\s*"pass"') { $missing.Add($ac) }
     }
+    if ($acIds.Count -gt 0 -and $missing.Count -eq 0) {
+      $verifiedCount++
+    } else {
+      $missingText = if ($missing.Count -gt 0) { $missing -join ',' } else { 'no declared AC' }
+      Write-Fail "task $tid done without complete PASS evidence ($missingText) - run 'engine verify $tid' or mark exempt"
+      Write-Output "  human: Task '$tid' is marked as done, but every declared AC needs a PASS evidence file. Missing/non-pass: $missingText."
+    }
+  }
+  if ($doneCount -gt 0) {
+    Write-Pass "done task evidence summary: $doneCount checked ($verifiedCount verified, $exemptCount exempt)"
   }
 }
 
@@ -830,6 +847,8 @@ if ($registeredNames -notcontains "ENGINE_DOCTOR.md") {
 foreach ($script in @(
   "engine-doctor.sh",
   "engine-doctor.ps1",
+  "engine-context.sh",
+  "engine-context.ps1",
   "engine-hook-session-start.sh",
   "engine-hook-session-start.ps1",
   "engine-hook-stop.sh",

@@ -3,6 +3,7 @@
 param(
   [Parameter(Position=0)][string]$Command = "help",
   [Parameter(Position=1)][string]$Task = "",
+  [Parameter(Position=2)][string]$Agent = "",
   [switch]$CheckOnly,
   [switch]$NoMigrate,
   [switch]$Print
@@ -21,6 +22,7 @@ Usage:
   engine init           Show how to run the init interview with any AI agent
   engine init --print   Print the raw agent-neutral init prompt (pipe/copy it)
   engine context        Load full session context (agent-agnostic, any AI agent)
+  engine workstream T-NNN AGENT   Create an isolated worker memory shard
   engine check-update   Check if a newer Engine System version is available
   engine update         Update tooling, then migrate + doctor (one-shot)
   engine update -CheckOnly       Only check for updates, change nothing
@@ -112,6 +114,92 @@ function Run-Doctor {
   }
 }
 
+function New-Workstream {
+  param([string]$Root, [string]$TaskId, [string]$AgentId, [switch]$Emit)
+  $TaskId = $TaskId.ToUpperInvariant()
+  if ($TaskId -notmatch '^T-[0-9]{3}$' -or -not $AgentId) {
+    Write-Error "Usage: engine workstream T-NNN AGENT"
+    exit 2
+  }
+  if ($AgentId -notmatch '^[A-Za-z0-9._-]+$') {
+    Write-Error "Error: AGENT may contain only A-Z, a-z, 0-9, dot, underscore, or dash."
+    exit 2
+  }
+  $taskFile = Join-Path $Root ("engine\tasks\" + $TaskId + ".md")
+  if (-not (Test-Path $taskFile)) {
+    Write-Error "Error: task card not found: engine/tasks/$TaskId.md"
+    exit 2
+  }
+  $taskContent = Get-Content -Raw -Path $taskFile -Encoding UTF8
+  $goal = ""
+  foreach ($line in ($taskContent -split "`n")) {
+    if ($line -match '^GOAL:\s*(.*)$') { $goal = $Matches[1].Trim(); break }
+  }
+  if (-not $goal) {
+    $on = $false
+    foreach ($raw in ($taskContent -split "`n")) {
+      $line = $raw.TrimEnd("`r")
+      if ($line -match '^##\s+GOAL\s*$') { $on = $true; continue }
+      if ($on -and $line -match '^##\s+') { break }
+      if ($on -and $line.Trim()) { $goal = $line.Trim(); break }
+    }
+  }
+  if (-not $goal) { $goal = "See engine/tasks/$TaskId.md" }
+  $dir = Join-Path $Root ("engine\workstreams\" + $TaskId + "\" + $AgentId)
+  New-Item -ItemType Directory -Force -Path $dir | Out-Null
+  $ctx = Join-Path $dir "CONTEXT.md"
+  $handoff = Join-Path $dir "HANDOFF.md"
+  if (-not (Test-Path $ctx)) {
+    $body = @"
+# Workstream Context - $TaskId / $AgentId
+
+> status: active | task: $TaskId | owner: $AgentId | merge: pending
+
+## Goal
+
+$goal
+
+## Progress
+
+- pending
+
+## Changed Paths
+
+- none
+
+## Evidence
+
+- none
+
+## Merge Notes
+
+- Coordinator re-reads this shard before updating shared engine/CONTEXT.md and engine/HANDOFF.md.
+"@
+    [System.IO.File]::WriteAllText($ctx, $body + "`n", (New-Object System.Text.UTF8Encoding $false))
+  }
+  if (-not (Test-Path $handoff)) {
+    $body = @"
+# Workstream Handoff - $TaskId / $AgentId
+
+> updated: pending | merge: pending
+
+## Latest
+
+- Completed: none
+- Next: start assigned unit
+- Blockers: none
+- Verification: not run
+"@
+    [System.IO.File]::WriteAllText($handoff, $body + "`n", (New-Object System.Text.UTF8Encoding $false))
+  }
+  Write-Host "Workstream ready: engine/workstreams/$TaskId/$AgentId/"
+  Write-Host "Worker writes only this shard; coordinator owns shared CONTEXT/HANDOFF."
+  if ($Emit) {
+    Write-Output (Get-Content -Raw -Path $ctx -Encoding UTF8)
+    Write-Output (Get-Content -Raw -Path $handoff -Encoding UTF8)
+  }
+}
+
 switch ($Command) {
   "init" {
     $promptRel = "engine/prompts/init.md"
@@ -160,6 +248,13 @@ switch ($Command) {
     }
     $ctxScript = Join-Path $PWD.Path "engine\scripts\engine-context.ps1"
     & $ctxScript -Root $PWD.Path
+  }
+  "workstream" {
+    if (-not (Test-Path "engine")) {
+      Write-Error "Error: engine/ not found in $PWD."
+      exit 2
+    }
+    New-Workstream -Root $PWD.Path -TaskId $Task -AgentId $Agent -Emit:$Print
   }
   "check-update" {
     $chk = Join-Path $PWD.Path "engine\scripts\engine-check-update.ps1"

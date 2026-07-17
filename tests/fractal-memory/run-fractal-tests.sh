@@ -101,7 +101,7 @@ write_task_domain() {
 # TASK CARD — $id
 > status: $status | lane: main | decision: | plan: none | domain: $domain
 GOAL: test task
-WRITE-SET: $write_set
+WRITE-SET: $write_set,engine/CONTEXT.md,engine/HANDOFF.md,engine/changes/**
 FORBIDDEN: none
 AC: AC-1 test → verify: true
 CONSTRAINTS: none
@@ -123,6 +123,17 @@ touch_code() {
   repo="$1"; path="$2"
   mkdir -p "$(dirname "$repo/$path")"
   printf 'x\n' > "$repo/$path"
+}
+
+commit_setup() {
+  repo="$1"
+  git -C "$repo" add -A
+  git -C "$repo" commit -qm fixture
+}
+
+touch_capsule() {
+  repo="$1"
+  printf 'updated\n' >> "$repo/engine/changes/CHANGE-2026-07-03-01.md"
 }
 
 run_stop() {
@@ -193,37 +204,37 @@ echo "=== B. Stop hook 路由一致性门禁 ==="
 
 # B1: code_path 在声明域内 → pass(write_back 过第2层,capsule 过第3层,路由 alpha∈{alpha})。
 r="$(new_repo)"; write_federation "$r"; write_domain "$r" alpha; write_domain "$r" beta
-write_back "$r"; write_task_domain "$r" T-001 active "alpha" "src/**"; write_capsule "$r"
+write_task_domain "$r" T-001 active "alpha" "src/**"; write_capsule "$r"; commit_setup "$r"; write_back "$r"; touch_capsule "$r"
 touch_code "$r" "src/alpha/x.js"
 run_stop "B1 route-in-domain-pass" "$r" pass
 
 # B2: code_path 越域(beta ∉ {alpha}) → block。
-r="$(new_repo)"; write_federation "$r"; write_back "$r"
-write_task_domain "$r" T-001 active "alpha" "src/**"
+r="$(new_repo)"; write_federation "$r"
+write_task_domain "$r" T-001 active "alpha" "src/**"; commit_setup "$r"; write_back "$r"
 touch_code "$r" "src/beta/y.js"
 run_stop "B2 route-out-of-domain-block" "$r" block
 
 # B3: code_path 落 default root(root ∉ {alpha}) → block(WRITE-SET 含 README 隔离变量)。
-r="$(new_repo)"; write_federation "$r"; write_back "$r"
-write_task_domain "$r" T-001 active "alpha" "src/**, README.md"
+r="$(new_repo)"; write_federation "$r"
+write_task_domain "$r" T-001 active "alpha" "src/**, README.md"; commit_setup "$r"; write_back "$r"
 touch_code "$r" "README.md"
 run_stop "B3 route-default-block" "$r" block
 
 # B4: 多 domain 声明(alpha,beta),code_path 在 beta → pass。
-r="$(new_repo)"; write_federation "$r"; write_back "$r"
-write_task_domain "$r" T-001 active "alpha, beta" "src/**"; write_capsule "$r"
+r="$(new_repo)"; write_federation "$r"
+write_task_domain "$r" T-001 active "alpha, beta" "src/**"; write_capsule "$r"; commit_setup "$r"; write_back "$r"; touch_capsule "$r"
 touch_code "$r" "src/beta/y.js"
 run_stop "B4 multi-domain-pass" "$r" pass
 
 # B5: 向后兼容——无 federation.json,domain: alpha,code 在 alpha → pass(S1 行为,不校验路由)。
-r="$(new_repo)"; write_back "$r"
-write_task_domain "$r" T-001 active "alpha" "src/**"; write_capsule "$r"
+r="$(new_repo)"
+write_task_domain "$r" T-001 active "alpha" "src/**"; write_capsule "$r"; commit_setup "$r"; write_back "$r"; touch_capsule "$r"
 touch_code "$r" "src/alpha/x.js"
 run_stop "B5 compat-no-federation-pass" "$r" pass
 
 # B6: 向后兼容——federation.json 存在但任务卡 domain 为空,code 在 beta → pass(不校验路由)。
-r="$(new_repo)"; write_federation "$r"; write_back "$r"
-write_task_domain "$r" T-001 active "" "src/**"; write_capsule "$r"
+r="$(new_repo)"; write_federation "$r"
+write_task_domain "$r" T-001 active "" "src/**"; write_capsule "$r"; commit_setup "$r"; write_back "$r"; touch_capsule "$r"
 touch_code "$r" "src/beta/y.js"
 run_stop "B6 compat-no-domain-pass" "$r" pass
 

@@ -36,14 +36,14 @@
 
 
 <!-- ENGINE_SYSTEM_CONTRACT_MIGRATIONS_START -->
-<!-- contract-version: 6.2.0 -->
+<!-- contract-version: 6.5.0 -->
 ## Current Contract Checks
 > Managed by Engine System contract migration. Preserve project-specific rules outside this block.
 
 Doctor MUST validate the current Engine System v6 contract in addition to registry health:
 
-1. Task cards (`engine/tasks/T-*.md`) carry v6 machine-readable headers (GOAL / WRITE-SET / FORBIDDEN / AC+verify / CONSTRAINTS + status / lane / decision / domain).
-2. Done task cards have acceptance evidence (`engine/evidence/T-NNN/AC-*.json`) or an `exempt` marker (N3 done-gate).
+1. Task cards carry readable inline or section-list WRITE-SET/FORBIDDEN; those sets govern all project paths, including engine files.
+2. Done task cards have PASS acceptance evidence for every declared AC (`engine/evidence/T-NNN/AC-*.json`) or an `exempt` marker (N3 done-gate).
 3. Federation table `engine/domains/federation.json` is valid JSON with at least a `default_domain`.
 4. Session injection budget (N1): session-start hook output <= 400 lines.
 5. Contract debt (N4): MUST count + gate Rule count + debt vs baseline tracked.

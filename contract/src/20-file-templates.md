@@ -829,7 +829,7 @@ MUST NOT silently pick one and proceed on blocked or ambiguous decisions.
 4. 更新 ENGINE_MAP（注册表 revision、关系图、若有结构变更则 bump 全局 revision）
 5. 开发者确认后，手动/自动更新项目中的引擎文件，同步头部日期
 
-> **v5.6 自维护循环：** 在 Claude Code 下，Stop hook 自动执行第 1‑4 步——若本次会话改动了代码但未回写引擎记忆，hook 拦截 agent 结束并要求先增量回写，然后再放行。同时 git pre-commit hook（B 层）在任何 agent、任何平台下做同样的检查。详见「自维护循环架构」章。
+> **v6.5 自维护循环：** Claude 在每次写前校验任务范围、每次用户消息只补 ≤5 行任务指针（不重复 L0/完整写集），Stop 按 session 路径收尾；无 active/closing 任务时普通写入 fail-closed，git pre-commit 对所有 staged 路径（含 engine/*）做跨 agent 兜底。一个可独立验收目标共用一张卡，并行 worker 写独立 workstream 分片，协调者一次汇总共享记忆。
 
 
 ## 自维护循环架构 (v5.6)
@@ -840,29 +840,30 @@ Engine System 的"自动更新"在 v5.5 里是软契约——agent 被要求 `MU
 
 | 层 | 机制 | 触发点 | 覆盖范围 | 强度 |
 |----|------|--------|----------|------|
-| **C · 原生 hook** | Claude Code SessionStart / Stop hook | 会话开始 / 每轮结束 | Claude Code | 体验最优 |
+| **C · 原生 hook** | Claude Code SessionStart / UserPromptSubmit / PreToolUse / Stop | 开始 / 每 prompt / 每次写前 / 收尾 | Claude Code | 写前硬约束 |
 | **B · git pre-commit** | `.git/hooks/pre-commit` | `git commit` 时 | 任何 agent · 任何平台 | 硬门禁兜底 |
 | **A · 锚点契约** | AGENTS.md SESSION PROTOCOL | agent 读引导文件时 | 所有读锚点的 agent + Web 端 | 覆盖最广 |
 
 ### C 层 · Claude Code 原生 hook（体验最优）
 
-三个 hook 脚本随仓库分发(`engine/scripts/engine-hook-{session-start,stop,session-end}.{sh,ps1}`):
+hook 脚本随仓库分发(`engine/scripts/engine-hook-{session-start,stop,session-end}.{sh,ps1}`):
 
 - **SessionStart「自动接手」**:开对话瞬间,脚本读取 CONTEXT.md 状态面板 + HANDOFF.md 最新交接行,注入 agent 上下文。架构师什么都不用说,agent 第一句就是准确的状态复述。
-- **Stop「收尾守门员」(硬门禁)**:agent 每轮结束时,脚本用 `git status` 检查——若本轮改了代码但 CONTEXT.md / HANDOFF.md 没跟着更新,拦截 agent 结束(`decision: block`),要求先增量回写。仅拦截一次(`stop_hook_active` 防死循环),纯问答/工作区干净时不打扰。
+- **UserPromptSubmit + PreToolUse**:前者只补 ≤30 行 L0/任务边界,后者在 Write/Edit 前校验全部路径并阻止子 agent 抢写共享记忆；Bash 写入标记为全局保守复查。
+- **Stop「收尾守门员」**:优先按 `session_id + agent_id` 路径清单检查,不借用兄弟 agent 的 CONTEXT/HANDOFF；无清单或用过 Bash 时回退整个 worktree。
 - **SessionEnd「体检缓存」(非阻塞)**:Stop 放行后运行 Engine Doctor,将 warning/failure 写入 `engine/.cache/pending.txt` 与 `session-end-doctor.log`。下一次 SessionStart 会把 pending note 注入上下文,让 agent 先处理引擎漂移。
 
 hook 配置通过 `.claude/settings.json` 随 `install.sh` / `install.ps1` 自动铺设。PowerShell 双版本(.ps1)覆盖 Windows 原生 PowerShell 执行场景。若目标项目已有 settings,安装器保留原文件,`/engine-sync` 负责合并 hook 字段。
 
 ### B 层 · git pre-commit（跨 agent 最大公约数）
 
-`engine/scripts/githooks/pre-commit` 在 `git commit` 时检查暂存区:若本次提交有代码改动但没有同步引擎记忆(CONTEXT/HANDOFF/ENGINE_MAP),拒绝提交并提示先回写。逃生口:`git commit --no-verify`。
+`engine/scripts/githooks/pre-commit` 对全部暂存路径执行 WRITE-SET/FORBIDDEN（含 engine/*）并检查决策；v6.5+ 无 active/closing 卡拒绝普通路径，任务置 done 时逐 AC 检查 PASS evidence；代码提交须带协调者共享记忆或 `engine/workstreams/<task>/<agent>/` 分片。逃生口仍是显式 `--no-verify`。
 
 安装器会在 `.git/hooks/pre-commit` 不存在时自动安装该脚本；若已有 hook,保留用户 hook 并提示手动合并。它是唯一不需要 agent 配合的机制——无论用 Claude Code / Codex / Cursor / Aider / Gemini CLI 还是手敲,只要走 `git commit`,门禁就生效。纯 POSIX sh + git 自带 sh 执行,Linux/macOS/Windows 全覆盖。
 
 ### A 层 · 锚点契约（Web 端也吃得到）
 
-AGENTS.md / CLAUDE.md 里的 `SESSION PROTOCOL` 是写给 agent 的强制契约。配合"增量回写"策略——每完成一个有意义的单元(一个功能/一次修复/一个决策)立即增量更新 CONTEXT 状态面板 + HANDOFF 追加一行,不等会话结束——Web 端 AI 即使没有 hook,也能靠契约保持引擎记忆新鲜。
+AGENTS.md / CLAUDE.md 要求单 agent 每单元增量回写；并行 worker 运行 `engine workstream T-NNN <agent-id>` 后只更新自己的分片，协调者在 merge point 重读分片并一次更新共享 CONTEXT/HANDOFF。Web/无 hook agent 也遵循同一目录协议。
 
 ### 跨 agent 适配
 
@@ -872,7 +873,7 @@ AGENTS.md / CLAUDE.md 里的 `SESSION PROTOCOL` 是写给 agent 的强制契约�
 
 | Agent | C 层(原生 hook) | B 层(git) | A 层(锚点) |
 |-------|----------------|-----------|-----------|
-| Claude Code | ✅ SessionStart+Stop | ✅ | ✅ AGENTS.md |
+| Claude Code | ✅ Start+Prompt+PreTool+Stop | ✅ | ✅ AGENTS.md |
 | Copilot CLI | ⚠️ 待适配 | ✅ | ⚠️ 待同步 |
 | Codex CLI | ⚠️ 待核实 | ✅ | ✅ AGENTS.md |
 | Cursor | ⚠️ 待适配 | ✅ | ⚠️ 待同步 |
@@ -1516,5 +1517,3 @@ After outputting this guide, INIT is complete.
 
 ---
 ---
-
-

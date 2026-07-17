@@ -74,12 +74,16 @@ if ! command -v curl &>/dev/null && ! command -v wget &>/dev/null; then
 fi
 
 # Decide download method
+# curl -sSL 对 raw.githubusercontent.com 的 404 会把 "404: Not Found" 正文写进 dest
+# 且 exit 0——必须查 HTTP 状态码,否则装出一堆 404 正文文件还报成功。
 download() {
   local url="$1" dest="$2"
   if command -v curl &>/dev/null; then
-    curl -sSL "$url" -o "$dest"
+    local http_code
+    http_code=$(curl -sSL -w "%{http_code}" -o "$dest" "$url") || { rm -f "$dest"; return 1; }
+    [[ "$http_code" == "200" ]] || { rm -f "$dest"; return 1; }
   else
-    wget -qO "$dest" "$url"
+    wget -qO "$dest" "$url" || { rm -f "$dest"; return 1; }
   fi
 }
 
@@ -95,16 +99,21 @@ download_versioned() {
     if [[ "$http_code" == "200" ]]; then
       return 0
     fi
-    # Release artifact not found — fallback to raw content
-    curl -sSL "$raw_url" -o "$dest"
+    # Release artifact not found — fallback to raw content (status-checked)
+    download "$raw_url" "$dest"
   else
     if wget -q --spider "$release_url" 2>/dev/null; then
       wget -qO "$dest" "$release_url"
     else
-      wget -qO "$dest" "$raw_url"
+      download "$raw_url" "$dest"
     fi
   fi
 }
+
+# Destinations actually written this run. Checksum verification is scoped to this
+# list: files the installer intentionally kept (root anchors, engine/*.md memory)
+# legitimately differ from the manifest and must not fail verification.
+WRITTEN_FILES=$'\n'
 
 # Verify SHA256 checksums against manifest (hard-fail on mismatch)
 verify_checksums() {
@@ -136,15 +145,20 @@ verify_checksums() {
     # Map src to dest (same mapping as FILES array)
     local dest_file
     case "$src" in
+      engine/skeleton/*) dest_file="engine/${src#engine/skeleton/}" ;;
       engine/*) dest_file="engine/${src#engine/}" ;;
       bin/*)    dest_file="engine/bin/${src#bin/}" ;;
       migrations/*) dest_file="engine/migrations/${src#migrations/}" ;;
+      VERSION)  dest_file="engine/VERSION" ;;
       *)        dest_file="$src" ;;
     esac
 
     # .claude/settings.json is generated/modified by the installer post-download;
     # its on-disk bytes will not match the manifest hash.
     [[ "$dest_file" == ".claude/settings.json" ]] && continue
+
+    # Only verify files this run actually wrote — kept files differ by design.
+    [[ "$WRITTEN_FILES" == *$'\n'"$dest_file"$'\n'* ]] || continue
 
     [[ -f "$dest_file" ]] || continue
 
@@ -213,6 +227,8 @@ FILES=(
   ".claude/skills/engine-verify-writeback/SKILL.md:.claude/skills/engine-verify-writeback/SKILL.md:true"
   "engine/scripts/engine-doctor.sh:engine/scripts/engine-doctor.sh:true"
   "engine/scripts/engine-doctor.ps1:engine/scripts/engine-doctor.ps1:true"
+  "engine/scripts/engine-context.sh:engine/scripts/engine-context.sh:true"
+  "engine/scripts/engine-context.ps1:engine/scripts/engine-context.ps1:true"
   "engine/scripts/engine-hook-session-start.sh:engine/scripts/engine-hook-session-start.sh:true"
   "engine/scripts/engine-hook-session-start.ps1:engine/scripts/engine-hook-session-start.ps1:true"
   "engine/scripts/engine-hook-stop.sh:engine/scripts/engine-hook-stop.sh:true"
@@ -243,7 +259,7 @@ FILES=(
 )
 
 # Create directories
-mkdir -p .claude/commands .claude/skills engine engine/scripts engine/scripts/githooks engine/bin engine/migrations engine/prompts engine/prompts/behaviors engine/domains engine/checks engine/.cache
+mkdir -p .claude/commands .claude/skills engine engine/scripts engine/scripts/githooks engine/bin engine/migrations engine/prompts engine/prompts/behaviors engine/domains engine/checks engine/workstreams engine/.cache
 
 install_count=0
 skip_count=0
@@ -254,12 +270,30 @@ for entry in "${FILES[@]}"; do
   mkdir -p "$(dirname "$dest")"
 
   # Root anchor files (CLAUDE.md / AGENTS.md): never clobber an existing one, in any mode.
-  # .claude/settings.json: same rule — don't overwrite an existing one.
-  # A brand-new project gets the starter bootloader; an existing file is preserved so that
-  # /engine-init can absorb its rules first, and /engine-reconcile keeps it in sync after.
-  if { [[ "$dest" == "CLAUDE.md" ]] || [[ "$dest" == "AGENTS.md" ]] || [[ "$dest" == ".claude/settings.json" ]]; } && [[ -f "$dest" ]]; then
+  # Root anchors are always user-owned. Engine-managed Claude settings can be
+  # upgraded safely; custom settings stay untouched and /engine-sync merges them.
+  if { [[ "$dest" == "CLAUDE.md" ]] || [[ "$dest" == "AGENTS.md" ]]; } && [[ -f "$dest" ]]; then
     echo -e "  ${YELLOW}keep${RESET}  $dest (已存在，保留；运行 /engine-sync 合并 hooks 字段)"
     ((skip_count += 1))
+    continue
+  fi
+  if [[ "$dest" == ".claude/settings.json" ]] && [[ -f "$dest" ]]; then
+    if $UPDATE_MODE && grep -q '"_engine_system"' "$dest" 2>/dev/null; then
+      if [[ -n "$LOCAL_DIR" ]]; then
+        cp "$LOCAL_DIR/$src" "$dest"
+      elif [[ -n "$VERSION_TAG" ]]; then
+        download_versioned "$src" "$dest"
+      else
+        download "$url" "$dest"
+      fi
+      [[ -s "$dest" ]] || { echo -e "  ${RED}FAIL${RESET} $dest (managed settings update failed)" >&2; exit 1; }
+      echo -e "  ${GREEN}updated${RESET} $dest (Engine System managed hooks)"
+      WRITTEN_FILES+="$dest"$'\n'
+      ((install_count += 1))
+    else
+      echo -e "  ${YELLOW}keep${RESET}  $dest (custom settings; run /engine-sync to merge hooks)"
+      ((skip_count += 1))
+    fi
     continue
   fi
 
@@ -283,6 +317,7 @@ for entry in "${FILES[@]}"; do
       [[ -s "$dest" ]] || { echo -e "  ${RED}FAIL${RESET} $dest (download failed, file empty or missing)" >&2; exit 1; }
     fi
     echo -e "  ${GREEN}updated${RESET} $dest"
+    WRITTEN_FILES+="$dest"$'\n'
     ((install_count += 1))
     continue
   fi
@@ -305,6 +340,7 @@ for entry in "${FILES[@]}"; do
     [[ -s "$dest" ]] || { echo -e "  ${RED}FAIL${RESET} $dest (download failed, file empty or missing)" >&2; exit 1; }
   fi
   echo -e "  ${GREEN}✓${RESET} $dest"
+  WRITTEN_FILES+="$dest"$'\n'
   ((install_count += 1))
 done
 
@@ -378,17 +414,33 @@ esac
 
 # L0 宪法 (runtime-law.md): session-start hook 注入前 40 行对抗漂移。
 # 从仓库根拉取(contract compile 产物),放项目根。fresh + update 都覆盖(引擎产物,非项目记忆)。
-if [[ -n "$LOCAL_DIR" ]] && [[ -f "$LOCAL_DIR/runtime-law.md" ]]; then
-  cp "$LOCAL_DIR/runtime-law.md" "runtime-law.md"
+if [[ -n "$LOCAL_DIR" ]]; then
+  if [[ -f "$LOCAL_DIR/runtime-law.md" ]]; then
+    cp "$LOCAL_DIR/runtime-law.md" "runtime-law.md"
+  elif [[ -f "$LOCAL_DIR/../runtime-law.md" ]]; then
+    cp "$LOCAL_DIR/../runtime-law.md" "runtime-law.md"
+  else
+    echo -e "  ${RED}FAIL${RESET} runtime-law.md (missing from local package and parent)" >&2
+    exit 1
+  fi
 elif [[ -n "$VERSION_TAG" ]]; then
   download "https://raw.githubusercontent.com/${REPO}/v${VERSION_TAG}/runtime-law.md" "runtime-law.md"
 else
   download "https://raw.githubusercontent.com/${REPO}/${BRANCH}/runtime-law.md" "runtime-law.md"
 fi
+[[ -s "runtime-law.md" ]] || { echo -e "  ${RED}FAIL${RESET} runtime-law.md (download failed, file empty or missing)" >&2; exit 1; }
 echo -e "  ${GREEN}✓${RESET} runtime-law.md (L0 constitution)"
 
-# Verify SHA256 checksums (hard-fail on mismatch; only when --version is specified, skip for --local)
-if [[ -n "$VERSION_TAG" ]] && [[ -z "$LOCAL_DIR" ]]; then
+# Verify SHA256 checksums (hard-fail on mismatch).
+# --local: manifest.json ships inside the package — verify against it directly.
+# --version: fetch the tagged manifest. Default branch install: manifest and files
+# come from the same moving ref, so a fetched manifest can't detect anything but
+# transfer corruption; per-file HTTP-status + non-empty checks cover that path.
+if [[ -n "$LOCAL_DIR" ]] && [[ -f "$LOCAL_DIR/manifest.json" ]]; then
+  if ! verify_checksums "$LOCAL_DIR/manifest.json"; then
+    exit 1
+  fi
+elif [[ -n "$VERSION_TAG" ]]; then
   download "https://raw.githubusercontent.com/${REPO}/v${VERSION_TAG}/${PLUGIN_DIR}/manifest.json" ".manifest-check.json" 2>/dev/null || true
   if [[ -f ".manifest-check.json" ]]; then
     if ! verify_checksums ".manifest-check.json"; then

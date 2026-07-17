@@ -1,6 +1,6 @@
 # Engine System — Agent Entry
 
-> Powered by [Engine System](https://github.com/elysiayunchen/engine_system) (v6.2)
+> Powered by [Engine System](https://github.com/elysiayunchen/engine_system) (v6.5)
 > Bootloader only. Truth lives in `engine/`, indexed by `engine/ENGINE_MAP.md`.
 
 ## FIRST ACTION (MUST)
@@ -23,7 +23,8 @@ All new rules → engine/SYSTEM.md; this file only excerpts with `source:` tags.
 
 ## SESSION PROTOCOL
 - Start: read ENGINE_MAP → load by profile → read rules/anchors/plans → restate state.
-- During: after meaningful code change, update CONTEXT.md + HANDOFF.md + change capsule.
+- Before edits: one independently verifiable goal shares one task across prompts/workers; read-only work needs none. Otherwise create/activate `engine/tasks/T-NNN.md`; v6.5+ ordinary writes fail closed without one.
+- During: coordinator updates shared memory; parallel workers run `engine workstream T-NNN <agent-id>` and update only that shard.
 - End: run `/engine-update`; Claude Code hooks may block Stop if write-back missing.
 - Multi-lane, self-maintenance loop, architect view: see `engine/agents/plugin-adapter.md`.
 
@@ -31,7 +32,7 @@ All new rules → engine/SYSTEM.md; this file only excerpts with `source:` tags.
 - `/engine-init` init · `/engine-update` handoff · `/engine-status` snapshot
 - `/add-pitfall` · `/engine-ingest` plan · `/engine-extend` file · `/engine-doctor` health
 - `/engine-sync` migrate · `/engine-reconcile` reconcile
-- CLI: `engine check-update` · `engine update` · `engine migrate`
+- CLI: `engine context` · `engine workstream T-NNN <agent-id>` · `engine check-update` · `engine update` · `engine migrate`
 
 ## MAP
 - Index: `engine/ENGINE_MAP.md` · Rules: `engine/SYSTEM.md` · State: `engine/CONTEXT.md`

@@ -155,6 +155,8 @@ fi
 SYNC_LIST="
 engine-check-update.ps1
 engine-check-update.sh
+engine-context.ps1
+engine-context.sh
 engine-doctor.ps1
 engine-doctor.sh
 engine-hook-session-end.ps1

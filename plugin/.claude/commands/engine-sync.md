@@ -93,8 +93,10 @@ updates the Engine System layer itself, then reconciles the local engine files.
    - Windows: `.\engine\scripts\engine-sync-agent-anchors.ps1`
    - Generated targets include `.github/copilot-instructions.md`, `.cursor/rules/engine.md`,
      `GEMINI.md`, `.clinerules`, `.roorules`, and an Aider starter config when absent.
-9. Ensure Claude Code hooks include SessionStart plus both Stop commands:
-   - `engine-hook-stop.*` is the write-back gatekeeper.
+9. Ensure Claude Code hooks include SessionStart, UserPromptSubmit, PreToolUse, and both Stop commands:
+   - UserPromptSubmit calls `engine-hook-session-start.* --guard` for the short anti-drift refresh.
+   - PreToolUse calls `engine-hook-stop.* --pre-tool-use` for all-path scope and worker shared-memory checks.
+   - `engine-hook-stop.*` is the session-attributed write-back gatekeeper.
    - `engine-hook-session-end.*` runs Doctor and caches warnings in `engine/.cache/pending.txt`.
    - If `.claude/settings.json` already existed and install preserved it, merge these hook
      entries instead of overwriting the user's settings.
@@ -113,8 +115,8 @@ updates the Engine System layer itself, then reconciles the local engine files.
    - next recommended command
 
 During multi-agent work, `/engine-sync` is the merge point, not a parallel write path.
-Treat shared engine files as single-writer state: gather evidence in parallel if useful,
-then let one agent re-anchor, merge, write, and run Doctor after the write-back.
+Workers run `engine workstream T-NNN <agent-id>` and update only their shard. The
+coordinator re-anchors all pending shards, updates shared memory once, then runs Doctor.
 
 ## Safety
 - Never overwrite existing `engine/*.md` project memory just because the plugin template

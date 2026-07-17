@@ -1,155 +1,235 @@
 #!/bin/sh
-# Engine System — git pre-commit hook · 跨平台 / 跨 agent 的"收尾守门员"
-#
-# B 层门禁(agent 无关、平台无关)。两层检查:
-#   1. 回写门禁:代码改动但没同步 CONTEXT/HANDOFF/ENGINE_MAP → 拦截。
-#   2. 受保护路径门禁(v6 S1):受保护路径(rules.json 声明)的变更须由一个
-#      status:approved 且 scope 覆盖该路径的决策授权——通过 active 任务卡的
-#      decision: D-NNN 字段引用。无引用 / 未批准 / scope 不覆盖 → 拦截。
-#
-# 跨平台:纯 POSIX sh + git 自带 sh。安全契约:只读引擎文件;仅读暂存区。
-# 逃生口:git commit --no-verify。
+# Engine System - agent-neutral commit gate.
+# 1. Enforce task WRITE-SET/FORBIDDEN for every staged project path, including engine files.
+# 2. Require project-memory write-back for code changes.
+# 3. Require approved decisions for protected paths.
+# 4. Warn when root anchors gain unsourced rules.
 
 ROOT="${CLAUDE_PROJECT_DIR:-$PWD}"
 ENGINE_DIR="$ROOT/engine"
 
-# -z + tr:非 ASCII 路径在默认 core.quotepath=true 下会被引号+八进制转义包裹,
-# 击穿前缀匹配。-z 从不转义;POSIX sh 读不了 NUL 分隔,用 tr 转成行分隔。
 staged="$(git diff --cached --name-only -z 2>/dev/null | tr '\0' '\n')"
 [ -n "$staged" ] || exit 0
 
-# ── 第 1 层:回写门禁 ─────────────────────────────────────────────────────
-code_changed="$(printf '%s\n' "$staged" | grep -vE '^(engine/|\.engine/)' | head -1)"
-engine_written="$(printf '%s\n' "$staged" | grep -E '^engine/(CONTEXT|HANDOFF|ENGINE_MAP)\.md$' | head -1)"
-
-if [ -n "$code_changed" ] && [ -z "$engine_written" ]; then
-  printf '\n' >&2
-  printf '【Engine System · 收尾守门员】本次提交改动了代码,但没有同步引擎记忆。\n' >&2
-  printf '请在本次提交里一并更新 engine/CONTEXT.md 或 engine/HANDOFF.md\n' >&2
-  printf '(一句话:这次做了什么 + 下一步),让项目记忆跟代码同步演进。\n' >&2
-  printf '\n' >&2
-  printf '如果确实只想提交纯代码改动,可用:  git commit --no-verify\n' >&2
-  printf '\n' >&2
-  exit 1
-fi
-
-# ── 第 2 层:受保护路径决策引用门禁(v6 S1)──────────────────────────────
-rules_file="$ENGINE_DIR/decisions/rules.json"
-[ -f "$rules_file" ] && [ -n "$ENGINE_DIR" ] || exit 0
-
-# 从 rules.json 提取 protected_paths 数组中的 glob(每行一个)。
-protected="$(sed -n '/"protected_paths"/,/\]/{
-  /"protected_paths"/d
-  /\]/d
-  s/.*"\([^"]*\)".*/\1/p
-}' "$rules_file" 2>/dev/null)"
-[ -n "$protected" ] || exit 0
-
-# 找到 active 任务卡及其 decision 引用。
-active_task=""
-for f in "$ENGINE_DIR"/tasks/T-*.md; do
-  [ -f "$f" ] || continue
-  if grep -q 'status:.*active' "$f" 2>/dev/null; then
-    active_task="$f"; break
-  fi
-done
-
-task_decision=""
-if [ -n "$active_task" ]; then
-  task_decision="$(grep 'decision:' "$active_task" 2>/dev/null | head -1 | sed 's/.*decision:[[:space:]]*//' | sed 's/[[:space:]].*//')"
-fi
-# v6 批次2a: 无 active 时,fallback 到最新 done 任务卡的 decision(done 后提交用最近决策)。
-if [ -z "$task_decision" ]; then
-  for f in $(ls -1 "$ENGINE_DIR"/tasks/T-*.md 2>/dev/null | sort -r); do
-    [ -f "$f" ] || continue
-    if grep -q 'status:.*done' "$f" 2>/dev/null; then
-      task_decision="$(grep 'decision:' "$f" 2>/dev/null | head -1 | sed 's/.*decision:[[:space:]]*//' | sed 's/[[:space:]].*//')"
-      break
-    fi
+is_strict_task_project() {
+  _version=""
+  for _marker in "$ROOT/AGENTS.md" "$ENGINE_DIR/SYSTEM.md" "$ENGINE_DIR/ENGINE_DOCTOR.md"; do
+    [ -f "$_marker" ] || continue
+    _version="$(sed -n 's/.*contract-version:[[:space:]]*\([0-9][0-9.]*\).*/\1/p' "$_marker" 2>/dev/null | head -1)"
+    [ -n "$_version" ] && break
   done
-fi
+  [ -n "$_version" ] || return 1
+  _major="${_version%%.*}"
+  _minor="${_version#*.}"; _minor="${_minor%%.*}"
+  case "$_major:$_minor" in *[!0-9:]*|:*) return 1 ;; esac
+  [ "$_major" -gt 6 ] 2>/dev/null || { [ "$_major" -eq 6 ] 2>/dev/null && [ "$_minor" -ge 5 ] 2>/dev/null; }
+}
 
-# glob 匹配辅助:path 是否命中换行分隔的 glob 列表中的任一条。
+is_task_bootstrap_path() {
+  case "$1" in engine/tasks/T-*.md|engine/decisions/D-*.md) return 0 ;; *) return 1 ;; esac
+}
+
+strict_task_mode=0
+is_strict_task_project && strict_task_mode=1
+
+parse_task_patterns() {
+  _field="$1"; _file="$2"
+  _inline="$(grep "^${_field}:" "$_file" 2>/dev/null | head -1 | sed "s/^${_field}:[[:space:]]*//;s/\r$//")"
+  if [ -n "$_inline" ]; then
+    printf '%s' "$_inline"
+    return 0
+  fi
+  awk -v field="$_field" '
+    BEGIN { in_section=0; out="" }
+    {
+      sub(/\r$/, "")
+      if ($0 ~ "^##[[:space:]]+" field "[[:space:]]*$") { in_section=1; next }
+      if (in_section && $0 ~ "^##[[:space:]]+") { exit }
+      if (in_section && $0 ~ "^-[[:space:]]+") {
+        sub(/^-[[:space:]]+/, "")
+        sub(/[[:space:]]+\(.*/, "")
+        if ($0 != "") out = (out == "" ? $0 : out "," $0)
+      }
+    }
+    END { print out }
+  ' "$_file" 2>/dev/null
+}
+
 match_any_glob() {
   _path="$1"; _pats="$2"; _old="$IFS"
-  IFS='
-'
+  set -f
+  IFS=','
   for _p in $_pats; do
+    _p="$(printf '%s' "$_p" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
     [ -n "$_p" ] || continue
-    case "$_path" in
-      $_p) IFS="$_old"; return 0 ;;
-    esac
+    case "$_path" in $_p) IFS="$_old"; set +f; return 0 ;; esac
   done
   IFS="$_old"
+  set +f
   return 1
 }
 
-# 逐个检查暂存文件:受保护路径须有 approved 决策且 scope 覆盖。
-# set -f:禁用 glob,否则 ** 在 match_any_glob 的 for 循环中被展开为目录内容。
-set -f
-violation=""
-oldIFS="$IFS"
-IFS='
-'
-for file in $staged; do
-  [ -n "$file" ] || continue
-  match_any_glob "$file" "$protected" || continue
-
-  # 此文件受保护——必须有决策引用。
-  if [ -z "$task_decision" ]; then
-    violation="$file (无 active 任务卡或任务卡未声明 decision: D-NNN)"
-    break
-  fi
-  decision_file="$ENGINE_DIR/decisions/$task_decision.md"
-  if [ ! -f "$decision_file" ]; then
-    violation="$file (决策 $task_decision 文件不存在)"
-    break
-  fi
-  if ! grep -q 'status.*approved' "$decision_file" 2>/dev/null; then
-    violation="$file (决策 $task_decision 未批准)"
-    break
-  fi
-  # scope 覆盖检查:scope 是逗号分隔的 glob,在同一行 > 开头。
-  # 转成换行分隔后用 match_any_glob,避免 for 循环中 ** 被文件系统展开。
-  scope_line="$(grep 'scope' "$decision_file" 2>/dev/null | head -1)"
-  scope_raw="$(printf '%s' "$scope_line" | sed 's/.*scope[[:space:]]*[:|][[:space:]]*//' | sed 's/[[:space:]]*|.*//' | tr -d '\r')"
-  scope_pats="$(printf '%s' "$scope_raw" | sed 's/,[[:space:]]*/\n/g' | sed '/^[[:space:]]*$/d')"
-  if ! match_any_glob "$file" "$scope_pats"; then
-    violation="$file (决策 $task_decision 的 scope 不覆盖此路径)"
-    break
-  fi
+# Prefer the active card. A staged card being closed remains the governing
+# boundary. Only legacy (<6.5/no marker) projects fall back to an unrelated
+# historical done card.
+task_file=""
+for f in "$ENGINE_DIR"/tasks/T-*.md; do
+  [ -f "$f" ] || continue
+  if grep -q 'status:.*active' "$f" 2>/dev/null; then task_file="$f"; break; fi
 done
-IFS="$oldIFS"
-set +f
+if [ -z "$task_file" ]; then
+  closing_task_path="$(printf '%s\n' "$staged" | grep -E '^engine/tasks/T-[0-9]+\.md$' | sort -r | while IFS= read -r _task_path; do
+    if git -C "$ROOT" show ":$_task_path" 2>/dev/null | grep -q 'status:.*done'; then
+      printf '%s\n' "$_task_path"
+      break
+    fi
+  done)"
+  [ -n "$closing_task_path" ] && task_file="$ROOT/$closing_task_path"
+fi
+if [ -z "$task_file" ] && [ "$strict_task_mode" -eq 0 ]; then
+  for f in $(ls -1 "$ENGINE_DIR"/tasks/T-*.md 2>/dev/null | sort -r); do
+    [ -f "$f" ] || continue
+    if grep -q 'status:.*done' "$f" 2>/dev/null; then task_file="$f"; break; fi
+  done
+fi
 
-if [ -n "$violation" ]; then
-  printf '\n' >&2
-  printf '【Engine System · 受保护路径门禁】%s\n' "$violation" >&2
-  printf '受保护路径的变更须由一个 status:approved 且 scope 覆盖该路径的决策授权。\n' >&2
-  printf '在任务卡(engine/tasks/T-NNN.md)中声明 decision: D-NNN,\n' >&2
-  printf '并确保 engine/decisions/D-NNN.md 已批准且 scope 覆盖该路径。\n' >&2
-  printf '逃生口: git commit --no-verify\n' >&2
-  printf '\n' >&2
+if [ -z "$task_file" ] && [ "$strict_task_mode" -eq 1 ]; then
+  old_ifs="$IFS"; IFS='
+'
+  for file in $staged; do
+    [ -n "$file" ] || continue
+    case "$file" in engine/.cache/*|.engine/*) continue ;; esac
+    is_task_bootstrap_path "$file" && continue
+    printf '\n[Engine System] No active task card governs %s; commit blocked.\n' "$file" >&2
+    printf 'Create or activate engine/tasks/T-NNN.md before staging ordinary project changes.\n\n' >&2
+    IFS="$old_ifs"
+    exit 1
+  done
+  IFS="$old_ifs"
+fi
+
+if [ -n "$task_file" ]; then
+  task_id="$(basename "$task_file" .md)"
+  write_set="$(parse_task_patterns WRITE-SET "$task_file")"
+  forbidden="$(parse_task_patterns FORBIDDEN "$task_file")"
+  if [ -z "$write_set" ]; then
+    printf '\n[Engine System] %s has no readable WRITE-SET; commit blocked.\n\n' "$task_id" >&2
+    exit 1
+  fi
+  old_ifs="$IFS"; IFS='
+'
+  for file in $staged; do
+    [ -n "$file" ] || continue
+    case "$file" in engine/.cache/*|.engine/*) continue ;; esac
+    if [ -n "$forbidden" ] && match_any_glob "$file" "$forbidden"; then
+      printf '\n[Engine System] %s is FORBIDDEN by %s; commit blocked.\n\n' "$file" "$task_id" >&2
+      IFS="$old_ifs"
+      exit 1
+    fi
+    if ! match_any_glob "$file" "$write_set"; then
+      printf '\n[Engine System] %s is outside %s WRITE-SET; commit blocked.\nWRITE-SET: %s\n\n' "$file" "$task_id" "$write_set" >&2
+      IFS="$old_ifs"
+      exit 1
+    fi
+  done
+  IFS="$old_ifs"
+fi
+
+# In v6.5+ a task cannot cross active -> done on declaration alone. Every AC in
+# the staged card must have a staged/committed PASS evidence record, unless the
+# card carries an architect-approved exempt marker.
+if [ "$strict_task_mode" -eq 1 ]; then
+  old_ifs="$IFS"; IFS='
+'
+  for task_path in $staged; do
+    case "$task_path" in engine/tasks/T-*.md) ;; *) continue ;; esac
+    task_snapshot="$(git -C "$ROOT" show ":$task_path" 2>/dev/null || true)"
+    printf '%s\n' "$task_snapshot" | grep -q 'status:.*done' || continue
+    printf '%s\n' "$task_snapshot" | grep -qi 'exempt' && continue
+    done_task_id="$(basename "$task_path" .md)"
+    ac_ids="$(printf '%s\n' "$task_snapshot" | sed -n 's/^AC:[[:space:]]*\(AC-[0-9][0-9]*\).*/\1/p')"
+    if [ -z "$ac_ids" ]; then
+      printf '\n[Engine System] %s is staged as done but declares no AC evidence targets.\n\n' "$done_task_id" >&2
+      IFS="$old_ifs"
+      exit 1
+    fi
+    for ac_id in $ac_ids; do
+      evidence_path="engine/evidence/$done_task_id/$ac_id.json"
+      evidence="$(git -C "$ROOT" show ":$evidence_path" 2>/dev/null || true)"
+      if ! printf '%s\n' "$evidence" | grep -Eq '"status"[[:space:]]*:[[:space:]]*"pass"'; then
+        printf '\n[Engine System] %s cannot be marked done: %s has no PASS evidence.\n' "$done_task_id" "$ac_id" >&2
+        printf "Run 'engine verify %s' and stage engine/evidence/%s/.\n\n" "$done_task_id" "$done_task_id" >&2
+        IFS="$old_ifs"
+        exit 1
+      fi
+    done
+  done
+  IFS="$old_ifs"
+fi
+
+# Code changes must carry shared memory or a worker shard in the same commit.
+code_changed="$(printf '%s\n' "$staged" | grep -vE '^(engine/|\.engine/)' | head -1)"
+memory_written="$(printf '%s\n' "$staged" | grep -E '^engine/(CONTEXT|HANDOFF|ENGINE_MAP)\.md$|^engine/workstreams/[^/]+/[^/]+/(CONTEXT|HANDOFF)\.md$' | head -1)"
+if [ -n "$code_changed" ] && [ -z "$memory_written" ]; then
+  printf '\n[Engine System] Code changed but project memory was not staged.\n' >&2
+  printf 'Coordinator: update engine/CONTEXT.md or engine/HANDOFF.md.\n' >&2
+  printf 'Parallel worker: stage your engine/workstreams/<task>/<agent>/ shard.\n\n' >&2
   exit 1
 fi
 
-# ── 第 3 层:锚点原创规则警告(非阻塞)──────────────────────────────
-# 检测引导器中疑似原创规则(含 MUST/NEVER/ALWAYS 但无 source: 标注)。
-# 仅打印警告,不阻塞提交——给开发者一个信号,真正的规则应写入 SYSTEM.md。
+rules_file="$ENGINE_DIR/decisions/rules.json"
+if [ -f "$rules_file" ]; then
+  protected="$(sed -n '/"protected_paths"/,/\]/{
+    /"protected_paths"/d
+    /\]/d
+    s/.*"\([^"]*\)".*/\1/p
+  }' "$rules_file" 2>/dev/null)"
+else
+  protected=""
+fi
+
+task_decision=""
+if [ -n "$task_file" ]; then
+  task_decision="$(grep 'decision:' "$task_file" 2>/dev/null | head -1 | sed 's/.*decision:[[:space:]]*//' | sed 's/[[:space:]|].*//')"
+fi
+
+if [ -n "$protected" ]; then
+  # protected is newline-separated; normalize to comma-separated for match_any_glob.
+  protected_csv="$(printf '%s\n' "$protected" | tr '\n' ',' | sed 's/,$//')"
+  old_ifs="$IFS"; IFS='
+'
+  for file in $staged; do
+    [ -n "$file" ] || continue
+    match_any_glob "$file" "$protected_csv" || continue
+    if [ -z "$task_decision" ]; then
+      violation="$file (no task decision)"
+    elif [ ! -f "$ENGINE_DIR/decisions/$task_decision.md" ]; then
+      violation="$file (decision $task_decision missing)"
+    elif ! grep -q 'status.*approved' "$ENGINE_DIR/decisions/$task_decision.md" 2>/dev/null; then
+      violation="$file (decision $task_decision not approved)"
+    else
+      scope_line="$(grep 'scope' "$ENGINE_DIR/decisions/$task_decision.md" 2>/dev/null | head -1)"
+      scope_raw="$(printf '%s' "$scope_line" | sed 's/.*scope[[:space:]]*[:|][[:space:]]*//' | sed 's/[[:space:]]*|.*//' | tr -d '\r')"
+      if ! match_any_glob "$file" "$scope_raw"; then
+        violation="$file (decision $task_decision scope does not cover it)"
+      else
+        violation=""
+      fi
+    fi
+    if [ -n "$violation" ]; then
+      printf '\n[Engine System] Protected path blocked: %s\n\n' "$violation" >&2
+      IFS="$old_ifs"
+      exit 1
+    fi
+  done
+  IFS="$old_ifs"
+fi
+
 for anchor in AGENTS.md CLAUDE.md; do
-  staged_anchor="$(printf '%s\n' "$staged" | grep -x "$anchor" | head -1)"
-  [ -n "$staged_anchor" ] || continue
-  suspect="$(git diff --cached -- "$anchor" 2>/dev/null | \
-    grep '^+' | grep -v '^+++' | \
-    grep -iE '(MUST|NEVER|ALWAYS)' | \
-    grep -vi 'source:' | \
-    wc -l | tr -d ' ')"
+  printf '%s\n' "$staged" | grep -qx "$anchor" || continue
+  suspect="$(git diff --cached -- "$anchor" 2>/dev/null | grep '^+' | grep -v '^+++' | grep -iE '(MUST|NEVER|ALWAYS)' | grep -vi 'source:' | wc -l | tr -d ' ')"
   if [ "$suspect" -gt 0 ]; then
-    printf '\n' >&2
-    printf '【Engine System · 锚点守卫】%s 有 %s 行含 MUST/NEVER/ALWAYS 但无 source: 标注。\n' "$anchor" "$suspect" >&2
-    printf '锚点是引导器,新规则写入 engine/SYSTEM.md,然后在此摘抄并标注 source:。\n' >&2
-    printf '(警告,不阻塞提交)\n' >&2
-    printf '\n' >&2
+    printf '\n[Engine System] Anchor warning: %s adds %s MUST/NEVER/ALWAYS line(s) without source:.\n\n' "$anchor" "$suspect" >&2
   fi
 done
 

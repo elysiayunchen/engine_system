@@ -62,15 +62,22 @@ function Download-File {
 }
 
 # Copy from local offline directory (when -Local is specified)
+# Missing source = broken package: hard-fail, do not install a partial environment.
 function Copy-Local {
   param([string]$Src, [string]$Dest)
   $srcPath = Join-Path $LocalDir ($Src -replace '/', '\')
   if (Test-Path $srcPath) {
     Copy-Item $srcPath $Dest -Force
   } else {
-    Write-Host "  WARN  local file not found: $srcPath" -ForegroundColor Yellow
+    Write-Host "  FAIL  local file not found: $srcPath" -ForegroundColor Red
+    exit 1
   }
 }
+
+# Destinations actually written this run. Checksum verification is scoped to this
+# list: files the installer intentionally kept (root anchors, engine/*.md memory)
+# legitimately differ from the manifest and must not fail verification.
+$script:WrittenFiles = @()
 
 # Verify SHA256 checksums against manifest (hard-fail on mismatch)
 function Verify-Checksums {
@@ -88,12 +95,16 @@ function Verify-Checksums {
       }
       # Map src to dest
       $destFile = $entry.src -replace '/', '\'
-      if ($entry.src -like "engine/*") { $destFile = $entry.src -replace '/', '\' }
+      if ($entry.src -like "engine/skeleton/*") { $destFile = "engine\" + (($entry.src -replace '^engine/skeleton/', '') -replace '/', '\') }
+      elseif ($entry.src -like "engine/*") { $destFile = $entry.src -replace '/', '\' }
       elseif ($entry.src -like "bin/*") { $destFile = "engine\bin\" + ($entry.src -replace '^bin/', '') }
       elseif ($entry.src -like "migrations/*") { $destFile = "engine\migrations\" + ($entry.src -replace '^migrations/', '') }
+      elseif ($entry.src -eq "VERSION") { $destFile = "engine\VERSION" }
       # .claude/settings.json is generated/modified by the installer post-download;
       # its on-disk bytes will not match the manifest hash.
       if ($destFile -eq ".claude\settings.json") { continue }
+      # Only verify files this run actually wrote -- kept files differ by design.
+      if ($script:WrittenFiles -notcontains $destFile) { continue }
       if (-not (Test-Path $destFile)) { continue }
       $actual = (Get-FileHash $destFile -Algorithm SHA256).Hash.ToLower()
       $verified++
@@ -144,6 +155,8 @@ $FILES = @(
   @{ src = ".claude/skills/engine-verify-writeback/SKILL.md"; dest = ".claude\skills\engine-verify-writeback\SKILL.md"; protect = $true }
   @{ src = "engine/scripts/engine-doctor.sh";      dest = "engine\scripts\engine-doctor.sh";      protect = $true }
   @{ src = "engine/scripts/engine-doctor.ps1";     dest = "engine\scripts\engine-doctor.ps1";     protect = $true }
+  @{ src = "engine/scripts/engine-context.sh";     dest = "engine\scripts\engine-context.sh";     protect = $true }
+  @{ src = "engine/scripts/engine-context.ps1";    dest = "engine\scripts\engine-context.ps1";    protect = $true }
   @{ src = "engine/scripts/engine-hook-session-start.sh";   dest = "engine\scripts\engine-hook-session-start.sh";   protect = $true }
   @{ src = "engine/scripts/engine-hook-session-start.ps1";  dest = "engine\scripts\engine-hook-session-start.ps1";  protect = $true }
   @{ src = "engine/scripts/engine-hook-stop.sh";   dest = "engine\scripts\engine-hook-stop.sh";   protect = $true }
@@ -177,7 +190,7 @@ Write-Host ""
 Write-Host "Engine System installer" -ForegroundColor Cyan
 Write-Host "-------------------------------------"
 
-New-Item -ItemType Directory -Force -Path ".claude\commands", ".claude\skills", "engine", "engine\scripts", "engine\scripts\githooks", "engine\bin", "engine\migrations", "engine\prompts", "engine\prompts\behaviors", "engine\domains", "engine\checks", "engine\.cache" | Out-Null
+New-Item -ItemType Directory -Force -Path ".claude\commands", ".claude\skills", "engine", "engine\scripts", "engine\scripts\githooks", "engine\bin", "engine\migrations", "engine\prompts", "engine\prompts\behaviors", "engine\domains", "engine\checks", "engine\workstreams", "engine\.cache" | Out-Null
 
 $installed = 0; $skipped = 0
 
@@ -189,13 +202,25 @@ foreach ($f in $FILES) {
     New-Item -ItemType Directory -Force -Path $destDir | Out-Null
   }
 
-  # Root anchor files (CLAUDE.md / AGENTS.md) and .claude/settings.json:
-  # never clobber an existing one, in any mode.
-  # A brand-new project gets the starter bootloader; an existing file is preserved so that
-  # /engine-init can absorb its rules first, and /engine-reconcile keeps it in sync after.
-  if (($dest -eq "CLAUDE.md" -or $dest -eq "AGENTS.md" -or $dest -eq ".claude\settings.json") -and (Test-Path $dest)) {
+  # Root anchors stay user-owned. Engine-managed settings may be upgraded;
+  # custom settings are preserved for /engine-sync to merge.
+  if (($dest -eq "CLAUDE.md" -or $dest -eq "AGENTS.md") -and (Test-Path $dest)) {
     Write-Host "  keep  $dest (already exists; run /engine-sync to merge hooks)" -ForegroundColor Yellow
     $skipped++; continue
+  }
+  if ($dest -eq ".claude\settings.json" -and (Test-Path $dest)) {
+    $managed = Select-String -Path $dest -Pattern '"_engine_system"' -Quiet -ErrorAction SilentlyContinue
+    if ($Update -and $managed) {
+      if ($LocalDir) { Copy-Local -Src $f.src -Dest $dest }
+      else { Download-File -Src $f.src -Dest $dest }
+      Write-Host "  updated $dest (Engine System managed hooks)" -ForegroundColor Green
+      $script:WrittenFiles += $dest
+      $installed++
+    } else {
+      Write-Host "  keep  $dest (custom settings; run /engine-sync to merge hooks)" -ForegroundColor Yellow
+      $skipped++
+    }
+    continue
   }
 
   if ($Update -and -not $f.protect -and (Test-Path $dest)) {
@@ -207,6 +232,7 @@ foreach ($f in $FILES) {
     if ($LocalDir) { Copy-Local -Src $f.src -Dest $dest }
     else { Download-File -Src $f.src -Dest $dest }
     Write-Host "  updated $dest" -ForegroundColor Green
+    $script:WrittenFiles += $dest
     $installed++; continue
   }
 
@@ -235,6 +261,30 @@ foreach ($f in $FILES) {
         ]
       }
     ],
+    "UserPromptSubmit": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "engine\\scripts\\engine-hook.cmd session-start --guard",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit|NotebookEdit|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "engine\\scripts\\engine-hook.cmd stop --pre-tool-use",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "matcher": "*",
@@ -259,6 +309,7 @@ foreach ($f in $FILES) {
     Download-File -Src $f.src -Dest $dest
   }
   Write-Host "  ok    $dest" -ForegroundColor Green
+  $script:WrittenFiles += $dest
   $installed++
 }
 
@@ -307,8 +358,16 @@ if ($insideGit -eq "true") {
 
 # L0 constitution (runtime-law.md): session-start hook injects first 40 lines to fight drift.
 # Fetched from repo root (contract compile output) to project root. Always overwrite (engine artifact).
-if ($LocalDir -and (Test-Path (Join-Path $LocalDir "runtime-law.md"))) {
-  Copy-Item (Join-Path $LocalDir "runtime-law.md") "runtime-law.md" -Force
+if ($LocalDir) {
+  $localLaw = Join-Path $LocalDir "runtime-law.md"
+  if (-not (Test-Path $localLaw)) {
+    $localLaw = Join-Path (Split-Path -Parent $LocalDir) "runtime-law.md"
+  }
+  if (-not (Test-Path $localLaw)) {
+    Write-Host "  FAIL  runtime-law.md (missing from local package and parent)" -ForegroundColor Red
+    exit 1
+  }
+  Copy-Item $localLaw "runtime-law.md" -Force
   Write-Host "  ok    runtime-law.md (L0 constitution)" -ForegroundColor Green
   $installed++
 } else {
@@ -322,12 +381,23 @@ if ($LocalDir -and (Test-Path (Join-Path $LocalDir "runtime-law.md"))) {
     Write-Host "  ok    runtime-law.md (L0 constitution)" -ForegroundColor Green
     $installed++
   } catch {
-    Write-Host "  skip  runtime-law.md (network error - L0 constitution not fetched)" -ForegroundColor Yellow
+    Write-Host "  FAIL  runtime-law.md (download failed - L0 constitution missing)" -ForegroundColor Red
+    exit 1
   }
 }
 
-# Verify SHA256 checksums (hard-fail on mismatch; only when -Version is specified, skip for -Local)
-if ($Version -and -not $LocalDir) {
+# Verify SHA256 checksums (hard-fail on mismatch).
+# -Local: manifest.json ships inside the package -- verify against it directly.
+# -Version: fetch the tagged manifest. Default branch install: manifest and files
+# come from the same moving ref, so per-file download error handling covers that path.
+if ($LocalDir -and (Test-Path (Join-Path $LocalDir "manifest.json"))) {
+  try {
+    Verify-Checksums -ManifestFile (Join-Path $LocalDir "manifest.json")
+  } catch {
+    if ($_.Exception.Message -match "Checksum verification failed") { exit 1 }
+    throw
+  }
+} elseif ($Version -and -not $LocalDir) {
   try {
     $manifestUrl = "https://raw.githubusercontent.com/$REPO/v$Version/plugin/manifest.json"
     Invoke-WebRequest -Uri $manifestUrl -OutFile ".manifest-check.json" -UseBasicParsing -TimeoutSec 15 -ErrorAction Stop
@@ -375,4 +445,3 @@ if ($Update) {
   Write-Host "ENGINE_MAP / CONTEXT / SYSTEM / ARCHITECTURE."
 }
 Write-Host ""
-

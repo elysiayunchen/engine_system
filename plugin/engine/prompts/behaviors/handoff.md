@@ -7,7 +7,7 @@ description: Prepare an Engine System handoff at the end of a work unit or sessi
 
 Make the next session boring in the best way: clear state, clear next step, no archaeology.
 
-1. Re-read `engine/CONTEXT.md`, `engine/HANDOFF.md`, and the active or completed task card from disk before editing.
+1. Re-read shared CONTEXT/HANDOFF, the task card, and every pending `engine/workstreams/<task>/*/` shard before coordinator edits. Workers re-read only their own shard.
 2. Summarize what changed in workflow language, not only file lists.
 3. Record verification results and any command that was not run.
 4. Add the newest `HANDOFF.md` row at the top of the history table.

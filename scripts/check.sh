@@ -44,6 +44,13 @@ else
   fail "task card gate"
 fi
 
+step "Parallel workstreams (isolated worker memory + context dashboard)"
+if bash tests/workstream/run-workstream-tests.sh; then
+  pass "workstream shard fixtures"
+else
+  fail "workstream shards"
+fi
+
 step "Fractal memory (federation routing + L2 assembly)"
 if bash tests/fractal-memory/run-fractal-tests.sh; then
   pass "fractal memory fixtures"

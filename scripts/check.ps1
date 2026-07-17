@@ -18,6 +18,9 @@ function Pass([string]$Message) {
 function Fail([string]$Message) {
   $script:failures++
   Write-Host "FAIL $Message" -ForegroundColor Red
+  if ($env:GITHUB_ACTIONS -eq "true") {
+    Write-Host ("::error::" + ($Message -replace '%', '%25' -replace "`r", '%0D' -replace "`n", '%0A'))
+  }
 }
 
 function Normalize-PathText([string]$Value) {

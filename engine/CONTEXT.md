@@ -7,9 +7,9 @@
 | 维度 | 状态 |
 |------|------|
 | 构建 | ✅ 正常（纯 markdown + shell 脚本，无构建步骤） |
-| 上次完成 | **v6.5.0 / D-025 / T-029 + T-028**：全路径任务门禁、v6.5 无 active 卡 fail-closed、done 逐 AC evidence、session/agent 路径归属、worker workstream 分片、协调者单写共享记忆已发布就绪；周期重锚实测 4 行，Doctor 将 24 张 done 卡聚合为 1 行。T-029 与 T-028 均 `engine verify` 5/5 PASS。 |
-| 进行中 | **T-030(release) / D-026**：main CI 29593949520、29594763691 均全绿；远端 VERSION=6.5.0，install.sh SHA256 与本地一致。首轮 tag workflow 29595328999 的实际失败点为 `pipefail` 下 `doctor | head -1`，同时发现 migrate 未切入 sandbox；两处均已修复并补公开 annotation。 |
-| 阻塞 | 无产品代码/安装阻塞；需提交 Release cwd 修复、等待 main CI 后更新尚未生成 Release 的 `v6.5.0` tag，并确认 workflow/附件完成。 |
+| 上次完成 | **v6.5.0 / D-026 / T-030**：最终发布提交 `e33a3d8` 的 main CI 29597273388 全绿；Release workflow 29599793000 PASS，4 个附件公开，三个归档实际下载后 checksums 全部 OK。远端 VERSION=6.5.0，install.sh 与本地哈希一致。T-028/T-029/T-030 均 5/5 PASS。 |
+| 进行中 | 无。下一项建议为真实下游升级/迁移试点，需另开独立任务卡。 |
+| 阻塞 | 无。 |
 
 ## 当前假设 / 决策（本轮拍板）
 

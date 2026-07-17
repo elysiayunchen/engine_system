@@ -80,6 +80,23 @@ function Copy-Local {
 $script:WrittenFiles = @()
 
 # Verify SHA256 checksums against manifest (hard-fail on mismatch)
+function Get-NormalizedTextSha256 {
+  param([string]$Path)
+  [byte[]]$inputBytes = [System.IO.File]::ReadAllBytes((Resolve-Path $Path).Path)
+  $normalized = New-Object System.Collections.Generic.List[byte]
+  for ($i = 0; $i -lt $inputBytes.Length; $i++) {
+    if ($inputBytes[$i] -eq 13 -and ($i + 1) -lt $inputBytes.Length -and $inputBytes[$i + 1] -eq 10) { continue }
+    $normalized.Add($inputBytes[$i])
+  }
+  $sha = [System.Security.Cryptography.SHA256]::Create()
+  try {
+    $hashBytes = $sha.ComputeHash($normalized.ToArray())
+    return (($hashBytes | ForEach-Object { $_.ToString("x2") }) -join "")
+  } finally {
+    $sha.Dispose()
+  }
+}
+
 function Verify-Checksums {
   param([string]$ManifestFile)
   if (-not (Test-Path $ManifestFile)) { return }
@@ -106,7 +123,7 @@ function Verify-Checksums {
       # Only verify files this run actually wrote -- kept files differ by design.
       if ($script:WrittenFiles -notcontains $destFile) { continue }
       if (-not (Test-Path $destFile)) { continue }
-      $actual = (Get-FileHash $destFile -Algorithm SHA256).Hash.ToLower()
+      $actual = Get-NormalizedTextSha256 $destFile
       $verified++
       if ($actual -ne $entry.sha256) {
         Write-Host "  FAIL  checksum mismatch: $destFile" -ForegroundColor Red

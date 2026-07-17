@@ -4,7 +4,7 @@
 
 ## 立即恢复点
 
-下一步：继续 T-030/D-026。第二轮 Linux CI 已 PASS；Windows drift 根因是 `engine/bin/engine.ps1` 未固定 LF，已补对称 attributes。install-dry-run 仍失败但无日志权限，workflow 已将安装日志尾部输出为公开 annotation。提交推送并等待第三轮 main CI；全绿后再置 done、让 `v6.5.0` tag 指向最终提交并推送，等待 Release workflow。scratch 不纳入发布。
+下一步：继续 T-030/D-026。第三轮 Linux/Windows 已 PASS；install annotation 证明 13 个文件只是跨平台 CRLF/LF checksum 假差异，已把 manifest 生成/验证统一为 LF 规范化哈希。T-030 5/5 PASS；提交推送并等待第四轮 main CI。全绿后写远端结果、置 done、让 `v6.5.0` tag 指向最终提交并推送，等待 Release workflow。scratch 不纳入发布。
 
 > Phase 1 = 通用化核心(prompt 抽离 / CLI 扩展 / 快速安装 / agent 检测——D-017 原文口径;实施细化与「薄壳」口径修正见 D-018)。v6.2 = 多 agent 通信层(engine context + DevComm Rule 扩展)。
 

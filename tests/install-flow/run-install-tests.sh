@@ -35,7 +35,7 @@ setup_sandbox() {
   cp "$REPO_ROOT/runtime-law.md" "$sbx/" 2>/dev/null || true
 }
 
-# 对 sandbox manifest 每条 src 算 sha256 并回填(保持单行格式)
+# 对 sandbox manifest 每条文本 src 按 LF 规范化算 sha256 并回填。
 inject_sha256() {
   local sbx="$1"
   local manifest="$sbx/plugin/manifest.json"
@@ -44,7 +44,7 @@ inject_sha256() {
   # 逐条插入
   while IFS= read -r src; do
     if [[ -f "$sbx/plugin/$src" ]]; then
-      hash=$(sha256sum "$sbx/plugin/$src" | cut -d' ' -f1)
+      hash=$(sed 's/\r$//' "$sbx/plugin/$src" | sha256sum | cut -d' ' -f1)
       sed -i "s|\"src\": \"$src\"|\"src\": \"$src\", \"sha256\": \"$hash\"|" "$manifest"
     fi
   done < <(grep -oE '"src"[[:space:]]*:[[:space:]]*"[^"]*"' "$manifest" | sed 's/.*"src"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')

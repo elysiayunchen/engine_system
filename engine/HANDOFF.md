@@ -4,7 +4,7 @@
 
 ## 立即恢复点
 
-下一步：继续 T-030/D-026 收尾。main CI 29593949520、29594763691 全绿；首轮 tag workflow 29595328999 的实际失败点是 `pipefail` 下 `doctor | head -1`，并发现 migrate 忘记 `cd` 到安装 sandbox；GitHub Release 尚未创建。两处均已修复并加公开 annotation；本地验收、提交、main CI 后，仅更新 `v6.5.0` tag 到修复提交并重跑 Release，成功后置 T-030 done。scratch 不纳入发布。
+下一步：v6.5.0 已完成发布，不需继续 T-030。建议另开任务卡，在一个真实下游项目执行 `engine check-update`、`engine update --check-only`、`engine migrate`，验证首次任务采用与并行 workstream 手感。scratch `.workbuddy/`、`engine2.zip` 仍未跟踪，不纳入发布。
 
 > Phase 1 = 通用化核心(prompt 抽离 / CLI 扩展 / 快速安装 / agent 检测——D-017 原文口径;实施细化与「薄壳」口径修正见 D-018)。v6.2 = 多 agent 通信层(engine context + DevComm Rule 扩展)。
 
@@ -12,6 +12,7 @@
 
 | 日期 | 完成了什么 | 下一步 | 改动文件 |
 |------|-----------|--------|---------|
+| 2026-07-17 | **T-030 / D-026 done，v6.5.0 正式发布**：发布提交 `e33a3d8`，main CI 29597273388 三组全绿，Release workflow 29599793000 PASS；GitHub Release 355822586 公开且 4 附件 uploaded，三个归档实际下载后 checksums 全 OK；远端 VERSION=6.5.0，installer 哈希一致。首轮 Release 暴露的 cwd 与 pipefail 假失败均已修复。 | 真实下游升级/迁移与并行 workstream 试点（另开任务卡） | v6.5.0 tag/Release, release.yml, D-026, T-030/evidence, CHANGE-2026-07-17-02, CONTEXT/HANDOFF/ENGINE_MAP |
 | 2026-07-17 | **T-030 v6.5.0 远端 main 发布门全绿**：CI 29593949520 的 Linux、Windows、正式 local install+migrate 全部 PASS；远端 VERSION=6.5.0，install.sh SHA256 与本地一致；项目 CLI 的 Git 100755 与安装后 chmod 已生效。 | 推送 release-ready 记录 → main CI → `v6.5.0` tag → Release workflow → T-030 done | install.sh, engine/bin/engine, plugin/bin/engine, CI, I6, D-026, T-030 evidence, CHANGE-2026-07-17-02 |
 | 2026-07-17 | **v6.5.0 长会话/并行写冲突闭环（D-025/T-029）+ T-028 收尾**：全路径 WRITE-SET/FORBIDDEN 同时支持 inline/section；v6.5 无 active/closing 卡时普通写入 fail-closed，done 提交逐 AC 要 PASS evidence；PreToolUse/Stop 用 session+agent 路径归属，worker 只写 `engine/workstreams/<task>/<agent>/`，协调者单写共享记忆。任务粒度定为“一项可独立验收目标一卡”，多轮/worker 共卡、只读免卡；Prompt guard 从约 30 行压到实测 4 行，Doctor 将 24 张 done 卡聚合成 1 行。T-029 5/5（task 44/44、hook 31/31、workstream 12/12、完整发布门禁 PASS）；T-028 修正隔离 HOME 后 5/5 PASS。 | 发布 v6.5；真实下游 `engine update` + `engine migrate` 试点；后续写任务先建 active 卡 | D-025, T-028/T-029, hooks/pre-commit/Doctor/context/workstream CLI, contract+migrator, plugin+manifest+installer, tests, evidence, CHANGE-2026-07-17-01 |
 | 2026-07-17 | **T-029 / D-025 开卡，长会话与并行冲突根因确认**：① Stop 对 `engine/*` 全豁免，engine-only pass 还被 parity 测试固化；② T-025~T-028 使用 section-list WRITE-SET，但 hook 只读 `WRITE-SET:`，机器写集为空；③ Stop 用整个 worktree 的 git status，无 session/agent 归属，兄弟 agent 可互相代写回。决定采用“全路径范围检查 + 写前短重锚 + session 路径清单 + worker 独立 workstream 分片 + 协调者单点汇总”，不自建进程队列。T-028 验收 AC-2~4 PASS、AC-1 FAIL、AC-5 超时，改 paused。 | 实施 T-029 AC-1~5；完成后恢复 T-028 AC-1 | engine/tasks/{T-028,T-029}.md, engine/decisions/D-025.md, engine/evidence/T-028/*, engine/{CONTEXT,HANDOFF}.md |

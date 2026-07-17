@@ -199,10 +199,10 @@ home6="$(mktemp -d)"
 rc=$?
 agents_lines=999
 [[ -f "$work6/AGENTS.md" ]] && agents_lines="$(wc -l < "$work6/AGENTS.md" | tr -d ' ')"
-if [[ "$rc" -eq 0 ]] && [[ "$agents_lines" -le 45 ]] && grep -q 'contract-version: 6.5.0' "$work6/AGENTS.md"; then
-  ok "I6 fresh install AGENTS stays <=45 after migration ($agents_lines lines)"
+if [[ "$rc" -eq 0 ]] && [[ "$agents_lines" -le 45 ]] && [[ -x "$work6/engine/bin/engine" ]] && grep -q 'contract-version: 6.5.0' "$work6/AGENTS.md"; then
+  ok "I6 fresh install AGENTS <=45 and project CLI executable ($agents_lines lines)"
 else
-  bad "I6 fresh install AGENTS stays <=45 after migration" "rc=$rc lines=$agents_lines output:$(tail -20 "$work6/i6.out" 2>/dev/null)"
+  bad "I6 fresh install AGENTS <=45 and project CLI executable" "rc=$rc lines=$agents_lines executable=$([[ -x "$work6/engine/bin/engine" ]] && echo yes || echo no) output:$(tail -20 "$work6/i6.out" 2>/dev/null)"
 fi
 rm -rf "$work6" "$home6"
 

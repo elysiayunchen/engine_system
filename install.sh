@@ -349,6 +349,11 @@ for entry in "${FILES[@]}"; do
   ((install_count += 1))
 done
 
+# Project-local CLI must remain directly executable on Unix checkouts/packages.
+if [[ -f "engine/bin/engine" ]]; then
+  chmod +x "engine/bin/engine" 2>/dev/null || true
+fi
+
 # Install CLI shims to user PATH. On Windows, bash/ps1/cmd all get copied so
 # the command works from Git Bash, PowerShell, and CMD alike.
 cli_src="engine/bin/engine"

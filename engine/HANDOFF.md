@@ -4,7 +4,7 @@
 
 ## 立即恢复点
 
-下一步：继续 T-030/D-026。第三轮 Linux/Windows 已 PASS；install annotation 证明 13 个文件只是跨平台 CRLF/LF checksum 假差异，已把 manifest 生成/验证统一为 LF 规范化哈希。T-030 5/5 PASS；提交推送并等待第四轮 main CI。全绿后写远端结果、置 done、让 `v6.5.0` tag 指向最终提交并推送，等待 Release workflow。scratch 不纳入发布。
+下一步：继续 T-030/D-026。第四轮 Linux/Windows 与安装步骤已 PASS，Verify installed files 暴露项目内 CLI 无 executable bit；已补两个 shell shim 100755、installer chmod、I6/CI 断言。重跑 T-030 后提交并等待第五轮 main CI；全绿再写远端结果、置 done、让 `v6.5.0` tag 指向最终提交并推送，等待 Release workflow。scratch 不纳入发布。
 
 > Phase 1 = 通用化核心(prompt 抽离 / CLI 扩展 / 快速安装 / agent 检测——D-017 原文口径;实施细化与「薄壳」口径修正见 D-018)。v6.2 = 多 agent 通信层(engine context + DevComm Rule 扩展)。
 

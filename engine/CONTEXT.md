@@ -8,8 +8,8 @@
 |------|------|
 | 构建 | ✅ 正常（纯 markdown + shell 脚本，无构建步骤） |
 | 上次完成 | **v6.5.0 / D-025 / T-029 + T-028**：全路径任务门禁、v6.5 无 active 卡 fail-closed、done 逐 AC evidence、session/agent 路径归属、worker workstream 分片、协调者单写共享记忆已发布就绪；周期重锚实测 4 行，Doctor 将 24 张 done 卡聚合为 1 行。T-029 与 T-028 均 `engine verify` 5/5 PASS。 |
-| 进行中 | **T-030(release)**：提交 v6.5.0、创建 tag、推送并验证远端可更新；T-020(agent 检测器)paused；D-018 待架构师批准。 |
-| 阻塞 | 无代码阻塞；外部真实下游迁移仍待发布后试点。 |
+| 进行中 | **T-030(release)**：main 首次推送后 Linux CI PASS，install-dry-run 暴露旧 sed 模拟与新下载函数不兼容；已改为正式 `--local`，plugin AGENTS 收缩后 fresh install=44 行，T-030 5/5 PASS，等待修复提交的远端 CI。T-020 paused；D-018 待批准。 |
+| 阻塞 | tag 尚未推送；需远端 main CI 与 tag Release workflow 全绿后才完成。外部真实下游迁移仍待发布后试点。 |
 
 ## 当前假设 / 决策（本轮拍板）
 

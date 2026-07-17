@@ -4,7 +4,7 @@
 
 ## 立即恢复点
 
-下一步：执行 T-030 发布 v6.5.0。先跑发布卡 AC 和完整门禁，再提交 main、创建/推送 `v6.5.0` tag，等待 Release workflow 后核对远端 raw VERSION 与下游 `engine update --check-only`。v6.5.0 / T-029 与 T-028 已 5/5 验收；scratch 文件不纳入发布。
+下一步：继续 T-030。main 首次推送后发现 CI/Release 仍用旧 sed 模拟 installer；已改正式 `--local`，plugin AGENTS fresh migration 从 63 行降到 44 行，T-030 5/5 PASS。提交并推送修复，等待 main CI 全绿；再写远端结果、置 done、让 `v6.5.0` tag 指向最终提交并推送，等待 Release workflow。scratch 文件不纳入发布。
 
 > Phase 1 = 通用化核心(prompt 抽离 / CLI 扩展 / 快速安装 / agent 检测——D-017 原文口径;实施细化与「薄壳」口径修正见 D-018)。v6.2 = 多 agent 通信层(engine context + DevComm Rule 扩展)。
 

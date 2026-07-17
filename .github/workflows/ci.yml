@@ -42,16 +42,8 @@ jobs:
         run: |
           mkdir target && cd target
           SRC="${{ github.workspace }}/source"
-
-          # Override download() to copy from local checkout instead of curl
-          # Patch both BASE_URL (plugin/ files) and the runtime-law.md root URL
-          sed \
-            -e "s|^BASE_URL=.*|BASE_URL=\"file://${SRC}/plugin\"|" \
-            -e 's|curl -sSL "\$url" -o "\$dest"|cp "$url" "$dest"|' \
-            -e 's|wget -qO "\$dest" "\$url"|cp "$url" "$dest"|' \
-            -e "s|https://raw.githubusercontent.com/\${REPO}/\${BRANCH}/runtime-law.md|file://${SRC}/runtime-law.md|" \
-            "$SRC/install.sh" > install-local.sh
-          bash install-local.sh
+          mkdir -p home
+          HOME="$PWD/home" bash "$SRC/install.sh" --local "$SRC/plugin"
 
       - name: Verify installed files
         run: |
@@ -133,7 +125,7 @@ jobs:
 
           echo ""
           echo "--- 2. Verify v6 data-layer structure ---"
-          for dir in tasks decisions domains changes evidence .cache; do
+          for dir in tasks decisions domains changes evidence plans workstreams .cache; do
             if [[ -d "engine/$dir" ]]; then
               echo "PASS engine/$dir/"
             else

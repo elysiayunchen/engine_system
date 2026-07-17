@@ -192,6 +192,20 @@ else
 fi
 rm -rf "$work5" "$sbx5"
 
+# I6: fresh local install + managed contract stays within the bootloader hard cap
+work6="$(mktemp -d)"
+home6="$(mktemp -d)"
+(cd "$work6" && HOME="$home6" bash "$INSTALL_SH" --local "$REPO_ROOT/plugin" >"$work6/i6.out" 2>&1)
+rc=$?
+agents_lines=999
+[[ -f "$work6/AGENTS.md" ]] && agents_lines="$(wc -l < "$work6/AGENTS.md" | tr -d ' ')"
+if [[ "$rc" -eq 0 ]] && [[ "$agents_lines" -le 45 ]] && grep -q 'contract-version: 6.5.0' "$work6/AGENTS.md"; then
+  ok "I6 fresh install AGENTS stays <=45 after migration ($agents_lines lines)"
+else
+  bad "I6 fresh install AGENTS stays <=45 after migration" "rc=$rc lines=$agents_lines output:$(tail -20 "$work6/i6.out" 2>/dev/null)"
+fi
+rm -rf "$work6" "$home6"
+
 echo ""
 echo "=========================================="
 echo "PASS=$pass  FAIL=$fail"

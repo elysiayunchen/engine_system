@@ -73,15 +73,11 @@ jobs:
         run: |
           set -euo pipefail
           SANDBOX=$(mktemp -d)
+          SRC="$PWD"
 
           # 1. Simulate install from plugin/
-          sed \
-            -e "s|^BASE_URL=.*|BASE_URL=\"file://$PWD/plugin\"|" \
-            -e 's|curl -sSL "\$url" -o "\$dest"|cp "$url" "$dest"|' \
-            -e 's|wget -qO "\$dest" "\$url"|cp "$url" "$dest"|' \
-            -e "s|https://raw.githubusercontent.com/\${REPO}/\${BRANCH}/runtime-law.md|file://${PWD}/runtime-law.md|" \
-            install.sh > "$SANDBOX/install-local.sh"
-          (cd "$SANDBOX" && bash install-local.sh)
+          mkdir -p "$SANDBOX/home"
+          (cd "$SANDBOX" && HOME="$SANDBOX/home" bash "$SRC/install.sh" --local "$SRC/plugin")
           echo "PASS install completed"
 
           # 2. Simulate initialized project + run migrate
@@ -91,7 +87,7 @@ jobs:
 
           # 3. Verify v6 structure
           errors=0
-          for dir in tasks decisions domains changes evidence .cache; do
+          for dir in tasks decisions domains changes evidence plans workstreams .cache; do
             [[ -d "$SANDBOX/engine/$dir" ]] || { echo "FAIL $dir/ missing"; errors=$((errors + 1)); }
           done
           for f in federation.json rules.json AGENTS.md SYSTEM.md; do

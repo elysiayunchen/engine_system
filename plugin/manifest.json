@@ -10,7 +10,7 @@
     { "src": ".claude/commands/engine-sync.md", "sha256": "a7479894056913e8064a274653f39d93fc72b7219f3eb9e9cc909c46ec5e5e34", "dest": ".claude/commands/engine-sync.md", "protect": true },
     { "src": ".claude/commands/engine-reconcile.md", "sha256": "cfde3fdf1af59e698709e527eb2d629adc0c229feb4549c33f1f7d4ebc2434da", "dest": ".claude/commands/engine-reconcile.md", "protect": true },
     { "src": "CLAUDE.md", "sha256": "d631d88045f74623d568adfb4783b72e3d1b732330d749bc6c72e6648d4581d3", "dest": "CLAUDE.md", "protect": true },
-    { "src": "AGENTS.md", "sha256": "49df73842e0438f73ffec64d922edcbbbf89d4f2661e8cc4f56110183761d058", "dest": "AGENTS.md", "protect": true },
+    { "src": "AGENTS.md", "sha256": "0d7c1af2fe0d61f26990e8f0d67828b6ae753c0941091290a988c704c15918d8", "dest": "AGENTS.md", "protect": true },
     { "src": "engine/README.md", "sha256": "09773ea1050a0048c918e8c35e67c0f0d220d1922d8cc158f1fb5721c287b665", "dest": "engine/README.md", "protect": false },
     { "src": "engine/README.zh.md", "sha256": "1ff9c3164e1018a2e0df5f0f3f1fa93c11d3a3c2d586f754f27b0f9bf4d6d6f4", "dest": "engine/README.zh.md", "protect": false },
     { "src": "engine/ENGINE_DOCTOR.md", "sha256": "7a861e6f22d6d6098c181d439b294157e9f9fb10d2551572b54d7571d6209933", "dest": "engine/ENGINE_DOCTOR.md", "protect": false },

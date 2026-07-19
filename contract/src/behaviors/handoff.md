@@ -15,3 +15,13 @@ Make the next session boring in the best way: clear state, clear next step, no a
 6. Link the relevant change capsule and evidence folder when they exist.
 
 Release portability check: note whether the change has been proven through package/install surfaces or only through this repository.
+
+## HANDOFF immediate-resume pointer thin-pointer rule (v6.7.0 / D-028/T-032)
+
+When an active or paused task card exists, HANDOFF「立即恢复点」degrades to a thin pointer (≤5 lines) pointing at `engine/tasks/T-NNN/progress.md` §4 (当前进行到), because progress.md is now the machine-injected fine-grained recovery anchor (SessionStart hook injects §1~§7). Duplicating the same recovery content in HANDOFF would create two competing sources of truth.
+
+- Active/paused card exists → HANDOFF「立即恢复点」first line MUST be `见 engine/tasks/T-NNN/progress.md §4: [one-sentence current step]`. Up to 2 additional lines of session-level coarse hints allowed.
+- No active/paused card → HANDOFF「立即恢复点」keeps the legacy session-level form (no enforced line cap).
+- Read order at SessionStart: inject HANDOFF first (coarse), then progress.md (fine-grained, §4 overrides HANDOFF's resume segment).
+
+This is a symmetric extension of the existing re-anchor (read-before-write) principle: re-anchor prevents drift before a write; progress.md prevents drift after a compact.

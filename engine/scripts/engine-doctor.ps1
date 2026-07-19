@@ -390,6 +390,89 @@ function Test-HandoffHistoryCap {
   }
 }
 
+function Test-ProgressMd {
+  # v6.7.0 (D-028/T-032): task-level progress.md 7-section recovery anchor.
+  # active/paused cards MUST have engine/tasks/T-NNN/progress.md;
+  # done cards MUST have it archived to engine/archive/tasks/T-NNN-progress.md
+  # (live copy removed, mirrors D-027 HANDOFF archive).
+  # Migration grace period: projects stamped contract-version < 6.7.0 -> WARN;
+  # >= 6.7.0 -> FAIL (see D-028 section 9).
+  $tasksDir = Join-Path $engineDir "tasks"
+  if (-not (Test-Path $tasksDir)) { return }
+
+  # Read contract-version from ENGINE_DOCTOR.md managed block.
+  $doctorPath = Join-Path $engineDir "ENGINE_DOCTOR.md"
+  $contractVersion = ""
+  if (Test-Path $doctorPath) {
+    $m = Select-String -Path $doctorPath -Pattern 'contract-version:\s*([0-9]+\.[0-9]+\.[0-9]+)' -List -ErrorAction SilentlyContinue
+    if ($m) { $contractVersion = $m.Matches[0].Groups[1].Value }
+  }
+  # Parse "X.Y.Z" -> cvInt = X*10000 + Y*100 + Z (for numeric compare).
+  $cvInt = 0
+  if ($contractVersion -match '^(\d+)\.(\d+)\.(\d+)$') {
+    $cvInt = [int]$Matches[1] * 10000 + [int]$Matches[2] * 100 + [int]$Matches[3]
+  }
+  $violationIsFail = $false
+  if ($cvInt -ge 60700) { $violationIsFail = $true }
+
+  $activeCount = 0; $pausedCount = 0; $doneCount = 0
+  $activeMissing = 0; $pausedMissing = 0; $doneLive = 0
+
+  $taskFiles = Get-ChildItem -Path $tasksDir -File -Filter "T-*.md" -ErrorAction SilentlyContinue
+  foreach ($f in $taskFiles) {
+    if ($f.Name -match '\.spec\.md$') { continue }
+    $tid = $f.BaseName
+    $prog = Join-Path $tasksDir ("$tid\progress.md")
+    $content = Get-Content -Raw -Path $f.FullName -Encoding UTF8 -ErrorAction SilentlyContinue
+    if (-not $content) { continue }
+
+    if ($content -match 'status:\s*active') {
+      $activeCount++
+      if (-not (Test-Path $prog)) {
+        $activeMissing++
+        if ($violationIsFail) {
+          Write-Fail "task $tid (active) missing progress.md - copy engine/skeleton/progress.md to engine/tasks/$tid/progress.md"
+          Write-Output "  human: Active task $tid has no progress.md recovery anchor. SessionStart injects progress.md to survive context compression; without it, in-progress details may be lost. Run: Copy-Item engine/skeleton/progress.md engine/tasks/$tid/progress.md and fill in sections 1-7."
+        } else {
+          Write-Warn "task $tid (active) missing progress.md (grace period, contract-version $contractVersion < 6.7.0)"
+        }
+      }
+    } elseif ($content -match 'status:\s*paused') {
+      $pausedCount++
+      if (-not (Test-Path $prog)) {
+        $pausedMissing++
+        if ($violationIsFail) {
+          Write-Fail "task $tid (paused) missing progress.md - copy engine/skeleton/progress.md to engine/tasks/$tid/progress.md"
+          Write-Output "  human: Paused task $tid has no progress.md recovery anchor. Without it, resuming the task after context loss requires re-reading all files. Run: Copy-Item engine/skeleton/progress.md engine/tasks/$tid/progress.md."
+        } else {
+          Write-Warn "task $tid (paused) missing progress.md (grace period, contract-version $contractVersion < 6.7.0)"
+        }
+      }
+    } elseif ($content -match 'status:\s*done') {
+      $doneCount++
+      # Done cards: live progress.md should be archived (mirror D-027 HANDOFF).
+      if (Test-Path $prog) {
+        $doneLive++
+        if ($violationIsFail) {
+          Write-Fail "task $tid (done) has live progress.md - archive to engine/archive/tasks/$tid-progress.md and remove live copy"
+          Write-Output "  human: Done task $tid still has a live progress.md at engine/tasks/$tid/progress.md. Done cards are cold history; archive the progress.md to engine/archive/tasks/$tid-progress.md (mirrors HANDOFF archive) and remove the live copy."
+        } else {
+          Write-Warn "task $tid (done) has live progress.md (grace period, contract-version $contractVersion < 6.7.0)"
+        }
+      }
+    }
+  }
+
+  # Summary line when there are active/paused cards with progress.md present.
+  $totalActive = $activeCount + $pausedCount
+  if ($totalActive -gt 0) {
+    $totalMissing = $activeMissing + $pausedMissing
+    if ($totalMissing -eq 0) {
+      Write-Pass "progress.md summary: $totalActive active/paused task(s) all have progress.md (cv=$contractVersion)"
+    }
+  }
+}
+
 function Test-PitfallsSemantics {
   if (-not (Test-RegisteredName "PITFALLS.md")) { return }
   $path = Join-Path $engineDir "PITFALLS.md"
@@ -792,6 +875,7 @@ foreach ($row in $planRows) {
 Test-ContextSemantics
 Test-HandoffSemantics
 Test-HandoffHistoryCap
+Test-ProgressMd
 Test-PitfallsSemantics
 Test-SprintSemantics
 Test-ChangeCapsuleSemantics

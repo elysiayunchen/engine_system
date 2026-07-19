@@ -108,6 +108,27 @@ else
   echo ""
 fi
 
+# v6.7.0 (D-028/T-032): 任务级 progress.md 注入——active/paused 卡存在时,
+# 读取 engine/tasks/T-NNN/progress.md 全文注入,覆盖 HANDOFF「立即恢复点」§4 段。
+# 多张 active/paused 卡按 ID 升序全部注入(实践应 ≤2 张,超出 Doctor WARN)。
+for f in "$ENGINE_DIR"/tasks/T-*.md; do
+  [ -f "$f" ] || continue
+  [[ "$f" == *.spec.md ]] && continue
+  if grep -q 'status:.*\(active\|paused\)' "$f" 2>/dev/null; then
+    prog_id="$(basename "$f" .md)"
+    prog="$ENGINE_DIR/tasks/$prog_id/progress.md"
+    if [ -f "$prog" ]; then
+      echo "──── 📌 Task Progress ($prog_id/progress.md) ────"
+      cat "$prog" 2>/dev/null || log_error "failed to read progress: $prog"
+      echo ""
+    else
+      echo "──── 📌 Task Progress: $prog_id 缺 progress.md (Doctor WARN) ────"
+      echo "active/paused 卡 $prog_id 缺 progress.md;按 contract/src/20-file-templates.md FILE 13 从 engine/skeleton/progress.md 实例化。"
+      echo ""
+    fi
+  fi
+done
+
 # v6 S2: L2 所属域装配——按 active 任务卡 domain 拉取对应域的 CONTEXT+PITFALLS(各受预算约束)。
 if [ -n "$active_task" ] && [ -f "$fed" ]; then
   task_domains_l2="$(grep '^>.*domain:' "$active_task" 2>/dev/null | head -1 | sed 's/.*domain:[[:space:]]*//' | sed 's/|.*//' | tr -d ' ')"

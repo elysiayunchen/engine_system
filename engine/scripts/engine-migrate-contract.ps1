@@ -347,7 +347,45 @@ Doctor MUST validate the current Engine System v6 contract in addition to regist
 9. Bootloaders (AGENTS.md / CLAUDE.md) stay thin: target 30 lines, hard cap 45 lines.
 10. Generated self-view snapshots, when used, live under ``engine/.cache/`` and are never registered as authority.
 11. HANDOFF.md session history table keeps <= 8 rows; older rows move to ``engine/handoff-archive-YYYY-MM.md`` (search-only, not registered in ENGINE_MAP section 1, not loaded by SessionStart). Verified items in CONTEXT.md "to-verify" sections are removed.
+12. Task-level progress.md (v6.7.0+): active/paused task cards MUST have a corresponding ``engine/tasks/T-NNN/progress.md`` (7-section recovery anchor, see ``contract/src/20-file-templates.md`` FILE 13); done task cards MUST have their progress.md archived to ``engine/archive/tasks/T-NNN-progress.md`` and the live copy removed (mirrors D-027 HANDOFF archive). Projects stamped ``contract-version < 6.7.0`` get WARN (migration grace period, see D-028 section 9); ``>= 6.7.0`` get FAIL.
 "@
+
+# v6.7.0 (D-028/T-032): ensure engine/skeleton/progress.md template exists in the
+# target project so active/paused task cards can be instantiated from it. Idempotent:
+# only creates if missing, never overwrites.
+$skeletonProgress = Join-Path $EngineDir "skeleton\progress.md"
+if (-not (Test-Path $skeletonProgress)) {
+  $skeletonDir = Split-Path -Parent $skeletonProgress
+  if (-not (Test-Path $skeletonDir)) { New-Item -ItemType Directory -Force -Path $skeletonDir | Out-Null }
+  $progressTemplate = @"
+# progress — [Task ID: T-NNN] [Task Title]
+> Last updated: [date] | 任务级压缩恢复锚点 | 7 栏事件驱动更新,见 contract/src/20-file-templates.md FILE 13
+
+## §1 已读文件（理解项目）
+- [path] — [一句摘要]
+
+## §2 已确认接口（不重复读）
+- [fn(arg: T) -> R] — [返回语义]
+
+## §3 已排除路径（原 TRAIL 的家）
+- [time] / [被拒绝方案] / [原因] / [采用方案]
+
+## §4 当前进行到（压缩恢复点）
+正在做:[一句话]
+下一步:[一句话]
+
+## §5 待确认问题
+- [问题] / 阻塞:[谁] / 提出:[time]
+
+## §6 已知风险/未解 bug
+- [描述] / 影响:[范围] / 缓解:[状态]
+
+## §7 回滚尝试
+- [代码段] / 回滚原因:[一句话] / 替代方案:[一句话]
+"@
+  Set-Content -Path $skeletonProgress -Value $progressTemplate -Encoding UTF8
+  Write-Host "created $(Get-Relative $skeletonProgress) (v6.7.0 progress.md template)"
+}
 
 $agentPath = Join-Path $Root "AGENTS.md"
 $systemPath = Join-Path $EngineDir "SYSTEM.md"

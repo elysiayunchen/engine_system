@@ -68,6 +68,12 @@ silently treat the script as legacy.
     `engine/handoff-archive-YYYY-MM.md` (search-only, not registered in ENGINE_MAP §1,
     not loaded by SessionStart). Verified items in CONTEXT.md "to-verify" sections are
     removed.
+24. Task-level progress.md (v6.7.0+): active/paused task cards MUST have a corresponding
+    `engine/tasks/T-NNN/progress.md` (7-section recovery anchor, see
+    `contract/src/20-file-templates.md` FILE 13); done task cards MUST have their
+    progress.md archived to `engine/archive/tasks/T-NNN-progress.md` and the live copy
+    removed (mirrors D-027 HANDOFF archive). Projects stamped `contract-version < 6.7.0`
+    get WARN (migration grace period, see D-028 §9); `>= 6.7.0` get FAIL.
 
 ## Script Contract
 Preferred commands:

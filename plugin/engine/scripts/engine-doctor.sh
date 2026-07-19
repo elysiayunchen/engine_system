@@ -350,6 +350,92 @@ check_handoff_history_cap() {
   fi
 }
 
+check_progress_md() {
+  # v6.7.0 (D-028/T-032): task-level progress.md 7-section recovery anchor.
+  # active/paused cards MUST have engine/tasks/T-NNN/progress.md;
+  # done cards MUST have it archived to engine/archive/tasks/T-NNN-progress.md
+  # (live copy removed, mirrors D-027 HANDOFF archive).
+  # Migration grace period: projects stamped contract-version < 6.7.0 → WARN;
+  # >= 6.7.0 → FAIL (see D-028 §9).
+  local tasks_dir="$ENGINE_DIR/tasks"
+  [ -d "$tasks_dir" ] || return 0
+
+  # Read contract-version from ENGINE_DOCTOR.md managed block.
+  local doctor_path="$ENGINE_DIR/ENGINE_DOCTOR.md"
+  local contract_version=""
+  if [ -f "$doctor_path" ]; then
+    contract_version="$(grep -oE 'contract-version:[[:space:]]*[0-9]+\.[0-9]+\.[0-9]+' "$doctor_path" 2>/dev/null | head -1 | sed 's/.*contract-version:[[:space:]]*//')"
+  fi
+  # Parse "X.Y.Z" → cv_int = X*10000 + Y*100 + Z (for numeric compare).
+  local cv_int=0
+  if [[ "$contract_version" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+    cv_int=$(( ${BASH_REMATCH[1]} * 10000 + ${BASH_REMATCH[2]} * 100 + ${BASH_REMATCH[3]} ))
+  fi
+  local violation_is_fail=0
+  if [ "$cv_int" -ge 60700 ] 2>/dev/null; then
+    violation_is_fail=1
+  fi
+
+  local active_count=0 paused_count=0 done_count=0
+  local active_missing=0 paused_missing=0 done_live=0
+  local f
+  for f in "$tasks_dir"/T-*.md; do
+    [ -f "$f" ] || continue
+    [[ "$f" == *.spec.md ]] && continue
+    local tid; tid="$(basename "$f" .md)"
+    local prog="$tasks_dir/$tid/progress.md"
+    local archive="$ENGINE_DIR/archive/tasks/$tid-progress.md"
+    if grep -q 'status:.*active' "$f" 2>/dev/null; then
+      active_count=$((active_count + 1))
+      if [ ! -f "$prog" ]; then
+        active_missing=$((active_missing + 1))
+        if [ "$violation_is_fail" -eq 1 ]; then
+          fail "task $tid (active) missing progress.md - copy engine/skeleton/progress.md to engine/tasks/$tid/progress.md"
+          echo "  human: Active task $tid has no progress.md recovery anchor. SessionStart injects progress.md to survive context compression; without it, in-progress details may be lost. Run: cp engine/skeleton/progress.md engine/tasks/$tid/progress.md and fill in §1-§7."
+        else
+          warn "task $tid (active) missing progress.md (grace period, contract-version $contract_version < 6.7.0)"
+          echo "  human: Active task $tid has no progress.md. Migration grace period is active (contract-version $contract_version < 6.7.0); WARN only. To fix: cp engine/skeleton/progress.md engine/tasks/$tid/progress.md."
+        fi
+      fi
+    elif grep -q 'status:.*paused' "$f" 2>/dev/null; then
+      paused_count=$((paused_count + 1))
+      if [ ! -f "$prog" ]; then
+        paused_missing=$((paused_missing + 1))
+        if [ "$violation_is_fail" -eq 1 ]; then
+          fail "task $tid (paused) missing progress.md - copy engine/skeleton/progress.md to engine/tasks/$tid/progress.md"
+          echo "  human: Paused task $tid has no progress.md recovery anchor. Without it, resuming the task after context loss requires re-reading all files. Run: cp engine/skeleton/progress.md engine/tasks/$tid/progress.md."
+        else
+          warn "task $tid (paused) missing progress.md (grace period, contract-version $contract_version < 6.7.0)"
+        fi
+      fi
+    elif grep -q 'status:.*done' "$f" 2>/dev/null; then
+      done_count=$((done_count + 1))
+      # Done cards: live progress.md should be archived (mirror D-027 HANDOFF).
+      if [ -f "$prog" ]; then
+        done_live=$((done_live + 1))
+        if [ "$violation_is_fail" -eq 1 ]; then
+          fail "task $tid (done) has live progress.md - archive to engine/archive/tasks/$tid-progress.md and remove live copy"
+          echo "  human: Done task $tid still has a live progress.md at engine/tasks/$tid/progress.md. Done cards are cold history; archive the progress.md to engine/archive/tasks/$tid-progress.md (mirrors HANDOFF archive) and remove the live copy."
+        else
+          warn "task $tid (done) has live progress.md (grace period, contract-version $contract_version < 6.7.0)"
+        fi
+      fi
+    fi
+  done
+
+  # Summary line when there are active/paused cards with progress.md present.
+  local total_active=$((active_count + paused_count))
+  if [ "$total_active" -gt 0 ]; then
+    local total_missing=$((active_missing + paused_missing))
+    if [ "$total_missing" -eq 0 ]; then
+      pass "progress.md summary: $total_active active/paused task(s) all have progress.md (cv=$contract_version)"
+    fi
+  fi
+  if [ "$done_live" -gt 0 ]; then
+    : # Already reported per-task above; no extra summary needed.
+  fi
+}
+
 check_pitfalls_semantics() {
   is_registered_name "PITFALLS.md" || return 0
   local path="$ENGINE_DIR/PITFALLS.md"
@@ -673,6 +759,7 @@ fi
 check_context_semantics
 check_handoff_semantics
 check_handoff_history_cap
+check_progress_md
 check_pitfalls_semantics
 check_sprint_semantics
 check_change_capsule_semantics

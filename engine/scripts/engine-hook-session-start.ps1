@@ -129,6 +129,30 @@ if ($activeTask) {
   Write-Output ""
 }
 
+# v6.7.0 (D-028/T-032): task progress.md injection - read engine/tasks/T-NNN/progress.md
+# when active/paused card exists; multiple cards injected in ascending ID order.
+# Covers HANDOFF immediate-resume pointer with progress.md section 4 (fine-grained).
+if (Test-Path $tasksDir) {
+  $progressTaskFiles = Get-ChildItem -Path $tasksDir -File -Filter "T-*.md" -ErrorAction SilentlyContinue | Sort-Object Name
+  foreach ($pf in $progressTaskFiles) {
+    if ($pf.Name -match '\.spec\.md$') { continue }
+    $pc = Get-Content -Raw -Path $pf.FullName -Encoding UTF8 -ErrorAction SilentlyContinue
+    if ($pc -match 'status:\s*(active|paused)') {
+      $progId = $pf.BaseName
+      $progFile = Join-Path $tasksDir ("$progId\progress.md")
+      if (Test-Path $progFile) {
+        Write-Output "---- Task progress ($progId/progress.md) ----"
+        Get-Content $progFile | ForEach-Object { Write-Output $_ }
+        Write-Output ""
+      } else {
+        Write-Output "---- Task progress: $progId missing progress.md (Doctor WARN) ----"
+        Write-Output "active/paused card $progId has no progress.md; instantiate from engine/skeleton/progress.md per contract/src/20-file-templates.md FILE 13."
+        Write-Output ""
+      }
+    }
+  }
+}
+
 # v6 S2: L2 domain assembly - pull CONTEXT+PITFALLS for each domain in the task card's domain field (budget-bounded).
 if ($activeTask -and (Test-Path $FedFile)) {
   $taskContent = Get-Content -Raw -Path $activeTask -Encoding UTF8

@@ -47,7 +47,7 @@
     { "src": "bin/engine", "sha256": "c7c8c5cae03dd24f4adb07e52ca34278eaa9d2c705759194b87565bb1ea90454", "dest": "engine/bin/engine", "protect": true },
     { "src": "bin/engine.ps1", "sha256": "74b82242c40d4e70af7b124ed99a08b9120d2bc7054517ae636a58f39883383c", "dest": "engine/bin/engine.ps1", "protect": true },
     { "src": "bin/engine.cmd", "sha256": "2b80dd9864ae5cbc9abbced55236866e672d790ce077217404eba3dfbed73133", "dest": "engine/bin/engine.cmd", "protect": true },
-    { "src": "VERSION", "sha256": "a2d69360e401db060a30ae54a177ec78a1d8430998dda8f81602597fef7d5cee", "dest": "engine/VERSION", "protect": true },
+    { "src": "VERSION", "sha256": "82396552835868194c4604eaeb8b3e33be7e243b62a6973d5d8d767568231b10", "dest": "engine/VERSION", "protect": true },
     { "src": "engine/scripts/engine-check-update.sh", "sha256": "aa4f2b630bf80a911281c5afe17017038616aecb2be290ab8565623fea6d75c3", "dest": "engine/scripts/engine-check-update.sh", "protect": true },
     { "src": "engine/scripts/engine-check-update.ps1", "sha256": "4a89d0fc59ae83de7f719bd48253a81f0de374e7c538c0b9b3bc1d3286f7bf7c", "dest": "engine/scripts/engine-check-update.ps1", "protect": true },
     { "src": "migrations/v6.0.sh", "sha256": "4eebdf605bd86b17424cdf50e2bf313a3965d41666e7bc37a87c27668d503539", "dest": "engine/migrations/v6.0.sh", "protect": true },

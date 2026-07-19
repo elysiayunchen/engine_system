@@ -7,8 +7,8 @@
 | 维度 | 状态 |
 |------|------|
 | 构建 | ✅ 正常（纯 markdown + shell 脚本，无构建步骤） |
-| 上次完成 | **v6.6.3 hotfix**:AC id 解析正则升级,支持 `AC-N.M` 子编号。D-028 §10 机制扩展挂载了 AC-5.1 / AC-6.1 / AC-2.1 三个子编号 AC,原正则只支持 `AC-N` 格式会把 `AC-2.1` 误识别为 `AC-2`。修复:engine-verify + engine-doctor + githooks/pre-commit 共 5 个脚本(engine + plugin 镜像双份 8 处正则)从 `AC-[0-9]+` 升级为 `AC-[0-9]+(\.[0-9]+)*`。同时 D-028 已 approved:6 份子代理审视后落实必须改 4 项(迁移宽限期 + tryout bypass + 批量豁免 + 依赖关系修订)+ 应该改 3 项(机制 A 静态预算 / 机制 B jscpd / 机制 C API 唯一性),覆盖率从 2.5/4 提升至 3.3/4。4 张任务卡 spec 已落实 AC 增项。check.sh 全绿。版本 6.6.2→6.6.3,tag v6.6.3。详见 `engine/changes/CHANGE-2026-07-19-03.md`。 |
-| 进行中 | **LPHP 大型项目接管方向(D-028 approved)**:T-032(v6.7.0 progress.md + SessionStart 锚点)可开干。T-033/T-034/T-035 spec 已就绪,按依赖图 T-032→T-033→T-035 + T-034 弱依赖 T-032 并行。3 个月 expiry 2026-10-31,早期预警 2026-09-15。 |
+| 上次完成 | **v6.7.0 正式发版(T-032 任务级 progress.md 压缩恢复锚点)**:commit aec2934 实现(43 files, +1504/-25)+ release commit(VERSION bump ×3 → 6.7.0, CHANGELOG v6.7.0 段, tag v6.7.0)。新增 contract/src/20-file-templates.md FILE 13(progress.md 7 栏模板+生命周期+SessionStart 注入+HANDOFF 薄指针规则);behaviors/{task-run,handoff}.md 事件驱动触发点+薄指针规则;engine-hook-session-start.{sh,ps1} active/paused 卡存在时机器强制注入 progress.md 全文(269→384 行,≤400 N1);engine-doctor.{sh,ps1} check_progress_md 读 contract-version 实现迁移宽限期(<6.7.0 WARN, >=6.7.0 FAIL)+ 双向检查;engine-migrate-contract.{sh,ps1} #12 + skeleton/progress.md 创建;ENGINE_DOCTOR.md dogfood contract-version 6.6.0→6.7.0;contract/budget.json 2455→2530;dogfood:6 张 active/paused 卡创建 progress.md。check.sh 全绿(0 failures, 1 warning 与 T-032 无关)。详见 `engine/changes/CHANGE-2026-07-19-04.md`。 |
+| 进行中 | **LPHP 大型项目接管方向(D-028 approved)**:T-032(v6.7.0 progress.md + SessionStart 锚点)已发版,下一步 `git push && git push --tags` 触发 GitHub Release workflow。T-033(v6.8.0 域级 INVENTORY.md)queued,T-034/T-035 spec 已就绪,按依赖图 T-032→T-033→T-035 + T-034 弱依赖 T-032 并行。3 个月 expiry 2026-10-31,早期预警 2026-09-15。 |
 | 阻塞 | 无。 |
 
 ## 当前假设 / 决策（本轮拍板）

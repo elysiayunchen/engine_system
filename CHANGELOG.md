@@ -1,5 +1,9 @@
 # Changelog
 
+## v6.6.1 (2026-07-19)
+
+- (no capsules in this release)
+
 ## v6.6.0 (2026-07-19)
 
 - HANDOFF 历史归档机制：会话历史表 8 条上限，超出迁移到 `engine/handoff-archive-YYYY-MM.md`（search-only，不进 SessionStart/§1，Doctor 不校验预算）。

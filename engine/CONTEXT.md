@@ -7,8 +7,8 @@
 | 维度 | 状态 |
 |------|------|
 | 构建 | ✅ 正常（纯 markdown + shell 脚本，无构建步骤） |
-| 上次完成 | **v6.6.2 hotfix**:Doctor 把 `T-*.spec.md` 误判为任务卡的 bug 修复——bash glob `T-*.md` 匹配 `T-NNN.spec.md`,且 `grep 'status:.*done'` 匹配 spec 正文里的字面引用,导致 T-033.spec 被误判 done 无 evidence(FAIL)+ 4 张 spec twin 被当 legacy 任务卡(WARN)。修复:engine-doctor.sh + .ps1(engine + plugin 镜像共 4 份)4 处循环加 `*.spec.md` 过滤。check.sh 0 failures 0 warnings,done task evidence summary 29→28 checked。版本 6.6.1→6.6.2,tag v6.6.2。详见 `engine/changes/CHANGE-2026-07-19-02.md`。 |
-| 进行中 | **LPHP 大型项目接管方向(D-028 待批)**:4 张任务卡 T-032~T-035 已开卡,分阶段 v6.7.0~v6.10.0——T-032 任务级 progress.md + SessionStart 锚点;T-033 域级 INVENTORY + 双向 FAIL;T-034 AC 级 checkpoint + 软门禁;T-035 verify 死代码检测 + done 门。待起草 D-028 决策卡后开干 T-032。 |
+| 上次完成 | **v6.6.3 hotfix**:AC id 解析正则升级,支持 `AC-N.M` 子编号。D-028 §10 机制扩展挂载了 AC-5.1 / AC-6.1 / AC-2.1 三个子编号 AC,原正则只支持 `AC-N` 格式会把 `AC-2.1` 误识别为 `AC-2`。修复:engine-verify + engine-doctor + githooks/pre-commit 共 5 个脚本(engine + plugin 镜像双份 8 处正则)从 `AC-[0-9]+` 升级为 `AC-[0-9]+(\.[0-9]+)*`。同时 D-028 已 approved:6 份子代理审视后落实必须改 4 项(迁移宽限期 + tryout bypass + 批量豁免 + 依赖关系修订)+ 应该改 3 项(机制 A 静态预算 / 机制 B jscpd / 机制 C API 唯一性),覆盖率从 2.5/4 提升至 3.3/4。4 张任务卡 spec 已落实 AC 增项。check.sh 全绿。版本 6.6.2→6.6.3,tag v6.6.3。详见 `engine/changes/CHANGE-2026-07-19-03.md`。 |
+| 进行中 | **LPHP 大型项目接管方向(D-028 approved)**:T-032(v6.7.0 progress.md + SessionStart 锚点)可开干。T-033/T-034/T-035 spec 已就绪,按依赖图 T-032→T-033→T-035 + T-034 弱依赖 T-032 并行。3 个月 expiry 2026-10-31,早期预警 2026-09-15。 |
 | 阻塞 | 无。 |
 
 ## 当前假设 / 决策（本轮拍板）

@@ -367,6 +367,29 @@ function Test-HandoffSemantics {
     Write-Output "  human: HANDOFF.md has no session history table. Add dated rows (| YYYY-MM-DD | ...) summarizing what was done in each session." }
 }
 
+function Test-HandoffHistoryCap {
+  # v6.6 (D-027): HANDOFF history table <= 8 rows; older rows move to
+  # engine/handoff-archive-YYYY-MM.md. Archive is search-only (not loaded
+  # by SessionStart, not registered in ENGINE_MAP section 1).
+  if (-not (Test-RegisteredName "HANDOFF.md")) { return }
+  $path = Join-Path $engineDir "HANDOFF.md"
+  if (-not (Test-Path $path)) { return }
+
+  $historySection = New-Text @(0x4F1A, 0x8BDD, 0x5386, 0x53F2)
+  $inHistory = $false
+  $historyCount = 0
+  $lines = Get-Content -Path $path -Encoding UTF8
+  foreach ($line in $lines) {
+    if ($line -match ("^##\s+" + [regex]::Escape($historySection))) { $inHistory = $true; continue }
+    if ($inHistory -and $line -match "^##\s") { $inHistory = $false }
+    if ($inHistory -and $line -match "^\|\s*\d{4}-\d{2}-\d{2}\s*\|") { $historyCount++ }
+  }
+  if ($historyCount -gt 8) {
+    Write-Warn "HANDOFF.md history table has $historyCount rows (> 8) - archive oldest to engine/handoff-archive-YYYY-MM.md"
+    Write-Output "  human: The HANDOFF.md session history table has $historyCount rows. Keep only the most recent 8 in HANDOFF.md and move the rest to engine/handoff-archive-YYYY-MM.md (named by the month of the oldest moved row). The archive file is search-only and not loaded by SessionStart."
+  }
+}
+
 function Test-PitfallsSemantics {
   if (-not (Test-RegisteredName "PITFALLS.md")) { return }
   $path = Join-Path $engineDir "PITFALLS.md"

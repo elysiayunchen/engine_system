@@ -49,7 +49,7 @@ if (Test-Path $gitBash) {
 foreach ($line in (Get-Content $taskFile -Encoding UTF8)) {
   if ($line -notmatch '^AC:') { continue }
   $acId = ""
-  if ($line -match '^AC:\s*(AC-\d+)') { $acId = $Matches[1] }
+  if ($line -match '^AC:\s*(AC-\d+(?:\.\d+)*)') { $acId = $Matches[1] }
   if (-not $acId) { continue }
   $verifyCmd = ""
   if ($line -match 'verify:\s*(.+?)\s*$') { $verifyCmd = $Matches[1] }

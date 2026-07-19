@@ -147,7 +147,7 @@ if [ "$strict_task_mode" -eq 1 ]; then
     printf '%s\n' "$task_snapshot" | grep -q 'status:.*done' || continue
     printf '%s\n' "$task_snapshot" | grep -qi 'exempt' && continue
     done_task_id="$(basename "$task_path" .md)"
-    ac_ids="$(printf '%s\n' "$task_snapshot" | sed -n 's/^AC:[[:space:]]*\(AC-[0-9][0-9]*\).*/\1/p')"
+    ac_ids="$(printf '%s\n' "$task_snapshot" | sed -n 's/^AC:[[:space:]]*\(AC-[0-9][0-9]*\(\.[0-9][0-9]*\)*\).*/\1/p')"
     if [ -z "$ac_ids" ]; then
       printf '\n[Engine System] %s is staged as done but declares no AC evidence targets.\n\n' "$done_task_id" >&2
       IFS="$old_ifs"

@@ -37,7 +37,7 @@ echo "【Engine System · 行为化验收】$task"
 echo ""
 
 while IFS= read -r line; do
-  ac_id="$(printf '%s' "$line" | sed -n 's/^AC:[[:space:]]*\(AC-[0-9]*\).*/\1/p')"
+  ac_id="$(printf '%s' "$line" | sed -n 's/^AC:[[:space:]]*\(AC-[0-9][0-9]*\(\.[0-9][0-9]*\)*\).*/\1/p')"
   [ -n "$ac_id" ] || continue
   verify_cmd="$(printf '%s' "$line" | sed -n 's/.*verify:[[:space:]]*\(.*\)[[:space:]]*$/\1/p')"
   if [ -z "$verify_cmd" ]; then

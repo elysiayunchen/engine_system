@@ -525,7 +525,7 @@ check_task_card_done_evidence() {
       continue
     fi
     local ac_ids ac_count missing ac ev
-    ac_ids="$(sed -n 's/^AC:[[:space:]]*\(AC-[0-9][0-9]*\).*/\1/p' "$f")"
+    ac_ids="$(sed -n 's/^AC:[[:space:]]*\(AC-[0-9][0-9]*\(\.[0-9][0-9]*\)*\).*/\1/p' "$f")"
     ac_count="$(printf '%s\n' "$ac_ids" | sed '/^$/d' | wc -l | tr -d ' ')"
     missing=""
     for ac in $ac_ids; do

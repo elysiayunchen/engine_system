@@ -609,7 +609,7 @@ function Test-TaskCardDoneEvidence {
       $exemptCount++
       continue
     }
-    $acIds = @([regex]::Matches($content, '(?m)^AC:\s*(AC-[0-9]+)') | ForEach-Object { $_.Groups[1].Value })
+    $acIds = @([regex]::Matches($content, '(?m)^AC:\s*(AC-[0-9]+(?:\.[0-9]+)*)') | ForEach-Object { $_.Groups[1].Value })
     $missing = New-Object System.Collections.Generic.List[string]
     foreach ($ac in $acIds) {
       $evPath = Join-Path $evDir ($ac + '.json')

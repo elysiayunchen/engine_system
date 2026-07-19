@@ -7,4 +7,8 @@ engine/.cache/
 # Downloaded/extracted engine snapshot + scratch outputs (not part of the deliverable)
 engine1.zip
 engine1_extracted/
+engine2.zip
 outputs/
+
+# workbuddy scratch (agent memory doodles, not part of the deliverable)
+.workbuddy/

@@ -74,13 +74,23 @@ AI 动了不该动的东西                  AI 早就知道那里不能碰
 | `ARCHITECTURE.md` | 技术栈、目录结构、数据模型、关键决策及其理由                   |
 | `SPRINT.md`       | 用人话写的当前任务和优先级                                     |
 | `ROADMAP.md`      | 里程碑、计划功能、预料中将来要大改的东西                       |
-| `HANDOFF.md`      | 会话历史——哪怕隔了两周，也能精准接回上次的断点                 |
+| `HANDOFF.md`      | 会话历史——哪怕隔了两周，也能精准接回上次的断点（v6.6+ 限 8 条）|
 | `SOURCEMAP.md`    | 代码 GPS：哪个文件管哪个功能，加新东西去哪里改                 |
 | `REPO_GUIDE.md`   | 可选：当 SYSTEM 太大时承载仓库命令、流程与维护规则             |
 | `ENGINE_DOCTOR.md`| 引擎健康检查与未来扩展的维护契约                               |
-| `engine/changes/` | 改动胶囊：把 diff 翻译成目标、影响、风险、验证和回滚            |
-| `engine/agents/`  | 可选：Codex、Claude Code、IDE agent、CI bot 的环境适配细则      |
-| `engine/scripts/` | 随仓库打包的维护脚本，包括 registry-driven Engine Doctor        |
+| `engine/tasks/`         | 任务卡（`T-NNN.md`）：一项可独立验收的目标一卡——GOAL / WRITE-SET / FORBIDDEN / AC+verify |
+| `engine/decisions/`     | 决策台账（`D-NNN.md`）：非显然选择，带 status / scope / expiry。受保护路径在提交时必须引用一个 approved 决策 |
+| `engine/changes/`       | 改动胶囊：把 diff 翻译成目标、影响、风险、验证和回滚             |
+| `engine/workstreams/`   | 并行 worker 分片：每个 agent 只写自己的 `/<task>/<agent>/`，协调者在 merge point 一次合并 |
+| `engine/evidence/`      | 逐 AC 的验收证据：PASS/FAIL + sha256 指纹                       |
+| `engine/domains/`       | 联邦路由表（`federation.json`）+ 每域 CONTEXT/PITFALLS，分形记忆 |
+| `engine/plans/`         | 你聊出来的设计文档，每份都配一张验收清单                       |
+| `engine/handoff-archive-*.md` | HANDOFF 历史归档（v6.6+，search-only，不进 SessionStart 注入、不进 ENGINE_MAP §1）|
+| `engine/migrations/`    | 版本化迁移脚本（`v6.0.sh`/`.ps1` …），`engine migrate` 按版本顺序应用 |
+| `engine/prompts/behaviors/` | agent-neutral 行为 prompt：scout、task-run、handoff、decision-draft、verify-writeback |
+| `engine/agents/`        | 可选：Codex、Claude Code、IDE agent、CI bot 的环境适配细则      |
+| `engine/scripts/`       | 随仓库打包的维护脚本：Doctor、hooks、契约迁移器、verify、跨 agent 同步 |
+| `.claude/skills/`       | Claude Code 技能（与 `engine/prompts/behaviors/` 同源镜像）     |
 
 纯 markdown 文件。提交进 git，用 diff 追踪变化，自己也能读。  
 顺带一提，这也许是你这辈子无意间写出的最好的项目文档。
@@ -97,6 +107,41 @@ Engine System 会留意你是在用**网页版 AI**（ChatGPT、网页里的 Cla
 - **Claude Code 能直接读你的代码**，所以它只存那些**没法从代码里重建**的东西：你的决策、你踩的坑、你定的规则。像目录结构这类信息就不重复存了——AI 需要时直接现读，这样它永远不会过期。
 
 这些你都不用配置。运行 `/engine-init` 时一次性选好，剩下的它替你处理。
+
+---
+
+## v6 新机制——引擎背后的引擎
+
+Engine System v6 把最初的记忆层升级成了数据驱动运行时。文件仍是纯 markdown，你能读、能 diff——但底层由机器执行契约，不再依赖 prompt 纪律。
+
+### v6 核心机制
+
+| 机制 | 它做什么 |
+|------|----------|
+| **三层门禁（S0）** | UserPromptSubmit 短重锚 + PreToolUse 写前检查 + session 归属的 Stop + pre-commit 复核。陈旧上下文再也无法漂移成错误写入。 |
+| **任务卡（S1）** | 一项可独立验收的目标一张卡（`engine/tasks/T-NNN.md`）。每条项目路径——包括 `engine/*`——必须落在 WRITE-SET 内、FORBIDDEN 外。 |
+| **决策台账（S1）** | 非显然选择变成可引用工件（`engine/decisions/D-NNN.md`），带 status / scope / expiry。受保护路径提交时必须引用一个 approved 决策。 |
+| **分形记忆（S2）** | 联邦表（`engine/domains/federation.json`）按 path-glob 路由到域；每个域有自己的 CONTEXT + PITFALLS。L2 装配不超过 400 行会话预算。 |
+| **契约编译（S3）** | `contract/src/*.md` 是唯一正本；`contract/compile.sh` 编译到 dist；减法预算强制"新规则必须净零增长"，契约不会膨胀。 |
+| **驾驶舱验收（S4）** | `engine verify T-NNN` 跑行为验收——AC verify 命令产出 PASS/FAIL + sha256 指纹到 `engine/evidence/`。任务卡只有在 verify 全绿或架构师批准豁免时才能标 `done`。 |
+
+### v6.5——长会话硬边界与并行记忆分片
+
+两类可复现问题——长上下文模型遗忘任务范围、并行 agent 抢写 `CONTEXT.md` 互相覆盖——现在由机器解决：
+
+- **全路径任务范围**：WRITE-SET / FORBIDDEN 覆盖代码、文档**和**引擎文件。在 contract-version 6.5+ 项目里，普通写入必须有 active/closing 任务卡；只有任务/决策卡 bootstrap 允许无卡。只读调查免卡。
+- **逐 AC 证据门禁**：staging `done` 必须每个 AC 都有 PASS evidence，或架构师批准的豁免。Doctor 把成功历史聚合成一行，只逐项输出失败项。
+- **Workstream 分片**：worker 运行 `engine workstream T-NNN <agent-id>`，只写 `engine/workstreams/<task>/<agent>/`。协调者在 merge point 重读所有分片，一次性更新共享记忆。
+- **低 token 重锚**：UserPromptSubmit 注入 4 行任务指针（ID、GOAL、卡路径、并行归属），不重复 L0 或完整 WRITE-SET。SessionStart 装配完整上下文；Stop / pre-commit 做收尾门禁。
+- **session_id + agent_id 归属**：Claude PreToolUse 拦截已识别的子 agent 直接写共享引擎文件；Stop 用 session/agent 路径账本，避免兄弟 agent 的改动"代打卡"。其他宿主回退到 workstream 分片 + pre-commit。
+
+### v6.6——HANDOFF 历史归档
+
+`HANDOFF.md` 的会话历史表上限 8 条。超出时把最旧的整行迁移到 `engine/handoff-archive-YYYY-MM.md`（search-only——不进 SessionStart 注入、不进 ENGINE_MAP §1 注册、Doctor 不校验预算）。Doctor 在历史表 > 8 条时输出 WARN（不硬失败），提示 agent 在下次写 HANDOFF 时触发首次归档。同一条规则会删除 CONTEXT.md「待验证」段中已 `~~划线~~` 的条目。
+
+### 行为技能
+
+五个 Claude Code 技能把契约行为封装好：`engine-scout`、`engine-task-run`、`engine-handoff`、`engine-decision-draft`、`engine-verify-writeback`。同样的 prompt 也以 agent-neutral 形式发布在 `engine/prompts/behaviors/`，让非 Claude agent（Codex、Copilot、Cursor、Gemini、Aider、网页 chat）也能用。
 
 ---
 
@@ -187,8 +232,11 @@ Claude 会采访你：项目愿景、技术栈、当前状态、已知的坑、�
 
 ## 之后每次会话
 
-**开始：** Claude Code 自动读取 `CLAUDE.md`。在 v5.6 里，SessionStart hook 还会把最新的
-`CONTEXT.md` + `HANDOFF.md` 快照注入新会话。
+**开始：** Claude Code 自动读取 `CLAUDE.md`。在 v5.6+，SessionStart hook 还会把最新的
+`CONTEXT.md` + `HANDOFF.md` 快照注入新会话。在 v6+，联邦表按路径路由到域，只装配相关 L2
+记忆（≤400 行）。在 v6.5+，每次 UserPromptSubmit 都会重注入 4 行任务指针，长会话不再漂移。
+
+**没装 Claude Code？** 在任意终端运行 `engine context`，它会打印同样的会话上下文包，供任意 AI agent 阅读。
 
 **会话结束：**
 
@@ -248,6 +296,25 @@ Doctor warning 缓存给下次启动。其他 agent 仍有 git pre-commit 兜底
 它会通过注册表发现新文件，而不是被写死的旧脚本遗忘。
 v5.7 起，Doctor 还会检查最近改动是否有可读胶囊、胶囊是否包含风险/验证/回滚，
 以及标记为 done 的计划是否真的有验收证据。
+v6.3.1 起，Doctor 加字节上限 + 单行宽度检查，膨胀的 CONTEXT/ENGINE_MAP/HANDOFF（例如表格单元格填充攻击）逃不过行数上限的盲点。
+v6.5+ 起，Doctor 把成功任务历史聚合成一行，只逐项输出失败 AC。
+v6.6 起，Doctor 在 `HANDOFF.md` 历史表超过 8 条时输出 WARN。
+
+**任务标 done 前先验收（v6+）：**
+
+```
+engine verify T-NNN
+```
+
+跑 `engine/tasks/T-NNN.md` 里的 AC verify 命令，把 PASS/FAIL + sha256 指纹写到 `engine/evidence/T-NNN/`。任务卡只有每个 AC 全绿或架构师批准豁免时才能标 `done`。
+
+**并行 worker（v6.5+）：**
+
+```
+engine workstream T-NNN <agent-id>
+```
+
+在 `engine/workstreams/<task>/<agent>/` 创建隔离的 worker 分片。worker 只写自己的 `CONTEXT.md` + `HANDOFF.md`；协调者在 merge point 重读所有分片，一次更新共享记忆。多个 agent 共享工作区时用它——彻底消除 CONTEXT/HANDOFF 写冲突。
 
 **更新 Engine System 工具并迁移本地引擎文件：**
 
@@ -269,7 +336,9 @@ v5.7 起，Doctor 还会检查最近改动是否有可读胶囊、胶囊是否�
 
 ---
 
-## 九个命令
+## 命令清单
+
+### 斜杠命令（Claude Code）
 
 | 命令                 | 它做的事                                                |
 | -------------------- | ------------------------------------------------------- |
@@ -282,6 +351,26 @@ v5.7 起，Doctor 还会检查最近改动是否有可读胶囊、胶囊是否�
 | `/engine-doctor`     | 检查注册表、锚点、plan、预算、生命周期闭环与自审证据     |
 | `/engine-sync`       | 更新 Engine System 工具，并迁移/对账本地引擎文件        |
 | `/engine-reconcile`  | 对账文档与真实代码，修掉任何漂移                        |
+
+### 终端 CLI（任意 AI agent，v6+）
+
+`engine` CLI 是装在 `engine/bin/engine` 的薄壳（安装后还会装一份用户级 `engine` 命令到 PATH）。不在 Claude Code 里时（Codex、Copilot CLI、Cursor、Gemini CLI、Aider 或纯终端）用它。
+
+| 命令                                     | 它做的事                                                                                       |
+| ---------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `engine init`                            | 展示如何把 `engine/prompts/init.md` 喂给任意 AI agent。`--print` 直接吐出原始 prompt            |
+| `engine context`                         | 打印完整会话上下文包（Claude Code SessionStart 注入的 agent-neutral 等价物）                    |
+| `engine workstream T-NNN <agent-id>`     | 为并行 agent 创建隔离 worker 记忆分片（v6.5+）                                                  |
+| `engine verify T-NNN`                     | 跑行为验收，把 PASS/FAIL + sha256 证据写到 `engine/evidence/`（v6+）                            |
+| `engine check-update`                    | 对比本地 `engine/VERSION` 和远端。Exit 0 最新 / 7 有更新 / 8 网络错误                            |
+| `engine update`                          | 一站式：拉 installer → 更新工具 → 跑 migrator → 跑 Doctor                                        |
+| `engine update --check-only`             | 只预览，不改任何东西                                                                            |
+| `engine update --no-migrate`             | 更新工具但跳过迁移/Doctor                                                                       |
+| `engine migrate`                         | 按 `engine/migrations/` 下的版本化迁移步按序应用，再跑幂等契约迁移器                            |
+| `engine doctor`                          | 跑引擎健康检查                                                                                 |
+| `engine help`                            | 显示用法                                                                                       |
+
+CLI 不会自动改你的项目记忆——`engine migrate` 只应用托管契约区块和结构性迁移；项目专属的 `SYSTEM.md`、`PITFALLS.md`、`CONTEXT.md`、`HANDOFF.md`、plans、decisions 都保留。
 
 ---
 

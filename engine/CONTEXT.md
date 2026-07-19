@@ -1,13 +1,13 @@
 # CONTEXT — 当前状态
 
-> Engine System (engine_system) · Last updated: 2026-07-17 · Profile: CLI-LEAN
+> Engine System (engine_system) · Last updated: 2026-07-19 · Profile: CLI-LEAN
 
 ## 状态面板
 
 | 维度 | 状态 |
 |------|------|
 | 构建 | ✅ 正常（纯 markdown + shell 脚本，无构建步骤） |
-| 上次完成 | **v6.5.0 / D-026 / T-030**：最终发布提交 `e33a3d8` 的 main CI 29597273388 全绿；Release workflow 29599793000 PASS，4 个附件公开，三个归档实际下载后 checksums 全部 OK。远端 VERSION=6.5.0，install.sh 与本地哈希一致。T-028/T-029/T-030 均 5/5 PASS。 |
+| 上次完成 | **v6.6.0 / D-027 / T-031**：HANDOFF 历史归档机制落地——契约源加「最近 8 条保留,超出迁移到 `engine/handoff-archive-YYYY-MM.md`(search-only,不进 SessionStart/§1)」规则;Doctor sh/ps1 加 `check_handoff_history_cap`/`Test-HandoffHistoryCap` WARN 检查;`ENGINE_DOCTOR.md` 实例+模板加 #23 检查;migrator sh/ps1 加 v6.6 managed block item 11 分发到旧项目;`behaviors/handoff.md` step 4 加归档触发 + step 5 加 CONTEXT ✅ 划线行删除。当前仓 HANDOFF 53→8 条样本裁剪(35 条 7 月 + 11 条 6 月归档);CONTEXT 删 8 条 ✅ 划线行。版本 6.5.0→6.6.0。 |
 | 进行中 | 无。下一项建议为真实下游升级/迁移试点，需另开独立任务卡。 |
 | 阻塞 | 无。 |
 
@@ -27,18 +27,9 @@
 - **Phase 1 口径 = D-017 原文四子项**：prompt 抽离 / CLI 扩展 / 快速安装 / agent 检测；实施设计见 D-018——「薄壳引用」修正为「编译同源 + 全量 dist」(编译已消除分叉,薄壳只剩间接层风险),proposed 待架构师批准。
 - **产品面方向 = 行为引擎化(D-019,proposed)**：在既有三件套(单源编译/硬门禁/行为证据)之上长出技能面(该怎么做)+ 编排面(任务胶囊,谁去做)+ 账本面(token 可测)。三项拍板:独立立项分期落地、编排深度止于胶囊不直驱进程、防护整改(dist 漂移检测全覆盖/contract src 入 protected_paths/T-017 校验去空转)前置为 P0。技能红线:每条「必须」配机器查点或显式标注,防验收剧场搬家;净零增长照旧。
 - **发布可用性优先 = SYSTEM 项目开发准则**：引擎系统是要安装到其他项目的产品,本仓通过不等于发布可用。权威位置仅为 `engine/SYSTEM.md`;Doctor 不承载、不指向、不检查该准则。涉及运行时/行为/prompt/skill/hook/迁移/安装/manifest/验证的改动,必须证明能通过 plugin+installer 进入隔离外部项目。
+- **HANDOFF 历史归档 = 8 条上限 + 月度归档（D-027）**：HANDOFF.md「会话历史」表保留最近 8 条;超出时把最旧的整行迁移到 `engine/handoff-archive-YYYY-MM.md`(按月切分)。归档文件不进 SessionStart 注入、不进 ENGINE_MAP §1 注册、Doctor 不校验其预算——只供按需搜索考古。Doctor 在历史表 > 8 条时输出 WARN(不硬失败)。CONTEXT.md「待验证」段已 ✅ 验证的条目必须删除,不再以划线行留存。
 
 ## 待验证
 
-- ✅ ~~Windows + Git Bash 下 Claude Code 执行 hook 的精确方式~~ — SessionStart 本会话成功注入，Stop hook 成功拦截。当前 `.claude/settings.json` 用 `bash` 命令工作正常。
-- ✅ ~~Stop hook 硬门禁的真实手感~~ — 仅在有未提交代码改动 + 未回写引擎时拦一次，纯问答不扰。(本轮再次确认：引擎文件在 untracked 目录下时 hook 路径解析需逐文件匹配)
-- ✅ ~~用户项目中 install.sh/install.ps1 铺 settings.json 的完整路径~~ — 新增 SessionEnd hook 分发，并补 `.git/hooks/pre-commit` 自动安装（已有 hook 时保留并提示手动合并）。
-- ✅ ~~仓库级健康检查入口~~ — `scripts/check.ps1` 与 `scripts/check.sh` 均通过；shell Doctor 已兼容 CRLF manifest 路径。
-- ✅ ~~v5.7 自视图门禁~~ — Doctor 已能检测最近 change capsule、必备章节和 done plan 验收证据；`scripts/check.ps1` 与 `scripts/check.sh` 均通过。
-- ✅ ~~旧项目机制迁移不能只靠文档~~ — 新增 `engine-migrate-contract.{sh,ps1}` 并接入 `/engine-sync`、install、manifest、Doctor bundled script checks 和 duplicate drift checks。
-- ✅ ~~行为技能层不能只对 Claude Code 有效~~ — T-023 已将 5 个 behaviors 编译到 Claude Code skills + agent-neutral prompts,并通过隔离目录 local install 验证。
-- ✅ ~~任务卡在其他项目中没有形成采用闭环~~ — contract-version 6.5+ 无 active/closing 卡拒绝普通写入，任务置 done 时 pre-commit 逐 AC 查 PASS evidence；旧版本保留迁移边界。
-- ✅ ~~周期重锚和历史任务卡线性吃 token~~ — UserPromptSubmit sh/PowerShell 均为 4 行，不重复 L0/完整写集；Doctor 将 24 张 done 卡压成 1 行成功摘要。
-- ✅ ~~并行 agent 抢写共享 CONTEXT/HANDOFF~~ — worker 共享任务卡但各写 `engine/workstreams/<task>/<agent>/`；PreToolUse 拦共享写，Stop 按 session/agent 路径归属。
 - 待验证：Copilot CLI / Codex CLI 原生 hook 的 block 决策支持。
-- 待验证：真实下游项目从旧 contract-version 迁移到 6.5 后的首次任务采用与并行 workstream 手感。
+- 待验证：真实下游项目从旧 contract-version 迁移到 6.6 后的首次任务采用与并行 workstream 手感,以及 HANDOFF 历史归档触发是否如期在首次写入时执行。

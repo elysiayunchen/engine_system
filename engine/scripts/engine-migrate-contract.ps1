@@ -346,6 +346,7 @@ Doctor MUST validate the current Engine System v6 contract in addition to regist
 8. Plans marked ``done`` point to acceptance evidence in the spec twin Evidence column, ``engine/evidence/*``, or a related capsule.
 9. Bootloaders (AGENTS.md / CLAUDE.md) stay thin: target 30 lines, hard cap 45 lines.
 10. Generated self-view snapshots, when used, live under ``engine/.cache/`` and are never registered as authority.
+11. HANDOFF.md session history table keeps <= 8 rows; older rows move to ``engine/handoff-archive-YYYY-MM.md`` (search-only, not registered in ENGINE_MAP section 1, not loaded by SessionStart). Verified items in CONTEXT.md "to-verify" sections are removed.
 "@
 
 $agentPath = Join-Path $Root "AGENTS.md"

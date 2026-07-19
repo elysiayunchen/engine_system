@@ -10,8 +10,8 @@ Make the next session boring in the best way: clear state, clear next step, no a
 1. Re-read shared CONTEXT/HANDOFF, the task card, and every pending `engine/workstreams/<task>/*/` shard before coordinator edits. Workers re-read only their own shard.
 2. Summarize what changed in workflow language, not only file lists.
 3. Record verification results and any command that was not run.
-4. Add the newest `HANDOFF.md` row at the top of the history table.
-5. Update `CONTEXT.md` status, current assumptions, pending decisions, and risks.
+4. Add the newest `HANDOFF.md` row at the top of the history table. If the history table then exceeds 8 rows, move the oldest row(s) to `engine/handoff-archive-YYYY-MM.md` (named by the month of the moved row's date). The archive file is search-only — never loaded by SessionStart, never registered in ENGINE_MAP §1.
+5. Update `CONTEXT.md` status, current assumptions, pending decisions, and risks. Remove any `~~struck-through~~` items from "to-verify" sections — verified items no longer belong there.
 6. Link the relevant change capsule and evidence folder when they exist.
 
 Release portability check: note whether the change has been proven through package/install surfaces or only through this repository.

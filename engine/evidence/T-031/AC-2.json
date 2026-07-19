@@ -1,0 +1,1 @@
+{"ac":"AC-2","verify":"grep -q '历史.*8 条\\|history.*8 entries\\|HANDOFF.*history.*cap' engine/ENGINE_DOCTOR.md","status":"pass","exit":0,"fingerprint":"sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855","timestamp":"2026-07-19T02:45:46Z"}

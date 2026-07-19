@@ -1,0 +1,21 @@
+# handoff-archive 2026-06
+
+> Search-only archive of HANDOFF.md session-history rows dated 2026-06.
+> Source: `engine/HANDOFF.md`「会话历史」表 (overflow moved when row count exceeded 8, per D-027 / contract v6.6).
+> 本文件不进 SessionStart 注入、不进 ENGINE_MAP §1 注册、Doctor 不校验其预算。仅供按需搜索考古。
+
+## 会话历史 (archived 2026-06)
+
+| 日期 | 完成了什么 | 下一步 | 改动文件 |
+|------|-----------|--------|---------|
+| 2026-06-22 | 针对“旧项目 engine update 后机制不进入现有引擎文件”的根因，新增 `engine-migrate-contract.{sh,ps1}`：幂等写入 `ENGINE_SYSTEM_CONTRACT_MIGRATIONS` 托管区块到 `AGENTS.md`、`engine/SYSTEM.md`、`engine/ENGINE_DOCTOR.md`，并生成 migration change capsule；已接入 `/engine-sync`、install、manifest、Doctor bundled-script 检查和 duplicate drift 检查 | 重新跑 PowerShell/Bash release checks，提交并推送 | engine/scripts/engine-migrate-contract.*, plugin/engine/scripts/engine-migrate-contract.*, ENGINE_FILE_SYSTEM_v5.md, plugin/.claude/commands/engine-init.md, plugin/.claude/commands/engine-sync.md, README*, install.*, engine/bin/*, plugin/bin/*, engine/ENGINE_DOCTOR.md, plugin/engine/ENGINE_DOCTOR.md, scripts/check.ps1 |
+| 2026-06-22 | 实现 v5.7 架构师自视图与 change capsule，并补齐旧项目升级路径：`/engine-sync` 会 additive 迁移多 lane、自维护循环、change capsule、Project Self-View、验收证据和 Doctor parity；PowerShell/Bash 检查全绿 | 提交并推送本轮改动；后续评估 missing change capsule 是否需要升级为 hard failure | ENGINE_FILE_SYSTEM_v5.md, README*, install.*, engine/bin/*, engine/ENGINE_DOCTOR.md, engine/CONTEXT.md, engine/HANDOFF.md, engine/ENGINE_MAP.md, engine/changes/CHANGE-2026-06-22-01.md, engine/scripts/engine-doctor.*, engine/scripts/engine-sync-agent-anchors.*, plugin/AGENTS.md, plugin/.claude/commands/*, plugin/bin/*, plugin/engine/* |
+| 2026-06-22 | 完成引擎功能性优化并整理 web 初始机入口：Doctor 增加语义记忆检查，`/engine-status` 仪表盘化，pitfall 模板补触发/范围/验证；`ENGINE_FILE_SYSTEM_v5.5.md`、`ENGINE_FILE_SYSTEM_v5.2.md`、`ENGINE_FILE_SYSTEM_v4_legacy.txt` 归档，根目录只留 `ENGINE_FILE_SYSTEM_v5.md` | 提交本轮改动；以后每次更新初始化规则都同步更新唯一 web prompt | ENGINE_FILE_SYSTEM_v5.md, archive/engine-file-system/*, README*, engine/*, plugin/.claude/commands/*, engine/scripts/engine-doctor.*, plugin/engine/scripts/engine-doctor.*, install.ps1, scripts/check.ps1 |
+| 2026-06-21 | 合并到 main 前修复 Doctor 双副本漂移：保留 main 上对 scratch spec、inline/composite plan 的兼容逻辑，并同步到 engine 与 plugin 两份脚本 | 重新跑 `scripts/check.*`，通过后推送 main | engine/scripts/engine-doctor.*, plugin/engine/scripts/engine-doctor.*, engine/HANDOFF.md |
+| 2026-06-21 | 根据项目体检完成工程化优化：新增一键 health check、插件 manifest、Doctor package mode、Windows installer PowerShell hook 配置；修复 shell manifest CRLF 路径假失败；PowerShell 与 Git Bash 检查均全绿 | 决定 `ENGINE_FILE_SYSTEM_v5.2.md` 未跟踪文件处理方式；发布前继续以 `scripts/check.*` 作为门禁 | scripts/check.*, plugin/manifest.json, engine/scripts/engine-doctor.*, plugin/engine/scripts/engine-doctor.*, install.ps1, .gitattributes, ENGINE_DOCTOR/CONTEXT/HANDOFF |
+| 2026-06-21 | 响应“终端 engine update”需求：新增用户级 CLI shim 与安装器分发，文档明确 `engine update` 拉远端工具层、`/engine-sync` 迁移旧引擎记忆 | 验证 CLI shim、Doctor、脚本语法后提交推送 | plugin/bin/*, install.*, README*, engine/* |
+| 2026-06-21 | v5.6 后半段继续推进：增量回写契约、SessionEnd Doctor 缓存、跨 agent anchor sync、pre-commit 安装接线、Doctor 脚本自检扩展、稳定 prompt 与 engine-init 同步到 v5.6，并补旧项目升级路径 | 最终验证后提交并推送；旧项目用 installer update + /engine-sync 升级，不重跑 /engine-init | ENGINE_FILE_SYSTEM_v5*.md, README*, plugin/AGENTS.md, plugin/.claude/commands/*, plugin/engine/scripts/*, install.*, engine/* |
+| 2026-06-21 | v5.6 全量 commit + PR #3 已开：15 files, +543/-9, feature/v5.6-self-maintenance-loop → main | PR review → merge → 增量回写 + SessionEnd 体检 + 跨 agent 同步 + v5.6 发布 | — |
+| 2026-06-21 | .ps1 双版本(hook session-start + stop)编写并测试通过；install.sh/install.ps1 集成 hook+githook+settings.json 分发(已有文件保护)；AGENT_ADAPTERS.md 跨 agent 三档适配策略；ENGINE_MAP.md → rev 2 | 增量回写契约 + SessionEnd 体检 + 跨 agent 同步 + v5.6 发版 | engine-hook-*.ps1, install.*, AGENT_ADAPTERS.md, .gitattributes, ENGINE_MAP.md, plugin/.claude/settings.json |
+| 2026-06-21 | 自维护循环 MVP dogfood 验证通过（SessionStart 注入 + Stop 拦截均生效）；新增 B 层 git pre-commit hook（跨 agent/跨平台硬门禁兜底）；新增 .gitattributes LF 规则覆盖 githooks/ | 跨平台双版本 .ps1 + install 集成 + 跨 agent 适配核实 | engine-hook-*.sh, githooks/pre-commit, .gitattributes, .claude/settings.json, engine/* |
+| 2026-06-21 | 设计并实现自维护循环 MVP：两个 hook 脚本 + 本仓库 settings.json + dogfood 引擎实例 | 新会话验证 hook 触发与硬门禁手感 | plugin/engine/scripts/engine-hook-*.sh, .claude/settings.json, engine/* |

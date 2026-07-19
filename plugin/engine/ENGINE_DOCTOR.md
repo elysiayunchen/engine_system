@@ -64,6 +64,10 @@ silently treat the script as legacy.
     as authority.
 22. In contract-version 6.5+ projects, ordinary writes need an active/closing task card;
     every declared AC on a done card needs PASS evidence or an approved exemption.
+23. HANDOFF.md session history table keeps <= 8 rows; older rows move to
+    `engine/handoff-archive-YYYY-MM.md` (search-only, not registered in ENGINE_MAP §1,
+    not loaded by SessionStart). Verified items in CONTEXT.md "to-verify" sections are
+    removed.
 
 ## Script Contract
 Preferred commands:

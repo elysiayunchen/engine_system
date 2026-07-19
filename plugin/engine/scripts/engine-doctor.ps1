@@ -710,6 +710,8 @@ if (Test-Path $engineDir) {
     if ($rel -in @("engine/README.md", "engine/README.zh.md")) { return }
     # External scratch spec, intentionally unregistered (parity with release package Doctor).
     if ($_.Name -eq "ENGINE_FILE_SYSTEM_v5.md") { return }
+    # v6.6 (D-027): HANDOFF history archive files are search-only, not section 1 authority.
+    if ($_.Name -like "handoff-archive-*.md") { return }
     if (-not (Test-Registered $rel) -and -not (Test-Registered $_.Name)) {
       Write-Fail "authority-looking file is not registered or explained: $rel"
       Write-Output "  human: The file '$rel' exists in the engine directory but is not registered in ENGINE_MAP. Register it or move it elsewhere."
@@ -765,6 +767,7 @@ foreach ($row in $planRows) {
 
 Test-ContextSemantics
 Test-HandoffSemantics
+Test-HandoffHistoryCap
 Test-PitfallsSemantics
 Test-SprintSemantics
 Test-ChangeCapsuleSemantics

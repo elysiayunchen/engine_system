@@ -75,13 +75,23 @@ These live in `engine/`. The first one is the index — the AI reads it before a
 | `ARCHITECTURE.md` | Tech stack, directory map, data model, key decisions and their trade-offs           |
 | `SPRINT.md`       | Active tasks and priorities in plain language                                       |
 | `ROADMAP.md`      | Milestones, planned features, what might need a full rewrite later                  |
-| `HANDOFF.md`      | Session history — pick up exactly where you left off, weeks later                   |
+| `HANDOFF.md`      | Session history — pick up exactly where you left off, weeks later (capped at 8 rows in v6.6) |
 | `SOURCEMAP.md`    | Code GPS: which file owns which feature, where to add new things                    |
 | `REPO_GUIDE.md`   | Optional repo commands and workflow rules when SYSTEM would get too bulky           |
 | `ENGINE_DOCTOR.md`| Maintenance contract for validating engine health and future extensions             |
-| `engine/changes/` | Change capsules: diff translated into goal, impact, risk, verification, rollback    |
-| `engine/agents/`  | Optional environment adapters for Codex, Claude Code, IDE agents, or CI bots        |
-| `engine/scripts/` | Bundled maintenance scripts, including the registry-driven Engine Doctor            |
+| `engine/tasks/`        | Task cards (`T-NNN.md`): one independently verifiable goal per card — GOAL / WRITE-SET / FORBIDDEN / AC+verify |
+| `engine/decisions/`    | Decision ledger (`D-NNN.md`): non-obvious choices with status / scope / expiry. Protected paths require an approved decision reference at commit time |
+| `engine/changes/`      | Change capsules: diff translated into goal, impact, risk, verification, rollback    |
+| `engine/workstreams/`  | Parallel worker shards: each agent writes only its own `/<task>/<agent>/` slice; the coordinator merges at the end |
+| `engine/evidence/`     | AC-by-AC verification artifacts: PASS/FAIL + sha256 fingerprints                    |
+| `engine/domains/`      | Federation routing table (`federation.json`) + per-domain CONTEXT/PITFALLS for fractal memory |
+| `engine/plans/`        | Design docs you talk through, each with an acceptance checklist                     |
+| `engine/handoff-archive-*.md` | Search-only archive of older HANDOFF rows (v6.6+). Not injected at SessionStart, not registered in ENGINE_MAP §1 |
+| `engine/migrations/`   | Versioned migration steps (`v6.0.sh`/`.ps1`, …) applied in order by `engine migrate` |
+| `engine/prompts/behaviors/` | Agent-neutral behavior prompts: scout, task-run, handoff, decision-draft, verify-writeback |
+| `engine/agents/`       | Optional environment adapters for Codex, Claude Code, IDE agents, or CI bots        |
+| `engine/scripts/`      | Bundled maintenance scripts: Doctor, hooks, contract migrator, verify, cross-agent sync |
+| `.claude/skills/`      | Claude Code skills wrapping the behavior prompts (mirrored from `engine/prompts/behaviors/`) |
 
 They're plain markdown. Commit them. Read them yourself.  
 They're also the best project documentation you'll ever accidentally write.
@@ -98,6 +108,41 @@ Engine System notices whether you're on a **web AI** (ChatGPT, Claude in a brows
 - **Claude Code can read your code directly**, so it only stores what *can't* be rebuilt from the code itself: your decisions, your pitfalls, your rules. Things like the folder structure aren't duplicated — the AI just reads them live when needed, so they never go stale.
 
 You don't configure any of this. It's chosen once when you run `/engine-init` and handled for you.
+
+---
+
+## What's new in v6 — the engine behind the engine
+
+Engine System v6 turns the original memory layer into a data-driven runtime. The files are still plain markdown you can read and diff — but underneath, the engine now enforces a contract instead of relying on prompt discipline.
+
+### v6 core mechanisms
+
+| Mechanism | What it does |
+|-----------|--------------|
+| **Three-layer gate (S0)** | UserPromptSubmit short refresh + PreToolUse write check + session-attributed Stop + pre-commit recheck. Stale context can no longer drift into bad writes. |
+| **Task cards (S1)** | One independently verifiable goal per card (`engine/tasks/T-NNN.md`). Every project path — including `engine/*` — must stay within WRITE-SET and outside FORBIDDEN. |
+| **Decision ledger (S1)** | Non-obvious choices become referenceable artifacts (`engine/decisions/D-NNN.md`) with status / scope / expiry. Protected paths require an approved decision reference at commit time. |
+| **Fractal memory (S2)** | A federation table (`engine/domains/federation.json`) routes path-globs to domains. Each domain keeps its own CONTEXT + PITFALLS. L2 assembly stays within a 400-line session budget. |
+| **Contract compile (S3)** | `contract/src/*.md` is the single source of truth; `contract/compile.sh` compiles to dist; a subtraction budget enforces "new rules must net-zero" so the contract doesn't bloat. |
+| **Cockpit verify (S4)** | `engine verify T-NNN` runs behavior verification — AC verify commands produce PASS/FAIL with sha256 fingerprints in `engine/evidence/`. A task is `done` only when verify is all-green or the architect grants an exemption. |
+
+### v6.5 — long-session hard boundary & parallel memory sharding
+
+Two recurring problems — long-context models forgetting the task scope, and parallel agents clobbering each other's `CONTEXT.md` writes — are now solved mechanically:
+
+- **Full-path task scope**: WRITE-SET / FORBIDDEN covers code, docs, AND engine files. In contract-version 6.5+ projects, ordinary writes require an active/closing task card; only task/decision card bootstrap is allowed without one. Read-only investigation needs no card.
+- **Per-AC evidence gate**: staging `done` requires PASS evidence for every AC, or an approved exemption. Doctor aggregates successful history to a single line; only failures are listed in detail.
+- **Workstream shards**: workers run `engine workstream T-NNN <agent-id>` and write only `engine/workstreams/<task>/<agent>/`. The coordinator re-reads shards at the merge point and updates shared memory once.
+- **Low-token re-anchoring**: UserPromptSubmit injects a 4-line task pointer (ID, GOAL, card path, parallel attribution) — not the full L0 or WRITE-SET. SessionStart assembles full context; Stop / pre-commit do end-of-session gating.
+- **session_id + agent_id attribution**: Claude PreToolUse blocks identified subagents from shared engine files; Stop uses session/agent path ledgers so sibling edits cannot satisfy write-back. Other harnesses fall back to workstream shards + pre-commit.
+
+### v6.6 — HANDOFF history archive
+
+`HANDOFF.md`'s session history table is capped at 8 rows. Older rows migrate to `engine/handoff-archive-YYYY-MM.md` (search-only — not injected at SessionStart, not registered in ENGINE_MAP §1, not budget-checked by Doctor). Doctor emits a WARN (not FAIL) when the table exceeds 8 rows, prompting the agent to trigger the first archive on the next HANDOFF write. The same rule removes `~~struck-through~~` items from CONTEXT.md "to-verify" sections once they're verified.
+
+### Behavior skills
+
+Five Claude Code skills wrap the contract behaviors: `engine-scout`, `engine-task-run`, `engine-handoff`, `engine-decision-draft`, `engine-verify-writeback`. The same prompts ship agent-neutral under `engine/prompts/behaviors/` so non-Claude agents (Codex, Copilot, Cursor, Gemini, Aider, web chat) can use them too.
 
 ---
 
@@ -188,8 +233,9 @@ Most agent tools will first read `AGENTS.md` or `CLAUDE.md`. Those files point b
 
 ## Every session after
 
-**Start:** Claude Code reads `CLAUDE.md` automatically. In v5.6, the SessionStart hook can
-also inject the latest `CONTEXT.md` + `HANDOFF.md` snapshot into the new session.
+**Start:** Claude Code reads `CLAUDE.md` automatically. In v5.6+, the SessionStart hook also injects the latest `CONTEXT.md` + `HANDOFF.md` snapshot into the new session. In v6+, the federation table routes paths to domains and assembles only the relevant L2 memory (≤400 lines). In v6.5+, a 4-line task pointer is re-injected on every UserPromptSubmit so long sessions don't drift.
+
+**No Claude Code?** Run `engine context` in any terminal — it prints the same session-context bundle for any AI agent to read.
 
 **End of session:**
 
@@ -254,6 +300,25 @@ hard-coded script.
 In v5.7, Doctor also checks whether recent changes have readable capsules, whether those
 capsules include risk/verification/rollback, and whether plans marked done actually have
 acceptance evidence.
+In v6.3.1, Doctor adds byte-budget and single-line-width checks so bloated CONTEXT/ENGINE_MAP/HANDOFF files (e.g. table-cell padding attacks) can't slip past the line-count cap.
+In v6.5+, Doctor aggregates successful task history to a single line and only lists failed ACs in detail.
+In v6.6, Doctor emits a WARN when `HANDOFF.md` session history exceeds 8 rows.
+
+**Verify a task before marking it done (v6+):**
+
+```
+engine verify T-NNN
+```
+
+Runs the AC verify commands from `engine/tasks/T-NNN.md` and writes PASS/FAIL + sha256 fingerprints to `engine/evidence/T-NNN/`. A task card may be marked `done` only when every AC is green or the architect grants an exemption.
+
+**Running parallel workers (v6.5+):**
+
+```
+engine workstream T-NNN <agent-id>
+```
+
+Creates an isolated worker shard at `engine/workstreams/<task>/<agent>/`. The worker writes only its own `CONTEXT.md` + `HANDOFF.md`; the coordinator re-reads all shards at the merge point and updates shared memory once. Use this when multiple agents share a workspace — it eliminates CONTEXT/HANDOFF write conflicts.
 
 **Update Engine System tooling and migrate local engine files:**
 
@@ -276,7 +341,9 @@ Reconciliation pass. It checks whether the engine files still match what's actua
 
 ---
 
-## The nine commands
+## The commands
+
+### Slash commands (Claude Code)
 
 | Command              | What it does                                                              |
 | -------------------- | ------------------------------------------------------------------------ |
@@ -289,6 +356,26 @@ Reconciliation pass. It checks whether the engine files still match what's actua
 | `/engine-doctor`     | Validates registry, anchors, plans, budgets, lifecycle, and review proof |
 | `/engine-sync`       | Updates Engine System tooling, then migrates/reconciles local engine files |
 | `/engine-reconcile`  | Reconciles the docs against the real code and fixes any drift            |
+
+### Terminal CLI (any AI agent, v6+)
+
+The `engine` CLI is a thin shim installed at `engine/bin/engine` (and a user-level `engine` command on PATH after install). Use it when you're not in Claude Code — Codex, Copilot CLI, Cursor, Gemini CLI, Aider, or a plain terminal.
+
+| Command                                  | What it does                                                                                  |
+| ---------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `engine init`                            | Shows how to feed `engine/prompts/init.md` to any AI agent. `--print` emits the raw prompt    |
+| `engine context`                         | Prints the full session-context bundle (agent-agnostic equivalent of Claude Code's SessionStart injection) |
+| `engine workstream T-NNN <agent-id>`     | Creates an isolated worker memory shard for parallel agents (v6.5+)                           |
+| `engine verify T-NNN`                     | Runs behavior verification and writes PASS/FAIL + sha256 evidence (v6+)                       |
+| `engine check-update`                    | Compares local `engine/VERSION` against the remote. Exit 0 up-to-date / 7 update available / 8 network error |
+| `engine update`                          | One-shot: pull installer → update tooling → run migrator → run Doctor                          |
+| `engine update --check-only`             | Preview only, change nothing                                                                  |
+| `engine update --no-migrate`             | Update tooling but skip migration/Doctor                                                      |
+| `engine migrate`                         | Apply versioned migration steps under `engine/migrations/`, then idempotent contract migrator |
+| `engine doctor`                          | Run the engine health check                                                                   |
+| `engine help`                            | Show usage                                                                                    |
+
+The CLI never auto-edits your project memory — `engine migrate` only applies managed-contract blocks and structural migrations; project-specific `SYSTEM.md`, `PITFALLS.md`, `CONTEXT.md`, `HANDOFF.md`, plans, and decisions are preserved.
 
 ---
 

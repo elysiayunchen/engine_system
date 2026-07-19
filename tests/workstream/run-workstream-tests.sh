@@ -58,6 +58,20 @@ if [ -n "$PS_BIN" ]; then
   echo ""
   echo "=== workstream CLI (ps1) ==="
   r="$(new_fixture)"
+  # Windows PowerShell invoked from WSL auto-converts Linux /tmp/... paths to
+  # \\wsl.localhost\... UNC paths, which System.IO.File::WriteAllText rejects.
+  # Native Windows (PS + Windows paths) and native Linux (pwsh + Linux paths)
+  # are covered by CI; SKIP here to match hook-parity SKIP convention.
+  SKIP_PS_UNC=0
+  if uname -s 2>/dev/null | grep -qi linux; then
+    case "$PS_BIN" in
+      powershell|powershell.exe)
+        if grep -qi microsoft /proc/version 2>/dev/null; then
+          SKIP_PS_UNC=1
+        fi
+        ;;
+    esac
+  fi
   if command -v cygpath >/dev/null 2>&1; then
     engine_ps="$(cygpath -w "$r/engine/bin/engine.ps1")"
     context_ps="$(cygpath -w "$r/engine/scripts/engine-context.ps1")"
@@ -67,11 +81,15 @@ if [ -n "$PS_BIN" ]; then
     context_ps="$r/engine/scripts/engine-context.ps1"
     root_ps="$r"
   fi
-  if (cd "$r" && "$PS_BIN" -NoProfile -ExecutionPolicy Bypass -File "$engine_ps" workstream T-001 worker-ps >/dev/null); then ok "ps1 create"; else bad "ps1 create"; fi
-  [ -f "$r/engine/workstreams/T-001/worker-ps/CONTEXT.md" ] && [ -f "$r/engine/workstreams/T-001/worker-ps/HANDOFF.md" ] && ok "ps1 files" || bad "ps1 files"
-  ps_ctx="$("$PS_BIN" -NoProfile -ExecutionPolicy Bypass -File "$context_ps" -Root "$root_ps" 2>/dev/null)"
-  printf '%s' "$ps_ctx" | grep -q 'Parallel Workstreams (unmerged)' && ok "ps1 context dashboard" || bad "ps1 context dashboard"
-  printf '%s' "$ps_ctx" | grep -q 'worker-ps' && ok "ps1 context owner" || bad "ps1 context owner"
+  if [ "$SKIP_PS_UNC" = "1" ]; then
+    echo "SKIP  ps1 (WSL UNC paths unsupported by Windows PowerShell File API)"
+  else
+    if (cd "$r" && "$PS_BIN" -NoProfile -ExecutionPolicy Bypass -File "$engine_ps" workstream T-001 worker-ps >/dev/null); then ok "ps1 create"; else bad "ps1 create"; fi
+    [ -f "$r/engine/workstreams/T-001/worker-ps/CONTEXT.md" ] && [ -f "$r/engine/workstreams/T-001/worker-ps/HANDOFF.md" ] && ok "ps1 files" || bad "ps1 files"
+    ps_ctx="$("$PS_BIN" -NoProfile -ExecutionPolicy Bypass -File "$context_ps" -Root "$root_ps" 2>/dev/null)"
+    printf '%s' "$ps_ctx" | grep -q 'Parallel Workstreams (unmerged)' && ok "ps1 context dashboard" || bad "ps1 context dashboard"
+    printf '%s' "$ps_ctx" | grep -q 'worker-ps' && ok "ps1 context owner" || bad "ps1 context owner"
+  fi
 else
   echo "SKIP  ps1 (no PowerShell)"
 fi

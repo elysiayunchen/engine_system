@@ -599,6 +599,7 @@ function Test-TaskCardDoneEvidence {
   $exemptCount = 0
   $verifiedCount = 0
   foreach ($f in (Get-ChildItem -Path $tasksDir -File -Filter "T-*.md" -ErrorAction SilentlyContinue)) {
+    if ($f.Name -match '\.spec\.md$') { continue }
     $content = Get-Content -Raw -Path $f.FullName -Encoding UTF8 -ErrorAction SilentlyContinue
     if ($content -notmatch 'status:\s*done') { continue }
     $doneCount++
@@ -690,7 +691,7 @@ function Test-LegacyDataFormat {
   # 1. Task cards without v6 headers (write-set: or status:).
   if (Test-Path $tasksDir) {
     $legacyTasks = 0
-    $taskFiles = @(Get-ChildItem -Path $tasksDir -Filter "T-*.md" -File -ErrorAction SilentlyContinue)
+    $taskFiles = @(Get-ChildItem -Path $tasksDir -Filter "T-*.md" -File -ErrorAction SilentlyContinue | Where-Object { $_.Name -notmatch '\.spec\.md$' })
     foreach ($tf in $taskFiles) {
       $content = Get-Content -Raw -Path $tf.FullName -Encoding UTF8 -ErrorAction SilentlyContinue
       if ($content -and ($content -notmatch "(?i)write-set:|status:")) {

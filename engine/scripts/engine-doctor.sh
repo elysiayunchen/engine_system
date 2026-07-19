@@ -515,6 +515,7 @@ check_task_card_done_evidence() {
   [ -d "$tasks_dir" ] || return 0
   for f in "$tasks_dir"/T-*.md; do
     [ -f "$f" ] || continue
+    [[ "$f" == *.spec.md ]] && continue
     grep -q 'status:.*done' "$f" 2>/dev/null || continue
     done_count=$((done_count + 1))
     local tid; tid="$(basename "$f" .md)"
@@ -589,6 +590,7 @@ check_legacy_data_format() {
     local f
     for f in "$tasks_dir"/T-*.md; do
       [ -f "$f" ] || continue
+      [[ "$f" == *.spec.md ]] && continue
       if ! grep -qi 'write-set:\|status:' "$f" 2>/dev/null; then
         legacy_tasks=$((legacy_tasks + 1))
       fi

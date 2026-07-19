@@ -7,8 +7,8 @@
 | 维度 | 状态 |
 |------|------|
 | 构建 | ✅ 正常（纯 markdown + shell 脚本，无构建步骤） |
-| 上次完成 | **v6.6.0 / D-027 / T-031 done**：HANDOFF 历史归档机制落地——契约源加「最近 8 条保留,超出迁移到 `engine/handoff-archive-YYYY-MM.md`(search-only,不进 SessionStart/§1)」规则;Doctor sh/ps1 加 `check_handoff_history_cap`/`Test-HandoffHistoryCap` WARN 检查;`ENGINE_DOCTOR.md` 实例+模板加 #23 检查;migrator sh/ps1 加 v6.6 managed block item 11 分发到旧项目;`behaviors/handoff.md` step 4 加归档触发 + step 5 加 CONTEXT ✅ 划线行删除。当前仓 HANDOFF 53→8 条样本裁剪(35 条 7 月 + 11 条 6 月归档);CONTEXT 删 8 条 ✅ 划线行。版本 6.5.0→6.6.0,tag v6.6.0 已推送,Release workflow 29671446592 PASS,GitHub Release 4 附件 SHA256 三对三匹配。**修复**:`engine-doctor.ps1` 之前只调用未定义 `Test-HandoffHistoryCap` 函数体,Linux pwsh CI 失败;现已补齐函数定义并同步 plugin 镜像 + manifest SHA256。**Dogfood**:本次提交触发 D-027 归档机制,把 2026-07-14「锚点执行力加固」整行迁移到 `engine/handoff-archive-2026-07.md`,HANDOFF 历史表保持 8 条。T-031 全 8 AC verify PASS,status → done。 |
-| 进行中 | 无。下一项建议为真实下游升级/迁移试点，需另开独立任务卡。 |
+| 上次完成 | **v6.6.2 hotfix**:Doctor 把 `T-*.spec.md` 误判为任务卡的 bug 修复——bash glob `T-*.md` 匹配 `T-NNN.spec.md`,且 `grep 'status:.*done'` 匹配 spec 正文里的字面引用,导致 T-033.spec 被误判 done 无 evidence(FAIL)+ 4 张 spec twin 被当 legacy 任务卡(WARN)。修复:engine-doctor.sh + .ps1(engine + plugin 镜像共 4 份)4 处循环加 `*.spec.md` 过滤。check.sh 0 failures 0 warnings,done task evidence summary 29→28 checked。版本 6.6.1→6.6.2,tag v6.6.2。详见 `engine/changes/CHANGE-2026-07-19-02.md`。 |
+| 进行中 | **LPHP 大型项目接管方向(D-028 待批)**:4 张任务卡 T-032~T-035 已开卡,分阶段 v6.7.0~v6.10.0——T-032 任务级 progress.md + SessionStart 锚点;T-033 域级 INVENTORY + 双向 FAIL;T-034 AC 级 checkpoint + 软门禁;T-035 verify 死代码检测 + done 门。待起草 D-028 决策卡后开干 T-032。 |
 | 阻塞 | 无。 |
 
 ## 当前假设 / 决策（本轮拍板）

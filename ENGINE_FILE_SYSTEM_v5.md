@@ -2103,6 +2103,104 @@ All new rules → engine/SYSTEM.md; this file only excerpts with `source:` tags.
 ---
 
 
+### FILE 13 — engine/skeleton/progress.md （任务级压缩恢复锚点骨架）
+> Class: skeleton（操作产物模板,不登记 ENGINE_MAP §1）。生成于 `engine/skeleton/progress.md`（源仓）+ `plugin/engine/skeleton/progress.md`（plugin 镜像）,随 install 分发。每个 active/paused 任务卡的 `engine/tasks/T-NNN/progress.md` 由本骨架拷贝实例化。
+
+**设计宗旨（v6.7.0 / D-028 LPHP）**：短上下文 agent 接管大型项目时,任务中途被压缩会丢失"考虑过但拒绝的方案""已确认的接口""当前进行到哪"等细节。progress.md 把这些细节做成机制——**机器强制注入 + 事件驱动更新**,不靠 agent 自觉。它与 HANDOFF「立即恢复点」对称延伸:HANDOFF 是会话级粗粒度恢复,progress.md §4 是任务级细粒度恢复,active 卡存在时 HANDOFF 退化为薄指针指向 progress.md §4。
+
+
+**7 栏定义（每栏强制单行,跨栏不混）**：
+
+| 栏号 | 栏名 | 写入触发 | 内容形态 |
+|------|------|----------|----------|
+| §1 | 已读文件（理解项目） | 每读完一个文件后追加 | `path — 一句摘要` |
+| §2 | 已确认接口（不重复读） | 确认一个函数/接口签名后 | `fn(arg: T) -> R — 返回语义` |
+| §3 | 已排除路径（原 TRAIL 的家） | 排除一条设计/实现路径后 | `time / 被拒绝方案 / 原因 / 采用方案` |
+| §4 | 当前进行到（压缩恢复点） | 跑完一个 AC / 状态切换时 | `正在做什么 + 下一步` |
+| §5 | 待确认问题 | 出现等用户/架构师回复的问题时 | `问题 / 阻塞谁 / 何时提出` |
+| §6 | 已知风险/未解 bug | 识别风险或 bug 时 | `描述 / 影响 / 缓解状态` |
+| §7 | 回滚尝试 | 已写后被回滚的代码段 | `代码段 / 回滚原因 / 替代方案` |
+
+> §3 与 §7 的边界:§3 记**设计层**拒绝的路径(还没写代码就排除),§7 记**实现层**写后回滚的代码段(写了再撤)。两者不混。
+
+
+**事件驱动更新触发点（非每步、非只压缩时）**：
+- 确认一个接口后 → 写 §2
+- 排除一条路径后 → 写 §3
+- 跑完一个 AC 后 → 写 §4
+- 出现待确认问题 → 写 §5
+- 识别风险/bug → 写 §6
+- 回滚代码 → 写 §7
+- 状态切换（paused/done/active 恢复）→ 写 §4
+
+**禁止**：每一步都写（噪声淹没信号）/ 只在压缩前写（hook 不让 agent 写盘,机制错配——见 D-028 §6）/ 跨栏合并（§3 vs §7 边界丢失）。
+
+
+**生命周期规则**：
+
+| 状态 | progress.md 位置 | SessionStart 注入 | HANDOFF 关系 |
+|------|-------------------|---------------------|--------------|
+| active | `engine/tasks/T-NNN/progress.md` | ✓ 强制注入 §1~§7 | HANDOFF「立即恢复点」退化为薄指针「见 T-NNN/progress.md §4」 |
+| paused | `engine/tasks/T-NNN/progress.md` | ✓ 强制注入 §1~§7 | 同 active |
+| done | 归档到 `engine/archive/tasks/T-NNN-progress.md`,原 `engine/tasks/T-NNN/progress.md` 删除 | ✗ 不注入 | HANDOFF「立即恢复点」保持会话级现状 |
+
+**归档触发**：任务卡 status 从 active/paused → done 时,SessionStart hook 不再注入;原 progress.md 文件迁到 `engine/archive/tasks/T-NNN-progress.md`（与 HANDOFF 历史归档机制对称,见 D-027）。归档文件不进 §1 注册、Doctor 不校验其预算,仅供按需搜索考古。
+
+
+**SessionStart 注入逻辑**（详见 `engine/scripts/engine-hook-session-start.{sh,ps1}`）：
+1. 扫描 `engine/tasks/T-*.md`（排除 `*.spec.md`）找 `status: active` 或 `status: paused` 的卡;
+2. 若存在,读取对应 `engine/tasks/T-NNN/progress.md`;
+3. 文件存在 → 注入其 §1~§7 全文到 agent 上下文（覆盖 HANDOFF「立即恢复点」§4 段）;
+4. 文件不存在 → 仅注入 HANDOFF「立即恢复点」（保持兼容,触发 Doctor WARN 提示补建,见 AC-5/AC-6）;
+5. 多张 active/paused 卡 → 全部注入,按任务卡 ID 升序（实践中应 ≤2 张,超出由 Doctor WARN）。
+
+
+**HANDOFF 薄指针规则**（详见 `engine/prompts/behaviors/handoff.md`）：
+- active 卡存在时:HANDOFF「立即恢复点」必须 ≤5 行,首句为「见 `engine/tasks/T-NNN/progress.md` §4: [一句话当前进行到]」,后续可补 1-2 句会话级粗粒度提示;
+- active 卡不存在时:HANDOFF「立即恢复点」保持现状（会话级,无强制行数）;
+- 读序:SessionStart → 先注 HANDOFF（粗粒度）→ 再注 progress.md（细粒度,§4 覆盖 HANDOFF 的恢复点段）。
+
+
+**骨架文件内容**（`engine/skeleton/progress.md` 与 `plugin/engine/skeleton/progress.md` 字节一致）：
+
+```markdown
+# progress — [Task ID: T-NNN] [Task Title]
+> Last updated: [date] | 任务级压缩恢复锚点 | 7 栏事件驱动更新,见 contract/src/20-file-templates.md FILE 13
+
+## §1 已读文件（理解项目）
+- [path] — [一句摘要]
+
+## §2 已确认接口（不重复读）
+- [fn(arg: T) -> R] — [返回语义]
+
+## §3 已排除路径（原 TRAIL 的家）
+- [time] / [被拒绝方案] / [原因] / [采用方案]
+
+## §4 当前进行到（压缩恢复点）
+正在做:[一句话]
+下一步:[一句话]
+
+## §5 待确认问题
+- [问题] / 阻塞:[谁] / 提出:[time]
+
+## §6 已知风险/未解 bug
+- [描述] / 影响:[范围] / 缓解:[状态]
+
+## §7 回滚尝试
+- [代码段] / 回滚原因:[一句话] / 替代方案:[一句话]
+```
+
+**维护规则**：
+- 骨架文件是模板,实例化时 `[Task ID]`/`[Task Title]`/`[date]` 必须替换,空栏保留表头不删;
+- 单栏可有多行（追加,不覆盖历史行）,但单行 ≤500 字符（与 CONTEXT.md 单行限制一致）;
+- 整文件预算 ≤4KB（约 100 行）,超限 Doctor WARN 提示归档旧条目到 `engine/archive/tasks/T-NNN-progress-archive-YYYY-MM.md`;
+- 仅 active/paused 卡的 progress.md 进 SessionStart;done 卡归档后不进;
+- 改骨架文件必须同步 engine/ + plugin/engine/ 双份,manifest SHA256 重算。
+
+
+---
+
+
 ## PHASE 3 — COMPLETION
 
 

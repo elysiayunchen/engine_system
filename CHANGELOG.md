@@ -1,5 +1,9 @@
 # Changelog
 
+## v6.6.2 (2026-07-19)
+
+- Doctor spec twin 误判 hotfix (2026-07-19)
+
 ## v6.6.1 (2026-07-19)
 
 - (no capsules in this release)

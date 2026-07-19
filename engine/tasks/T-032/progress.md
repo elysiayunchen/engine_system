@@ -26,8 +26,8 @@
 - 2026-07-19 / 把 progress.md 加入 SessionStart 全文注入(无论有无 active 卡) / 增加常态 token 占用,违背"任务级"语义 / 仅 active/paused 卡存在时注入
 
 ## §4 当前进行到（压缩恢复点）
-正在做:AC-6 收尾 — engine-doctor.sh/.ps1 添加 check_progress_md/Test-ProgressMd 函数定义(原仅调用未定义);已写完两份函数,待 compile.sh 同步 + scripts/check.sh 全绿
-下一步:跑 compile.sh 同步 doctor 到 plugin 镜像;跑 scripts/check.sh 验证 AC-8;然后 AC-9(VERSION 6.7.0 + CHANGELOG) + AC-10(check.sh + release)
+正在做:T-032 v6.7.0 已发版完成 — commit aec2934(实现,43 files)+ commit b883bdc(release,VERSION bump ×3 + CHANGELOG v6.7.0 + tag v6.7.0);已 push 到 main + tag v6.7.0,GitHub Release workflow 已触发。
+下一步:等 GitHub Release workflow 完成(自动打包 plugin/ 为 tarball + zip + sha256);然后开干 T-033(v6.8.0 域级 INVENTORY.md)。T-032 spec.md AC-1~AC-10 全部已勾选 ✅。
 
 ## §5 待确认问题
 - 无 / 阻塞:无 / 提出:—

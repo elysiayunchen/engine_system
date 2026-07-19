@@ -1,0 +1,1 @@
+{"ac":"AC-5","verify":"test \"$(awk \"/^## 会话历史/,/^## /\" engine/HANDOFF.md | grep -cE \"^\\| 2026-\")\" -le 8 && test -f engine/handoff-archive-2026-07.md","status":"pass","exit":0,"fingerprint":"sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855","timestamp":"2026-07-19T02:47:57Z"}

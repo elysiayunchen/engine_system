@@ -12,7 +12,7 @@
 - 维护脚本必须由插件分发，但不作为权威文件登记；脚本契约由本文件和插件模板共同说明。
 - Claude Code hook、git pre-commit、跨 agent anchor sync 缺失时，Doctor 应报告 warning 并提示运行 `/engine-sync`。
 - `engine/bin/engine*` CLI shim 缺失时，Doctor 应报告 warning；安装器负责将其复制到用户级 PATH 位置以支持 `engine update`。
-- 已注册的热路径记忆文件需要做语义健康检查：`CONTEXT.md` 要有可用状态面板，`HANDOFF.md` 要有立即恢复点和日期化历史，`PITFALLS.md` 条目要能描述触发条件、影响范围、避免方式与验证方式，`SPRINT.md` 要有完成标准和验证方法。
+- 已注册的热路径记忆文件需要做语义健康检查：`CONTEXT.md` 要有可用状态面板，`HANDOFF.md` 要有立即恢复点和日期化历史且会话历史表 ≤ 8 条(超出归档到 `engine/handoff-archive-YYYY-MM.md`，归档文件不进 SessionStart 注入、不进 §1 注册)，`PITFALLS.md` 条目要能描述触发条件、影响范围、避免方式与验证方式，`SPRINT.md` 要有完成标准和验证方法。
 - 有意义的代码 / 文档 / 引擎工具改动需要有 `engine/changes/CHANGE-*.md` change capsule，面向非技术架构师说明目标、实际变化、影响范围、风险、验证、回滚、下一步和责任边界。
 - 已标记 `done` 的 plan/spec twin 必须能指向验收证据：spec twin 的 Evidence 列、`engine/evidence/*`，或相关 `engine/changes/CHANGE-*.md`。
 - `engine/.cache/project-view.generated.md` 属于可重建 self-view 快照；如生成，不登记为权威文件，使用前应由 `/engine-status` 或 `/engine-reconcile` 重新生成/核对。
@@ -36,7 +36,7 @@
 
 
 <!-- ENGINE_SYSTEM_CONTRACT_MIGRATIONS_START -->
-<!-- contract-version: 6.5.0 -->
+<!-- contract-version: 6.6.0 -->
 ## Current Contract Checks
 > Managed by Engine System contract migration. Preserve project-specific rules outside this block.
 
@@ -52,4 +52,5 @@ Doctor MUST validate the current Engine System v6 contract in addition to regist
 8. Plans marked `done` point to acceptance evidence in the spec twin Evidence column, `engine/evidence/*`, or a related capsule.
 9. Bootloaders (AGENTS.md / CLAUDE.md) stay thin: target 30 lines, hard cap 45 lines.
 10. Generated self-view snapshots, when used, live under `engine/.cache/` and are never registered as authority.
+11. HANDOFF.md session history table keeps <= 8 rows; older rows move to `engine/handoff-archive-YYYY-MM.md` (search-only, not registered in ENGINE_MAP section 1, not loaded by SessionStart). Verified items in CONTEXT.md "to-verify" sections are removed.
 <!-- ENGINE_SYSTEM_CONTRACT_MIGRATIONS_END -->

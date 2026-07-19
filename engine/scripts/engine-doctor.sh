@@ -330,6 +330,26 @@ check_handoff_semantics() {
   fi
 }
 
+check_handoff_history_cap() {
+  # v6.6 (D-027): HANDOFF history table ≤ 8 rows; older rows move to
+  # engine/handoff-archive-YYYY-MM.md. Archive is search-only (not loaded
+  # by SessionStart, not registered in ENGINE_MAP §1).
+  is_registered_name "HANDOFF.md" || return 0
+  local path="$ENGINE_DIR/HANDOFF.md"
+  [[ -f "$path" ]] || return 0
+  local history_count
+  history_count="$(awk '
+    /^##[[:space:]]+会话历史/ { in_hist=1; next }
+    in_hist && /^##[[:space:]]/ { in_hist=0 }
+    in_hist && /^\|[[:space:]]*[0-9]{4}-[0-9]{2}-[0-9]{2}[[:space:]]*\|/ { count++ }
+    END { print count+0 }
+  ' "$path")"
+  if [[ "$history_count" -gt 8 ]]; then
+    warn "HANDOFF.md history table has $history_count rows (> 8) - archive oldest to engine/handoff-archive-YYYY-MM.md"
+    echo "  human: The HANDOFF.md session history table has $history_count rows. Keep only the most recent 8 in HANDOFF.md and move the rest to engine/handoff-archive-YYYY-MM.md (named by the month of the oldest moved row). The archive file is search-only and not loaded by SessionStart."
+  fi
+}
+
 check_pitfalls_semantics() {
   is_registered_name "PITFALLS.md" || return 0
   local path="$ENGINE_DIR/PITFALLS.md"
@@ -628,6 +648,10 @@ while IFS= read -r path; do
   if [[ "${rel#engine/}" == ENGINE_FILE_SYSTEM_v5.md ]]; then
     continue
   fi
+  # v6.6 (D-027): HANDOFF history archive files are search-only, not §1 authority.
+  if [[ "${rel#engine/}" == handoff-archive-*.md ]]; then
+    continue
+  fi
   if ! is_registered "$rel" && ! is_registered "${rel#engine/}"; then
     fail "authority-looking file is not registered or explained: $rel"
     echo "  human: The file '$rel' looks like a project authority file but is not registered in ENGINE_MAP. Either register it in ENGINE_MAP section 1 or move it out of the engine/ directory."
@@ -646,6 +670,7 @@ fi
 
 check_context_semantics
 check_handoff_semantics
+check_handoff_history_cap
 check_pitfalls_semantics
 check_sprint_semantics
 check_change_capsule_semantics

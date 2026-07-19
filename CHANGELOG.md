@@ -1,5 +1,14 @@
 # Changelog
 
+## v6.6.0 (2026-07-19)
+
+- HANDOFF 历史归档机制：会话历史表 8 条上限，超出迁移到 `engine/handoff-archive-YYYY-MM.md`（search-only，不进 SessionStart/§1，Doctor 不校验预算）。
+- Doctor：sh/ps1 加 `check_handoff_history_cap`/`Test-HandoffHistoryCap` WARN 检查；`ENGINE_DOCTOR.md` 实例+模板加 #23 检查。
+- Migrator：sh/ps1 加 v6.6 managed block item 11，旧项目升级时获得归档规则（不自动裁剪，由 agent 在下次写 HANDOFF 时触发）。
+- Behaviors：`handoff.md` step 4 加归档触发；step 5 加 CONTEXT ✅ 划线行删除。
+- 当前仓样本：HANDOFF 53→8 条 + 35 条 7 月归档 + 11 条 6 月归档；CONTEXT 删 8 条 ✅ 划线行。
+- 详见 `engine/changes/CHANGE-2026-07-19-01.md`。
+
 ## v6.5.0 (2026-07-17)
 
 - 长会话与全路径任务边界：v6.5+ 无 active/closing 任务卡时普通写入 fail-closed，done 逐 AC 要 PASS evidence。
@@ -11,10 +20,6 @@
 ## v6.3.1 (2026-07-14)
 
 - Doctor 补字节上限 + 单行宽度上限检查 (2026-07-14)
-
-## v6.3.0 (2026-07-14)
-
-- (no capsules in this release)
 
 ## v6.3.0 (2026-07-14)
 

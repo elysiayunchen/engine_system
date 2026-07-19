@@ -1871,7 +1871,7 @@ AI 完成引擎文件修改后，MUST 输出变更摘要供架构师审核（中
 | 会话 | 日期 | 关键变更 |
 |------|------|---------|
 | 0 | [today] | 引擎文件初始化 |
-[新会话追加到表格顶部（时间倒序）。]
+[新会话追加到表格顶部（时间倒序）。最近 8 条保留在本表;超出 8 条时把最旧的整行迁移到 `engine/handoff-archive-YYYY-MM.md`(按月切分,文件名取被迁移条目的最早日期所在月)。归档文件不进 SessionStart 注入,只供按需搜索考古;不进 ENGINE_MAP §1 注册,Doctor 不校验其预算。]
 
 
 ## 引擎文件变更摘要
@@ -2391,6 +2391,7 @@ Routine:
    - **吸收再指向**：引导器中出现的、引擎里没有的用户手写规则，MUST 提取吸收进对应引擎文件（SYSTEM / PITFALLS），再把引导器恢复为薄指针。NEVER 不经吸收直接删除用户手写内容。TOP RULES 中无 `source:` 标注的条目视为疑似原创规则，必须逐一核对：若在引擎文件中找到对应原文，补标注；若未找到，先吸收进引擎文件，再标注出处。
    - 包级锚点：「关键文件」表 vs 真实包结构；覆盖率（达到触发条件的新包是否缺锚点，已删除的包是否留有孤儿锚点登记）。
 8. **核对文件预算**：按 PHASE 2 Initial File Budgets 检查；超限文件必须归档历史或拆分权威位置，不能继续堆叙述。
+8b. **核对 HANDOFF 历史归档**：HANDOFF.md「会话历史」表条目数 > 8 时,标记为 `handoff history overflow`,提示把最旧的整行迁移到 `engine/handoff-archive-YYYY-MM.md`。归档文件不进 §1 注册;裁剪只迁移整行,不删除内容。
 9. **核对 Engine Doctor Contract**：读取 `ENGINE_DOCTOR.md`，运行 `/engine-doctor` 或脚本；若脚本不存在，先建议 `/engine-sync`，并按 Doctor 契约手工打勾记录缺口；完整注册缺口必须标为 `partial registration`、`misregistered file`、`orphan reference` 或 `lifecycle transaction incomplete`。
 10. **更新 ENGINE_MAP §4**：全局 revision、上次 RECONCILE 日期、悬空引用、漂移警告、read-gate evidence missing、file budget warnings、evidence index 指针。§4 不写长会话叙述。
 11. 输出对账报告（中文）：一致项 / 漂移项 / read-gate 缺口 / partial registration / misregistered file / orphan reference / lifecycle transaction incomplete / stub contamination / 文件预算警告 / 悬空引用 / 锚点吸收与覆盖率结果 / 升为 done 的 plan / 需架构师决定的事项。架构师确认后落盘修正。

@@ -4,7 +4,7 @@
 
 ## 立即恢复点
 
-T-037 Trae continuity 准则已 done(2026-07-20,commit b397550):engine/SYSTEM.md「项目开发准则」段加 `### Trae agent 工具对话延续准则` 子段(运行在 TRAE IDE/Work/CLI/Plugin 时 NEVER 主动中止对话,用 AskUserQuestion 延续,避免浪费用户发起对话额度)。AC-1 verify PASS(fp=e3b0c44298fc)。D-031 决策卡背书(protected_paths 要求)。**T-036 v6.11.0 多会话锁 active**:review P1-P7 全修完成(P2 worker_key 算法统一为与 Stop hook safe_id 完全相同 + P3 atomic 创建+写入合并为单步 .sh + P1 AC-14 verify 补 .ps1 + P4 AC-1 verify 加 StartTime/D-028 三文件/kill switch + P5 AC-2 verify 加 atomic 关键字 + P6 AC-2 verify 加 tombstone + P7 AC-18 加 .ps1 测试)。AC-1 + AC-2 verify PASS(fp=e3b0c44298fc),其他 AC(AC-3~AC-18)是 T-036 后期任务。下一步:继续 T-036 AC-3(Stop hook .meta + lock release + tombstone)。
+T-037 Trae continuity 准则已 done(commit b397550)。**T-036 v6.11.0 多会话锁 active**:review P1-P7 全修已 commit c470886(worker_key 算法统一 + atomic 竞态修复 + verify 增强)。**AC-3 Stop hook 多会话收尾已完成**:4 份 .sh/.ps1 + plugin 镜像加 .meta 文件写入(role|stopped_at|task_id) + 协调者退出释放 lock(rm session.lock / Remove session.lock) + tombstone 文件通知(coordinator-exited)。verify grep PASS,evidence/T-036/AC-3.json 已生成(status: pass)。下一步:AC-4 PreToolUse 双信号扩展(agent_id 非空 OR .role=worker 文件存在)。
 
 > Phase 1 = 通用化核心(prompt 抽离 / CLI 扩展 / 快速安装 / agent 检测——D-017 原文口径;实施细化与「薄壳」口径修正见 D-018)。v6.2 = 多 agent 通信层(engine context + DevComm Rule 扩展)。
 

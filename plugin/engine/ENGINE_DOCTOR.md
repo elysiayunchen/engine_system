@@ -119,6 +119,31 @@ silently treat the script as legacy.
     `evidence/T-NNN/COPY-PASTE.json`), and run reverse call-site scan (grep
     WRITE-SET-deleted identifiers across the repo). Migration grace period:
     `contract-version < 6.10.0` WARN, `>= 6.10.0` FAIL (D-028 §9).
+29. Multi-session isolation (v6.11.0+, D-029/T-036): `check_multi_session_isolation`
+    enforces that `engine/.cache/sessions/` directory exists with the coordinator lock
+    file `engine/.cache/session.lock` following the 5-field format
+    (`pid|session_id|role|started_at|task_id`). Tombstone files
+    (`engine/.cache/session.tombstone`) MUST be inspected for staleness — any tombstone
+    older than 24 hours is treated as a stale crash marker and triggers WARN (clear via
+    `engine assume-coordinator`). SessionStart hook MUST use atomic exclusive creation
+    (`set -C` / `noclobber` on bash; `FileMode.CreateNew` + `FileShare.None` on
+    PowerShell) to assign coordinator/worker roles; the first session wins coordinator,
+    subsequent sessions degrade to workers writing to
+    `engine/workstreams/<task>/<session-id>/` shards. PreToolUse hook MUST treat a
+    session as worker when EITHER signal is present (OR, not AND): `agent_id` non-empty
+    OR `.cache/sessions/<key>.role=worker` marker file exists. Kill switch
+    `ENGINE_DISABLE_MULTI_SESSION=1` or `engine/.cache/multi-session.disabled` flag file
+    causes SessionStart hook to skip lock detection and all sessions degrade to
+    single-session mode (fail-open equivalent). Migration grace period:
+    `contract-version < 6.11.0` WARN (advisory), `>= 6.11.0` FAIL (D-028 §9).
+30. Workstream orphan (v6.11.0+, D-029/T-036): `check_workstream_orphan` scans every
+    `engine/workstreams/<task>/<worker>/` directory and checks for a matching
+    `.cache/sessions/<worker-prefix>.meta` file (8-char short-prefix match tolerated).
+    A workstream shard without a matching `.meta` is an orphan (WARN level — worker
+    session crashed or ended without merging its shard). The architect MUST either run
+    `engine merge-workstream <worker>` to absorb the shard into shared engine memory,
+    or remove the orphan shard if obsolete. This check is WARN-only because shards may
+    legitimately persist after merge for archival under `.merged-<session-id>/`.
 
 ## Script Contract
 Preferred commands:

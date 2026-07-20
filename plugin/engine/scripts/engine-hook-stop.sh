@@ -329,4 +329,37 @@ if [ "$code_changed" -eq 1 ] && [ "$engine_written" -eq 1 ] && [ "$capsule_writt
   printf '%s\n' '{"systemMessage":"[Engine System] Code and project memory changed, but no change capsule was found. Add engine/changes/CHANGE-*.md before completion. (WARN)"}'
 fi
 
+# v6.11.0 (D-029/T-036) AC-3: Stop hook 多会话收尾
+# - 写 .cache/sessions/<session_key>.meta (role|stopped_at|task_id),供 engine-context.sh Active Sessions 面板读
+# - 如果当前会话是协调者(持有 lock 且 session_id 匹配 lock 内 sid),释放 lock (rm session.lock)
+# - 写 tombstone 文件通知其他会话(coordinator-exited,可接管)
+# PreToolUse 双信号由 AC-4 扩展;本 AC-3 只做 .meta + lock release + tombstone。
+if [ -n "$session_key" ] && [ -d "$ENGINE_DIR/.cache/sessions" ]; then
+  lock_file="$ENGINE_DIR/.cache/session.lock"
+  role="worker"
+  lock_content=""
+  if [ -f "$lock_file" ]; then
+    lock_content="$(cat "$lock_file" 2>/dev/null || true)"
+    lock_sid="$(printf '%s' "$lock_content" | cut -d'|' -f2)"
+    if [ -n "$lock_sid" ] && [ "$lock_sid" = "$session_id" ]; then
+      role="coordinator"
+    fi
+  else
+    # No lock — single session mode (coordinator by default)
+    role="coordinator"
+  fi
+  stopped_at="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || printf '%s' '')"
+  meta_file="$ENGINE_DIR/.cache/sessions/$session_key.meta"
+  printf '%s|%s|%s\n' "$role" "$stopped_at" "${active_task_id:-}" > "$meta_file" 2>/dev/null || true
+
+  # 协调者退出:释放 lock (rm session.lock) + 写 tombstone 通知其他会话
+  if [ "$role" = "coordinator" ] && [ -f "$lock_file" ]; then
+    lock_pid="$(printf '%s' "$lock_content" | cut -d'|' -f1)"
+    rm -f "$ENGINE_DIR/.cache/session.lock" 2>/dev/null || true
+    # tombstone: coordinator-exited 通知,其他会话 SessionStart 检测到时可接管
+    tombstone_file="$ENGINE_DIR/.cache/session.tombstone"
+    printf '%s|%s|coordinator-exited\n' "$stopped_at" "$lock_pid" > "$tombstone_file" 2>/dev/null || true
+  fi
+fi
+
 exit 0

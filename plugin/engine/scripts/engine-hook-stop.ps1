@@ -322,4 +322,44 @@ if ($codeChanged -and $engineWritten -and -not $capsuleWritten) {
   Write-Output ($msg | ConvertTo-Json -Compress)
 }
 
+# v6.11.0 (D-029/T-036) AC-3: Stop hook 多会话收尾
+# - 写 .cache/sessions/<sessionKey>.meta (role|stopped_at|task_id),供 engine-context.sh Active Sessions 面板读
+# - 如果当前会话是协调者(持有 lock 且 sessionId 匹配 lock 内 sid),释放 lock (Remove session.lock)
+# - 写 tombstone 文件通知其他会话(coordinator-exited,可接管)
+# PreToolUse 双信号由 AC-4 扩展;本 AC-3 只做 .meta + lock release + tombstone。
+if ($sessionKey -and (Test-Path (Join-Path $EngineDir '.cache\sessions'))) {
+  $lockFile = Join-Path $EngineDir '.cache\session.lock'
+  $role = 'worker'
+  $lockContent = ''
+  $lockParts = @()
+  if (Test-Path $lockFile) {
+    try { $lockContent = (Get-Content -Raw -Path $lockFile -Encoding UTF8 -ErrorAction Stop).Trim() } catch {}
+    if ($lockContent) { $lockParts = $lockContent -split '\|' }
+    $lockSid = if ($lockParts.Length -ge 2) { $lockParts[1] } else { '' }
+    if ($lockSid -and ($lockSid -eq $sessionId)) {
+      $role = 'coordinator'
+    }
+  } else {
+    # No lock — single session mode (coordinator by default)
+    $role = 'coordinator'
+  }
+  $stoppedAt = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
+  $metaFile = Join-Path $EngineDir (".cache\sessions\$sessionKey.meta")
+  try {
+    Set-Content -Path $metaFile -Value ($role + '|' + $stoppedAt + '|' + $activeTaskId) -Encoding UTF8 -NoNewline
+  } catch {}
+
+  # 协调者退出:释放 lock (Remove session.lock) + 写 tombstone 通知其他会话
+  if (($role -eq 'coordinator') -and (Test-Path $lockFile)) {
+    $lockPid = if ($lockParts.Length -ge 1) { $lockParts[0] } else { '' }
+    # Remove session.lock (release lock)
+    Remove-Item -Path "$EngineDir\.cache\session.lock" -Force -ErrorAction SilentlyContinue
+    # tombstone: coordinator-exited 通知,其他会话 SessionStart 检测到时可接管
+    $tombstoneFile = Join-Path $EngineDir '.cache\session.tombstone'
+    try {
+      Set-Content -Path $tombstoneFile -Value ($stoppedAt + '|' + $lockPid + '|coordinator-exited') -Encoding UTF8 -NoNewline
+    } catch {}
+  }
+}
+
 exit 0

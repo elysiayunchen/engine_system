@@ -883,6 +883,94 @@ check_depends_on() {
   done
 }
 
+# v6.10.0 (D-028/T-035): warn_count → done gate. For any task card whose
+# evidence/T-NNN/DEAD-CODE.json exists:
+#  - top-level exempt_all: true  → pass (batch exemption, D-028 §9)
+#  - summary.warn_count == 0     → pass (clean)
+#  - all entries[].exempt: true → pass (per-entry exemption, fine-grained)
+#  - otherwise: warn_count > 0 with unexempted entries → FAIL (or WARN if
+#    contract-version < 6.10.0 grace period, aligned with D-028 §9).
+# The check applies to any task with DEAD-CODE.json present (active or done).
+# Architectural exemption is via top-level exempt_all + exempt_reason, or
+# per-entry exempt + exempt_reason.
+check_warn_done_gate() {
+  local tasks_dir="$ENGINE_DIR/tasks"
+  [ -d "$tasks_dir" ] || return 0
+
+  local doctor_path="$ENGINE_DIR/ENGINE_DOCTOR.md"
+  local contract_version=""
+  if [ -f "$doctor_path" ]; then
+    contract_version="$(grep -oE 'contract-version:[[:space:]]*[0-9]+\.[0-9]+\.[0-9]+' "$doctor_path" 2>/dev/null | head -1 | sed 's/.*contract-version:[[:space:]]*//' || true)"
+  fi
+  local cv_int=0
+  if [[ "$contract_version" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+    cv_int=$(( ${BASH_REMATCH[1]} * 10000 + ${BASH_REMATCH[2]} * 100 + ${BASH_REMATCH[3]} ))
+  fi
+  local violation_is_fail=0
+  if [ "$cv_int" -ge 61000 ] 2>/dev/null; then
+    violation_is_fail=1
+  fi
+
+  local f
+  for f in "$tasks_dir"/T-*.md; do
+    [ -f "$f" ] || continue
+    [[ "$f" == *.spec.md ]] && continue
+    # Gate applies only to `done` tasks — active/paused tasks may have
+    # in-progress DEAD-CODE.json with warn_count > 0 (architect hasn't
+    # reviewed yet). The done gate fires when architect marks done.
+    grep -q 'status:.*done' "$f" 2>/dev/null || continue
+    local tid; tid="$(basename "$f" .md)"
+    local dc_file="$ENGINE_DIR/evidence/$tid/DEAD-CODE.json"
+    [ -f "$dc_file" ] || continue
+
+    # Top-level exempt_all: true → batch exemption (D-028 §9).
+    if grep -Eq '"exempt_all"[[:space:]]*:[[:space:]]*true' "$dc_file" 2>/dev/null; then
+      pass "task $tid DEAD-CODE.json exempt_all:true (batch exemption)"
+      continue
+    fi
+
+    # Read summary.warn_count (grep -oE + extract trailing integer).
+    local warn_count=0
+    local wc_match
+    wc_match="$(grep -oE '"warn_count"[[:space:]]*:[[:space:]]*[0-9]+' "$dc_file" 2>/dev/null | head -1 || true)"
+    if [ -n "$wc_match" ]; then
+      warn_count="$(printf '%s' "$wc_match" | grep -oE '[0-9]+$' || echo 0)"
+    fi
+
+    if [ "$warn_count" -eq 0 ]; then
+      pass "task $tid DEAD-CODE.json warn_count=0 (clean)"
+      continue
+    fi
+
+    # warn_count > 0: count per-entry exempt fields. Pattern `"exempt":` is
+    # specific to per-entry (top-level is `"exempt_all":`, reason is
+    # `"exempt_reason":`, count is `"exempt_count":` — none collide).
+    local total_entries exempt_entries
+    total_entries="$(grep -cE '"exempt"[[:space:]]*:[[:space:]]*' "$dc_file" 2>/dev/null || echo 0)"
+    exempt_entries="$(grep -cE '"exempt"[[:space:]]*:[[:space:]]*true' "$dc_file" 2>/dev/null || echo 0)"
+    # Defensive: if total_entries is 0 (parse failed), skip rather than
+    # falsely failing on an unparseable file.
+    if [ "$total_entries" -eq 0 ]; then
+      warn "task $tid DEAD-CODE.json has warn_count=$warn_count but no entries[] parsed (skip)"
+      continue
+    fi
+
+    if [ "$exempt_entries" -eq "$total_entries" ]; then
+      pass "task $tid DEAD-CODE.json all $total_entries entries exempt (warn_count=$warn_count)"
+      continue
+    fi
+
+    local unexempt=$((total_entries - exempt_entries))
+    if [ "$violation_is_fail" -eq 1 ]; then
+      fail "task $tid DEAD-CODE.json has $unexempt unexempted warn entry/entries (warn_count=$warn_count) - mark exempt:true or top-level exempt_all:true"
+      echo "  human: Task $tid has dead-code warnings ($warn_count warn, $unexempt not exempted). Architect must review evidence/$tid/DEAD-CODE.json and mark each entry \"exempt\": true with a reason, or set top-level \"exempt_all\": true with \"exempt_reason\"."
+    else
+      warn "task $tid DEAD-CODE.json has $unexempt unexempted warn entry/entries (grace period, cv=$contract_version < 6.10.0)"
+      echo "  human: Task $tid has dead-code warnings ($warn_count warn, $unexempt not exempted). Migration grace period (cv=$contract_version < 6.10.0); WARN only. To fix: mark exemptions in evidence/$tid/DEAD-CODE.json."
+    fi
+  done
+}
+
 check_pitfalls_semantics() {
   is_registered_name "PITFALLS.md" || return 0
   local path="$ENGINE_DIR/PITFALLS.md"
@@ -1212,6 +1300,7 @@ check_inventory_api_uniqueness
 check_writeset_budget
 check_task_granularity
 check_depends_on
+check_warn_done_gate
 check_pitfalls_semantics
 check_sprint_semantics
 check_change_capsule_semantics

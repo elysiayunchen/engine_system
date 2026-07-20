@@ -859,6 +859,93 @@ function Test-DependsOn {
   }
 }
 
+# v6.10.0 (D-028/T-035): warn_count → done gate. For any task card whose
+# evidence/T-NNN/DEAD-CODE.json exists:
+#  - top-level exempt_all: true  → pass (batch exemption, D-028 §9)
+#  - summary.warn_count == 0     → pass (clean)
+#  - all entries[].exempt: true → pass (per-entry exemption, fine-grained)
+#  - otherwise: warn_count > 0 with unexempted entries → FAIL (or WARN if
+#    contract-version < 6.10.0 grace period, aligned with D-028 §9).
+# The check applies to any task with DEAD-CODE.json present (active or done).
+# Architectural exemption is via top-level exempt_all + exempt_reason, or
+# per-entry exempt + exempt_reason.
+function Test-WarnDoneGate {
+  $tasksDir = Join-Path $engineDir "tasks"
+  if (-not (Test-Path $tasksDir)) { return }
+
+  $doctorPath = Join-Path $engineDir "ENGINE_DOCTOR.md"
+  $contractVersion = ""
+  if (Test-Path $doctorPath) {
+    $m = Select-String -Path $doctorPath -Pattern 'contract-version:\s*([0-9]+\.[0-9]+\.[0-9]+)' -List -ErrorAction SilentlyContinue
+    if ($m) { $contractVersion = $m.Matches[0].Groups[1].Value }
+  }
+  $cvInt = 0
+  if ($contractVersion -match '^(\d+)\.(\d+)\.(\d+)$') {
+    $cvInt = [int]$Matches[1] * 10000 + [int]$Matches[2] * 100 + [int]$Matches[3]
+  }
+  $violationIsFail = $false
+  if ($cvInt -ge 61000) { $violationIsFail = $true }
+
+  $taskFiles = Get-ChildItem -Path $tasksDir -Filter 'T-*.md' -File -ErrorAction SilentlyContinue
+  foreach ($f in $taskFiles) {
+    if ($f.Name -like '*.spec.md') { continue }
+    $content = Get-Content -Raw -Path $f.FullName -Encoding UTF8 -ErrorAction SilentlyContinue
+    # Gate applies only to `done` tasks — active/paused tasks may have
+    # in-progress DEAD-CODE.json with warn_count > 0 (architect hasn't
+    # reviewed yet). The done gate fires when architect marks done.
+    if ($content -notmatch 'status:.*done') { continue }
+    $tid = $f.BaseName
+    $dcFile = Join-Path $engineDir "evidence\$tid\DEAD-CODE.json"
+    if (-not (Test-Path $dcFile)) { continue }
+
+    $dcContent = Get-Content -Raw -Path $dcFile -Encoding UTF8 -ErrorAction SilentlyContinue
+    if ([string]::IsNullOrEmpty($dcContent)) { continue }
+
+    # Top-level exempt_all: true → batch exemption (D-028 §9).
+    if ($dcContent -match '"exempt_all"\s*:\s*true') {
+      Write-Pass "task $tid DEAD-CODE.json exempt_all:true (batch exemption)"
+      continue
+    }
+
+    # Read summary.warn_count.
+    $warnCount = 0
+    $wcMatch = [regex]::Match($dcContent, '"warn_count"\s*:\s*(\d+)')
+    if ($wcMatch.Success) { $warnCount = [int]$wcMatch.Groups[1].Value }
+
+    if ($warnCount -eq 0) {
+      Write-Pass "task $tid DEAD-CODE.json warn_count=0 (clean)"
+      continue
+    }
+
+    # Count per-entry exempt fields. Pattern `"exempt":` is specific to
+    # per-entry (top-level is `"exempt_all":`, reason is `"exempt_reason":`,
+    # count is `"exempt_count":` — none collide with `"exempt":`).
+    $totalEntries = ([regex]::Matches($dcContent, '"exempt"\s*:\s*')).Count
+    $exemptEntries = ([regex]::Matches($dcContent, '"exempt"\s*:\s*true')).Count
+
+    # Defensive: if totalEntries is 0 (parse failed), skip rather than
+    # falsely failing on an unparseable file.
+    if ($totalEntries -eq 0) {
+      Write-Warn "task $tid DEAD-CODE.json has warn_count=$warnCount but no entries[] parsed (skip)"
+      continue
+    }
+
+    if ($exemptEntries -eq $totalEntries) {
+      Write-Pass "task $tid DEAD-CODE.json all $totalEntries entries exempt (warn_count=$warnCount)"
+      continue
+    }
+
+    $unexempt = $totalEntries - $exemptEntries
+    if ($violationIsFail) {
+      Write-Fail "task $tid DEAD-CODE.json has $unexempt unexempted warn entry/entries (warn_count=$warnCount) - mark exempt:true or top-level exempt_all:true"
+      Write-Output "  human: Task $tid has dead-code warnings ($warnCount warn, $unexempt not exempted). Architect must review evidence/$tid/DEAD-CODE.json and mark each entry `"exempt`": true with a reason, or set top-level `"exempt_all`": true with `"exempt_reason`"."
+    } else {
+      Write-Warn "task $tid DEAD-CODE.json has $unexempt unexempted warn entry/entries (grace period, cv=$contractVersion < 6.10.0)"
+      Write-Output "  human: Task $tid has dead-code warnings ($warnCount warn, $unexempt not exempted). Migration grace period (cv=$contractVersion < 6.10.0); WARN only. To fix: mark exemptions in evidence/$tid/DEAD-CODE.json."
+    }
+  }
+}
+
 function Test-PitfallsSemantics {
   if (-not (Test-RegisteredName "PITFALLS.md")) { return }
   $path = Join-Path $engineDir "PITFALLS.md"
@@ -1267,6 +1354,7 @@ Test-InventoryApiUniqueness
 Test-WriteSetBudget
 Test-TaskGranularity
 Test-DependsOn
+Test-WarnDoneGate
 Test-PitfallsSemantics
 Test-SprintSemantics
 Test-ChangeCapsuleSemantics

@@ -1,0 +1,1 @@
+{"ac":"AC-1","verify":"grep -q 'shellcheck\\|PSScriptAnalyzer' contract/src/30-operational.md && grep -q '反向.*调用点\\|reverse.*call.*site\\|删改.*残留' contract/src/30-operational.md && grep -q 'DEAD-CODE' contract/src/30-operational.md","status":"pass","exit":0,"fingerprint":"sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855","timestamp":"2026-07-20T12:03:08Z"}

@@ -44,13 +44,20 @@ newer than the local engine/VERSION, in version order (sort -V), writing the
 version back after each step. When nothing is pending it falls back to the
 idempotent contract migrator, so it still repairs/re-applies the v6 structure.
 
-`engine load` copies the current project's engine/bin/engine{,.ps1,.cmd} into
-~/.local/bin (the user-level PATH dir used by install.sh). Use it after
-switching branches, recovering from a clobbered shim, or re-linking to a
-local checkout. It does not run migrate or doctor.
+`engine load` re-installs engine external side-effects from the current
+project: the user-level CLI shim (~/.local/bin) and the git pre-commit hook
+(when engine-managed or missing). Use after switching branches, clobbered
+shims, or re-linking to a local checkout. Does not run migrate/doctor and
+does not touch .claude/settings.json (use the installer or /engine-sync).
 
-`engine unload` removes the engine* shims from ~/.local/bin. Project files
-under engine/ are untouched. Re-run `engine load` to restore the CLI.
+`engine unload` removes all engine tooling from the current project plus
+external side-effects: engine/bin, engine/scripts, engine/prompts,
+engine/migrations, .claude/commands, .claude/skills, runtime-law.md,
+engine/VERSION, engine/domains/routing.json, the user PATH shim, the
+engine-managed git pre-commit hook, and the engine-managed .claude/settings.json.
+User project memory is preserved: engine/{CONTEXT,HANDOFF,ENGINE_MAP,SYSTEM,
+AGENT_ADAPTERS,ENGINE_DOCTOR}.md, engine/{tasks,decisions,changes,evidence,
+workstreams,domains,checks}/, and root anchors (CLAUDE.md, AGENTS.md).
 EOF
 }
 
@@ -210,10 +217,10 @@ run_doctor() {
   fi
 }
 
-# install_cli_shim: 把当前项目的 engine/bin/engine{,.ps1,.cmd} 复制到用户级 PATH
-# 目录(~/.local/bin)。与 install.sh 的 CLI 铺设逻辑保持一致,但只做 shim 装载,
+# load_engine: 重新铺设引擎工具的外部副作用(PATH shim + git hook)。
 # 不拉远程、不跑 migrate/doctor。用于切分支/修 clobber/重链 local 检出。
-install_cli_shim() {
+# .claude/settings.json 由 installer/engine-sync 维护,本命令不修。
+load_engine() {
   local root="$1"
   local src_dir="$root/engine/bin"
   local dest_dir="${HOME:-}/.local/bin"
@@ -222,7 +229,7 @@ install_cli_shim() {
     return 2
   fi
   if [ ! -f "$src_dir/engine" ]; then
-    echo "Error: $src_dir/engine not found. Run the installer first." >&2
+    echo "Error: $src_dir/engine not found. Engine tooling is missing - run the installer first." >&2
     return 2
   fi
   mkdir -p "$dest_dir"
@@ -235,39 +242,119 @@ install_cli_shim() {
       installed=$((installed + 1))
     fi
   done
-  echo ""
-  echo "Engine CLI shim installed to: $dest_dir"
   case ":$PATH:" in
     *":$dest_dir:"*) ;;
     *) echo "Note: $dest_dir is not in PATH. Add it to run 'engine' globally." ;;
   esac
+
+  # git pre-commit hook(仅当目标不存在或是 engine-managed 时重装)
+  local hook_src="$root/engine/scripts/githooks/pre-commit"
+  if [ -f "$hook_src" ] && command -v git >/dev/null 2>&1; then
+    local git_dir
+    git_dir="$(git -C "$root" rev-parse --git-dir 2>/dev/null || true)"
+    if [ -n "$git_dir" ]; then
+      local hook_path="$git_dir/hooks/pre-commit"
+      mkdir -p "$(dirname "$hook_path")"
+      if [ ! -f "$hook_path" ] || grep -q 'Engine System.*pre-commit hook' "$hook_path" 2>/dev/null; then
+        cp "$hook_src" "$hook_path"
+        chmod +x "$hook_path" 2>/dev/null || true
+        echo "  installed  $hook_path"
+        installed=$((installed + 1))
+      else
+        echo "  keep       $hook_path (user-defined)"
+      fi
+    fi
+  fi
+
+  echo ""
+  echo "Engine external side-effects reloaded. ($installed items)"
+  echo "Project tooling under engine/ is unchanged. Run 'engine update' to refresh from remote."
 }
 
-# uninstall_cli_shim: 从 ~/.local/bin 移除 engine* shim。不动项目文件。
-uninstall_cli_shim() {
+# unload_engine: 拆掉所有引擎工具 + 外部副作用。保留用户项目记忆和根锚点。
+# 白名单删除策略:只删 install.sh 铺设的引擎工具路径,其余全保留。
+unload_engine() {
+  local root="$1"
+  local removed=0 skipped=0
+
+  # 1. PATH shim
   local dest_dir="${HOME:-}/.local/bin"
-  if [ -z "${HOME:-}" ]; then
-    echo "Error: HOME is not set - cannot determine user-level bin dir." >&2
-    return 2
+  if [ -n "${HOME:-}" ] && [ -d "$dest_dir" ]; then
+    local f
+    for f in engine engine.ps1 engine.cmd; do
+      if [ -f "$dest_dir/$f" ]; then
+        rm -f "$dest_dir/$f"
+        echo "  removed    $dest_dir/$f"
+        removed=$((removed + 1))
+      fi
+    done
   fi
-  if [ ! -d "$dest_dir" ]; then
-    echo "Engine CLI shim not present at $dest_dir (nothing to unload)."
-    return 0
+
+  # 2. git pre-commit hook(仅当 engine-managed)
+  if command -v git >/dev/null 2>&1; then
+    local git_dir
+    git_dir="$(git -C "$root" rev-parse --git-dir 2>/dev/null || true)"
+    if [ -n "$git_dir" ] && [ -f "$git_dir/hooks/pre-commit" ]; then
+      if grep -q 'Engine System.*pre-commit hook' "$git_dir/hooks/pre-commit" 2>/dev/null; then
+        rm -f "$git_dir/hooks/pre-commit"
+        echo "  removed    $git_dir/hooks/pre-commit (was engine-managed)"
+        removed=$((removed + 1))
+      else
+        echo "  keep       $git_dir/hooks/pre-commit (user-defined)"
+        skipped=$((skipped + 1))
+      fi
+    fi
   fi
-  local removed=0 f
-  for f in engine engine.ps1 engine.cmd; do
-    if [ -f "$dest_dir/$f" ]; then
-      rm -f "$dest_dir/$f"
-      echo "  removed    $dest_dir/$f"
+
+  # 3. .claude/settings.json(仅当含 _engine_system 标记——install 生成的 managed 块)
+  local settings="$root/.claude/settings.json"
+  if [ -f "$settings" ] && grep -q '"_engine_system"' "$settings" 2>/dev/null; then
+    rm -f "$settings"
+    echo "  removed    $settings (engine-managed)"
+    removed=$((removed + 1))
+  fi
+
+  # 4. 引擎工具目录(白名单,只删这些)
+  local tool_dirs=(
+    "$root/engine/bin"
+    "$root/engine/scripts"
+    "$root/engine/prompts"
+    "$root/engine/migrations"
+    "$root/.claude/commands"
+    "$root/.claude/skills"
+  )
+  local d
+  for d in "${tool_dirs[@]}"; do
+    if [ -d "$d" ]; then
+      rm -rf "$d"
+      echo "  removed    $d"
       removed=$((removed + 1))
     fi
   done
-  if [ "$removed" -eq 0 ]; then
-    echo "Engine CLI shim not present at $dest_dir (nothing to unload)."
-  else
-    echo ""
-    echo "Engine CLI shim unloaded from: $dest_dir"
-  fi
+
+  # 5. 引擎工具单文件(白名单)
+  local tool_files=(
+    "$root/runtime-law.md"
+    "$root/engine/VERSION"
+    "$root/engine/domains/routing.json"
+  )
+  local tf
+  for tf in "${tool_files[@]}"; do
+    if [ -f "$tf" ]; then
+      rm -f "$tf"
+      echo "  removed    $tf"
+      removed=$((removed + 1))
+    fi
+  done
+
+  echo ""
+  echo "Engine tooling unloaded. ($removed items removed, $skipped user-owned kept)"
+  echo "Preserved: engine/CONTEXT.md, engine/HANDOFF.md, engine/ENGINE_MAP.md,"
+  echo "          engine/SYSTEM.md, engine/AGENT_ADAPTERS.md, engine/ENGINE_DOCTOR.md,"
+  echo "          engine/{tasks,decisions,changes,evidence,workstreams,domains,checks},"
+  echo "          CLAUDE.md, AGENTS.md, and your project source."
+  echo ""
+  echo "To reinstall: bash install.sh   (or   bash install.sh --update   to keep memory)"
 }
 
 # Parse global flags (apply to `update`).
@@ -379,10 +466,10 @@ case "${1:-help}" in
       echo "Error: engine/ not found in $PWD. Run 'engine init' or the installer first." >&2
       exit 2
     fi
-    install_cli_shim "$PWD"
+    load_engine "$PWD"
     ;;
   unload)
-    uninstall_cli_shim
+    unload_engine "$PWD"
     ;;
   help|-h|--help)
     usage

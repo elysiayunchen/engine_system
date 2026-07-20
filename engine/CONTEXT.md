@@ -33,3 +33,4 @@
 
 - 待验证：Copilot CLI / Codex CLI 原生 hook 的 block 决策支持。
 - 待验证：真实下游项目从旧 contract-version 迁移到 6.6 后的首次任务采用与并行 workstream 手感,以及 HANDOFF 历史归档触发是否如期在首次写入时执行。
+- 待验证：D-029(approved 2026-07-20)多 Claude Code 实例并行抢写引擎记忆三件套(CONTEXT/HANDOFF/ENGINE_MAP)的隔离机制。4 路审视完成,主线方案 A(多会话锁 + 第二个会话自动降级为 worker 模式 + PreToolUse 双信号)修订后 approved。**已开 T-036 active 任务卡 v6.11.0 落地**(16 个 AC,4 份 hook 对称改造 + 3 个新命令 + 2 个 Doctor 检查 + migrator + AGENT_ADAPTERS C 档扩展)。expiry 2026-11-30,早期预警 2026-09-15。

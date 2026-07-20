@@ -351,15 +351,25 @@ if [ -n "$session_key" ] && [ -d "$ENGINE_DIR/.cache/sessions" ]; then
   lock_file="$ENGINE_DIR/.cache/session.lock"
   role="worker"
   lock_content=""
-  if [ -f "$lock_file" ]; then
-    lock_content="$(cat "$lock_file" 2>/dev/null || true)"
-    lock_sid="$(printf '%s' "$lock_content" | cut -d'|' -f2)"
-    if [ -n "$lock_sid" ] && [ "$lock_sid" = "$session_id" ]; then
+  # P1 修复 (review):AC-3 复用 AC-4 双信号优先判定 worker,避免协调者先退出后
+  # worker 因 lock_file 不存在被默认判定为 coordinator 污染 .meta role 字段
+  is_worker_explicit=0
+  if [ -n "$agent_id" ]; then
+    is_worker_explicit=1
+  elif [ -f "$ENGINE_DIR/.cache/sessions/$session_key.role=worker" ]; then
+    is_worker_explicit=1
+  fi
+  if [ "$is_worker_explicit" -eq 0 ]; then
+    if [ -f "$lock_file" ]; then
+      lock_content="$(cat "$lock_file" 2>/dev/null || true)"
+      lock_sid="$(printf '%s' "$lock_content" | cut -d'|' -f2)"
+      if [ -n "$lock_sid" ] && [ "$lock_sid" = "$session_id" ]; then
+        role="coordinator"
+      fi
+    else
+      # No lock — single session mode (coordinator by default)
       role="coordinator"
     fi
-  else
-    # No lock — single session mode (coordinator by default)
-    role="coordinator"
   fi
   stopped_at="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || printf '%s' '')"
   meta_file="$ENGINE_DIR/.cache/sessions/$session_key.meta"
@@ -368,6 +378,8 @@ if [ -n "$session_key" ] && [ -d "$ENGINE_DIR/.cache/sessions" ]; then
   # 协调者退出:释放 lock (rm session.lock) + 写 tombstone 通知其他会话
   if [ "$role" = "coordinator" ] && [ -f "$lock_file" ]; then
     lock_pid="$(printf '%s' "$lock_content" | cut -d'|' -f1)"
+    # P2 修复 (review):tombstone lock_pid 空值 fallback "unknown",避免数据不完整
+    [ -n "$lock_pid" ] || lock_pid="unknown"
     rm -f "$ENGINE_DIR/.cache/session.lock" 2>/dev/null || true
     # tombstone: coordinator-exited 通知,其他会话 SessionStart 检测到时可接管
     tombstone_file="$ENGINE_DIR/.cache/session.tombstone"

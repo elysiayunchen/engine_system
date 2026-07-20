@@ -345,16 +345,26 @@ if ($sessionKey -and (Test-Path (Join-Path $EngineDir '.cache\sessions'))) {
   $role = 'worker'
   $lockContent = ''
   $lockParts = @()
-  if (Test-Path $lockFile) {
-    try { $lockContent = (Get-Content -Raw -Path $lockFile -Encoding UTF8 -ErrorAction Stop).Trim() } catch {}
-    if ($lockContent) { $lockParts = $lockContent -split '\|' }
-    $lockSid = if ($lockParts.Length -ge 2) { $lockParts[1] } else { '' }
-    if ($lockSid -and ($lockSid -eq $sessionId)) {
+  # P1 修复 (review):AC-3 复用 AC-4 双信号优先判定 worker,避免协调者先退出后
+  # worker 因 lockFile 不存在被默认判定为 coordinator 污染 .meta role 字段
+  $isWorkerExplicit = $false
+  if ($agentId) {
+    $isWorkerExplicit = $true
+  } elseif (Test-Path (Join-Path $sessionsDir ($sessionKey + '.role=worker'))) {
+    $isWorkerExplicit = $true
+  }
+  if (-not $isWorkerExplicit) {
+    if (Test-Path $lockFile) {
+      try { $lockContent = (Get-Content -Raw -Path $lockFile -Encoding UTF8 -ErrorAction Stop).Trim() } catch {}
+      if ($lockContent) { $lockParts = $lockContent -split '\|' }
+      $lockSid = if ($lockParts.Length -ge 2) { $lockParts[1] } else { '' }
+      if ($lockSid -and ($lockSid -eq $sessionId)) {
+        $role = 'coordinator'
+      }
+    } else {
+      # No lock — single session mode (coordinator by default)
       $role = 'coordinator'
     }
-  } else {
-    # No lock — single session mode (coordinator by default)
-    $role = 'coordinator'
   }
   $stoppedAt = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
   $metaFile = Join-Path $EngineDir (".cache\sessions\$sessionKey.meta")
@@ -365,6 +375,8 @@ if ($sessionKey -and (Test-Path (Join-Path $EngineDir '.cache\sessions'))) {
   # 协调者退出:释放 lock (Remove session.lock) + 写 tombstone 通知其他会话
   if (($role -eq 'coordinator') -and (Test-Path $lockFile)) {
     $lockPid = if ($lockParts.Length -ge 1) { $lockParts[0] } else { '' }
+    # P2 修复 (review):tombstone lockPid 空值 fallback "unknown",避免数据不完整
+    if (-not $lockPid) { $lockPid = 'unknown' }
     # Remove session.lock (release lock)
     Remove-Item -Path "$EngineDir\.cache\session.lock" -Force -ErrorAction SilentlyContinue
     # tombstone: coordinator-exited 通知,其他会话 SessionStart 检测到时可接管

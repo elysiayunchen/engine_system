@@ -27,6 +27,7 @@ Usage:
   engine workstream T-NNN AGENT [--kind=subagent|session]   Create an isolated worker memory shard (default subagent)
   engine assume-coordinator [--force]   Force-take coordinator lock + write tombstone (use after crash or to override)
   engine merge-workstream <session-id>   Display worker shard + guide coordinator through merge steps (no auto-write)
+  engine disable-multi-session [on|off|status]  Toggle kill switch (skip lock detection, all sessions degrade to single-session)
   engine check-update   Check if a newer Engine System version is available
   engine update         Update tooling, then migrate + doctor (one-shot)
   engine update -CheckOnly       Only check for updates, change nothing
@@ -506,6 +507,47 @@ function Merge-Workstream {
   Write-Host "Workers write only their own shard; merge-workstream never auto-writes shared memory."
 }
 
+# v6.11.0 (D-029/T-036) AC-17: disable-multi-session kill switch command
+function Disable-MultiSession {
+  param([string]$Root, [string]$Action = "on")
+  $cacheDir = Join-Path $Root "engine\.cache"
+  $flagFile = Join-Path $cacheDir "multi-session.disabled"
+  New-Item -ItemType Directory -Force -Path $cacheDir | Out-Null
+
+  switch ($Action.ToLower()) {
+    "on" {
+      [System.IO.File]::WriteAllText($flagFile, "", (New-Object System.Text.UTF8Encoding $false))
+      Write-Host "Multi-session lock DISABLED. Flag file: engine\.cache\multi-session.disabled"
+      Write-Host "All future sessions will degrade to single-session mode (fail-open)."
+      Write-Host "To re-enable: engine disable-multi-session off"
+    }
+    "off" {
+      if (Test-Path $flagFile) {
+        Remove-Item -Force -ErrorAction SilentlyContinue -Path $flagFile
+        Write-Host "Multi-session lock ENABLED. Flag file removed."
+        Write-Host "Future sessions will use coordinator/worker role assignment."
+      } else {
+        Write-Host "Flag file does not exist — multi-session lock already enabled."
+      }
+    }
+    "status" {
+      if (Test-Path $flagFile) {
+        Write-Host "Multi-session lock: DISABLED (flag file present)"
+      } elseif ($env:ENGINE_DISABLE_MULTI_SESSION) {
+        Write-Host "Multi-session lock: DISABLED (env var ENGINE_DISABLE_MULTI_SESSION=$($env:ENGINE_DISABLE_MULTI_SESSION))"
+      } else {
+        Write-Host "Multi-session lock: ENABLED"
+      }
+    }
+    default {
+      Write-Host "Usage: engine disable-multi-session [on|off|status]"
+      Write-Host "  on      Create flag file (disable multi-session lock)"
+      Write-Host "  off     Remove flag file (re-enable multi-session lock)"
+      Write-Host "  status  Show current state"
+    }
+  }
+}
+
 switch ($Command) {
   "init" {
     $promptRel = "engine/prompts/init.md"
@@ -597,6 +639,21 @@ switch ($Command) {
       elseif ($aStr -eq '--session-id') { $i++; if ($i -lt $args.Count) { $effectiveSid = "$($args[$i])" } }
     }
     Merge-Workstream -Root $PWD.Path -SessionId $effectiveSid
+  }
+  "disable-multi-session" {
+    if (-not (Test-Path "engine")) {
+      Write-Error "Error: engine/ not found in $PWD."
+      exit 2
+    }
+    # v6.11.0 (D-029/T-036) AC-17: action passed as positional $Task; default = "on"
+    $effectiveAction = if ($Task) { $Task } else { "on" }
+    foreach ($a in $args) {
+      $aStr = "$a"
+      if ($aStr -eq 'on' -or $aStr -eq 'enable' -or $aStr -eq 'off' -or $aStr -eq 'disable' -or $aStr -eq 'status') {
+        $effectiveAction = $aStr
+      }
+    }
+    Disable-MultiSession -Root $PWD.Path -Action $effectiveAction
   }
   "check-update" {
     $chk = Join-Path $PWD.Path "engine\scripts\engine-check-update.ps1"

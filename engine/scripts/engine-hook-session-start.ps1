@@ -129,6 +129,89 @@ if ($activeTask) {
   Write-Output ""
 }
 
+# v6.11.0 (D-029/T-036): 多会话 lock 检测 + 协调者/worker 角色分配。
+# Claude Code 已通过 stdin JSON payload 传入 session_id。
+# 本会话用 atomic 独占创建 engine/.cache/session.lock(FileStream FileShare.None,无 TOCTOU):
+# 成功 → 协调者(写共享三件套);失败(lock 已存在且 pid 存活)→ 降级 worker(写 engine/workstreams/<task>/<sid>/ 分片)。
+# kill switch: ENGINE_DISABLE_MULTI_SESSION=1 或 .cache/multi-session.disabled 文件存在时跳过检测。
+$msDisabled = $env:ENGINE_DISABLE_MULTI_SESSION
+if (Test-Path (Join-Path $EngineDir ".cache\multi-session.disabled")) { $msDisabled = "1" }
+
+if (-not $msDisabled) {
+  $LockFile = Join-Path $EngineDir ".cache\session.lock"
+  $SessionsDir = Join-Path $EngineDir ".cache\sessions"
+  if (-not (Test-Path $SessionsDir)) { New-Item -ItemType Directory -Path $SessionsDir -Force | Out-Null }
+
+  # 从 stdin JSON payload 读取 session_id(Claude Code 已传入)
+  $msPayload = ""
+  try {
+    if ([Console]::IsInputRedirected) { $msPayload = [Console]::In.ReadToEnd() }
+  } catch {}
+  $msSid = ""
+  if ($msPayload -match '"session_id"\s*:\s*"([^"]*)"') { $msSid = $Matches[1] }
+  if (-not $msSid) { $msSid = "anon-" + $PID }
+  $msPid = $PID
+  $msStarted = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+  $msTask = ""
+  if ($activeTaskId) { $msTask = $activeTaskId }
+
+  # atomic 独占创建 lock (FileStream FileShare.None,无 TOCTOU)
+  $lockAcquired = $false
+  try {
+    $fs = New-Object System.IO.FileStream($LockFile, [System.IO.FileMode]::CreateNew, [System.IO.FileAccess]::Write, [System.IO.FileShare]::None)
+    $writer = New-Object System.IO.StreamWriter($fs)
+    $writer.WriteLine("$msPid|$msSid|coordinator|$msStarted|$msTask")
+    $writer.Close()
+    $fs.Close()
+    $lockAcquired = $true
+  } catch {}
+
+  if ($lockAcquired) {
+    Write-Output "---- Coordinator (multi-session lock acquired) ----"
+    Write-Output "本会话为协调者:可写共享三件套(CONTEXT/HANDOFF/ENGINE_MAP)。其他会话将降级 worker。"
+  } else {
+    $existing = ""
+    try { $existing = Get-Content -Raw -Path $LockFile -Encoding UTF8 -ErrorAction Stop } catch {}
+    $lockPid = 0
+    if ($existing) {
+      $parts = $existing.Trim() -split '\|'
+      if ($parts.Length -ge 1) { [int]::TryParse($parts[0], [ref]$lockPid) | Out-Null }
+    }
+    $lockAlive = $false
+    if ($lockPid -gt 0) {
+      try {
+        $proc = Get-Process -Id $lockPid -ErrorAction Stop
+        $lockAlive = $true
+      } catch {}
+    }
+    if ($lockAlive) {
+      # 降级 worker:写 .cache/sessions/<key>.role=worker 标志(PreToolUse 双信号第 2 信号)
+      # key 用 <sid>-main 与 Stop hook 的 session_key 计算一致(顶层会话 agent_id 视为 main);
+      # 算法与 Stop hook Safe-Id 完全相同(-replace '[^A-Za-z0-9._-]', '_' 保留 . _ - 字符),
+      # 避免 session_id 含 . 时 worker_key 与 session_key 不匹配导致双信号失效(P2 修复)。
+      $workerKey = (($msSid + "-main") -replace '[^A-Za-z0-9._-]', '_')
+      if ($workerKey.Length -gt 64) { $workerKey = $workerKey.Substring(0, 64) }
+      if (-not $workerKey) { $workerKey = "anon-main" }
+      $roleFile = Join-Path $SessionsDir ($workerKey + ".role=worker")
+      try { New-Item -ItemType File -Path $roleFile -Force | Out-Null } catch {}
+      Write-Output "---- Worker (multi-session lock held by pid=$lockPid) ----"
+      Write-Output "本会话降级为 worker:只能写 engine/workstreams/<task>/<sid>/ 分片。跑 'engine workstream T-NNN <sid> --kind=session' 启动。"
+    } else {
+      # lock holder 已退出 → 接管协调者(覆盖 lock + 写 tombstone 通知其他会话)
+      try {
+        Set-Content -Path $LockFile -Value "$msPid|$msSid|coordinator|$msStarted|$msTask" -Encoding UTF8 -NoNewline
+      } catch {}
+      $tombstoneFile = Join-Path $EngineDir ".cache\session.tombstone"
+      try {
+        Set-Content -Path $tombstoneFile -Value "$((Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ'))|$lockPid|stale-recovered" -Encoding UTF8 -NoNewline
+      } catch {}
+      Write-Output "---- Coordinator (recovered from stale lock pid=$lockPid) ----"
+      Write-Output "本会话接管协调者(原 lock holder pid=$lockPid 已退出)。"
+    }
+  }
+  Write-Output ""
+}
+
 # v6.9.0 (D-028/T-034): AC-level checkpoint.md priority injection - when active/paused
 # card exists, read engine/evidence/T-NNN/checkpoint.md and inject full text. Priority
 # chain #1 (covers progress.md section 4 and HANDOFF immediate-resume pointer).

@@ -14,7 +14,9 @@ Usage:
   engine init           Show how to run the init interview with any AI agent
   engine init --print   Print the raw agent-neutral init prompt (pipe/copy it)
   engine context        Load full session context (agent-agnostic, any AI agent)
-  engine workstream T-NNN AGENT   Create an isolated worker memory shard
+  engine workstream T-NNN AGENT [--kind=subagent|session] [--print]   Create an isolated worker memory shard (default --kind=subagent)
+  engine assume-coordinator [--force]   Force-take coordinator lock + write tombstone (use after crash or to override)
+  engine merge-workstream <session-id>  Display worker shard + guide coordinator through merge steps (no auto-write)
   engine check-update   Check if a newer Engine System version is available
   engine update         Update tooling, then migrate + doctor (one-shot)
   engine update --check-only   Only check for updates, change nothing
@@ -62,10 +64,27 @@ EOF
 }
 
 create_workstream() {
-  local root="$1" task="$2" agent="$3" task_file dir goal
+  local root="$1" task="$2" agent="$3"
+  shift 3 2>/dev/null || shift "$#"
+  # v6.11.0 (D-029/T-036) AC-8: --kind=subagent|session parameter (default subagent, backward compatible)
+  # subagent: worker_id = AGENT (hook detects via agent_id signal 1)
+  # session: worker_id = AGENT (top-level session degraded, hook detects via .role=worker marker signal 2)
+  local kind="subagent" print_flag=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --kind=*) kind="${1#--kind=}" ;;
+      --kind) shift; kind="${1:-}" ;;
+      --print) print_flag="1" ;;
+    esac
+    shift
+  done
   task="$(printf '%s' "$task" | tr '[:lower:]' '[:upper:]')"
-  case "$task" in T-[0-9][0-9][0-9]) ;; *) echo "Usage: engine workstream T-NNN AGENT" >&2; return 2 ;; esac
+  case "$task" in T-[0-9][0-9][0-9]) ;; *) echo "Usage: engine workstream T-NNN AGENT [--kind=subagent|session] [--print]" >&2; return 2 ;; esac
   case "$agent" in ''|*[!A-Za-z0-9._-]*) echo "Error: AGENT may contain only A-Z, a-z, 0-9, dot, underscore, or dash." >&2; return 2 ;; esac
+  case "$kind" in
+    subagent|session) ;;
+    *) echo "Error: --kind must be 'subagent' or 'session' (got: $kind)" >&2; return 2 ;;
+  esac
   task_file="$root/engine/tasks/$task.md"
   [ -f "$task_file" ] || { echo "Error: task card not found: engine/tasks/$task.md" >&2; return 2; }
   dir="$root/engine/workstreams/$task/$agent"
@@ -82,7 +101,7 @@ create_workstream() {
     cat > "$dir/CONTEXT.md" <<EOF
 # Workstream Context - $task / $agent
 
-> status: active | task: $task | owner: $agent | merge: pending
+> status: active | task: $task | owner: $agent | merge: pending | kind: $kind
 
 ## Goal
 
@@ -109,7 +128,7 @@ EOF
     cat > "$dir/HANDOFF.md" <<EOF
 # Workstream Handoff - $task / $agent
 
-> updated: pending | merge: pending
+> updated: pending | merge: pending | kind: $kind
 
 ## Latest
 
@@ -119,12 +138,175 @@ EOF
 - Verification: not run
 EOF
   fi
+  # v6.11.0 (D-029/T-036) AC-8: --kind=session creates .role=worker marker for top-level session degradation
+  if [ "$kind" = "session" ]; then
+    sessions_dir="$root/engine/.cache/sessions"
+    mkdir -p "$sessions_dir" 2>/dev/null || true
+    role_marker="$sessions_dir/$agent.role=worker"
+    : > "$role_marker" 2>/dev/null || true
+    echo "Session-degraded worker marker created: engine/.cache/sessions/$agent.role=worker"
+    echo "Top-level session will be treated as worker by PreToolUse hook (signal 2)."
+  fi
   echo "Workstream ready: engine/workstreams/$task/$agent/"
   echo "Worker writes only this shard; coordinator owns shared CONTEXT/HANDOFF."
-  if [ "${4:-}" = "--print" ]; then
+  echo "Kind: $kind"
+  if [ -n "$print_flag" ]; then
     cat "$dir/CONTEXT.md"
     cat "$dir/HANDOFF.md"
   fi
+}
+
+# v6.11.0 (D-029/T-036) AC-9: assume-coordinator command
+# Force-take the coordinator lock; optionally write tombstone for the previous holder.
+# Use cases: (1) crash recovery when a previous coordinator left a stale lock;
+#            (2) explicit override of an active coordinator (--force required).
+assume_coordinator() {
+  local root="$1"
+  shift 2>/dev/null || shift "$#"
+  local force=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --force|-f) force="1" ;;
+      *) echo "Warning: unknown flag '$1' (ignored)" >&2 ;;
+    esac
+    shift
+  done
+
+  local cache_dir="$root/engine/.cache"
+  local lock_file="$cache_dir/session.lock"
+  local tombstone_file="$cache_dir/session.tombstone"
+  mkdir -p "$cache_dir" 2>/dev/null || true
+
+  local pid="$$"
+  local session_id="${CLAUDE_SESSION_ID:-anon-$pid}"
+  local started_at
+  started_at="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || printf '%s' '')"
+
+  # Detect active task from engine/tasks/T-NNN.md (skip .spec.md twins)
+  local task_id=""
+  for task_file in "$root"/engine/tasks/T-*.md; do
+    [ -f "$task_file" ] || continue
+    case "$task_file" in *.spec.md) continue ;; esac
+    if grep -q 'status:[[:space:]]*active' "$task_file" 2>/dev/null; then
+      task_id="$(basename "$task_file" .md)"
+      break
+    fi
+  done
+
+  # Check existing lock
+  if [ -f "$lock_file" ]; then
+    local lock_content lock_pid lock_sid
+    lock_content="$(cat "$lock_file" 2>/dev/null || true)"
+    lock_pid="$(printf '%s' "$lock_content" | cut -d'|' -f1)"
+    lock_sid="$(printf '%s' "$lock_content" | cut -d'|' -f2)"
+    if [ -z "$force" ]; then
+      echo "Error: lock held by pid=$lock_pid sid=$lock_sid" >&2
+      echo "Use 'engine assume-coordinator --force' to override (writes tombstone for old holder)." >&2
+      return 2
+    fi
+    # Force-override: write tombstone for the old coordinator, then take the lock
+    rm -f "$lock_file" 2>/dev/null || true
+    printf '%s|%s|forced-replaced\n' "$started_at" "${lock_pid:-unknown}" > "$tombstone_file" 2>/dev/null || true
+    echo "Previous coordinator (pid=$lock_pid sid=$lock_sid) force-replaced."
+    echo "Tombstone written: engine/.cache/session.tombstone"
+  else
+    # Fresh coordinator: clear any stale tombstone from a prior crash
+    if [ -f "$tombstone_file" ]; then
+      rm -f "$tombstone_file" 2>/dev/null || true
+      echo "Cleared stale tombstone from prior coordinator exit."
+    fi
+  fi
+
+  # Create new lock (atomic via noclobber when no prior lock; force case already removed old)
+  printf '%s|%s|coordinator|%s|%s\n' "$pid" "$session_id" "$started_at" "${task_id:-}" > "$lock_file" 2>/dev/null || {
+    echo "Error: failed to create lock file at $lock_file" >&2
+    return 2
+  }
+
+  echo "Lock acquired: engine/.cache/session.lock"
+  printf '  pid=%s sid=%s role=coordinator started=%s task=%s\n' "$pid" "$session_id" "$started_at" "${task_id:-none}"
+  echo ""
+  echo "This session is now the coordinator. Other sessions will be treated as workers."
+  echo "Run 'engine context' to view active sessions."
+}
+
+# v6.11.0 (D-029/T-036) AC-10: merge-workstream command
+# Display a worker's workstream shard and guide the coordinator through merging it
+# into shared engine/CONTEXT.md and engine/HANDOFF.md. Does NOT auto-write the
+# shared memory; the coordinator is the sole writer of shared three-file memory.
+merge_workstream() {
+  local root="$1" session_id="$2"
+  if [ -z "$session_id" ]; then
+    echo "Usage: engine merge-workstream <session-id>" >&2
+    echo "Lists active workstreams if <session-id> is omitted." >&2
+    return 2
+  fi
+
+  local ws_root="$root/engine/workstreams"
+  if [ ! -d "$ws_root" ]; then
+    echo "Error: no workstreams directory at engine/workstreams/." >&2
+    echo "Run 'engine workstream T-NNN AGENT --kind=session' to create a worker shard first." >&2
+    return 2
+  fi
+
+  # Locate the shard by session-id (may live under any task/<session-id>/).
+  local shard_dir=""
+  local task_id=""
+  for task_dir in "$ws_root"/T-*/; do
+    [ -d "$task_dir" ] || continue
+    if [ -d "$task_dir/$session_id" ]; then
+      shard_dir="$task_dir/$session_id"
+      task_id="$(basename "$task_dir")"
+      break
+    fi
+  done
+
+  if [ -z "$shard_dir" ]; then
+    echo "Error: no workstream shard found for session-id '$session_id'." >&2
+    echo "Available shards:" >&2
+    local found=0
+    for task_dir in "$ws_root"/T-*/; do
+      [ -d "$task_dir" ] || continue
+      for shard in "$task_dir"*/; do
+        [ -d "$shard" ] || continue
+        printf '  %s -> %s\n' "$(basename "$shard")" "$(basename "$task_dir")" >&2
+        found=1
+      done
+    done
+    [ "$found" -eq 0 ] && echo "  (none)" >&2
+    return 2
+  fi
+
+  echo "Workstream shard: engine/workstreams/$task_id/$session_id/"
+  echo "Task: $task_id | Worker: $session_id"
+  echo ""
+  echo "--- BEGIN shard CONTEXT.md ---"
+  if [ -f "$shard_dir/CONTEXT.md" ]; then
+    cat "$shard_dir/CONTEXT.md"
+  else
+    echo "(missing: $shard_dir/CONTEXT.md)"
+  fi
+  echo "--- END shard CONTEXT.md ---"
+  echo ""
+  echo "--- BEGIN shard HANDOFF.md ---"
+  if [ -f "$shard_dir/HANDOFF.md" ]; then
+    cat "$shard_dir/HANDOFF.md"
+  else
+    echo "(missing: $shard_dir/HANDOFF.md)"
+  fi
+  echo "--- END shard HANDOFF.md ---"
+  echo ""
+  echo "Merge steps for the coordinator:"
+  echo "  1. Re-read the shard above (Goal / Progress / Changed Paths / Evidence / Merge Notes)."
+  echo "  2. Diff against shared engine/CONTEXT.md and engine/HANDOFF.md:"
+  echo "       diff -u engine/CONTEXT.md $shard_dir/CONTEXT.md"
+  echo "       diff -u engine/HANDOFF.md $shard_dir/HANDOFF.md"
+  echo "  3. Apply shard-specific progress / changed paths / evidence into shared memory."
+  echo "  4. After merge, archive the shard: mv $shard_dir engine/workstreams/$task_id/.merged-$session_id/"
+  echo "  5. Run 'engine verify $task_id' to confirm shared memory still passes AC."
+  echo ""
+  echo "Coordinator is the sole writer of shared engine/{CONTEXT,HANDOFF,ENGINE_MAP}.md."
+  echo "Workers write only their own shard; merge-workstream never auto-writes shared memory."
 }
 
 download() {
@@ -422,6 +604,20 @@ case "${1:-help}" in
       exit 2
     fi
     create_workstream "$PWD" "${2:-}" "${3:-}" "${4:-}"
+    ;;
+  assume-coordinator)
+    if [ ! -d "$PWD/engine" ]; then
+      echo "Error: engine/ not found in $PWD." >&2
+      exit 2
+    fi
+    assume_coordinator "$PWD" "${2:-}"
+    ;;
+  merge-workstream)
+    if [ ! -d "$PWD/engine" ]; then
+      echo "Error: engine/ not found in $PWD." >&2
+      exit 2
+    fi
+    merge_workstream "$PWD" "${2:-}"
     ;;
   check-update)
     bash "$PWD/engine/scripts/engine-check-update.sh" "$PWD"

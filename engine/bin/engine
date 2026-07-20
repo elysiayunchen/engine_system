@@ -17,6 +17,7 @@ Usage:
   engine workstream T-NNN AGENT [--kind=subagent|session] [--print]   Create an isolated worker memory shard (default --kind=subagent)
   engine assume-coordinator [--force]   Force-take coordinator lock + write tombstone (use after crash or to override)
   engine merge-workstream <session-id>  Display worker shard + guide coordinator through merge steps (no auto-write)
+  engine disable-multi-session [on|off|status]  Toggle kill switch (skip lock detection, all sessions degrade to single-session)
   engine check-update   Check if a newer Engine System version is available
   engine update         Update tooling, then migrate + doctor (one-shot)
   engine update --check-only   Only check for updates, change nothing
@@ -307,6 +308,54 @@ merge_workstream() {
   echo ""
   echo "Coordinator is the sole writer of shared engine/{CONTEXT,HANDOFF,ENGINE_MAP}.md."
   echo "Workers write only their own shard; merge-workstream never auto-writes shared memory."
+}
+
+# v6.11.0 (D-029/T-036) AC-17: disable-multi-session kill switch command
+# Toggle engine/.cache/multi-session.disabled flag file to disable multi-session lock.
+# When the flag file exists (or ENGINE_DISABLE_MULTI_SESSION=1 env var), SessionStart hook
+# skips lock detection and all sessions degrade to single-session mode (v6.10.0 fail-open equivalent).
+disable_multi_session() {
+  local root="$1"
+  shift 2>/dev/null || shift "$#"
+  local action="on"
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      on|enable) action="on" ;;
+      off|disable) action="off" ;;
+      status) action="status" ;;
+      *) echo "Warning: unknown arg '$1' (ignored)" >&2 ;;
+    esac
+    shift
+  done
+  local cache_dir="$root/engine/.cache"
+  local flag_file="$cache_dir/multi-session.disabled"
+  mkdir -p "$cache_dir" 2>/dev/null || true
+  case "$action" in
+    on)
+      : > "$flag_file" 2>/dev/null || { echo "Error: cannot create $flag_file" >&2; return 2; }
+      echo "Multi-session lock DISABLED. Flag file: engine/.cache/multi-session.disabled"
+      echo "All future sessions will degrade to single-session mode (fail-open)."
+      echo "To re-enable: engine disable-multi-session off"
+      ;;
+    off)
+      if [ -f "$flag_file" ]; then
+        rm -f "$flag_file" 2>/dev/null || { echo "Error: cannot remove $flag_file" >&2; return 2; }
+        echo "Multi-session lock ENABLED. Flag file removed."
+        echo "Future sessions will use coordinator/worker role assignment."
+      else
+        echo "Flag file does not exist — multi-session lock already enabled."
+      fi
+      ;;
+    status)
+      if [ -f "$flag_file" ]; then
+        echo "Multi-session lock: DISABLED (flag file present)"
+      elif [ -n "${ENGINE_DISABLE_MULTI_SESSION:-}" ]; then
+        echo "Multi-session lock: DISABLED (env var ENGINE_DISABLE_MULTI_SESSION=$ENGINE_DISABLE_MULTI_SESSION)"
+      else
+        echo "Multi-session lock: ENABLED"
+      fi
+      ;;
+  esac
 }
 
 download() {
@@ -618,6 +667,13 @@ case "${1:-help}" in
       exit 2
     fi
     merge_workstream "$PWD" "${2:-}"
+    ;;
+  disable-multi-session)
+    if [ ! -d "$PWD/engine" ]; then
+      echo "Error: engine/ not found in $PWD." >&2
+      exit 2
+    fi
+    disable_multi_session "$PWD" "${2:-}"
     ;;
   check-update)
     bash "$PWD/engine/scripts/engine-check-update.sh" "$PWD"

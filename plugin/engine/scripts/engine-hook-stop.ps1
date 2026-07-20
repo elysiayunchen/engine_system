@@ -196,17 +196,30 @@ if ($Mode -eq '--pre-tool-use') {
   $path = Normalize-ProjectPath $filePath
   if (Is-RuntimeCache $path) { exit 0 }
 
-  if ($agentId -and (Is-SharedMemory $path)) {
-    $agentSafe = Safe-Id $agentId
+  # v6.11.0 (D-029/T-036) AC-4: PreToolUse 双信号扩展
+  # 信号 1: agentId 非空 (subagent 由 Claude Code 传入)
+  # 信号 2: .cache/sessions/<sessionKey>.role=worker 文件存在 (顶层会话降级为 worker)
+  # OR 关系: 任一信号触发即视为 worker, 拦截共享记忆写入 + 限定 workstream 路径
+  $isWorker = $false
+  if ($agentId) {
+    $isWorker = $true
+  } elseif ($sessionKey -and (Test-Path (Join-Path $sessionsDir ($sessionKey + '.role=worker')))) {
+    $isWorker = $true
+  }
+  # worker 标识: 优先 agentId, 否则用 sessionKey (顶层会话降级场景)
+  $workerId = if ($agentId) { $agentId } else { $sessionKey }
+
+  if ($isWorker -and (Is-SharedMemory $path)) {
+    $agentSafe = Safe-Id $workerId
     $taskLabel = if ($activeTaskId) { $activeTaskId } else { 'T-NNN' }
-    Write-Block "[Engine System] Worker agent $agentId cannot write shared memory $path. | developer: Parallel workers write engine/workstreams/$taskLabel/$agentSafe/; the coordinator merges shared CONTEXT/HANDOFF once."
+    Write-Block "[Engine System] Worker $workerId cannot write shared memory $path. | developer: Parallel workers write engine/workstreams/$taskLabel/$agentSafe/; the coordinator merges shared CONTEXT/HANDOFF once."
   }
 
-  if ($agentId -and $path -like 'engine/workstreams/*') {
-    $agentSafe = Safe-Id $agentId
+  if ($isWorker -and $path -like 'engine/workstreams/*') {
+    $agentSafe = Safe-Id $workerId
     $taskLabel = if ($activeTaskId) { $activeTaskId } else { 'T-NNN' }
     if ($path -notlike "engine/workstreams/$taskLabel/$agentSafe/*") {
-      Write-Block "[Engine System] Worker $agentId may only write its own workstream shard: engine/workstreams/$taskLabel/$agentSafe/."
+      Write-Block "[Engine System] Worker $workerId may only write its own workstream shard: engine/workstreams/$taskLabel/$agentSafe/."
     }
   }
 

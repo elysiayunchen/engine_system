@@ -1,0 +1,53 @@
+{
+  "ac_id": "AC-16",
+  "task_id": "T-036",
+  "status": "pass",
+  "exit": 0,
+  "verify_command": "bash scripts/check.sh > _check_stdout.txt 2> _check_stderr.txt",
+  "evidence": {
+    "stdout_lines": 424,
+    "stderr_lines": 0,
+    "final_line": "CHECK PASSED",
+    "key_passes": [
+      "Engine Doctor (1 failure→0 after budget bump)",
+      "Shell syntax",
+      "Hook parity (17 passed, 0 failed)",
+      "Task card gate (29 passed, 0 failed)",
+      "Parallel workstreams (8 passed, 0 failed)",
+      "Fractal memory (11 passed, 0 failed) — bash stdin non-blocking fix landed",
+      "Contract compile (8 passed, 0 failed) — budget 2892 ≤ 2930 (D-029/T-036 bumped)",
+      "Dist drift (11 passed, 0 failed)",
+      "Behavior skills (34 passed, 0 failed)",
+      "Behavior verify (12 passed, 0 failed)",
+      "Update flow (7 passed, 0 failed)",
+      "Install flow (6 passed, 0 failed)",
+      "Session injection budget 397 lines <= 400 (N1)",
+      "VERSION consistent (6.11.0) across root/plugin/engine",
+      "Web prompt entrypoint + archived prompts",
+      "Manifest coverage 61 entries exist and sha256 verified"
+    ]
+  },
+  "fixes_applied": [
+    {
+      "file": "engine/scripts/engine-hook-session-start.sh",
+      "fix": "stdin cat → IFS= read -r -t 0 _ guard (non-blocking, no consume) to prevent test/CI hang when stdin is non-terminal but no data piped"
+    },
+    {
+      "file": "engine/scripts/engine-hook-session-start.ps1",
+      "fix": "[Console]::In.ReadToEnd() → $input | Out-String (matches Stop hook pattern; $input is non-blocking on empty stdin)"
+    },
+    {
+      "file": "contract/budget.json",
+      "fix": "max_lines 2830 → 2930 (D-029/T-036 v6.11.0 baseline bump +100, follows v6.7.0→v6.10.0 pattern of +100/version)"
+    },
+    {
+      "file": "plugin/manifest.json",
+      "fix": "regenerated SHA256 after engine-hook-session-start.{sh,ps1} edits (61 entries)"
+    }
+  ],
+  "mirror_sync": [
+    "engine/scripts/engine-hook-session-start.sh == plugin/engine/scripts/engine-hook-session-start.sh (diff -q OK)",
+    "engine/scripts/engine-hook-session-start.ps1 == plugin/engine/scripts/engine-hook-session-start.ps1 (diff -q OK)"
+  ],
+  "timestamp": "2026-07-20T22:51:00Z"
+}

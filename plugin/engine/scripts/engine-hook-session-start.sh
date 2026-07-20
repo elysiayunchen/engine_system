@@ -118,9 +118,13 @@ ms_disabled="${ENGINE_DISABLE_MULTI_SESSION:-}"
 if [ -z "$ms_disabled" ]; then
   LOCK="$ENGINE_DIR/.cache/session.lock"
   mkdir -p "$ENGINE_DIR/.cache/sessions" 2>/dev/null || true
-  # 从 stdin JSON payload 读取 session_id(Claude Code 已传入)
+  # 从 stdin JSON payload 读取 session_id(Claude Code 已传入)。
+  # 防阻塞:仅当 stdin 非终端且数据可立即读时才 cat;否则跳过(避免测试/CI 无 stdin 时挂起)。
+  # read -t 0 是 bash builtin,不消费任何字节,仅检测 stdin 是否有数据可读。
   ms_payload=""
-  if [ ! -t 0 ]; then ms_payload="$(cat 2>/dev/null || true)"; fi
+  if [ ! -t 0 ] && IFS= read -r -t 0 _ 2>/dev/null; then
+    ms_payload="$(cat 2>/dev/null || true)"
+  fi
   ms_sid="$(printf '%s' "$ms_payload" | grep -oE '"session_id"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | sed 's/.*"session_id"[[:space:]]*:[[:space:]]*"//;s/"//')"
   [ -n "$ms_sid" ] || ms_sid="anon-$$"
   ms_pid="$$"

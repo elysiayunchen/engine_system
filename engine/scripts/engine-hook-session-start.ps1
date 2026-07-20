@@ -142,11 +142,10 @@ if (-not $msDisabled) {
   $SessionsDir = Join-Path $EngineDir ".cache\sessions"
   if (-not (Test-Path $SessionsDir)) { New-Item -ItemType Directory -Path $SessionsDir -Force | Out-Null }
 
-  # 从 stdin JSON payload 读取 session_id(Claude Code 已传入)
-  $msPayload = ""
-  try {
-    if ([Console]::IsInputRedirected) { $msPayload = [Console]::In.ReadToEnd() }
-  } catch {}
+  # 从 stdin JSON payload 读取 session_id(Claude Code 已传入)。
+  # 防阻塞:使用 $input | Out-String 与 Stop hook 一致($input 在无 stdin 输入时不阻塞,返回空)。
+  # 不使用 [Console]::In.ReadToEnd(),因为它在 stdin 重定向但无数据时会永久阻塞。
+  $msPayload = $input | Out-String
   $msSid = ""
   if ($msPayload -match '"session_id"\s*:\s*"([^"]*)"') { $msSid = $Matches[1] }
   if (-not $msSid) { $msSid = "anon-" + $PID }

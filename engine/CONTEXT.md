@@ -1,14 +1,14 @@
 # CONTEXT — 当前状态
 
-> Engine System (engine_system) · Last updated: 2026-07-19 · Profile: CLI-LEAN
+> Engine System (engine_system) · Last updated: 2026-07-20 · Profile: CLI-LEAN
 
 ## 状态面板
 
 | 维度 | 状态 |
 |------|------|
 | 构建 | ✅ 正常（纯 markdown + shell 脚本，无构建步骤） |
-| 上次完成 | **v6.8.0 正式发版(T-033 域级 INVENTORY.md 功能索引 + 双向 FAIL 检查 + API 唯一性)**:T-033 11 个 AC 全部完成。新增 contract/src/20-file-templates.md FILE 14(INVENTORY.md 5 列模板+分级规则 ≤120/≤200 行+ast-grep/ctags 边界声明+双向 FAIL 检查+机制 C API 唯一性+维护时机+migrator stub+骨架文件);behaviors/{task-run,verify-writeback}.md done MUST 更新 INVENTORY + step 7 INVENTORY 同步检查;ENGINE_DOCTOR.md dogfood + plugin 镜像加 #13(双向 FAIL)+ #14(API 唯一性),contract-version 6.7.0→6.8.0;engine-doctor.{sh,ps1} ×4 实现 check_inventory_bidirectional + check_inventory_api_uniqueness + 迁移宽限期;engine-migrate-contract.{sh,ps1} ×4 加 #13/#14 + INVENTORY stub 创建;skeleton/domains/INVENTORY.md 模板 ×2;dogfood engine-runtime(38 feature 行)+ project-meta(15 feature 行);contract/budget.json 2530→2630;2 处 bash bug 修复(正则 + pipefail ERR trap)。check.sh CHECK PASSED(0 failures)。详见 `engine/changes/CHANGE-2026-07-19-05.md`。 |
-| 进行中 | **LPHP 大型项目接管方向(D-028 approved)**:T-033(v6.8.0 域级 INVENTORY.md)已实现,下一步 `bash scripts/release.sh 6.8.0` → `git push && git push --tags` 触发 GitHub Release workflow。T-034/T-035 spec 已就绪,按依赖图 T-033→T-035 + T-034 弱依赖 T-032 并行。3 个月 expiry 2026-10-31,早期预警 2026-09-15。 |
+| 上次完成 | **v6.8.0 正式发版(T-033 域级 INVENTORY.md 功能索引 + 双向 FAIL 检查 + API 唯一性)**:T-033 11/11 AC PASS,commit 396a771 + tag v6.8.0 已推。新增 contract/src/20-file-templates.md FILE 14(INVENTORY.md 5 列模板+分级规则 ≤120/≤200 行+ast-grep/ctags 边界声明+双向 FAIL 检查+机制 C API 唯一性+维护时机+migrator stub+骨架文件);behaviors/{task-run,verify-writeback}.md done MUST 更新 INVENTORY + step 7 INVENTORY 同步检查;ENGINE_DOCTOR.md dogfood + plugin 镜像加 #13(双向 FAIL)+ #14(API 唯一性),contract-version 6.7.0→6.8.0;engine-doctor.{sh,ps1} ×4 实现 check_inventory_bidirectional + check_inventory_api_uniqueness + 迁移宽限期;engine-migrate-contract.{sh,ps1} ×4 加 #13/#14 + INVENTORY stub 创建;skeleton/domains/INVENTORY.md 模板 ×2;dogfood engine-runtime(38 feature 行)+ project-meta(15 feature 行);contract/budget.json 2530→2630;2 处 bash bug 修复(正则 + pipefail ERR trap)。check.sh CHECK PASSED。 |
+| 进行中 | **LPHP 大型项目接管方向(D-028 approved)**:T-033(v6.8.0 域级 INVENTORY.md)已 done+push。下一步按依赖图开干 T-034(checkpoint.md)/ T-035(死代码检测)。T-034 弱依赖 T-032,T-035 依赖 T-033,可并行。3 个月 expiry 2026-10-31,早期预警 2026-09-15。 |
 | 阻塞 | 无。 |
 
 ## 当前假设 / 决策（本轮拍板）

@@ -93,6 +93,56 @@ else
   echo ""
 fi
 
+# v6.11.0 (D-029/T-036) AC-5: Active Sessions 面板
+# 数据源 1: engine/.cache/session.lock (协调者: pid|sid|role|started_at|task_id)
+# 数据源 2: engine/.cache/sessions/*.meta (workers: role|stopped_at|task_id)
+# 数据源 3: engine/.cache/sessions/*.role=worker (降级标记, 无 .meta 显示 degraded)
+lock_file_ctx="$ENGINE_DIR/.cache/session.lock"
+sessions_dir_ctx="$ENGINE_DIR/.cache/sessions"
+if [ -f "$lock_file_ctx" ] || [ -d "$sessions_dir_ctx" ]; then
+  echo "──── 👥 Active Sessions ────"
+  # Coordinator (from lock file)
+  if [ -f "$lock_file_ctx" ]; then
+    lock_line_ctx="$(cat "$lock_file_ctx" 2>/dev/null || true)"
+    if [ -n "$lock_line_ctx" ]; then
+      c_pid="$(printf '%s' "$lock_line_ctx" | cut -d'|' -f1)"
+      c_sid="$(printf '%s' "$lock_line_ctx" | cut -d'|' -f2)"
+      c_started="$(printf '%s' "$lock_line_ctx" | cut -d'|' -f4)"
+      c_task="$(printf '%s' "$lock_line_ctx" | cut -d'|' -f5)"
+      c_sid_short="${c_sid:0:8}"
+      printf 'Coordinator: pid=%s sid=%s started=%s task=%s\n' "$c_pid" "$c_sid_short" "$c_started" "${c_task:-none}"
+    fi
+  else
+    echo "Coordinator: none (single-session mode)"
+  fi
+  # Workers (from .meta files; role=coordinator entries are exited coordinators, skip)
+  if [ -d "$sessions_dir_ctx" ]; then
+    for meta_ctx in "$sessions_dir_ctx"/*.meta; do
+      [ -f "$meta_ctx" ] || continue
+      meta_line_ctx="$(cat "$meta_ctx" 2>/dev/null || true)"
+      [ -n "$meta_line_ctx" ] || continue
+      m_role="$(printf '%s' "$meta_line_ctx" | cut -d'|' -f1)"
+      m_stopped="$(printf '%s' "$meta_line_ctx" | cut -d'|' -f2)"
+      m_task="$(printf '%s' "$meta_line_ctx" | cut -d'|' -f3)"
+      w_key="$(basename "$meta_ctx" .meta)"
+      w_key_short="${w_key:0:8}"
+      if [ "$m_role" = "worker" ]; then
+        printf 'Worker %s: stopped=%s task=%s\n' "$w_key_short" "$m_stopped" "${m_task:-none}"
+      fi
+    done
+    # Degraded workers (.role=worker marker without matching .meta)
+    for role_marker in "$sessions_dir_ctx"/*.role=worker; do
+      [ -f "$role_marker" ] || continue
+      r_key="$(basename "$role_marker" .role=worker)"
+      r_key_short="${r_key:0:8}"
+      if [ ! -f "$sessions_dir_ctx/$r_key.meta" ]; then
+        printf 'Worker %s: degraded (no .meta)\n' "$r_key_short"
+      fi
+    done
+  fi
+  echo ""
+fi
+
 # Unmerged worker shards. Keep this dashboard compact; full shard content is read on demand.
 if [ -n "$active_task" ]; then
   workstream_root="$ENGINE_DIR/workstreams/$task_id"

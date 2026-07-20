@@ -106,6 +106,63 @@ if ($activeTask) {
   Write-Output ""
 }
 
+# v6.11.0 (D-029/T-036) AC-5: Active Sessions 面板
+# 数据源 1: engine/.cache/session.lock (协调者: pid|sid|role|started_at|task_id)
+# 数据源 2: engine/.cache/sessions/*.meta (workers: role|stopped_at|task_id)
+# 数据源 3: engine/.cache/sessions/*.role=worker (降级标记, 无 .meta 显示 degraded)
+$lockFileCtx = Join-Path $EngineDir '.cache\session.lock'
+$sessionsDirCtx = Join-Path $EngineDir '.cache\sessions'
+if ((Test-Path $lockFileCtx) -or (Test-Path $sessionsDirCtx)) {
+  Write-Output "---- Active Sessions ----"
+  # Coordinator (from lock file)
+  if (Test-Path $lockFileCtx) {
+    try {
+      $lockLineCtx = (Get-Content -Raw -Path $lockFileCtx -Encoding UTF8 -ErrorAction Stop).Trim()
+      if ($lockLineCtx) {
+        $lockFields = $lockLineCtx -split '\|'
+        $cPid = if ($lockFields.Length -ge 1) { $lockFields[0] } else { '' }
+        $cSid = if ($lockFields.Length -ge 2) { $lockFields[1] } else { '' }
+        $cStarted = if ($lockFields.Length -ge 4) { $lockFields[3] } else { '' }
+        $cTask = if ($lockFields.Length -ge 5) { $lockFields[4] } else { 'none' }
+        $cSidShort = if ($cSid.Length -gt 8) { $cSid.Substring(0, 8) } else { $cSid }
+        Write-Output ("Coordinator: pid={0} sid={1} started={2} task={3}" -f $cPid, $cSidShort, $cStarted, $cTask)
+      }
+    } catch {}
+  } else {
+    Write-Output "Coordinator: none (single-session mode)"
+  }
+  # Workers (from .meta files; role=coordinator entries are exited coordinators, skip)
+  if (Test-Path $sessionsDirCtx) {
+    $metaFiles = @(Get-ChildItem -Path $sessionsDirCtx -Filter '*.meta' -ErrorAction SilentlyContinue)
+    foreach ($metaCtx in $metaFiles) {
+      try {
+        $metaLineCtx = (Get-Content -Raw -Path $metaCtx.FullName -Encoding UTF8 -ErrorAction Stop).Trim()
+        if (-not $metaLineCtx) { continue }
+        $metaFields = $metaLineCtx -split '\|'
+        $mRole = if ($metaFields.Length -ge 1) { $metaFields[0] } else { '' }
+        $mStopped = if ($metaFields.Length -ge 2) { $metaFields[1] } else { '' }
+        $mTask = if ($metaFields.Length -ge 3) { $metaFields[2] } else { 'none' }
+        $wKey = $metaCtx.BaseName
+        $wKeyShort = if ($wKey.Length -gt 8) { $wKey.Substring(0, 8) } else { $wKey }
+        if ($mRole -eq 'worker') {
+          Write-Output ("Worker {0}: stopped={1} task={2}" -f $wKeyShort, $mStopped, $mTask)
+        }
+      } catch {}
+    }
+    # Degraded workers (.role=worker marker without matching .meta)
+    $roleMarkers = @(Get-ChildItem -Path $sessionsDirCtx -Filter '*.role=worker' -ErrorAction SilentlyContinue)
+    foreach ($marker in $roleMarkers) {
+      $rKey = $marker.Name -replace '\.role=worker$',''
+      $rKeyShort = if ($rKey.Length -gt 8) { $rKey.Substring(0, 8) } else { $rKey }
+      $metaPath = Join-Path $sessionsDirCtx ($rKey + '.meta')
+      if (-not (Test-Path $metaPath)) {
+        Write-Output ("Worker {0}: degraded (no .meta)" -f $rKeyShort)
+      }
+    }
+  }
+  Write-Output ""
+}
+
 # Compact dashboard of unmerged worker shards.
 if ($activeTask) {
   $workstreamRoot = Join-Path $EngineDir ("workstreams\" + $activeTaskId)

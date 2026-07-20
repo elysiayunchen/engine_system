@@ -473,6 +473,185 @@ function Test-ProgressMd {
   }
 }
 
+# v6.8.0 (D-028/T-033): domain-level INVENTORY.md bidirectional FAIL check.
+# (a) INVENTORY->code: every Entry file path in any engine/domains/<domain>/INVENTORY.md
+#     row must exist (Test-Path);
+# (b) code->INVENTORY: every file path touched by a `done` task card must be represented
+#     in its domain's INVENTORY (Entry file column mentions it, or domain has >=1 row).
+# Migration grace period: contract-version < 6.8.0 -> WARN; >= 6.8.0 -> FAIL (D-028 section 9).
+function Test-InventoryBidirectional {
+  $domainsDir = Join-Path $engineDir "domains"
+  if (-not (Test-Path $domainsDir)) { return }
+
+  $doctorPath = Join-Path $engineDir "ENGINE_DOCTOR.md"
+  $contractVersion = ""
+  if (Test-Path $doctorPath) {
+    $m = Select-String -Path $doctorPath -Pattern 'contract-version:\s*([0-9]+\.[0-9]+\.[0-9]+)' -List -ErrorAction SilentlyContinue
+    if ($m) { $contractVersion = $m.Matches[0].Groups[1].Value }
+  }
+  $cvInt = 0
+  if ($contractVersion -match '^(\d+)\.(\d+)\.(\d+)$') {
+    $cvInt = [int]$Matches[1] * 10000 + [int]$Matches[2] * 100 + [int]$Matches[3]
+  }
+  $violationIsFail = $false
+  if ($cvInt -ge 60800) { $violationIsFail = $true }
+
+  # Collect all top-level INVENTORY.md files (maxdepth 2: domains/<domain>/INVENTORY.md).
+  $inventoryFiles = @(Get-ChildItem -Path $domainsDir -Recurse -Depth 1 -Filter 'INVENTORY.md' -File -ErrorAction SilentlyContinue)
+  if ($inventoryFiles.Count -eq 0) { return }
+
+  # (a) INVENTORY->code: Entry file paths must exist.
+  $invToCodeViolations = 0
+  $entryPathsSeen = New-Object System.Collections.Generic.List[string]
+  foreach ($inv in $inventoryFiles) {
+    $lines = Get-Content -Path $inv.FullName -Encoding UTF8 -ErrorAction SilentlyContinue
+    foreach ($line in $lines) {
+      if ($line -match '^\s*$') { continue }
+      if ($line -match '^#') { continue }
+      if ($line -match '^>') { continue }
+      if ($line -match '^<!--') { continue }
+      if ($line -match '^\|\s*-') { continue }
+      if ($line -match '^\|\s*Feature') { continue }
+      $cols = $line -split '\|'
+      # cols[0]=empty, cols[1]=Feature, cols[2]=Entry file, cols[3]=Public API, ...
+      if ($cols.Count -lt 3) { continue }
+      $entryFile = $cols[2].Trim()
+      if ([string]::IsNullOrEmpty($entryFile)) { continue }
+      if ($entryFile -match '^\[.*\].*$') { continue }
+      if ($entryFile -match '<.*>') { continue }
+      $fullPath = Join-Path $Root $entryFile
+      if (-not (Test-Path $fullPath) -and -not (Test-Path $entryFile)) {
+        $invToCodeViolations++
+        if ($violationIsFail) {
+          Write-Fail "INVENTORY->code: $($inv.FullName) references non-existent Entry file '$entryFile'"
+          Write-Output "  human: INVENTORY row in $($inv.Name) points to '$entryFile' which does not exist. Fix the path or remove the row."
+        } else {
+          Write-Warn "INVENTORY->code: $($inv.Name) references '$entryFile' (grace period, cv=$contractVersion < 6.8.0)"
+        }
+      } else {
+        [void]$entryPathsSeen.Add($entryFile)
+      }
+    }
+  }
+
+  # (b) code->INVENTORY: done task cards' touched files should appear in their domain INVENTORY.
+  $codeToInvViolations = 0
+  $tasksDir = Join-Path $engineDir "tasks"
+  if (Test-Path $tasksDir) {
+    $taskFiles = Get-ChildItem -Path $tasksDir -File -Filter "T-*.md" -ErrorAction SilentlyContinue
+    foreach ($tf in $taskFiles) {
+      if ($tf.Name -match '\.spec\.md$') { continue }
+      $content = Get-Content -Raw -Path $tf.FullName -Encoding UTF8 -ErrorAction SilentlyContinue
+      if (-not $content) { continue }
+      if (-not ($content -match 'status:\s*done')) { continue }
+      $tid = $tf.BaseName
+      $wsLine = ($content -split "`n" | Where-Object { $_ -match '^WRITE-SET:' } | Select-Object -First 1)
+      if (-not $wsLine) { continue }
+      $wsRaw = $wsLine -replace '^WRITE-SET:\s*', ''
+      $wsPaths = $wsRaw -split ',' | ForEach-Object { $_.Trim() }
+      foreach ($wsPath in $wsPaths) {
+        if ([string]::IsNullOrEmpty($wsPath)) { continue }
+        if ($wsPath -match '\*') { continue }
+        if ($wsPath -match '^engine/') { continue }
+        if ($wsPath -match '^plugin/') { continue }
+        if ($wsPath -eq 'VERSION') { continue }
+        if ($wsPath -eq 'CHANGELOG.md') { continue }
+        if ($wsPath -eq 'AGENTS.md') { continue }
+        if ($wsPath -match '^\.github/') { continue }
+        $matched = $false
+        foreach ($seen in $entryPathsSeen) {
+          if ($seen -like "*$wsPath*") { $matched = $true; break }
+        }
+        if (-not $matched) {
+          $codeToInvViolations++
+          if ($violationIsFail) {
+            Write-Fail "code->INVENTORY: $tid touched '$wsPath' but no INVENTORY row references it"
+            Write-Output "  human: Done task $tid touched file '$wsPath' which is not in any domain INVENTORY. Add a row (Feature / Entry file / Public API / Status / Last verified) to the appropriate engine/domains/<domain>/INVENTORY.md."
+          } else {
+            Write-Warn "code->INVENTORY: $tid touched '$wsPath' (grace period, cv=$contractVersion < 6.8.0)"
+          }
+        }
+      }
+    }
+  }
+
+  $totalInv = $inventoryFiles.Count
+  if ($invToCodeViolations -eq 0 -and $codeToInvViolations -eq 0) {
+    Write-Pass "INVENTORY bidirectional summary: $totalInv domain(s) checked, both directions clean (cv=$contractVersion)"
+  }
+}
+
+# v6.8.0 (D-028 section 10 mechanism C): INVENTORY Public API column must be unique across repo.
+# Scans all engine/domains/*/INVENTORY.md + engine/domains/*/INVENTORY/*.md files.
+# Migration grace period: contract-version < 6.8.0 -> WARN; >= 6.8.0 -> FAIL (D-028 section 9).
+function Test-InventoryApiUniqueness {
+  $domainsDir = Join-Path $engineDir "domains"
+  if (-not (Test-Path $domainsDir)) { return }
+
+  $doctorPath = Join-Path $engineDir "ENGINE_DOCTOR.md"
+  $contractVersion = ""
+  if (Test-Path $doctorPath) {
+    $m = Select-String -Path $doctorPath -Pattern 'contract-version:\s*([0-9]+\.[0-9]+\.[0-9]+)' -List -ErrorAction SilentlyContinue
+    if ($m) { $contractVersion = $m.Matches[0].Groups[1].Value }
+  }
+  $cvInt = 0
+  if ($contractVersion -match '^(\d+)\.(\d+)\.(\d+)$') {
+    $cvInt = [int]$Matches[1] * 10000 + [int]$Matches[2] * 100 + [int]$Matches[3]
+  }
+  $violationIsFail = $false
+  if ($cvInt -ge 60800) { $violationIsFail = $true }
+
+  # Collect all inventory files: top-level INVENTORY.md + sub-files INVENTORY/*.md.
+  $inventoryFiles = @()
+  $inventoryFiles += Get-ChildItem -Path $domainsDir -Recurse -Depth 1 -Filter 'INVENTORY.md' -File -ErrorAction SilentlyContinue
+  $inventorySubFiles = Get-ChildItem -Path $domainsDir -Recurse -Depth 2 -Filter '*.md' -File -ErrorAction SilentlyContinue | Where-Object { $_.FullName -match '\\INVENTORY\\[^\\]+\.md$' }
+  $inventoryFiles += $inventorySubFiles
+  if ($inventoryFiles.Count -eq 0) { return }
+
+  # Extract Public API column (3rd column) from each table row.
+  $apiEntries = @{}  # api -> list of file paths
+  foreach ($inv in $inventoryFiles) {
+    $lines = Get-Content -Path $inv.FullName -Encoding UTF8 -ErrorAction SilentlyContinue
+    foreach ($line in $lines) {
+      if ($line -match '^\s*$') { continue }
+      if ($line -match '^#') { continue }
+      if ($line -match '^>') { continue }
+      if ($line -match '^<!--') { continue }
+      if ($line -match '^\|\s*-') { continue }
+      if ($line -match '^\|\s*Feature') { continue }
+      $cols = $line -split '\|'
+      if ($cols.Count -lt 4) { continue }
+      $api = $cols[3].Trim()
+      if ([string]::IsNullOrEmpty($api)) { continue }
+      if ($api -match '^\[.*\].*$') { continue }
+      if ($api -match '<.*>') { continue }
+      if (-not $apiEntries.ContainsKey($api)) {
+        $apiEntries[$api] = New-Object System.Collections.Generic.List[string]
+      }
+      [void]$apiEntries[$api].Add($inv.Name)
+    }
+  }
+
+  $dupCount = 0
+  foreach ($kv in $apiEntries.GetEnumerator()) {
+    if ($kv.Value.Count -gt 1) {
+      $dupCount++
+      $occurrences = ($kv.Value | Sort-Object -Unique) -join ' '
+      if ($violationIsFail) {
+        Write-Fail "INVENTORY API uniqueness: '$($kv.Key)' appears in multiple inventory files: $occurrences"
+        Write-Output "  human: Public API contract name '$($kv.Key)' is duplicated across INVENTORY files. Rename one, or mark the deprecated one with Status=deprecated and a clear successor note."
+      } else {
+        Write-Warn "INVENTORY API uniqueness: '$($kv.Key)' duplicated (grace period, cv=$contractVersion < 6.8.0)"
+      }
+    }
+  }
+
+  if ($dupCount -eq 0) {
+    $totalApis = $apiEntries.Count
+    Write-Pass "INVENTORY API uniqueness: $totalApis API names across $($inventoryFiles.Count) file(s), all unique (cv=$contractVersion)"
+  }
+}
+
 function Test-PitfallsSemantics {
   if (-not (Test-RegisteredName "PITFALLS.md")) { return }
   $path = Join-Path $engineDir "PITFALLS.md"
@@ -876,6 +1055,8 @@ Test-ContextSemantics
 Test-HandoffSemantics
 Test-HandoffHistoryCap
 Test-ProgressMd
+Test-InventoryBidirectional
+Test-InventoryApiUniqueness
 Test-PitfallsSemantics
 Test-SprintSemantics
 Test-ChangeCapsuleSemantics

@@ -436,6 +436,211 @@ check_progress_md() {
   fi
 }
 
+# v6.8.0 (D-028/T-033): domain-level INVENTORY.md bidirectional FAIL check.
+# (a) INVENTORY→code: every Entry file path in any engine/domains/<domain>/INVENTORY.md
+#     row must exist (test -f);
+# (b) code→INVENTORY: every file path touched by a `done` task card must be represented
+#     in its domain's INVENTORY (Entry file column mentions it, or domain has ≥1 row).
+# Migration grace period: contract-version < 6.8.0 → WARN; >= 6.8.0 → FAIL (D-028 §9).
+check_inventory_bidirectional() {
+  local domains_dir="$ENGINE_DIR/domains"
+  [ -d "$domains_dir" ] || return 0
+
+  local doctor_path="$ENGINE_DIR/ENGINE_DOCTOR.md"
+  local contract_version=""
+  if [ -f "$doctor_path" ]; then
+    contract_version="$(grep -oE 'contract-version:[[:space:]]*[0-9]+\.[0-9]+\.[0-9]+' "$doctor_path" 2>/dev/null | head -1 | sed 's/.*contract-version:[[:space:]]*//')"
+  fi
+  local cv_int=0
+  if [[ "$contract_version" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+    cv_int=$(( ${BASH_REMATCH[1]} * 10000 + ${BASH_REMATCH[2]} * 100 + ${BASH_REMATCH[3]} ))
+  fi
+  local violation_is_fail=0
+  if [ "$cv_int" -ge 60800 ] 2>/dev/null; then
+    violation_is_fail=1
+  fi
+
+  local inventory_files=()
+  local f
+  while IFS= read -r f; do
+    [ -f "$f" ] || continue
+    inventory_files+=("$f")
+  done < <(find "$domains_dir" -maxdepth 2 -type f -name 'INVENTORY.md' 2>/dev/null)
+
+  if [ "${#inventory_files[@]}" -eq 0 ]; then
+    return 0
+  fi
+
+  # (a) INVENTORY→code: Entry file paths must exist.
+  local inv_to_code_violations=0
+  local entry_paths_seen=""
+  for inv in "${inventory_files[@]}"; do
+    # Parse table rows: | Feature | Entry file | Public API | Status | Last verified |
+    # Skip header rows (|---|) and lines starting with `#` or `>`.
+    while IFS= read -r line; do
+      [[ "$line" =~ ^[[:space:]]*$ ]] && continue
+      [[ "$line" =~ ^# ]] && continue
+      [[ "$line" =~ ^\> ]] && continue
+      [[ "$line" == "<!--"* ]] && continue
+      [[ "$line" =~ ^\|[[:space:]]*- ]] && continue
+      [[ "$line" =~ ^\|[[:space:]]*Feature ]] && continue
+      # Extract columns by splitting on `|`.
+      local cols
+      IFS='|' read -ra cols <<< "$line"
+      # cols[0] is empty (leading `|`), cols[1]=Feature, cols[2]=Entry file, ...
+      local entry_file=""
+      if [ "${#cols[@]}" -ge 3 ]; then
+        entry_file="$(printf '%s' "${cols[2]}" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+      fi
+      [ -z "$entry_file" ] && continue
+      # Skip placeholders / glob patterns.
+      [[ "$entry_file" == \[*\]* ]] && continue
+      [[ "$entry_file" == *"<"*">"* ]] && continue
+      if [ ! -f "$ROOT/$entry_file" ] && [ ! -f "$entry_file" ]; then
+        inv_to_code_violations=$((inv_to_code_violations + 1))
+        if [ "$violation_is_fail" -eq 1 ]; then
+          fail "INVENTORY→code: $inv references non-existent Entry file '$entry_file'"
+          echo "  human: INVENTORY row in $inv points to '$entry_file' which does not exist. Fix the path or remove the row."
+        else
+          warn "INVENTORY→code: $inv references '$entry_file' (grace period, cv=$contract_version < 6.8.0)"
+        fi
+      else
+        entry_paths_seen="$entry_paths_seen$entry_file"$'\n'
+      fi
+    done < "$inv"
+  done
+
+  # (b) code→INVENTORY: done task cards' touched files should appear in their domain INVENTORY.
+  # For dogfood simplicity, we only check files explicitly listed in WRITE-SET of done task cards
+  # whose domain field is non-empty. Full code↔domain mapping is the federation.json's job.
+  local code_to_inv_violations=0
+  local tasks_dir="$ENGINE_DIR/tasks"
+  if [ -d "$tasks_dir" ]; then
+    local task_file
+    for task_file in "$tasks_dir"/T-*.md; do
+      [ -f "$task_file" ] || continue
+      [[ "$task_file" == *.spec.md ]] && continue
+      grep -q 'status:.*done' "$task_file" 2>/dev/null || continue
+      local tid; tid="$(basename "$task_file" .md)"
+      local write_set
+      write_set="$(grep '^WRITE-SET:' "$task_file" 2>/dev/null | head -1 | sed 's/^WRITE-SET:[[:space:]]*//' | tr ',' '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' || true)"
+      [ -z "$write_set" ] && continue
+      local ws_path
+      while IFS= read -r ws_path; do
+        [ -z "$ws_path" ] && continue
+        # Skip globs and engine/* meta paths (only check concrete files).
+        [[ "$ws_path" == *"*"* ]] && continue
+        [[ "$ws_path" == "engine/"* ]] && continue
+        [[ "$ws_path" == "plugin/"* ]] && continue
+        [[ "$ws_path" == "VERSION" ]] && continue
+        [[ "$ws_path" == "CHANGELOG.md" ]] && continue
+        [[ "$ws_path" == "AGENTS.md" ]] && continue
+        [[ "$ws_path" == ".github/"* ]] && continue
+        # Check if this path appears in any INVENTORY entry column.
+        if ! printf '%s' "$entry_paths_seen" | grep -qF "$ws_path"; then
+          code_to_inv_violations=$((code_to_inv_violations + 1))
+          if [ "$violation_is_fail" -eq 1 ]; then
+            fail "code→INVENTORY: $tid touched '$ws_path' but no INVENTORY row references it"
+            echo "  human: Done task $tid touched file '$ws_path' which is not in any domain INVENTORY. Add a row (Feature / Entry file / Public API / Status / Last verified) to the appropriate engine/domains/<domain>/INVENTORY.md."
+          else
+            warn "code→INVENTORY: $tid touched '$ws_path' (grace period, cv=$contract_version < 6.8.0)"
+          fi
+        fi
+      done <<< "$write_set"
+    done
+  fi
+
+  local total_inv="${#inventory_files[@]}"
+  if [ "$inv_to_code_violations" -eq 0 ] && [ "$code_to_inv_violations" -eq 0 ]; then
+    pass "INVENTORY bidirectional summary: $total_inv domain(s) checked, both directions clean (cv=$contract_version)"
+  fi
+}
+
+# v6.8.0 (D-028 §10 mechanism C): INVENTORY Public API column must be unique across repo.
+# Scans all engine/domains/*/INVENTORY.md + engine/domains/*/INVENTORY/*.md files.
+# Migration grace period: contract-version < 6.8.0 → WARN; >= 6.8.0 → FAIL (D-028 §9).
+check_inventory_api_uniqueness() {
+  local domains_dir="$ENGINE_DIR/domains"
+  [ -d "$domains_dir" ] || return 0
+
+  local doctor_path="$ENGINE_DIR/ENGINE_DOCTOR.md"
+  local contract_version=""
+  if [ -f "$doctor_path" ]; then
+    contract_version="$(grep -oE 'contract-version:[[:space:]]*[0-9]+\.[0-9]+\.[0-9]+' "$doctor_path" 2>/dev/null | head -1 | sed 's/.*contract-version:[[:space:]]*//')"
+  fi
+  local cv_int=0
+  if [[ "$contract_version" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+    cv_int=$(( ${BASH_REMATCH[1]} * 10000 + ${BASH_REMATCH[2]} * 100 + ${BASH_REMATCH[3]} ))
+  fi
+  local violation_is_fail=0
+  if [ "$cv_int" -ge 60800 ] 2>/dev/null; then
+    violation_is_fail=1
+  fi
+
+  # Collect all inventory files: top-level INVENTORY.md + sub-files INVENTORY/*.md.
+  local inventory_files=()
+  local f
+  while IFS= read -r f; do
+    [ -f "$f" ] || continue
+    inventory_files+=("$f")
+  done < <(find "$domains_dir" -maxdepth 3 -type f \( -name 'INVENTORY.md' -o -path '*/INVENTORY/*.md' \) 2>/dev/null)
+
+  if [ "${#inventory_files[@]}" -eq 0 ]; then
+    return 0
+  fi
+
+  # Extract Public API column (3rd column) from each table row.
+  # Save as "api<TAB>file" pairs to detect duplicates.
+  local tmpfile; tmpfile="$(mktemp)"
+  trap 'rm -f "$tmpfile"' RETURN
+  local inv
+  for inv in "${inventory_files[@]}"; do
+    while IFS= read -r line; do
+      [[ "$line" =~ ^[[:space:]]*$ ]] && continue
+      [[ "$line" =~ ^# ]] && continue
+      [[ "$line" =~ ^\> ]] && continue
+      [[ "$line" == "<!--"* ]] && continue
+      [[ "$line" =~ ^\|[[:space:]]*- ]] && continue
+      [[ "$line" =~ ^\|[[:space:]]*Feature ]] && continue
+      local cols
+      IFS='|' read -ra cols <<< "$line"
+      # cols[3] = Public API (0=empty, 1=Feature, 2=Entry, 3=Public API)
+      local api=""
+      if [ "${#cols[@]}" -ge 4 ]; then
+        api="$(printf '%s' "${cols[3]}" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+      fi
+      [ -z "$api" ] && continue
+      [[ "$api" == \[*\]* ]] && continue
+      [[ "$api" == *"<"*">"* ]] && continue
+      printf '%s\t%s\n' "$api" "$inv" >> "$tmpfile"
+    done < "$inv"
+  done
+
+  # Find duplicate API names.
+  local dups
+  dups="$(awk -F'\t' '{print $1}' "$tmpfile" | sort | uniq -d)"
+  local dup_count=0
+  if [ -n "$dups" ]; then
+    while IFS= read -r dup; do
+      [ -z "$dup" ] && continue
+      dup_count=$((dup_count + 1))
+      local occurrences
+      occurrences="$(grep -F "$(printf '%s\t' "$dup")" "$tmpfile" | awk -F'\t' '{print $2}' | sort -u | tr '\n' ' ')"
+      if [ "$violation_is_fail" -eq 1 ]; then
+        fail "INVENTORY API uniqueness: '$dup' appears in multiple inventory files: $occurrences"
+        echo "  human: Public API contract name '$dup' is duplicated across INVENTORY files. Rename one, or mark the deprecated one with Status=deprecated and a clear successor note."
+      else
+        warn "INVENTORY API uniqueness: '$dup' duplicated (grace period, cv=$contract_version < 6.8.0)"
+      fi
+    done <<< "$dups"
+  fi
+
+  if [ "$dup_count" -eq 0 ]; then
+    local total_apis; total_apis="$(wc -l < "$tmpfile" | tr -d ' ')"
+    pass "INVENTORY API uniqueness: $total_apis API names across ${#inventory_files[@]} file(s), all unique (cv=$contract_version)"
+  fi
+}
+
 check_pitfalls_semantics() {
   is_registered_name "PITFALLS.md" || return 0
   local path="$ENGINE_DIR/PITFALLS.md"
@@ -760,6 +965,8 @@ check_context_semantics
 check_handoff_semantics
 check_handoff_history_cap
 check_progress_md
+check_inventory_bidirectional
+check_inventory_api_uniqueness
 check_pitfalls_semantics
 check_sprint_semantics
 check_change_capsule_semantics

@@ -1,5 +1,9 @@
 # Changelog
 
+## v6.8.0 (2026-07-20)
+
+- (no capsules in this release)
+
 ## v6.7.0 (2026-07-19)
 
 - v6.7.0 任务级 progress.md 压缩恢复锚点 (2026-07-19)

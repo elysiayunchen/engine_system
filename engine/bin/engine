@@ -14,7 +14,7 @@ Usage:
   engine init           Show how to run the init interview with any AI agent
   engine init --print   Print the raw agent-neutral init prompt (pipe/copy it)
   engine context        Load full session context (agent-agnostic, any AI agent)
-  engine workstream T-NNN AGENT   Create an isolated worker memory shard
+  engine workstream T-NNN AGENT [--kind=subagent|session] [--print]   Create an isolated worker memory shard (default --kind=subagent)
   engine check-update   Check if a newer Engine System version is available
   engine update         Update tooling, then migrate + doctor (one-shot)
   engine update --check-only   Only check for updates, change nothing
@@ -62,10 +62,27 @@ EOF
 }
 
 create_workstream() {
-  local root="$1" task="$2" agent="$3" task_file dir goal
+  local root="$1" task="$2" agent="$3"
+  shift 3 2>/dev/null || shift "$#"
+  # v6.11.0 (D-029/T-036) AC-8: --kind=subagent|session parameter (default subagent, backward compatible)
+  # subagent: worker_id = AGENT (hook detects via agent_id signal 1)
+  # session: worker_id = AGENT (top-level session degraded, hook detects via .role=worker marker signal 2)
+  local kind="subagent" print_flag=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --kind=*) kind="${1#--kind=}" ;;
+      --kind) shift; kind="${1:-}" ;;
+      --print) print_flag="1" ;;
+    esac
+    shift
+  done
   task="$(printf '%s' "$task" | tr '[:lower:]' '[:upper:]')"
-  case "$task" in T-[0-9][0-9][0-9]) ;; *) echo "Usage: engine workstream T-NNN AGENT" >&2; return 2 ;; esac
+  case "$task" in T-[0-9][0-9][0-9]) ;; *) echo "Usage: engine workstream T-NNN AGENT [--kind=subagent|session] [--print]" >&2; return 2 ;; esac
   case "$agent" in ''|*[!A-Za-z0-9._-]*) echo "Error: AGENT may contain only A-Z, a-z, 0-9, dot, underscore, or dash." >&2; return 2 ;; esac
+  case "$kind" in
+    subagent|session) ;;
+    *) echo "Error: --kind must be 'subagent' or 'session' (got: $kind)" >&2; return 2 ;;
+  esac
   task_file="$root/engine/tasks/$task.md"
   [ -f "$task_file" ] || { echo "Error: task card not found: engine/tasks/$task.md" >&2; return 2; }
   dir="$root/engine/workstreams/$task/$agent"
@@ -82,7 +99,7 @@ create_workstream() {
     cat > "$dir/CONTEXT.md" <<EOF
 # Workstream Context - $task / $agent
 
-> status: active | task: $task | owner: $agent | merge: pending
+> status: active | task: $task | owner: $agent | merge: pending | kind: $kind
 
 ## Goal
 
@@ -109,7 +126,7 @@ EOF
     cat > "$dir/HANDOFF.md" <<EOF
 # Workstream Handoff - $task / $agent
 
-> updated: pending | merge: pending
+> updated: pending | merge: pending | kind: $kind
 
 ## Latest
 
@@ -119,9 +136,19 @@ EOF
 - Verification: not run
 EOF
   fi
+  # v6.11.0 (D-029/T-036) AC-8: --kind=session creates .role=worker marker for top-level session degradation
+  if [ "$kind" = "session" ]; then
+    sessions_dir="$root/engine/.cache/sessions"
+    mkdir -p "$sessions_dir" 2>/dev/null || true
+    role_marker="$sessions_dir/$agent.role=worker"
+    : > "$role_marker" 2>/dev/null || true
+    echo "Session-degraded worker marker created: engine/.cache/sessions/$agent.role=worker"
+    echo "Top-level session will be treated as worker by PreToolUse hook (signal 2)."
+  fi
   echo "Workstream ready: engine/workstreams/$task/$agent/"
   echo "Worker writes only this shard; coordinator owns shared CONTEXT/HANDOFF."
-  if [ "${4:-}" = "--print" ]; then
+  echo "Kind: $kind"
+  if [ -n "$print_flag" ]; then
     cat "$dir/CONTEXT.md"
     cat "$dir/HANDOFF.md"
   fi

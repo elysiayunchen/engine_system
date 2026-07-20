@@ -1,4 +1,4 @@
-﻿# Engine System user-level CLI shim for Windows PowerShell.
+# Engine System user-level CLI shim for Windows PowerShell.
 
 param(
   [Parameter(Position=0)][string]$Command = "help",
@@ -6,7 +6,8 @@ param(
   [Parameter(Position=2)][string]$Agent = "",
   [switch]$CheckOnly,
   [switch]$NoMigrate,
-  [switch]$Print
+  [switch]$Print,
+  [string]$Kind = "subagent"
 )
 
 $ErrorActionPreference = "Stop"
@@ -22,7 +23,7 @@ Usage:
   engine init           Show how to run the init interview with any AI agent
   engine init --print   Print the raw agent-neutral init prompt (pipe/copy it)
   engine context        Load full session context (agent-agnostic, any AI agent)
-  engine workstream T-NNN AGENT   Create an isolated worker memory shard
+  engine workstream T-NNN AGENT [--kind=subagent|session]   Create an isolated worker memory shard (default subagent)
   engine check-update   Check if a newer Engine System version is available
   engine update         Update tooling, then migrate + doctor (one-shot)
   engine update -CheckOnly       Only check for updates, change nothing
@@ -267,14 +268,21 @@ function Unload-Engine {
 }
 
 function New-Workstream {
-  param([string]$Root, [string]$TaskId, [string]$AgentId, [switch]$Emit)
+  param([string]$Root, [string]$TaskId, [string]$AgentId, [string]$Kind = "subagent", [switch]$Emit)
+  # v6.11.0 (D-029/T-036) AC-8: -Kind subagent|session parameter (default subagent, backward compatible)
+  # subagent: worker_id = AGENT (hook detects via agent_id signal 1)
+  # session: worker_id = AGENT (top-level session degraded, hook detects via .role=worker marker signal 2)
   $TaskId = $TaskId.ToUpperInvariant()
   if ($TaskId -notmatch '^T-[0-9]{3}$' -or -not $AgentId) {
-    Write-Error "Usage: engine workstream T-NNN AGENT"
+    Write-Error "Usage: engine workstream T-NNN AGENT [--kind=subagent|session | -Kind subagent|session]"
     exit 2
   }
   if ($AgentId -notmatch '^[A-Za-z0-9._-]+$') {
     Write-Error "Error: AGENT may contain only A-Z, a-z, 0-9, dot, underscore, or dash."
+    exit 2
+  }
+  if ($Kind -notin @("subagent", "session")) {
+    Write-Error "Error: -Kind must be 'subagent' or 'session' (got: $Kind)"
     exit 2
   }
   $taskFile = Join-Path $Root ("engine\tasks\" + $TaskId + ".md")
@@ -305,7 +313,7 @@ function New-Workstream {
     $body = @"
 # Workstream Context - $TaskId / $AgentId
 
-> status: active | task: $TaskId | owner: $AgentId | merge: pending
+> status: active | task: $TaskId | owner: $AgentId | merge: pending | kind: $Kind
 
 ## Goal
 
@@ -333,7 +341,7 @@ $goal
     $body = @"
 # Workstream Handoff - $TaskId / $AgentId
 
-> updated: pending | merge: pending
+> updated: pending | merge: pending | kind: $Kind
 
 ## Latest
 
@@ -344,8 +352,18 @@ $goal
 "@
     [System.IO.File]::WriteAllText($handoff, $body + "`n", (New-Object System.Text.UTF8Encoding $false))
   }
+  # v6.11.0 (D-029/T-036) AC-8: -Kind session creates .role=worker marker for top-level session degradation
+  if ($Kind -eq "session") {
+    $sessionsDir = Join-Path $Root "engine\.cache\sessions"
+    New-Item -ItemType Directory -Force -Path $sessionsDir | Out-Null
+    $roleMarker = Join-Path $sessionsDir ($AgentId + ".role=worker")
+    [System.IO.File]::WriteAllText($roleMarker, "", (New-Object System.Text.UTF8Encoding $false))
+    Write-Host "Session-degraded worker marker created: engine/.cache/sessions/$AgentId.role=worker"
+    Write-Host "Top-level session will be treated as worker by PreToolUse hook (signal 2)."
+  }
   Write-Host "Workstream ready: engine/workstreams/$TaskId/$AgentId/"
   Write-Host "Worker writes only this shard; coordinator owns shared CONTEXT/HANDOFF."
+  Write-Host "Kind: $Kind"
   if ($Emit) {
     Write-Output (Get-Content -Raw -Path $ctx -Encoding UTF8)
     Write-Output (Get-Content -Raw -Path $handoff -Encoding UTF8)
@@ -406,7 +424,16 @@ switch ($Command) {
       Write-Error "Error: engine/ not found in $PWD."
       exit 2
     }
-    New-Workstream -Root $PWD.Path -TaskId $Task -AgentId $Agent -Emit:$Print
+    # v6.11.0 (D-029/T-036) AC-8: support both -Kind (PS native) and --kind/--print (bash compat) via $args scan
+    $effectiveKind = $Kind
+    $effectivePrint = $Print
+    for ($i = 0; $i -lt $args.Count; $i++) {
+      $a = "$($args[$i])"
+      if ($a -match '^--kind=(.+)$') { $effectiveKind = $Matches[1] }
+      elseif ($a -eq '--kind') { $i++; if ($i -lt $args.Count) { $effectiveKind = "$($args[$i])" } }
+      elseif ($a -eq '--print') { $effectivePrint = $true }
+    }
+    New-Workstream -Root $PWD.Path -TaskId $Task -AgentId $Agent -Kind $effectiveKind -Emit:$effectivePrint
   }
   "check-update" {
     $chk = Join-Path $PWD.Path "engine\scripts\engine-check-update.ps1"

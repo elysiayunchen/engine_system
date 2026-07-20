@@ -56,6 +56,10 @@
     { "src": "engine/skeleton/ENGINE_MAP.md", "sha256": "f4df2745ce062cc2e8347295b982920d9ceb301b6aebad8ddc194a1a734c6ca2", "dest": "engine/ENGINE_MAP.md", "protect": false },
     { "src": "engine/skeleton/CONTEXT.md", "sha256": "0e35a8b94dc28c73c761d42d4450f485cc658c439f01f9d15f004fe454bfbd8d", "dest": "engine/CONTEXT.md", "protect": false },
     { "src": "engine/skeleton/HANDOFF.md", "sha256": "83e96bd9dfa47ea38e5cc81dd4cd2955d1a431351ce0d17070ce7a18a788168a", "dest": "engine/HANDOFF.md", "protect": false },
+    { "src": "engine/skeleton/checkpoint.md", "sha256": "0e4e4b97734806f33d94ff702f5f44f62477d0a15bb99a078cadf52700ca1bc5", "dest": "engine/skeleton/checkpoint.md", "protect": false },
+    { "src": "engine/skeleton/progress.md", "sha256": "d445a04d09ad3f9ba5db068cc50c6c71d3afa802589f55bb6cbbc4a329c5dc80", "dest": "engine/skeleton/progress.md", "protect": false },
+    { "src": "engine/skeleton/domains/INVENTORY.md", "sha256": "72fb3733b9f86acb0f4752557e97cad5dbeb42a345a323fbd30070817065e23b", "dest": "engine/skeleton/domains/INVENTORY.md", "protect": false },
+    { "src": "engine/skeleton/tasks/README.md", "sha256": "d853a01b612172c46922e096275e32b29d73fc5f5614bb12e4ccdc262390c22f", "dest": "engine/skeleton/tasks/README.md", "protect": false },
     { "src": "engine/checks/README.md", "sha256": "771a2e881b2ab3570e822a9efa7781f75a23083a2ca79dd771822615229e5c5c", "dest": "engine/checks/README.md", "protect": false }
   ]
 }

@@ -52,3 +52,4 @@
 | 运营契约源 | contract/src/30-operational.md | operational_src() | stable | 2026-07-19 |
 | Handoff 行为契约 | contract/src/behaviors/handoff.md | handoff_behavior() | stable | 2026-07-19 |
 | Task-run 行为契约 | contract/src/behaviors/task-run.md | task_run_behavior() | stable | 2026-07-20 |
+| Verify-writeback 行为契约 | contract/src/behaviors/verify-writeback.md | verify_writeback_behavior() | stable | 2026-07-20 |

@@ -18,5 +18,10 @@ Use this before calling work done.
    - code→INVENTORY FAIL: a file you touched in a `done` task is not represented in its domain's INVENTORY → add a row (Feature / Entry file / Public API / Status / Last verified).
    - API uniqueness FAIL: the same Public API contract name appears in multiple INVENTORY rows → rename or mark one as `deprecated` with a clear successor note.
    Migration grace period (D-028 §9): on contract-version < 6.8.0 projects, these FAILs downgrade to WARN and do not block `done`.
+8. Dead code detection (v6.10.0 / D-028/T-035): `engine verify T-NNN` MUST self-check linter availability (`shellcheck` for sh / `PSScriptAnalyzer` for ps1; ps1 end includes `Install-Module -Scope CurrentUser -Force -AllowClobber` bootstrap), fall back to grep-based scan when unavailable (DEAD-CODE.json `linter` field = `grep-fallback`), call `jscpd` to scan WRITE-SET-touched `.sh` / `.ps1` / `.md` for copy-paste duplications (skip + WARN when jscpd unavailable), and run reverse call-site scan (grep WRITE-SET-deleted identifiers across the repo). Output `evidence/T-NNN/DEAD-CODE.json` (linter warnings + reverse-call-site entries + `exempt_all` / per-entry `exempt` flags + `summary.warn_count`) and `evidence/T-NNN/COPY-PASTE.json` (jscpd duplications + `jscpd_available` flag). WARN 升级为 done 门项:`warn_count > 0` requires architect exemption before `done`.
+   - Per-entry exemption: mark `"exempt": true, "exempt_reason": "<reason>"` on each entry (library export, test fixture, dynamic call).
+   - Batch exemption: set top-level `"exempt_all": true, "exempt_reason": "<reason>"` to exempt every entry without per-entry marking (D-028 §9).
+   - Doctor `check_warn_done_gate` (FAIL level): `warn_count > 0` and not fully exempt = FAIL; `exempt_all=true` or full per-entry exempt = pass.
+   - Migration grace period (D-028 §9): on contract-version < 6.10.0 projects, FAIL downgrades to WARN and does not block `done`.
 
 Completion check: a future agent can resume from `engine context` without reconstructing your reasoning from chat history.

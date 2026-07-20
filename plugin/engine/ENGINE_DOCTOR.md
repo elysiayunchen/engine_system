@@ -104,6 +104,21 @@ silently treat the script as legacy.
     FAIL (D-028 §9). AC-level `checkpoint.md` (FILE 15) is written by `engine-verify` on
     every AC PASS and prioritized by SessionStart injection (priority chain #1, covers
     progress.md §4 and HANDOFF immediate-resume pointer).
+28. WARN→done gate (v6.10.0+, D-028/T-035): `check_warn_done_gate` enforces that an
+    `active`/`done` task card's `evidence/T-NNN/DEAD-CODE.json` `summary.warn_count` MUST
+    be 0, or every non-zero entry MUST be marked `exempt: true` (with `exempt_reason`),
+    or the top-level `exempt_all: true` (with `exempt_reason`) MUST be set to batch-exempt
+    all entries (D-028 §9). `warn_count > 0` with unexempted entries = FAIL — the
+    architect MUST review each warning and either fix the dead code or grant an explicit
+    exemption before `done`. verify MUST self-check linter availability (`shellcheck` for
+    .sh / `PSScriptAnalyzer` for .ps1; ps1 end includes
+    `Install-Module -Name PSScriptAnalyzer -Scope CurrentUser -Force -AllowClobber`
+    bootstrap, falls back to grep scan on failure with `linter: "grep-fallback"` in
+    DEAD-CODE.json), call `jscpd` for copy-paste detection on WRITE-SET-touched
+    `.sh`/`.ps1`/`.md` files (skip + WARN when jscpd unavailable, output
+    `evidence/T-NNN/COPY-PASTE.json`), and run reverse call-site scan (grep
+    WRITE-SET-deleted identifiers across the repo). Migration grace period:
+    `contract-version < 6.10.0` WARN, `>= 6.10.0` FAIL (D-028 §9).
 
 ## Script Contract
 Preferred commands:

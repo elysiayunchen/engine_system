@@ -2714,6 +2714,116 @@ Routine:
 - 抽取/对账结果 MUST 用人话列给架构师确认后再落盘。
 
 
+## DEAD CODE DETECTION (v6.10.0+, D-028/T-035)
+
+设计宗旨:把「agent 跑出从来没用上的死代码」做成机制——verify 调用原生 linter(shellcheck + PSScriptAnalyzer 优先,自研 grep 仅 fallback),反向调用点扫描(查 WRITE-SET 删改标识符在全仓的残留引用),未被引用输出 `evidence/T-NNN/DEAD-CODE.json`;WARN 升级为 done 门项(warn_count > 0 时 done 须架构师显式豁免)。不自研 AST 解析器(委托 shellcheck/PSScriptAnalyzer);不硬失败所有 WARN(只让 warn_count > 0 时 done 须豁免);不覆盖软死代码(冗余复刻,靠 INVENTORY 兜底);不引入跨语言别名表(镜像对死代码靠 linter 自身识别)。
+
+### Linter 委托优先级(委托原生 linter,自研 grep 仅 fallback)
+
+| 文件类型 | 首选 linter | 自检命令 | fallback |
+|---------|------------|---------|---------|
+| .sh | shellcheck | `command -v shellcheck`(sh)/ `Get-Module -ListAvailable PSScriptAnalyzer`(ps1 兜底 `Install-Module -Scope CurrentUser -Force -AllowClobber`) | 自研 grep `^function\s+\w+` + 全仓 grep 调用 |
+| .ps1 | PSScriptAnalyzer (Invoke-ScriptAnalyzer) | 同上 | 自研 grep `function\s+\w+` + 全仓 grep 调用 |
+| .md / .json | 跳过(无函数概念) | — | — |
+| 其他 typed 语言(.ts/.py/.go 等) | tsc --noUnusedLocals / vulture / go vet 等 | `command -v` 自检 | 自研 grep |
+
+verify MUST 在入口自检 linter 可用性。linter 不可用时降级 grep fallback,DEAD-CODE.json 顶层 `"linter": "grep-fallback"` 字段标记降级。ps1 端 MUST 含 `Install-Module -Name PSScriptAnalyzer -Scope CurrentUser -Force -AllowClobber` 兜底,自检失败时尝试安装后重试。
+
+### 反向调用点扫描(reverse call site scan)
+
+verify MUST 实现反向调用点扫描:对 WRITE-SET 删改的标识符(函数名/类名/变量名),全仓 grep 是否有调用点(排除定义本身、注释、字符串字面量)。无调用点的标识符加入 DEAD-CODE.json `entries[]`,type=`reverse-call-site`,字段含 `identifier` / `referenced_in`(数组)。
+
+实现步骤:
+1. 解析任务卡 `WRITE-SET:` 行,枚举删改的 .sh / .ps1 / 其他 typed 文件。
+2. 对每个文件,grep 出函数/类定义行(`^function\s+\w+` for sh; `function\s+\w+` for ps1)。
+3. 对每个标识符,全仓 grep 是否有调用点(排除定义本身)。
+4. 无调用点 → 加入 DEAD-CODE.json entries[]。
+
+### DEAD-CODE.json 格式
+
+```json
+{
+  "task": "T-NNN",
+  "timestamp": "2026-07-20T12:00:00Z",
+  "exempt_all": false,
+  "exempt_reason": null,
+  "linter": "shellcheck",
+  "entries": [
+    {
+      "type": "linter",
+      "file": "engine/scripts/engine-foo.sh",
+      "line": 42,
+      "severity": "warning",
+      "message": "SC2086: Double quote...",
+      "exempt": false,
+      "exempt_reason": null
+    },
+    {
+      "type": "reverse-call-site",
+      "identifier": "old_function_name",
+      "referenced_in": ["engine/scripts/engine-bar.sh:100"],
+      "exempt": true,
+      "exempt_reason": "library export, used by external callers"
+    }
+  ],
+  "summary": {
+    "warn_count": 2,
+    "exempt_count": 1
+  }
+}
+```
+
+顶层 `exempt_all: true` + `exempt_reason: "<理由>"` = 批量豁免全部 entry(D-028 §9),`check_warn_done_gate` 优先读顶层,不需逐条标。per-entry `exempt: true` 是细粒度选项,可与顶层独立使用。
+
+### COPY-PASTE.json 格式(jscpd 委托,D-028 §10 机制 B)
+
+```json
+{
+  "task": "T-NNN",
+  "timestamp": "2026-07-20T12:00:00Z",
+  "tool": "jscpd",
+  "jscpd_available": true,
+  "duplications": [
+    {
+      "format": "sh",
+      "lines": 50,
+      "tokens": 300,
+      "firstFile": { "name": "engine/scripts/foo.sh", "start": 10, "end": 60 },
+      "secondFile": { "name": "engine/scripts/bar.sh", "start": 5, "end": 55 },
+      "fragment": "...",
+      "exempt": false,
+      "exempt_reason": null
+    }
+  ],
+  "warn_count": 0
+}
+```
+
+`jscpd_available: false` 表示 jscpd 不可用,verify 降级到 skip + WARN(不计具体重复条目)。token 阈值与最小块长用 jscpd 默认。命中即计 `warn_count`,走现有 warn_count→done 门,不新增门级。
+
+### WARN 升级为 done 门项(D-028 §9)
+
+- verify 完成:`summary.warn_count == 0` → 自动通过(配合现有 fail_count=0 门)
+- `warn_count > 0` → 须架构师在 DEAD-CODE.json 中标 `"exempt": true, "exempt_reason": "<理由>"`,或顶层 `"exempt_all": true, "exempt_reason": "<理由>"`(批量豁免)
+- Doctor `check_warn_done_gate`(FAIL 级)读 evidence/T-NNN/DEAD-CODE.json:
+  - `warn_count > 0` 且未全部豁免 → FAIL
+  - `exempt_all=true` 或 per-entry exempt 全覆盖 → 不计 warn_count(通过)
+  - 迁移宽限期(D-028 §9):读 `ENGINE_DOCTOR.md` 首行 `<!-- contract-version: X -->` 标记,`< 6.10.0` 时 FAIL 降级为 WARN(不阻塞 done);`>= 6.10.0` 时 FAIL(强制)
+
+### 豁免场景(合理 WARN)
+
+- 库项目导出未使用 API(public API 等外部调用,linter 抓不到)
+- 测试 fixture 辅助函数(被测试反射调用,linter 抓不到)
+- 动态调用(eval / `& $cmd` / 反射)— linter 抓不到,自研 grep 也抓不到,只能人工标注
+
+### 显式不做
+
+- 不自研 AST 解析器(委托 shellcheck/PSScriptAnalyzer)
+- 不覆盖软死代码(换名重写、换实现重做)——靠 INVENTORY 人审兜底
+- 不引入跨语言别名表(镜像对死代码靠 linter 自身识别)
+- 不硬失败所有 WARN(只让 warn_count > 0 时 done 须豁免)
+
+
 # ════════════════════════════════════════════
 # END OF ENGINE FILE SYSTEM
 # (版本号只在文件头部声明一处,尾部横幅不再重复——重复即漂移之源)

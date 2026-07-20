@@ -1,0 +1,1 @@
+{"ac":"AC-7","verify":"grep -q 'DEAD-CODE\\|死代码' engine/prompts/behaviors/verify-writeback.md && grep -q '豁免\\|exempt' engine/prompts/behaviors/verify-writeback.md","status":"pass","exit":0,"fingerprint":"sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855","timestamp":"2026-07-20T12:03:09Z"}

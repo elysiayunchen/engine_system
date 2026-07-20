@@ -1,0 +1,1 @@
+{"ac":"AC-5","verify":"grep -q 'estimated_steps' engine/ENGINE_DOCTOR.md && grep -q 'checkpoint_plan' engine/ENGINE_DOCTOR.md && grep -q 'depends-on\\|depends_on' engine/ENGINE_DOCTOR.md","status":"pass","exit":0,"fingerprint":"sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855","timestamp":"2026-07-20T10:19:41Z"}

@@ -1,5 +1,5 @@
-<!-- ENGINE_SYSTEM_CONTRACT_MIGRATIONS_START -->
-<!-- contract-version: 6.5.0 -->
+﻿<!-- ENGINE_SYSTEM_CONTRACT_MIGRATIONS_START -->
+<!-- contract-version: 6.8.0 -->
 ## Engine System Current Contract
 > Managed by Engine System contract migration. Preserve project-specific rules outside this block.
 
@@ -33,3 +33,4 @@ Engine System 是一个要发布给其他项目使用的项目系统,不是只�
 - 本仓自测通过只是必要条件,不是完成条件。分发面改动还必须覆盖 `plugin/manifest.json`、`install.sh`、`install.ps1`、plugin 镜像、哈希回填和隔离目录 local install 验证。
 - Claude Code 原生增强可以存在,但面向通用 agent 的能力必须同时提供 agent-neutral 项目内入口,避免把引擎锁死在单一 agent 工具里。
 - 项目级开发准则以本文件为唯一权威来源;Doctor 不承载、不指向、不检查该准则。
+

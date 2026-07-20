@@ -82,21 +82,35 @@ Lifecycle routing:
 - Delete → only when content is derivable/obsolete or architect approved; purge registry rows and all references in the same transaction.
 - Scope-externalize → mark as external/not registered in the session report; do not leave an ambiguous untracked authority file.
 
-**Multi-Agent Conflict Rule (v5.5.1):** When multiple agents are working in parallel, shared engine state is single-writer only. Only one agent may perform the final write-back to `ENGINE_MAP.md`, `CONTEXT.md`, `HANDOFF.md`, `PITFALLS.md`, `SYSTEM.md`, `REPO_GUIDE.md`, anchors, or plan/spec twins for a given change set. Other agents may work in parallel only on isolated drafts, evidence, scratch notes, or code changes that do not touch shared engine state. Before any shared-engine write-back, the writer MUST re-anchor the target files from disk, merge pending diffs from sibling agents, and run `/engine-doctor` after landing the merge.
+**Multi-Agent Memory Rule (v6.5):** Parallel workers MUST NOT edit shared `ENGINE_MAP.md`, `SYSTEM.md`, `REPO_GUIDE.md`, `PITFALLS.md`, `CONTEXT.md`, `HANDOFF.md`, anchors, or plan/spec files. Run `engine workstream T-NNN <agent-id>` and write only `engine/workstreams/<task>/<agent>/CONTEXT.md|HANDOFF.md` plus task-scoped evidence. The coordinator re-reads every pending shard at the merge point, updates shared memory once, and runs Doctor. Claude PreToolUse blocks identified subagents from shared memory; Stop uses `session_id + agent_id` path ledgers so sibling changes cannot satisfy another agent's write-back; pre-commit accepts either coordinator memory or a worker shard. Other harnesses SHOULD use separate git worktrees for code isolation, but workstream shards remain the engine-memory merge source.
 
-**Parallel Workstream Rule (v5.5.2):** `CONTEXT.md`, `SPRINT.md`, `ROADMAP.md`, and `HANDOFF.md` are multi-lane ledgers. They MAY track several active workstreams at once, each with a lane ID, owner, dependency, merge point, and next checkpoint. Never collapse concurrent work into one monolithic "current task" when multiple lanes exist; instead, keep one row per lane and use a shared merge point only for cross-lane coupling.
+**Parallel Workstream Rule (v6.5):** Root `CONTEXT.md`/`HANDOFF.md` show coordinator-owned merged state. Unmerged lane state lives under `engine/workstreams/` and is summarized by `engine context`; each shard carries task, owner, status, changed paths, evidence, merge state, and next checkpoint. Do not append concurrently to a shared ledger.
 
 **Project Self-View Rule (v5.7):** The architect may be non-technical and must not be forced to review raw code. Every meaningful implementation, documentation, engine-tooling, dependency, test, or behavior change SHOULD produce an architect-readable change capsule under `engine/changes/CHANGE-[yyyy-mm-dd]-[nn].md`. The capsule translates the diff into project facts: Goal, Actual Changes, Impact Scope, Risk & Watchpoints, Verification, Rollback, Next Step, and Responsibility Boundary. Capsules are operational evidence, not authority files; do not register them in ENGINE_MAP §1. Reference the latest capsule from HANDOFF / ENGINE_MAP §4 when useful. `/engine-status` may also generate `engine/.cache/project-view.generated.md` as a disposable self-view snapshot; it is generated-cache and MUST NOT be registered as authority.
 
 **Acceptance Evidence Rule (v5.7):** A plan/spec twin may be marked `done` only when every AC has evidence in the spec twin's Evidence column, `engine/evidence/*`, or a relevant `engine/changes/CHANGE-*.md` capsule. If evidence is missing, keep the plan active/blocked and surface `missing acceptance evidence` in `/engine-reconcile`.
 
-**Task Card Rule (v6 S1):** A task card (`engine/tasks/T-NNN.md`) is a machine-verifiable work order that binds agent intent to architect control. It carries a `WRITE-SET` (paths the agent may touch), optional `FORBIDDEN` (architect veto, data-enforced), `AC` with `verify:` commands, and optional `decision:` / `plan:` / `domain:` references. The Stop hook enforces: code paths touched in the current session MUST be ⊆ the active task card's WRITE-SET ∪ engine files; touching a FORBIDDEN path → `decision:block`. SessionStart always re-injects the active task card to combat drift (especially after compact/resume). Projects without an active task card fall back to v5.6 behavior (backward compatible). Task cards are operational artifacts, not authority files; do not register them in ENGINE_MAP §1.
+**Task Card Rule (v6.5):** A task card (`engine/tasks/T-NNN.md`) carries `WRITE-SET`, optional `FORBIDDEN`, `AC + verify`, and decision/plan/domain references. One card represents one independently verifiable, normally commit/PR-sized goal: reuse it across prompts and ACs; parallel workers share its ID and create workstream shards, not more cards; read-only investigation needs no card. WRITE-SET/FORBIDDEN govern ALL project paths, including `engine/*`; only runtime caches are exempt. Parsers accept both `WRITE-SET: a,b` and `## WRITE-SET` bullet lists, and an active card with no readable WRITE-SET blocks writes. Claude PreToolUse checks each planned Write/Edit and UserPromptSubmit re-injects a ≤5-line pointer guard (not L0 or the full WRITE-SET); Stop and pre-commit re-check changed/staged paths. Projects stamped `contract-version: 6.5.0` or newer block ordinary writes when no active/closing task exists (task/decision card creation remains available); older or unstamped projects retain the legacy write-back fallback until migration. A staged transition to `done` requires PASS evidence for every declared AC or an approved exemption. Done cards are cold operational history and are not injected into session context. Task cards are operational artifacts, not ENGINE_MAP authority rows.
 
 **Decision Ledger Rule (v6 S1):** A decision (`engine/decisions/D-NNN.md`) is the architect's control surface made data. It carries `status` (proposed/approved/rejected/expired/superseded), `scope` (path globs it governs), `expiry`, options, rationale, and consequences. Protected paths (declared in `engine/decisions/rules.json`) require any staged change to be covered by an `approved` decision whose `scope` matches—enforced by the git pre-commit hook via the active task card's `decision:` reference. `/engine-status` surfaces a "pending your decision" queue (all `proposed` decisions). Decisions are operational artifacts, not authority files; do not register them in ENGINE_MAP §1.
 
 **Fractal Memory Rule (v6 S2):** The engine memory is spatially partitioned into domains. `engine/domains/federation.json` is the routing table: path-glob → domain. Each domain holds its own `CONTEXT.md` (first line = budgeted summary, lifted to the SessionStart domain dashboard) and `PITFALLS.md` (per-domain budget + archive + rg recipe; no global 500-line ceiling). The SessionStart hook assembles L2: for each domain in the active task card's `domain:` field (comma-separated), it injects that domain's CONTEXT + PITFALLS (budget-bounded). The Stop hook enforces route consistency: every code path touched must resolve (via federation.json) to a domain in the task card's `domain:` set—out-of-domain → `decision:block`. Paths matching no domain glob fall to `default_domain`. Projects without `federation.json` or a task card `domain:` field fall back to S1 behavior (backward compatible). The federation table is registered in ENGINE_MAP; domain files are operational artifacts, not authority files.
 
 **Behavior Verification Rule (v6 S4):** A task card's `AC` entries carry `verify:` commands. `engine verify T-NNN` executes each, writing PASS/FAIL + output fingerprint (sha256) to `engine/evidence/T-NNN/AC-N.json`. A task card may be marked `done` only when every AC has either a passing verify result in evidence or an architect exemption (the exemption is itself a decision). Evidence files are generated-cache; do not register them in ENGINE_MAP §1. This machine-enforces N3 (completion has evidence)—the architect judges behavior, not code.
+
+**Developer Communication Rule (v6.2):** The developer (architect) may not know engine-specific terminology. When interacting with the developer, the agent MUST:
+1. **Detect the developer's language** from their messages at session start, and use that language for all explanations and summaries throughout the session. Never hardcode a specific language — if the developer writes in English, respond in English; if in Chinese, respond in Chinese; if they switch, follow.
+2. Read `engine/GLOSSARY.md` at session start (if it exists) and use its "Plain meaning" column when explaining engine concepts.
+3. Never assume the developer knows terms like "write-back", "federation table", "task card", "decision ledger", "capsule", "gate", "hook", "reconcile", "irreducible", or "derivable" without first explaining them in plain language.
+4. Frame all engine interactions in terms of the developer's workflow ("I'm saving what we decided so the AI remembers next time") rather than engine internals ("I'm performing write-back to CONTEXT.md").
+5. When reporting Doctor or verify results, translate machine output into actionable plain language (not just "FAIL check_contract_compile" but "the engine's rule file is out of sync — I'll regenerate it for you").
+6. When proposing engine operations (init, migrate, reconcile), explain what will happen and why in terms the developer cares about (project memory, team coordination, AI continuity), not in terms of file paths and hooks.
+
+**Feedback signals:** When the developer uses phrases indicating confusion (e.g., "what does that mean?", "I don't understand", "speak plainly", "说人话", "什么意思"), the agent MUST immediately: (a) re-explain using simpler language with GLOSSARY.md Plain meaning as reference, (b) drop all engine jargon, (c) focus on outcomes and next steps only.
+
+**Communication level adaptation:** The agent SHOULD record `comm_level` (basic / standard / technical) in the HANDOFF session row based on the developer's demonstrated familiarity with engine concepts. At SessionStart, the agent reads the latest `comm_level` and adjusts accordingly: `basic` = outcomes only, no jargon ever; `standard` = plain explanations with optional technical detail; `technical` = full detail allowed when the developer opts in.
+
+This rule applies to ALL agents (Claude Code, Cursor, Windsurf, Copilot, Codex CLI, web chat) — not just Claude Code. It does not restrict technical detail in engine files themselves — only in direct communication with the developer.
 
 
 ---
@@ -231,7 +245,6 @@ Before anything else, determine the mode. Check the project for `/engine/ENGINE_
 
 
 ---
-
 # ════════════════════════════════════════════
 # INIT PATH （首次初始化；运维模式请跳至文末 OPERATIONAL MODES）
 # ════════════════════════════════════════════
@@ -1523,7 +1536,7 @@ MUST NOT silently pick one and proceed on blocked or ambiguous decisions.
 4. 更新 ENGINE_MAP（注册表 revision、关系图、若有结构变更则 bump 全局 revision）
 5. 开发者确认后，手动/自动更新项目中的引擎文件，同步头部日期
 
-> **v5.6 自维护循环：** 在 Claude Code 下，Stop hook 自动执行第 1‑4 步——若本次会话改动了代码但未回写引擎记忆，hook 拦截 agent 结束并要求先增量回写，然后再放行。同时 git pre-commit hook（B 层）在任何 agent、任何平台下做同样的检查。详见「自维护循环架构」章。
+> **v6.5 自维护循环：** Claude 在每次写前校验任务范围、每次用户消息只补 ≤5 行任务指针（不重复 L0/完整写集），Stop 按 session 路径收尾；无 active/closing 任务时普通写入 fail-closed，git pre-commit 对所有 staged 路径（含 engine/*）做跨 agent 兜底。一个可独立验收目标共用一张卡，并行 worker 写独立 workstream 分片，协调者一次汇总共享记忆。
 
 
 ## 自维护循环架构 (v5.6)
@@ -1534,29 +1547,30 @@ Engine System 的"自动更新"在 v5.5 里是软契约——agent 被要求 `MU
 
 | 层 | 机制 | 触发点 | 覆盖范围 | 强度 |
 |----|------|--------|----------|------|
-| **C · 原生 hook** | Claude Code SessionStart / Stop hook | 会话开始 / 每轮结束 | Claude Code | 体验最优 |
+| **C · 原生 hook** | Claude Code SessionStart / UserPromptSubmit / PreToolUse / Stop | 开始 / 每 prompt / 每次写前 / 收尾 | Claude Code | 写前硬约束 |
 | **B · git pre-commit** | `.git/hooks/pre-commit` | `git commit` 时 | 任何 agent · 任何平台 | 硬门禁兜底 |
 | **A · 锚点契约** | AGENTS.md SESSION PROTOCOL | agent 读引导文件时 | 所有读锚点的 agent + Web 端 | 覆盖最广 |
 
 ### C 层 · Claude Code 原生 hook（体验最优）
 
-三个 hook 脚本随仓库分发(`engine/scripts/engine-hook-{session-start,stop,session-end}.{sh,ps1}`):
+hook 脚本随仓库分发(`engine/scripts/engine-hook-{session-start,stop,session-end}.{sh,ps1}`):
 
 - **SessionStart「自动接手」**:开对话瞬间,脚本读取 CONTEXT.md 状态面板 + HANDOFF.md 最新交接行,注入 agent 上下文。架构师什么都不用说,agent 第一句就是准确的状态复述。
-- **Stop「收尾守门员」(硬门禁)**:agent 每轮结束时,脚本用 `git status` 检查——若本轮改了代码但 CONTEXT.md / HANDOFF.md 没跟着更新,拦截 agent 结束(`decision: block`),要求先增量回写。仅拦截一次(`stop_hook_active` 防死循环),纯问答/工作区干净时不打扰。
+- **UserPromptSubmit + PreToolUse**:前者只补 ≤30 行 L0/任务边界,后者在 Write/Edit 前校验全部路径并阻止子 agent 抢写共享记忆；Bash 写入标记为全局保守复查。
+- **Stop「收尾守门员」**:优先按 `session_id + agent_id` 路径清单检查,不借用兄弟 agent 的 CONTEXT/HANDOFF；无清单或用过 Bash 时回退整个 worktree。
 - **SessionEnd「体检缓存」(非阻塞)**:Stop 放行后运行 Engine Doctor,将 warning/failure 写入 `engine/.cache/pending.txt` 与 `session-end-doctor.log`。下一次 SessionStart 会把 pending note 注入上下文,让 agent 先处理引擎漂移。
 
 hook 配置通过 `.claude/settings.json` 随 `install.sh` / `install.ps1` 自动铺设。PowerShell 双版本(.ps1)覆盖 Windows 原生 PowerShell 执行场景。若目标项目已有 settings,安装器保留原文件,`/engine-sync` 负责合并 hook 字段。
 
 ### B 层 · git pre-commit（跨 agent 最大公约数）
 
-`engine/scripts/githooks/pre-commit` 在 `git commit` 时检查暂存区:若本次提交有代码改动但没有同步引擎记忆(CONTEXT/HANDOFF/ENGINE_MAP),拒绝提交并提示先回写。逃生口:`git commit --no-verify`。
+`engine/scripts/githooks/pre-commit` 对全部暂存路径执行 WRITE-SET/FORBIDDEN（含 engine/*）并检查决策；v6.5+ 无 active/closing 卡拒绝普通路径，任务置 done 时逐 AC 检查 PASS evidence；代码提交须带协调者共享记忆或 `engine/workstreams/<task>/<agent>/` 分片。逃生口仍是显式 `--no-verify`。
 
 安装器会在 `.git/hooks/pre-commit` 不存在时自动安装该脚本；若已有 hook,保留用户 hook 并提示手动合并。它是唯一不需要 agent 配合的机制——无论用 Claude Code / Codex / Cursor / Aider / Gemini CLI 还是手敲,只要走 `git commit`,门禁就生效。纯 POSIX sh + git 自带 sh 执行,Linux/macOS/Windows 全覆盖。
 
 ### A 层 · 锚点契约（Web 端也吃得到）
 
-AGENTS.md / CLAUDE.md 里的 `SESSION PROTOCOL` 是写给 agent 的强制契约。配合"增量回写"策略——每完成一个有意义的单元(一个功能/一次修复/一个决策)立即增量更新 CONTEXT 状态面板 + HANDOFF 追加一行,不等会话结束——Web 端 AI 即使没有 hook,也能靠契约保持引擎记忆新鲜。
+AGENTS.md / CLAUDE.md 要求单 agent 每单元增量回写；并行 worker 运行 `engine workstream T-NNN <agent-id>` 后只更新自己的分片，协调者在 merge point 重读分片并一次更新共享 CONTEXT/HANDOFF。Web/无 hook agent 也遵循同一目录协议。
 
 ### 跨 agent 适配
 
@@ -1566,7 +1580,7 @@ AGENTS.md / CLAUDE.md 里的 `SESSION PROTOCOL` 是写给 agent 的强制契约�
 
 | Agent | C 层(原生 hook) | B 层(git) | A 层(锚点) |
 |-------|----------------|-----------|-----------|
-| Claude Code | ✅ SessionStart+Stop | ✅ | ✅ AGENTS.md |
+| Claude Code | ✅ Start+Prompt+PreTool+Stop | ✅ | ✅ AGENTS.md |
 | Copilot CLI | ⚠️ 待适配 | ✅ | ⚠️ 待同步 |
 | Codex CLI | ⚠️ 待核实 | ✅ | ✅ AGENTS.md |
 | Cursor | ⚠️ 待适配 | ✅ | ⚠️ 待同步 |
@@ -1575,42 +1589,10 @@ AGENTS.md / CLAUDE.md 里的 `SESSION PROTOCOL` 是写给 agent 的强制契约�
 | Web 端 AI | N/A | N/A | ✅ 契约 |
 
 
-## 文件编辑规则
-[文件怎么修改？允许/禁止什么工具？有没有必须保护、不能直接编辑的文件（自动生成的）？]
+## 项目级开发规范
+构建、依赖、代码规范、测试、Git、安全、危险命令等项目级开发规则，
+权威位置在 `engine/REPO_GUIDE.md`。SYSTEM.md 只保留跨项目工作协议和 Prime Directives。
 
-
-## 依赖管理
-| 规则 | 详情 |
-|------|------|
-| 包管理器 | [name and version] |
-| 添加依赖 | `[exact command]` |
-| 添加开发依赖 | `[exact command]` |
-| 禁止 | [如「不要手动编辑 lockfile」] |
-
-
-## 构建与运行命令
-| 操作 | 命令 | 说明 |
-|------|------|------|
-| 安装 | [exact command] | 下载所有需要的工具包 |
-| 开发 | [exact command] | 启动开发模式，实时预览 |
-| 构建 | [exact command] | 打包成可发布版本 |
-| 测试 | [exact command] | 运行自动化检查 |
-| 部署 | [exact command] | 发布到服务器或托管平台 |
-| 迁移 | [exact command if applicable] | 更新数据库结构 |
-
-
-## 代码规范
-[命名规范、import 排序、错误处理、日志、注释语言；如有 linter/formatter：名称和配置文件位置]
-
-
-## 危险命令
-⚠️ `[COMMAND]` — [为什么危险] — [安全替代或前置条件]
-[新危险命令追加到本节末尾。]
-
-
-## 测试策略
-[提交前必须测试什么；测试框架和命令；明确排除在测试之外的内容]
-> 注：具体功能的验收，由对应 SPRINT 任务的「验证方法」/ plan 的 spec twin 承载。本节是项目级的通用测试约定。
 
 ## Engine Doctor Contract
 > v5.5 初始化时必须生成 `ENGINE_DOCTOR.md`。本节只保留指针；权威契约在 `engine/ENGINE_DOCTOR.md`，脚本实现随仓库打包在 `engine/scripts/`。
@@ -1644,19 +1626,6 @@ AGENTS.md / CLAUDE.md 里的 `SESSION PROTOCOL` 是写给 agent 的强制契约�
 16. 标记为 `done` 的 plan/spec twin 必须能指向验收证据：spec twin Evidence 列、`engine/evidence/*` 或相关 `engine/changes/CHANGE-*.md`。
 
 If the scripts are missing, run `/engine-sync` to restore bundled tooling. If the contract changes, update `ENGINE_DOCTOR.md` first, then update scripts, run `/engine-doctor`, and finish with `/engine-reconcile`.
-
-
-## Git 与版本控制
-[分支命名规范；提交消息格式；绝对不能提交的内容（.env、密钥、大文件）]
-
-
-## 安全边界
-[来自 Block I 或 Block H Q48]
-- 认证模型：[summary 或「无」]
-- 密钥管理：[方式]
-- AI 禁区：[AI 绝对不能碰的文件/目录/操作]
-- 敏感数据：[存在什么、如何保护]
-[安全边界变更需架构师批准。]
 
 
 ## AI Agent Rules
@@ -1916,7 +1885,7 @@ AI 完成引擎文件修改后，MUST 输出变更摘要供架构师审核（中
 | 会话 | 日期 | 关键变更 |
 |------|------|---------|
 | 0 | [today] | 引擎文件初始化 |
-[新会话追加到表格顶部（时间倒序）。]
+[新会话追加到表格顶部（时间倒序）。最近 8 条保留在本表;超出 8 条时把最旧的整行迁移到 `engine/handoff-archive-YYYY-MM.md`(按月切分,文件名取被迁移条目的最早日期所在月)。归档文件不进 SessionStart 注入,只供按需搜索考古;不进 ENGINE_MAP §1 注册,Doctor 不校验其预算。]
 
 
 ## 引擎文件变更摘要
@@ -2038,6 +2007,7 @@ find . -maxdepth 3 -type f -name 'package.json' -o -name 'pnpm-workspace.yaml'
 Read `engine/ENGINE_MAP.md` BEFORE anything else. Active profile: [WEB-FULL / CLI-LEAN].
 按其 §0 读取流程加载引擎文件，用一句中文复述当前状态理解，架构师确认后动手。
 开发/编辑前还必须按 ENGINE_MAP §0 的 read-gate 读取候选路径相关锚点、plan/spec、SYSTEM/REPO_GUIDE 章节，并声明 `read-gate:` 证据。
+Before any edit, output: `read-gate: ENGINE_MAP ✓, SYSTEM ✓, state: [一句话]`。No output = no edit.
 
 
 ## TOP RULES (source: engine/SYSTEM.md — 完整规则以彼为准)
@@ -2045,6 +2015,11 @@ Read `engine/ENGINE_MAP.md` BEFORE anything else. Active profile: [WEB-FULL / CL
 2. [Prime Directive 摘抄 2]
 3. [最关键的 NEVER，e.g. NEVER touch [AI 禁区]]
 [最多 5 条。只摘抄，NEVER 在此新增引擎里没有的规则 —— 新规则先进 SYSTEM.md。]
+
+
+## ANCHOR IMMUTABILITY
+This file is a managed bootloader. Do NOT add original rules here.
+All new rules → engine/SYSTEM.md; this file only excerpts with `source:` tags.
 
 
 ## SESSION PROTOCOL
@@ -2055,6 +2030,7 @@ Read `engine/ENGINE_MAP.md` BEFORE anything else. Active profile: [WEB-FULL / CL
 
 ## MAP
 - 引擎索引：engine/ENGINE_MAP.md ｜ 规则：engine/SYSTEM.md ｜ 当前状态：engine/CONTEXT.md
+- 开发规范：engine/REPO_GUIDE.md
 - [若有包级锚点] 各代码包的局部上下文见各包根部 README.md
 - [若有环境适配] 当前 agent 工具细则见 engine/agents/[ENV].md
 
@@ -2136,6 +2112,295 @@ Read `engine/ENGINE_MAP.md` BEFORE anything else. Active profile: [WEB-FULL / CL
 
 
 [包结构变化时同步「关键文件」表并更新头部日期。]
+
+
+---
+
+
+### FILE 13 — engine/skeleton/progress.md （任务级压缩恢复锚点骨架）
+> Class: skeleton（操作产物模板,不登记 ENGINE_MAP §1）。生成于 `engine/skeleton/progress.md`（源仓）+ `plugin/engine/skeleton/progress.md`（plugin 镜像）,随 install 分发。每个 active/paused 任务卡的 `engine/tasks/T-NNN/progress.md` 由本骨架拷贝实例化。
+
+**设计宗旨（v6.7.0 / D-028 LPHP）**：短上下文 agent 接管大型项目时,任务中途被压缩会丢失"考虑过但拒绝的方案""已确认的接口""当前进行到哪"等细节。progress.md 把这些细节做成机制——**机器强制注入 + 事件驱动更新**,不靠 agent 自觉。它与 HANDOFF「立即恢复点」对称延伸:HANDOFF 是会话级粗粒度恢复,progress.md §4 是任务级细粒度恢复,active 卡存在时 HANDOFF 退化为薄指针指向 progress.md §4。
+
+
+**7 栏定义（每栏强制单行,跨栏不混）**：
+
+| 栏号 | 栏名 | 写入触发 | 内容形态 |
+|------|------|----------|----------|
+| §1 | 已读文件（理解项目） | 每读完一个文件后追加 | `path — 一句摘要` |
+| §2 | 已确认接口（不重复读） | 确认一个函数/接口签名后 | `fn(arg: T) -> R — 返回语义` |
+| §3 | 已排除路径（原 TRAIL 的家） | 排除一条设计/实现路径后 | `time / 被拒绝方案 / 原因 / 采用方案` |
+| §4 | 当前进行到（压缩恢复点） | 跑完一个 AC / 状态切换时 | `正在做什么 + 下一步` |
+| §5 | 待确认问题 | 出现等用户/架构师回复的问题时 | `问题 / 阻塞谁 / 何时提出` |
+| §6 | 已知风险/未解 bug | 识别风险或 bug 时 | `描述 / 影响 / 缓解状态` |
+| §7 | 回滚尝试 | 已写后被回滚的代码段 | `代码段 / 回滚原因 / 替代方案` |
+
+> §3 与 §7 的边界:§3 记**设计层**拒绝的路径(还没写代码就排除),§7 记**实现层**写后回滚的代码段(写了再撤)。两者不混。
+
+
+**事件驱动更新触发点（非每步、非只压缩时）**：
+- 确认一个接口后 → 写 §2
+- 排除一条路径后 → 写 §3
+- 跑完一个 AC 后 → 写 §4
+- 出现待确认问题 → 写 §5
+- 识别风险/bug → 写 §6
+- 回滚代码 → 写 §7
+- 状态切换（paused/done/active 恢复）→ 写 §4
+
+**禁止**：每一步都写（噪声淹没信号）/ 只在压缩前写（hook 不让 agent 写盘,机制错配——见 D-028 §6）/ 跨栏合并（§3 vs §7 边界丢失）。
+
+
+**生命周期规则**：
+
+| 状态 | progress.md 位置 | SessionStart 注入 | HANDOFF 关系 |
+|------|-------------------|---------------------|--------------|
+| active | `engine/tasks/T-NNN/progress.md` | ✓ 强制注入 §1~§7 | HANDOFF「立即恢复点」退化为薄指针「见 T-NNN/progress.md §4」 |
+| paused | `engine/tasks/T-NNN/progress.md` | ✓ 强制注入 §1~§7 | 同 active |
+| done | 归档到 `engine/archive/tasks/T-NNN-progress.md`,原 `engine/tasks/T-NNN/progress.md` 删除 | ✗ 不注入 | HANDOFF「立即恢复点」保持会话级现状 |
+
+**归档触发**：任务卡 status 从 active/paused → done 时,SessionStart hook 不再注入;原 progress.md 文件迁到 `engine/archive/tasks/T-NNN-progress.md`（与 HANDOFF 历史归档机制对称,见 D-027）。归档文件不进 §1 注册、Doctor 不校验其预算,仅供按需搜索考古。
+
+
+**SessionStart 注入逻辑**（详见 `engine/scripts/engine-hook-session-start.{sh,ps1}`）：
+1. 扫描 `engine/tasks/T-*.md`（排除 `*.spec.md`）找 `status: active` 或 `status: paused` 的卡;
+2. 若存在,读取对应 `engine/tasks/T-NNN/progress.md`;
+3. 文件存在 → 注入其 §1~§7 全文到 agent 上下文（覆盖 HANDOFF「立即恢复点」§4 段）;
+4. 文件不存在 → 仅注入 HANDOFF「立即恢复点」（保持兼容,触发 Doctor WARN 提示补建,见 AC-5/AC-6）;
+5. 多张 active/paused 卡 → 全部注入,按任务卡 ID 升序（实践中应 ≤2 张,超出由 Doctor WARN）。
+
+
+**HANDOFF 薄指针规则**（详见 `engine/prompts/behaviors/handoff.md`）：
+- active 卡存在时:HANDOFF「立即恢复点」必须 ≤5 行,首句为「见 `engine/tasks/T-NNN/progress.md` §4: [一句话当前进行到]」,后续可补 1-2 句会话级粗粒度提示;
+- active 卡不存在时:HANDOFF「立即恢复点」保持现状（会话级,无强制行数）;
+- 读序:SessionStart → 先注 HANDOFF（粗粒度）→ 再注 progress.md（细粒度,§4 覆盖 HANDOFF 的恢复点段）。
+
+
+**骨架文件内容**（`engine/skeleton/progress.md` 与 `plugin/engine/skeleton/progress.md` 字节一致）：
+
+```markdown
+# progress — [Task ID: T-NNN] [Task Title]
+> Last updated: [date] | 任务级压缩恢复锚点 | 7 栏事件驱动更新,见 contract/src/20-file-templates.md FILE 13
+
+## §1 已读文件（理解项目）
+- [path] — [一句摘要]
+
+## §2 已确认接口（不重复读）
+- [fn(arg: T) -> R] — [返回语义]
+
+## §3 已排除路径（原 TRAIL 的家）
+- [time] / [被拒绝方案] / [原因] / [采用方案]
+
+## §4 当前进行到（压缩恢复点）
+正在做:[一句话]
+下一步:[一句话]
+
+## §5 待确认问题
+- [问题] / 阻塞:[谁] / 提出:[time]
+
+## §6 已知风险/未解 bug
+- [描述] / 影响:[范围] / 缓解:[状态]
+
+## §7 回滚尝试
+- [代码段] / 回滚原因:[一句话] / 替代方案:[一句话]
+```
+
+**维护规则**：
+- 骨架文件是模板,实例化时 `[Task ID]`/`[Task Title]`/`[date]` 必须替换,空栏保留表头不删;
+- 单栏可有多行（追加,不覆盖历史行）,但单行 ≤500 字符（与 CONTEXT.md 单行限制一致）;
+- 整文件预算 ≤4KB（约 100 行）,超限 Doctor WARN 提示归档旧条目到 `engine/archive/tasks/T-NNN-progress-archive-YYYY-MM.md`;
+- 仅 active/paused 卡的 progress.md 进 SessionStart;done 卡归档后不进;
+- 改骨架文件必须同步 engine/ + plugin/engine/ 双份,manifest SHA256 重算。
+
+
+---
+
+
+### FILE 14 — engine/domains/`<domain>`/INVENTORY.md + INVENTORY/`<feature>`.md（域级功能索引骨架）
+
+> Class: skeleton + 域产物。骨架文件 `engine/skeleton/domains/INVENTORY.md`（源仓）+ `plugin/engine/skeleton/domains/INVENTORY.md`（plugin 镜像）,随 install 分发。每域实例化为 `engine/domains/<domain>/INVENTORY.md`（总览,≤120 行）+ `engine/domains/<domain>/INVENTORY/<feature>.md`（子文件,可选）。
+
+**设计宗旨（v6.8.0 / D-028 LPHP）**：短上下文 agent 接管大型项目时,靠现读代码理解项目结构成本高、易遗漏已有功能 → 重复造轮子 / 死代码。INVENTORY 把"功能 → 入口文件 → Public API 契约名"做成机器可校验的反向索引——**语义层人写（agent 在 done 时维护）,符号层机器现生（ast-grep / ctags）**,不依赖 agent 自觉。它与 federation.json 域路由对称延伸:federation.json 管"路径属于哪个域",INVENTORY 管"域里有哪些功能 + 入口在哪"。
+
+**与现成工具的边界（关键,违反 = 设计缺陷）**：
+
+| 内容 | 写在哪 | 谁生成 | 为什么 |
+|------|--------|--------|--------|
+| Feature 名（语义层） | INVENTORY 总览 | 人写（agent 在 done 时） | 语义判断,机器无法推断 |
+| Entry file 路径 | INVENTORY 总览 | 人写 | 语义判断,机器无法推断 |
+| Public API 契约名 | INVENTORY 总览 | 人写 | API 契约是设计意图,非字面 |
+| API 完整签名 | INVENTORY 子文件 | 人写 + ast-grep 校验 | 人写语义,机器校验字面 |
+| 符号定位（谁定义在哪） | 不写,现生 | ast-grep / ctags | 字面层,机器能做 |
+| 调用链 | 不写,现生 | ast-grep / grep | 字面层,机器能做 |
+| 数据流 | 不写,现生 | grep + agent 临时分析 | 字面层,机器能做 |
+
+> **违反边界的反模式**:把 API 完整签名抄进 INVENTORY 总览(超过 120 行)、把调用链写死(下次重构即过期)、把符号定位写死(改文件名即过期)。**INVENTORY 总览只写「语义层 + 入口路径 + API 契约名」,其他全部现生**。
+
+
+**5 列模板（总览 `engine/domains/<domain>/INVENTORY.md`,≤120 行）**：
+
+| Feature | Entry file | Public API | Status | Last verified |
+|---------|-----------|------------|--------|---------------|
+| 任务卡解析 | engine/tasks/README.md | parse_task_card(id) | stable | 2026-07-19 |
+| 契约编译 | contract/compile.sh | compile_src() | stable | 2026-07-19 |
+
+> 列宽建议:Feature ≤30 字符,Entry file 路径绝对/相对仓库根,Public API 用契约名(不展开签名),Status ∈ {stable / experimental / deprecated / wip},Last verified YYYY-MM-DD。
+
+
+**分级规则**：
+
+| 层级 | 路径 | 行数限制 | 内容 |
+|------|------|---------|------|
+| 总览 | `engine/domains/<domain>/INVENTORY.md` | ≤120 行 | 5 列表格,每行一个 Feature |
+| 子文件 | `engine/domains/<domain>/INVENTORY/<feature>.md` | 单文件 ≤200 行 | API 签名 + 调用关系摘要 + 配置项 + 已知边界 case |
+
+> **不进 SessionStart 全文注入**,只首行摘要（INVENTORY.md 第 1 行表头）进域仪表盘（避免域仪表盘膨胀）。子文件按需 Read,不主动注入。
+
+
+**双向 FAIL 检查（Doctor `check_inventory_bidirectional`）**：
+
+| 方向 | 检查内容 | 失败 = |
+|------|---------|--------|
+| code→INVENTORY | 已 done 任务涉及的文件路径必须在某条 INVENTORY 行的 Entry file 中出现（或其所在域的 INVENTORY 至少有一条对应行） | FAIL |
+| INVENTORY→code | 每行 Entry file 路径必须存在（`test -f`） | FAIL |
+
+> **迁移宽限期（D-028 §9）**:contract-version < 6.8.0 时双向 FAIL 降级为 WARN;≥ 6.8.0 时 FAIL。函数读 `ENGINE_DOCTOR.md` 首行 `<!-- contract-version: X -->` 标记判定（与 `check_legacy_data_format()` / `check_progress_md` 范式对齐）。
+
+
+**机制 C — API 唯一性检查（Doctor `check_inventory_api_uniqueness`,D-028 §10 机制 C）**：
+
+- 扫描所有域 INVENTORY.md + 子文件（`engine/domains/*/INVENTORY.md` + `engine/domains/*/INVENTORY/*.md`）的「Public API」列;
+- **全仓唯一**,重复 = FAIL;
+- 可选进阶:对 Feature 列做归一化（去空格、小写）后查重,捕获「同功能不同名」的明显情况;
+- **迁移宽限期同 §9**:contract-version < 6.8.0 时 WARN;≥ 6.8.0 时 FAIL。
+- 与「不覆盖语义级软死代码」的兼容性:对原声明的**精确化**——原声明隐含「INVENTORY 兜底 = 人审」,本机制把「API 名重复」子集升级为机器检查,人审范围收窄到「同功能不同名」的语义判断。
+
+
+**维护时机（behaviors 强制）**：
+
+| 时机 | 动作 | 强制力 |
+|------|------|--------|
+| 任务卡 `status: done` 时 | MUST 更新涉及域 INVENTORY（task-run.md 行为规则强制） | Doctor 双向 FAIL 检查兜底 |
+| verify-writeback 步骤 | 含 INVENTORY 同步检查 | WARN（提示补建） |
+| AC 通过时 | 不强制更新 | 避免噪音 |
+| 日常读代码时 | 不更新 | INVENTORY 不是笔记,是契约 |
+
+
+**migrator stub 创建（D-028 §9）**：
+- migrator 在升级时为每个已存在的域（`engine/domains/<domain>/`）写入空表头 stub 到 `engine/domains/<domain>/INVENTORY.md`（create-if-missing,已有则不动）;
+- 由 `engine-migrate-contract.{sh,ps1}` 落实,与 contract-version 头同款 `upsert_block` 机制;
+- stub 内容:5 列表头 + 一行示例 + 一行「迁移自 v6.7.x,功能索引待补」注释。
+
+
+**骨架文件内容**（`engine/skeleton/domains/INVENTORY.md` 与 `plugin/engine/skeleton/domains/INVENTORY.md` 字节一致）：
+
+```markdown
+# INVENTORY — [Domain Name]
+> Last updated: [date] | 域级功能索引 | 5 列 ≤120 行,见 contract/src/20-file-templates.md FILE 14
+
+| Feature | Entry file | Public API | Status | Last verified |
+|---------|-----------|------------|--------|---------------|
+| [功能名] | [path/to/entry] | [api_contract_name] | [stable/experimental/deprecated/wip] | [YYYY-MM-DD] |
+
+<!--
+  维护规则:
+  - 任务卡 done 时 MUST 更新涉及行（task-run.md 行为规则）
+  - Entry file 路径必须存在（Doctor INVENTORY→code FAIL 检查）
+  - Public API 全仓唯一（Doctor API 唯一性 FAIL 检查）
+  - 总览 ≤120 行,超出拆到 INVENTORY/<feature>.md 子文件
+  - 不写 API 完整签名 / 调用链 / 符号定位（交给 ast-grep 现生）
+-->
+```
+
+**维护规则**：
+- 骨架文件是模板,实例化时 `[Domain Name]`/`[date]` 必须替换,空表保留表头不删;
+- 总览 ≤120 行（含表头 + 空行）,超出拆到子文件;
+- 单行 ≤500 字符（与 CONTEXT.md 单行限制一致）;
+- 子文件单文件 ≤200 行,超限拆分（按 Feature 拆）;
+- 改骨架文件必须同步 engine/ + plugin/engine/ 双份,manifest SHA256 重算;
+- INVENTORY.md 不进 SessionStart 全文注入（只首行摘要进域仪表盘,见 `engine-hook-session-start.{sh,ps1}`）。
+
+
+---
+
+
+### FILE 15 — engine/skeleton/checkpoint.md（AC 级压缩恢复锚点骨架）
+> Class: skeleton（操作产物模板,不登记 ENGINE_MAP §1）。生成于 `engine/skeleton/checkpoint.md`（源仓）+ `plugin/engine/skeleton/checkpoint.md`（plugin 镜像）,随 install 分发。每个 active/paused 任务卡的 `engine/evidence/T-NNN/checkpoint.md` 由 `engine-verify.{sh,ps1}` 在 AC verify PASS 后追加写实例化（非骨架拷贝）。
+
+**设计宗旨（v6.9.0 / D-028 LPHP T-034）**：短上下文 agent 接管大型项目时,任务跨多个 AC 才完成,中途被压缩会丢失"已完成哪些 AC""关键中间状态""下一 AC 是什么"等进度细节。checkpoint.md 把这些细节做成机制——**verify 脚本机器追加 + SessionStart 优先注入**,不靠 agent 自觉。它与 progress.md（FILE 13）写入职责分离:verify 写 checkpoint.md（AC 级完成状态,客观证据）,agent 写 progress.md（任务级进行中状态,主观判断）。两者写入路径与时机均分离,无并发写冲突。
+
+**与 progress.md（FILE 13）的写入职责分离**：
+
+| 文件 | 写入者 | 写入时机 | 内容形态 |
+|------|--------|----------|----------|
+| checkpoint.md | `engine-verify.{sh,ps1}` 脚本（机器） | 每个 AC verify PASS 后追加写 | `- [x] AC-N <摘要> — evidence/AC-N.json PASS @ <ISO ts>` |
+| progress.md | agent（人/模型） | 事件驱动更新（§1~§7） | 任务级进行中状态（已读文件、已确认接口、当前进行到等） |
+
+> 两者不互相替代:checkpoint 是 AC 级客观完成状态（机器写,不可篡改),progress 是任务级主观进行中状态（agent 写,可编辑）。SessionStart 优先注入 checkpoint,其次 progress。
+
+**SessionStart 重锚优先级链（v6.9.0+）**：
+
+| 优先级 | 来源 | 覆盖关系 |
+|--------|------|----------|
+| 1 | `engine/evidence/T-NNN/checkpoint.md`（若存在） | AC 级完成状态,最细粒度 |
+| 2 | `engine/tasks/T-NNN/progress.md`（若存在） | 任务级进行中状态,覆盖 §4 |
+| 3 | 任务卡头（`engine/tasks/T-NNN.md`） | GOAL/WRITE-SET/FORBIDDEN |
+| 4 | HANDOFF 立即恢复点 | 会话级粗粒度恢复（薄指针） |
+
+> **注**:档位 2 / 4 为 T-032 落地后激活的兼容层。T-032 未落地时退化为 1 → 3 直连（与 D-028 §7 依赖关系审视一致）。
+
+**生命周期规则**：
+
+| 状态 | checkpoint.md 位置 | SessionStart 注入 |
+|------|--------------------|---------------------|
+| active | `engine/evidence/T-NNN/checkpoint.md`（verify 持续追加写） | ✓ 优先注入（覆盖 progress.md §4 与 HANDOFF 立即恢复点） |
+| paused | `engine/evidence/T-NNN/checkpoint.md`（保留） | ✓ 优先注入 |
+| done | 归档到 `engine/archive/tasks/T-NNN-checkpoint.md`,原 `engine/evidence/T-NNN/checkpoint.md` 删除 | ✗ 不注入 |
+
+**归档触发**：任务卡 status 从 active/paused → done 时,SessionStart hook 不再注入;原 checkpoint.md 文件迁到 `engine/archive/tasks/T-NNN-checkpoint.md`（与 progress.md / HANDOFF 归档机制对称,见 D-027）。归档文件不进 §1 注册、Doctor 不校验其预算,仅供按需搜索考古。
+
+**写入格式（verify 脚本追加写）**：
+
+每次 AC verify PASS 时,verify 脚本在 `engine/evidence/T-NNN/checkpoint.md` 末尾追加一行:
+```
+- [x] AC-N <verify 命令一句话摘要> — evidence/AC-N.json PASS @ <ISO timestamp>
+```
+
+文件首次创建时（即第一个 AC PASS 时）,verify 脚本写入文件头:
+```markdown
+# Checkpoint — T-NNN
+> Last updated: <YYYY-MM-DD HH:MM> by engine-verify | AC 级压缩恢复锚点,见 contract/src/20-file-templates.md FILE 15
+
+## 已完成 AC
+```
+
+> **不写"关键中间状态"与"下一 AC 指针"**:这两个段由 agent 在 progress.md §4（当前进行到）中维护,checkpoint.md 只记客观 AC 完成状态。SessionStart 优先注入 checkpoint.md 后,agent 可在 progress.md §4 中读取"下一 AC 是什么"——单一真相源在 progress.md,不在 checkpoint.md。
+
+**骨架文件内容**（`engine/skeleton/checkpoint.md` 与 `plugin/engine/skeleton/checkpoint.md` 字节一致）：
+
+```markdown
+# Checkpoint — [Task ID: T-NNN]
+> Last updated: [date] | AC 级压缩恢复锚点 | verify 脚本追加写,见 contract/src/20-file-templates.md FILE 15
+
+## 已完成 AC
+- [ ] AC-1 <待 verify>
+
+<!-- 维护规则:
+  - verify 脚本在每个 AC PASS 后追加写一行（不覆盖历史）
+  - agent 不写本文件（写 progress.md）
+  - 任务 done 时归档到 engine/archive/tasks/T-NNN-checkpoint.md
+  - SessionStart 优先注入本文件（覆盖 progress.md §4 与 HANDOFF 立即恢复点）
+-->
+```
+
+**维护规则**：
+- 骨架文件是模板,实例化由 verify 脚本自动完成（非手工拷贝）;
+- verify 脚本追加写,不覆盖历史行;
+- agent 不写 checkpoint.md（写 progress.md）;
+- 单行 ≤500 字符（与 CONTEXT.md 单行限制一致）;
+- 整文件预算 ≤4KB（约 100 行）,超限由 Doctor WARN 提示归档旧条目;
+- 仅 active/paused 卡的 checkpoint.md 进 SessionStart;done 卡归档后不进;
+- 改骨架文件必须同步 engine/ + plugin/engine/ 双份,manifest SHA256 重算;
+- checkpoint.md 不替代 progress.md:checkpoint 是 AC 级客观完成状态,progress 是任务级主观进行中状态。
 
 
 ---
@@ -2248,8 +2513,6 @@ After outputting this guide, INIT is complete.
 
 ---
 ---
-
-
 # ════════════════════════════════════════════
 # OPERATIONAL HALF （运维：plan 约定 + 三种运维模式）
 # 由 MODE DISPATCH 在已有 ENGINE_MAP 时进入。所有运维模式先读 ENGINE_MAP 取 profile。
@@ -2382,12 +2645,12 @@ Routine:
    迁移脚本负责写入/更新 `AGENTS.md`、`engine/SYSTEM.md`、`engine/ENGINE_DOCTOR.md` 中的 `ENGINE_SYSTEM_CONTRACT_MIGRATIONS` 托管区块；项目专属规则保留在区块外。
 5. **Apply contract migrations additively**：检查迁移脚本结果，并把当前 Engine System 机制迁移进已有引擎文件，NEVER 用模板全文覆盖项目记忆：
    - **v5.5 registration closure**：补 ENGINE_MAP 注册路由、§1/§1.1/§1.2/§2/§3/§4 事务闭环规则；脚本仍不登记为 authority。
-   - **v5.5.2 multi-lane workstreams**：在 SYSTEM/AGENTS 或等价规则文件中补充 `CONTEXT.md`、`SPRINT.md`、`ROADMAP.md`、`HANDOFF.md` 可按 lane ID / owner / dependency / merge point / next checkpoint 记录并行工作；已有单线内容保持原样。
-   - **v5.6 self-maintenance loop**：补增量回写、SessionStart/Stop/SessionEnd hook、git pre-commit 兜底、shared engine single-writer 合并规则。
+   - **v6.5 workstream shards**：创建 `engine/workstreams/`;并行 worker 用 `engine workstream T-NNN <agent-id>` 写独立 CONTEXT/HANDOFF,协调者汇总根记忆；已有单线内容保持原样。
+   - **v6.5 self-maintenance loop**：补全路径 WRITE-SET、UserPromptSubmit 短锚、PreToolUse 写前检查、session 归属 Stop、全路径 pre-commit 与 worker shared-memory block。
    - **v5.7 architect self-view**：补 `engine/changes/CHANGE-*.md` change capsule 规则，要求有意义改动说明 Goal、Actual Changes、Impact Scope、Risk、Verification、Rollback、Next Step、Responsibility Boundary；`/engine-status` 输出 Project Self-View。
    - **v5.7 acceptance evidence**：补 plan/spec `done` gate：每个 AC 必须有 spec Evidence、`engine/evidence/*` 或相关 change capsule 证据。
    - **Doctor parity**：确保 `ENGINE_DOCTOR.md` 记录语义热路径检查、change capsule 完整性、done plan 验收证据；脚本实现跟随契约。
-6. **Migrate anchors**：运行 `engine-sync-agent-anchors.{sh,ps1}`，并确保 managed block 提到 read-gate、增量回写、change capsule、多 lane 和 single-writer。用户手写规则先吸收进 engine authority，再恢复薄指针。
+6. **Migrate anchors**：运行 `engine-sync-agent-anchors.{sh,ps1}`，并确保 managed block 提到 read-gate、全路径写集、workstream 分片、协调者汇总和 change capsule。用户手写规则先吸收进 engine authority，再恢复薄指针。
 7. **Verify migration capsule**：确认迁移脚本创建了 `engine/changes/CHANGE-[date]-[nn].md`，其中说明迁移了哪些机制、保留了哪些项目记忆、触碰了哪些文件、Doctor 结果、回滚方式和架构师待决策项。
 8. **Update ENGINE_MAP freshness**：bump 全局 revision；更新 touched files 的 Last verified；§4 写短摘要和 migration capsule 指针，不写长证据。
 9. **Run Doctor + Reconcile**：运行 `/engine-doctor`；再执行 RECONCILE 核对文档 vs 现实。Doctor warning/failure 必须进入报告；需要架构师拍板的修正先确认再落盘。
@@ -2428,9 +2691,10 @@ Routine:
    - WEB-FULL：derivable 声明 vs 真实代码（如「SOURCEMAP 声称 src/foo.ts 存在，实际已删」），写入 §4 漂移警告。
 7. **核对锚点层 (§1.2)**：
    - 引导器（CLAUDE.md / AGENTS.md）：是否仍指向 ENGINE_MAP、CLAUDE.md 与正本 AGENTS.md 是否一致、TOP RULES 摘抄与 SYSTEM.md 是否漂移；超过 45 行必须拆环境适配到 `engine/agents/[ENV].md`。
-   - **吸收再指向**：引导器中出现的、引擎里没有的用户手写规则，MUST 提取吸收进对应引擎文件（SYSTEM / PITFALLS），再把引导器恢复为薄指针。
+   - **吸收再指向**：引导器中出现的、引擎里没有的用户手写规则，MUST 提取吸收进对应引擎文件（SYSTEM / PITFALLS），再把引导器恢复为薄指针。NEVER 不经吸收直接删除用户手写内容。TOP RULES 中无 `source:` 标注的条目视为疑似原创规则，必须逐一核对：若在引擎文件中找到对应原文，补标注；若未找到，先吸收进引擎文件，再标注出处。
    - 包级锚点：「关键文件」表 vs 真实包结构；覆盖率（达到触发条件的新包是否缺锚点，已删除的包是否留有孤儿锚点登记）。
 8. **核对文件预算**：按 PHASE 2 Initial File Budgets 检查；超限文件必须归档历史或拆分权威位置，不能继续堆叙述。
+8b. **核对 HANDOFF 历史归档**：HANDOFF.md「会话历史」表条目数 > 8 时,标记为 `handoff history overflow`,提示把最旧的整行迁移到 `engine/handoff-archive-YYYY-MM.md`。归档文件不进 §1 注册;裁剪只迁移整行,不删除内容。
 9. **核对 Engine Doctor Contract**：读取 `ENGINE_DOCTOR.md`，运行 `/engine-doctor` 或脚本；若脚本不存在，先建议 `/engine-sync`，并按 Doctor 契约手工打勾记录缺口；完整注册缺口必须标为 `partial registration`、`misregistered file`、`orphan reference` 或 `lifecycle transaction incomplete`。
 10. **更新 ENGINE_MAP §4**：全局 revision、上次 RECONCILE 日期、悬空引用、漂移警告、read-gate evidence missing、file budget warnings、evidence index 指针。§4 不写长会话叙述。
 11. 输出对账报告（中文）：一致项 / 漂移项 / read-gate 缺口 / partial registration / misregistered file / orphan reference / lifecycle transaction incomplete / stub contamination / 文件预算警告 / 悬空引用 / 锚点吸收与覆盖率结果 / 升为 done 的 plan / 需架构师决定的事项。架构师确认后落盘修正。

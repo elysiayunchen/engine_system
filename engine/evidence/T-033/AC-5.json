@@ -1,0 +1,1 @@
+{"ac":"AC-5","verify":"grep -q 'INVENTORY' engine/ENGINE_DOCTOR.md && grep -q '双向\\|bidirectional\\|Entry file.*存在\\|Entry file.*exist' engine/ENGINE_DOCTOR.md && grep -q 'FAIL' engine/ENGINE_DOCTOR.md","status":"pass","exit":0,"fingerprint":"sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855","timestamp":"2026-07-20T07:15:04Z"}

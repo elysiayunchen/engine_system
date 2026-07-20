@@ -85,6 +85,22 @@ foreach ($line in (Get-Content $taskFile -Encoding UTF8)) {
   $ts = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
   $json = '{"ac":"' + $acId + '","verify":"' + $verifyEscaped + '","status":"' + $status + '","exit":' + $rc + ',"fingerprint":"sha256:' + $fp + '","timestamp":"' + $ts + '"}'
   $json | Set-Content -Path (Join-Path $evidenceDir ($acId + ".json")) -Encoding UTF8
+
+  # v6.9.0 (D-028/T-034): on AC PASS, append a line to checkpoint.md so
+  # SessionStart can re-anchor from AC-level completion state (priority 1
+  # in the re-anchor chain, see contract/src/20-file-templates.md FILE 15).
+  # verify is the only writer of checkpoint.md; agents write progress.md.
+  if ($status -eq "pass") {
+    $checkpoint = Join-Path $evidenceDir "checkpoint.md"
+    if (-not (Test-Path $checkpoint)) {
+      $header = "# Checkpoint - $Task`r`n> Last updated: $ts by engine-verify | AC 级压缩恢复锚点,见 contract/src/20-file-templates.md FILE 15`r`n`r`n## 已完成 AC`r`n"
+      Set-Content -Path $checkpoint -Value $header -Encoding UTF8
+    }
+    $summary = ($verifyCmd -replace '\s+', ' ').Trim()
+    if ($summary.Length -gt 80) { $summary = $summary.Substring(0, 80) }
+    $line = "- [x] $acId $summary — evidence/$acId.json PASS @ $ts"
+    Add-Content -Path $checkpoint -Value $line -Encoding UTF8
+  }
 }
 
 Write-Output ""

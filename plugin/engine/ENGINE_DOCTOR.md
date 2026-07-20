@@ -92,6 +92,18 @@ silently treat the script as legacy.
     FAIL. Optional normalization (trim + lowercase) on the Feature column catches "same
     function different name" cases. Migration grace period same as #25:
     `contract-version < 6.8.0` WARN, `>= 6.8.0` FAIL.
+27. Task granularity soft gate + depends-on + WRITE-SET budget (v6.9.0+, D-028/T-034):
+    `check_task_granularity` enforces 4 thresholds on `active` cards — AC count > 12,
+    WRITE-SET distinct paths > 15 (mirror pairs de-duped), `estimated_steps` > 20, and
+    WRITE-SET total bytes > 30KB (mechanism A, `check_writeset_budget` sums `wc -c` of
+    all listed files). Any threshold hit and no `checkpoint_plan` field declared = FAIL;
+    declaring `checkpoint_plan` (non-empty, including `tryout` legal bypass value per
+    D-028 §9) downgrades FAIL→WARN. `check_depends_on` blocks an `active` card when any
+    task in its `depends-on: T-NNN, T-NNN` field is not `done` = FAIL (cross-domain split
+    coordination). Migration grace period: `contract-version < 6.9.0` WARN, `>= 6.9.0`
+    FAIL (D-028 §9). AC-level `checkpoint.md` (FILE 15) is written by `engine-verify` on
+    every AC PASS and prioritized by SessionStart injection (priority chain #1, covers
+    progress.md §4 and HANDOFF immediate-resume pointer).
 
 ## Script Contract
 Preferred commands:

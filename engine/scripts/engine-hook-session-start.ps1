@@ -129,6 +129,27 @@ if ($activeTask) {
   Write-Output ""
 }
 
+# v6.9.0 (D-028/T-034): AC-level checkpoint.md priority injection - when active/paused
+# card exists, read engine/evidence/T-NNN/checkpoint.md and inject full text. Priority
+# chain #1 (covers progress.md section 4 and HANDOFF immediate-resume pointer).
+# verify script writes checkpoint; agents write progress.md.
+if (Test-Path $tasksDir) {
+  $cpTaskFiles = Get-ChildItem -Path $tasksDir -File -Filter "T-*.md" -ErrorAction SilentlyContinue | Sort-Object Name
+  foreach ($cf in $cpTaskFiles) {
+    if ($cf.Name -match '\.spec\.md$') { continue }
+    $cc = Get-Content -Raw -Path $cf.FullName -Encoding UTF8 -ErrorAction SilentlyContinue
+    if ($cc -match 'status:\s*(active|paused)') {
+      $cpId = $cf.BaseName
+      $cpFile = Join-Path $engineDir ("evidence\" + $cpId + "\checkpoint.md")
+      if (Test-Path $cpFile) {
+        Write-Output "---- AC Checkpoint ($cpId/checkpoint.md) ----"
+        Get-Content $cpFile | ForEach-Object { Write-Output $_ }
+        Write-Output ""
+      }
+    }
+  }
+}
+
 # v6.7.0 (D-028/T-032): task progress.md injection - read engine/tasks/T-NNN/progress.md
 # when active/paused card exists; multiple cards injected in ascending ID order.
 # Covers HANDOFF immediate-resume pointer with progress.md section 4 (fine-grained).

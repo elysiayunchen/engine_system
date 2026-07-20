@@ -108,6 +108,23 @@ else
   echo ""
 fi
 
+# v6.9.0 (D-028/T-034): AC 级 checkpoint.md 优先注入——active/paused 卡存在时,
+# 读取 engine/evidence/T-NNN/checkpoint.md 全文注入,优先级链 #1(覆盖 progress.md §4
+# 与 HANDOFF 立即恢复点)。verify 脚本写 checkpoint,agent 写 progress.md。
+for f in "$ENGINE_DIR"/tasks/T-*.md; do
+  [ -f "$f" ] || continue
+  [[ "$f" == *.spec.md ]] && continue
+  if grep -q 'status:.*\(active\|paused\)' "$f" 2>/dev/null; then
+    cp_id="$(basename "$f" .md)"
+    cp="$ENGINE_DIR/evidence/$cp_id/checkpoint.md"
+    if [ -f "$cp" ]; then
+      echo "──── ✅ AC Checkpoint ($cp_id/checkpoint.md) ────"
+      cat "$cp" 2>/dev/null || log_error "failed to read checkpoint: $cp"
+      echo ""
+    fi
+  fi
+done
+
 # v6.7.0 (D-028/T-032): 任务级 progress.md 注入——active/paused 卡存在时,
 # 读取 engine/tasks/T-NNN/progress.md 全文注入,覆盖 HANDOFF「立即恢复点」§4 段。
 # 多张 active/paused 卡按 ID 升序全部注入(实践应 ≤2 张,超出 Doctor WARN)。

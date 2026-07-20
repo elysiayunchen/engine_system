@@ -1,0 +1,1 @@
+{"ac":"AC-1","verify":"grep -q 'INVENTORY.md' contract/src/20-file-templates.md && grep -q 'Entry file' contract/src/20-file-templates.md && grep -q '120 行\\|120 lines' contract/src/20-file-templates.md","status":"pass","exit":0,"fingerprint":"sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855","timestamp":"2026-07-20T07:15:04Z"}

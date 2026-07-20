@@ -1,0 +1,1 @@
+{"ac":"AC-8","verify":"bash scripts/check.sh && diff -q engine/scripts/engine-verify.sh plugin/engine/scripts/engine-verify.sh && diff -q engine/scripts/engine-doctor.sh plugin/engine/scripts/engine-doctor.sh","status":"pass","exit":0,"fingerprint":"sha256:7d2efd6ecacc1efd6403eca520a166d722ac00761ae52546123c91525b333702","timestamp":"2026-07-20T10:20:29Z"}

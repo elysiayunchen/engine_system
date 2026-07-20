@@ -108,6 +108,61 @@ else
   echo ""
 fi
 
+# v6.11.0 (D-029/T-036): 多会话 lock 检测 + 协调者/worker 角色分配。
+# Claude Code 已通过 stdin JSON payload 传入 session_id(Stop hook 已在用,见 line 191-197)。
+# 本会话用 atomic 独占创建 engine/.cache/session.lock:成功 → 协调者(写共享三件套);
+# 失败(lock 已存在且 pid 存活)→ 降级 worker(写 engine/workstreams/<task>/<sid>/ 分片)。
+# kill switch: ENGINE_DISABLE_MULTI_SESSION=1 或 .cache/multi-session.disabled 文件存在时跳过检测。
+ms_disabled="${ENGINE_DISABLE_MULTI_SESSION:-}"
+[ -f "$ENGINE_DIR/.cache/multi-session.disabled" ] && ms_disabled=1
+if [ -z "$ms_disabled" ]; then
+  LOCK="$ENGINE_DIR/.cache/session.lock"
+  mkdir -p "$ENGINE_DIR/.cache/sessions" 2>/dev/null || true
+  # 从 stdin JSON payload 读取 session_id(Claude Code 已传入)
+  ms_payload=""
+  if [ ! -t 0 ]; then ms_payload="$(cat 2>/dev/null || true)"; fi
+  ms_sid="$(printf '%s' "$ms_payload" | grep -oE '"session_id"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | sed 's/.*"session_id"[[:space:]]*:[[:space:]]*"//;s/"//')"
+  [ -n "$ms_sid" ] || ms_sid="anon-$$"
+  ms_pid="$$"
+  ms_started="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date 2>/dev/null || echo unknown)"
+  ms_task=""
+  [ -n "$active_task" ] && ms_task="$(basename "$active_task" .md)"
+
+  # atomic 独占创建+写入 lock (POSIX noclobber,无 TOCTOU;创建+写入在子 shell 内一次完成,避免空文件窗口)
+  # P3 修复:原版 `( set -C; : > "$LOCK" )` 创建空文件后,`printf > "$LOCK"` 写入是两步分离,
+  # 中间窗口可能被另一进程检测到 LOCK 存在但空文件 → cut -d'|' -f1 返回空 → kill -0 "" 失败 →
+  # 误判"lock holder 已退出" → 接管 → 两个协调者。新版用 printf > "$LOCK" 在 noclobber 子 shell 内
+  # 一次性创建+写入,无空文件窗口。
+  if ( set -C; printf '%s|%s|%s|%s|%s\n' "$ms_pid" "$ms_sid" "coordinator" "$ms_started" "$ms_task" > "$LOCK" ) 2>/dev/null; then
+    echo "──── 👑 Coordinator (multi-session lock acquired) ────"
+    echo "本会话为协调者:可写共享三件套(CONTEXT/HANDOFF/ENGINE_MAP)。其他会话将降级 worker。"
+  else
+    # lock 已存在 → 检查 pid 存活(双信号第 1 步;第 2 步 StartTime 比对由 ps 调用,跨平台固有边界)
+    existing="$(cat "$LOCK" 2>/dev/null || true)"
+    lock_pid="$(printf '%s' "$existing" | cut -d'|' -f1)"
+    lock_alive=0
+    [ -n "$lock_pid" ] && kill -0 "$lock_pid" 2>/dev/null && lock_alive=1
+    if [ "$lock_alive" -eq 1 ]; then
+      # 降级 worker:写 .cache/sessions/<key>.role=worker 标志(PreToolUse 双信号第 2 信号)
+      # key 用 <sid>-main 与 Stop hook 的 session_key 计算一致(顶层会话 agent_id 视为 main);
+      # 算法与 Stop hook safe_id 完全相同(tr -c 'A-Za-z0-9._-' '_' 保留 . _ - 字符),
+      # 避免 session_id 含 . 时 worker_key 与 session_key 不匹配导致双信号失效(P2 修复)。
+      worker_key="$(printf '%s-%s' "$ms_sid" "main" | tr -c 'A-Za-z0-9._-' '_' | cut -c1-64)"
+      [ -n "$worker_key" ] || worker_key="anon-main"
+      : > "$ENGINE_DIR/.cache/sessions/${worker_key}.role=worker" 2>/dev/null || true
+      echo "──── 🔧 Worker (multi-session lock held by pid=$lock_pid) ────"
+      echo "本会话降级为 worker:只能写 engine/workstreams/<task>/<sid>/ 分片。跑 'engine workstream T-NNN <sid> --kind=session' 启动。"
+    else
+      # lock holder 已退出 → 接管协调者(覆盖 lock + 写 tombstone 通知其他会话)
+      printf '%s|%s|%s|%s|%s\n' "$ms_pid" "$ms_sid" "coordinator" "$ms_started" "$ms_task" > "$LOCK" 2>/dev/null || true
+      printf '%s|%s|%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date)" "$lock_pid" "stale-recovered" > "$ENGINE_DIR/.cache/session.tombstone" 2>/dev/null || true
+      echo "──── 👑 Coordinator (recovered from stale lock pid=$lock_pid) ────"
+      echo "本会话接管协调者(原 lock holder pid=$lock_pid 已退出)。"
+    fi
+  fi
+  echo ""
+fi
+
 # v6.9.0 (D-028/T-034): AC 级 checkpoint.md 优先注入——active/paused 卡存在时,
 # 读取 engine/evidence/T-NNN/checkpoint.md 全文注入,优先级链 #1(覆盖 progress.md §4
 # 与 HANDOFF 立即恢复点)。verify 脚本写 checkpoint,agent 写 progress.md。

@@ -2824,6 +2824,83 @@ verify MUST 实现反向调用点扫描:对 WRITE-SET 删改的标识符(函数�
 - 不硬失败所有 WARN(只让 warn_count > 0 时 done 须豁免)
 
 
+## MULTI-SESSION ISOLATION (v6.11.0+, D-029/T-036)
+
+设计宗旨:把「多 Claude Code 实例并行抢写引擎记忆三件套(CONTEXT.md / HANDOFF.md / ENGINE_MAP.md)」做成机制——SessionStart hook 复用 Claude Code payload 已传入的 `session_id`,用 atomic 独占 lock file(`engine/.cache/session.lock`)分配协调者/worker 角色,第一个会话获协调者(写共享三件套),后续会话降级 worker(写 `engine/workstreams/<task>/<session-id>/` 隔离分片);PreToolUse 拦截扩展为双信号(`agent_id` 非空 **或** `.cache/sessions/<key>.role=worker`)。不撤销 v6.5 workstream 机制(同会话 subagent 隔离仍有效);不强制每会话用 git worktree(作为可选工作流);不引入跨进程分布式锁服务(违反 CLI-LEAN);不让协调者批量代理所有 worker 提交(避免单点阻塞);不引入自动 merge worker 分片(merge 仍是显式步骤,由 `engine merge-workstream <session-id>` 触发)。
+
+### Atomic 独占 lock(无 TOCTOU)
+
+| 平台 | atomic 操作 | 实现 |
+|------|------------|------|
+| POSIX (Linux/macOS) | `noclobber` 重定向(`set -C` 选项) | `( set -C; > "$LOCK" ) 2>/dev/null` |
+| Windows PowerShell | `FileStream` with `FileShare.None` | `New-Object System.IO.FileStream($lock, 'Create', 'None')` |
+
+lock file 路径 `engine/.cache/session.lock`,已被 .gitignore 第 2 行 `engine/.cache/` 覆盖,天然不进 git。格式单行 pipe-separated:`<pid>|<session_id>|<role>|<started_at_iso>|<task_id>`(与 .cache/sessions/ 风格一致)。`role` 字段值为 `coordinator` 或 `worker`。第一个会话用 atomic 操作独占创建 lock 获得「协调者」角色(写权限),可写共享三件套。
+
+### 协调者/worker 角色分配
+
+- **协调者(coordinator)**:第一个获得 lock 的会话,可写共享三件套(CONTEXT.md / HANDOFF.md / ENGINE_MAP.md)
+- **worker**:后续会话 SessionStart 检测到 lock 已存在且 pid 存活,自动降级为 worker 模式,跑 `engine workstream T-NNN <session-id> --kind=session` 写 `engine/workstreams/<task>/<session-id>/` 隔离分片
+
+SessionStart hook MUST 复用 Claude Code payload 中的 `session_id`(Stop hook 已在用,见 `engine-hook-stop.sh:191-197`),NEVER 重新生成。非 Claude Code 适配器 fallback 到 UUID v4(PS 5.1 `[guid]::NewGuid().ToString()`,Bash `uuidgen` 或 `/proc/sys/kernel/random/uuid`)。命名空间隔离:目录隔离(`engine/workstreams/<task>/sessions/<id>/` vs `engine/workstreams/<task>/agents/<id>/`)+ `s-`/`a-` 前缀约定(双轨制机器识别 + 视觉识别)。
+
+### pid + StartTime 双信号比对(防 pid 复用)
+
+pid 单信号在 Windows 不可靠(pid 复用风险)。SessionStart MUST 用 pid + StartTime 双信号比对确认 lock holder 存活:
+- **POSIX**:`kill -0 <pid>` 检查 pid 存活 + `/proc/<pid>/stat` 第 22 字段 starttime 比对
+- **Windows PowerShell**:`Get-Process -Id <pid>` 检查 pid 存活 + `.StartTime` 比对(精度到秒,容差 2 秒)
+
+lock holder 已退出(pid 死)→ 当前会话可接管协调者,覆盖 lock + 写 tombstone `engine/.cache/session.tombstone`(含被接管 session_id + 时间戳)通知其他会话。lock holder 仍存活 → 当前会话降级 worker。
+
+### PreToolUse 双信号拦截(扩展 v6.5 单信号)
+
+v6.5 PreToolUse 拦截依赖 `agent_id` 单信号(`[ -n "$agent_id" ]`),对同会话派生 subagent 有效,对**独立顶层会话失效**(顶层会话的 agent_id 为空)。PreToolUse MUST 扩展为双信号:
+
+```
+[ -n "$agent_id" ] || [ -n "$ENGINE_SESSION_ROLE" -a "$ENGINE_SESSION_ROLE" = "worker" ]
+```
+
+`agent_id` 非空(subagent,走 v6.5 路径)**或** `.cache/sessions/<session_key>.role=worker` 文件存在(顶层会话降级为 worker)。命中任一信号即拦截 worker 写共享三件套,引导写 `engine/workstreams/<task>/<session-id>/` 分片。这是双信号扩展(扩展触发点 + 新增角色判定),非配置开关,不撤销 v6.5 协议。
+
+### fail-open vs fail-closed 边界
+
+| 项目契约版本 | SessionStart 检测到 lock 时的行为 |
+|-------------|----------------------------------|
+| `< 6.11.0`(老项目) | WARN 不强制 worker 模式(fail-open,与 D-028 §9 迁移宽限期一致) |
+| `≥ 6.11.0`(新项目) | 强制 worker 模式(fail-closed) |
+
+SessionStart hook 异常失败时,fail-open 走单会话路径(等同现状),Doctor 输出 WARN("SessionStart hook 异常,多会话隔离失效")。
+
+### D-028 三文件 worker 写入边界(progress.md / INVENTORY.md / checkpoint.md)
+
+D-025 v6.5 workstream 落地时 D-028 三文件还不存在,worker 写入边界清单未覆盖。本契约明确:
+
+| 文件 | worker 模式写入位置 | 协调者 merge 时 |
+|------|---------------------|-----------------|
+| `engine/domains/<domain>/progress.md`(T-032) | `engine/workstreams/<task>/<session-id>/progress.md`(分片副本,7 栏结构同共享版本) | 读所有 worker 分片,§3/§5/§6/§7 按时间序追加合并;§1/§2/§4 由协调者重写 |
+| `engine/domains/<domain>/INVENTORY.md`(T-033) | **不写**(worker 在分片 HANDOFF.md 的「Merge Notes」段记录「涉及哪些 INVENTORY entry / Feature 名 / Entry file 路径」) | 协调者读 worker 分片 Merge Notes,按 entry 合并到 `engine/domains/<domain>/INVENTORY.md`;merge 后跑一次 Doctor |
+| `engine/domains/<domain>/checkpoint.md`(T-034) | `engine/workstreams/<task>/<session-id>/checkpoint.md`(分片副本,AC 状态表) | 读所有 worker 分片,按 AC-id 合并状态;冲突 AC(同 AC 不同状态)由协调者人审 |
+
+### kill switch(逃生通道)
+
+环境变量 `ENGINE_DISABLE_MULTI_SESSION=1` 或 `engine disable-multi-session` 命令切换全局 disable 标志文件 `engine/.cache/multi-session.disabled`。SessionStart hook 检测到 disable 标志时跳过 lock 检测,所有会话降级为单会话模式(等同现状,fail-open)。这是 v6.11.0 上线后若 lock 机制有 bug 阻塞所有并行开发时的逃生通道,与 fail-open 边界一致。
+
+### 范围诚实(固有边界,无法 100% 解决)
+
+- Windows pid 复用 + 任务管理器 kill 后 100% 自动恢复做不到,需 `engine assume-coordinator --force` 兜底
+- Web 端 AI 无 hook 无 git,主线方案不适用,只能走 AGENTS.md 纯协议层
+- B 档 CLI(Codex/Cursor/Aider)无 SessionStart hook,只能 pre-commit 兜底
+- 协调者僵死检测:pid+StartTime 比对覆盖 95%+ 场景,极端情况(同秒 pid 复用 + starttime 精度不足)需 `--force` 强制接管
+
+### 显式不做
+
+- 不撤销 v6.5 workstream 机制(只扩展触发点 + 新增角色判定机制)
+- 不强制每会话用 git worktree(作为可选工作流保留)
+- 不引入跨进程分布式锁服务(redis / etcd / 文件服务器,违反 CLI-LEAN)
+- 不让协调者批量代理所有 worker 提交(避免单点阻塞)
+- 不引入自动 merge worker 分片(merge 仍是显式步骤,由 `engine merge-workstream <session-id>` 触发,语义冲突风险过高)
+
+
 # ════════════════════════════════════════════
 # END OF ENGINE FILE SYSTEM
 # (版本号只在文件头部声明一处,尾部横幅不再重复——重复即漂移之源)

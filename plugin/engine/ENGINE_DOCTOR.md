@@ -74,6 +74,24 @@ silently treat the script as legacy.
     progress.md archived to `engine/archive/tasks/T-NNN-progress.md` and the live copy
     removed (mirrors D-027 HANDOFF archive). Projects stamped `contract-version < 6.7.0`
     get WARN (migration grace period, see D-028 §9); `>= 6.7.0` get FAIL.
+25. Domain INVENTORY.md (v6.8.0+, D-028/T-033): bidirectional FAIL check enforced by
+    `check_inventory_bidirectional` — (a) INVENTORY→code: every Entry file path in any
+    `engine/domains/<domain>/INVENTORY.md` row must exist (`test -f`); (b) code→INVENTORY:
+    every file path touched by a `done` task card (per its WRITE-SET and change capsule
+    file list) must be represented in its domain's INVENTORY (the Entry file column must
+    mention the path, or the domain must have at least one row for the feature area).
+    Projects stamped `contract-version < 6.8.0` get WARN (migration grace period, see
+    D-028 §9); `>= 6.8.0` get FAIL. INVENTORY total view ≤120 lines; sub-files
+    `engine/domains/<domain>/INVENTORY/<feature>.md` ≤200 lines each. INVENTORY does not
+    enter SessionStart full injection — only the first-line summary enters the domain
+    dashboard.
+26. INVENTORY API uniqueness (v6.8.0+, D-028 §10 mechanism C):
+    `check_inventory_api_uniqueness` scans the Public API column across all
+    `engine/domains/*/INVENTORY.md` and `engine/domains/*/INVENTORY/*.md` files; the same
+    API contract name must not appear more than once across the whole repo, duplicates =
+    FAIL. Optional normalization (trim + lowercase) on the Feature column catches "same
+    function different name" cases. Migration grace period same as #25:
+    `contract-version < 6.8.0` WARN, `>= 6.8.0` FAIL.
 
 ## Script Contract
 Preferred commands:

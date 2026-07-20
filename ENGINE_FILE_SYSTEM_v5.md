@@ -2201,6 +2201,114 @@ All new rules → engine/SYSTEM.md; this file only excerpts with `source:` tags.
 ---
 
 
+### FILE 14 — engine/domains/`<domain>`/INVENTORY.md + INVENTORY/`<feature>`.md（域级功能索引骨架）
+
+> Class: skeleton + 域产物。骨架文件 `engine/skeleton/domains/INVENTORY.md`（源仓）+ `plugin/engine/skeleton/domains/INVENTORY.md`（plugin 镜像）,随 install 分发。每域实例化为 `engine/domains/<domain>/INVENTORY.md`（总览,≤120 行）+ `engine/domains/<domain>/INVENTORY/<feature>.md`（子文件,可选）。
+
+**设计宗旨（v6.8.0 / D-028 LPHP）**：短上下文 agent 接管大型项目时,靠现读代码理解项目结构成本高、易遗漏已有功能 → 重复造轮子 / 死代码。INVENTORY 把"功能 → 入口文件 → Public API 契约名"做成机器可校验的反向索引——**语义层人写（agent 在 done 时维护）,符号层机器现生（ast-grep / ctags）**,不依赖 agent 自觉。它与 federation.json 域路由对称延伸:federation.json 管"路径属于哪个域",INVENTORY 管"域里有哪些功能 + 入口在哪"。
+
+**与现成工具的边界（关键,违反 = 设计缺陷）**：
+
+| 内容 | 写在哪 | 谁生成 | 为什么 |
+|------|--------|--------|--------|
+| Feature 名（语义层） | INVENTORY 总览 | 人写（agent 在 done 时） | 语义判断,机器无法推断 |
+| Entry file 路径 | INVENTORY 总览 | 人写 | 语义判断,机器无法推断 |
+| Public API 契约名 | INVENTORY 总览 | 人写 | API 契约是设计意图,非字面 |
+| API 完整签名 | INVENTORY 子文件 | 人写 + ast-grep 校验 | 人写语义,机器校验字面 |
+| 符号定位（谁定义在哪） | 不写,现生 | ast-grep / ctags | 字面层,机器能做 |
+| 调用链 | 不写,现生 | ast-grep / grep | 字面层,机器能做 |
+| 数据流 | 不写,现生 | grep + agent 临时分析 | 字面层,机器能做 |
+
+> **违反边界的反模式**:把 API 完整签名抄进 INVENTORY 总览(超过 120 行)、把调用链写死(下次重构即过期)、把符号定位写死(改文件名即过期)。**INVENTORY 总览只写「语义层 + 入口路径 + API 契约名」,其他全部现生**。
+
+
+**5 列模板（总览 `engine/domains/<domain>/INVENTORY.md`,≤120 行）**：
+
+| Feature | Entry file | Public API | Status | Last verified |
+|---------|-----------|------------|--------|---------------|
+| 任务卡解析 | engine/tasks/README.md | parse_task_card(id) | stable | 2026-07-19 |
+| 契约编译 | contract/compile.sh | compile_src() | stable | 2026-07-19 |
+
+> 列宽建议:Feature ≤30 字符,Entry file 路径绝对/相对仓库根,Public API 用契约名(不展开签名),Status ∈ {stable / experimental / deprecated / wip},Last verified YYYY-MM-DD。
+
+
+**分级规则**：
+
+| 层级 | 路径 | 行数限制 | 内容 |
+|------|------|---------|------|
+| 总览 | `engine/domains/<domain>/INVENTORY.md` | ≤120 行 | 5 列表格,每行一个 Feature |
+| 子文件 | `engine/domains/<domain>/INVENTORY/<feature>.md` | 单文件 ≤200 行 | API 签名 + 调用关系摘要 + 配置项 + 已知边界 case |
+
+> **不进 SessionStart 全文注入**,只首行摘要（INVENTORY.md 第 1 行表头）进域仪表盘（避免域仪表盘膨胀）。子文件按需 Read,不主动注入。
+
+
+**双向 FAIL 检查（Doctor `check_inventory_bidirectional`）**：
+
+| 方向 | 检查内容 | 失败 = |
+|------|---------|--------|
+| code→INVENTORY | 已 done 任务涉及的文件路径必须在某条 INVENTORY 行的 Entry file 中出现（或其所在域的 INVENTORY 至少有一条对应行） | FAIL |
+| INVENTORY→code | 每行 Entry file 路径必须存在（`test -f`） | FAIL |
+
+> **迁移宽限期（D-028 §9）**:contract-version < 6.8.0 时双向 FAIL 降级为 WARN;≥ 6.8.0 时 FAIL。函数读 `ENGINE_DOCTOR.md` 首行 `<!-- contract-version: X -->` 标记判定（与 `check_legacy_data_format()` / `check_progress_md` 范式对齐）。
+
+
+**机制 C — API 唯一性检查（Doctor `check_inventory_api_uniqueness`,D-028 §10 机制 C）**：
+
+- 扫描所有域 INVENTORY.md + 子文件（`engine/domains/*/INVENTORY.md` + `engine/domains/*/INVENTORY/*.md`）的「Public API」列;
+- **全仓唯一**,重复 = FAIL;
+- 可选进阶:对 Feature 列做归一化（去空格、小写）后查重,捕获「同功能不同名」的明显情况;
+- **迁移宽限期同 §9**:contract-version < 6.8.0 时 WARN;≥ 6.8.0 时 FAIL。
+- 与「不覆盖语义级软死代码」的兼容性:对原声明的**精确化**——原声明隐含「INVENTORY 兜底 = 人审」,本机制把「API 名重复」子集升级为机器检查,人审范围收窄到「同功能不同名」的语义判断。
+
+
+**维护时机（behaviors 强制）**：
+
+| 时机 | 动作 | 强制力 |
+|------|------|--------|
+| 任务卡 `status: done` 时 | MUST 更新涉及域 INVENTORY（task-run.md 行为规则强制） | Doctor 双向 FAIL 检查兜底 |
+| verify-writeback 步骤 | 含 INVENTORY 同步检查 | WARN（提示补建） |
+| AC 通过时 | 不强制更新 | 避免噪音 |
+| 日常读代码时 | 不更新 | INVENTORY 不是笔记,是契约 |
+
+
+**migrator stub 创建（D-028 §9）**：
+- migrator 在升级时为每个已存在的域（`engine/domains/<domain>/`）写入空表头 stub 到 `engine/domains/<domain>/INVENTORY.md`（create-if-missing,已有则不动）;
+- 由 `engine-migrate-contract.{sh,ps1}` 落实,与 contract-version 头同款 `upsert_block` 机制;
+- stub 内容:5 列表头 + 一行示例 + 一行「迁移自 v6.7.x,功能索引待补」注释。
+
+
+**骨架文件内容**（`engine/skeleton/domains/INVENTORY.md` 与 `plugin/engine/skeleton/domains/INVENTORY.md` 字节一致）：
+
+```markdown
+# INVENTORY — [Domain Name]
+> Last updated: [date] | 域级功能索引 | 5 列 ≤120 行,见 contract/src/20-file-templates.md FILE 14
+
+| Feature | Entry file | Public API | Status | Last verified |
+|---------|-----------|------------|--------|---------------|
+| [功能名] | [path/to/entry] | [api_contract_name] | [stable/experimental/deprecated/wip] | [YYYY-MM-DD] |
+
+<!--
+  维护规则:
+  - 任务卡 done 时 MUST 更新涉及行（task-run.md 行为规则）
+  - Entry file 路径必须存在（Doctor INVENTORY→code FAIL 检查）
+  - Public API 全仓唯一（Doctor API 唯一性 FAIL 检查）
+  - 总览 ≤120 行,超出拆到 INVENTORY/<feature>.md 子文件
+  - 不写 API 完整签名 / 调用链 / 符号定位（交给 ast-grep 现生）
+-->
+```
+
+**维护规则**：
+- 骨架文件是模板,实例化时 `[Domain Name]`/`[date]` 必须替换,空表保留表头不删;
+- 总览 ≤120 行（含表头 + 空行）,超出拆到子文件;
+- 单行 ≤500 字符（与 CONTEXT.md 单行限制一致）;
+- 子文件单文件 ≤200 行,超限拆分（按 Feature 拆）;
+- 改骨架文件必须同步 engine/ + plugin/engine/ 双份,manifest SHA256 重算;
+- INVENTORY.md 不进 SessionStart 全文注入（只首行摘要进域仪表盘,见 `engine-hook-session-start.{sh,ps1}`）。
+
+
+---
+
+
 ## PHASE 3 — COMPLETION
 
 

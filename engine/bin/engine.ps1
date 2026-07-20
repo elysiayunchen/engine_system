@@ -30,6 +30,8 @@ Usage:
   engine migrate        Run contract migration on existing engine files
   engine verify T-NNN   Run behavior verification for a task card
   engine doctor         Run engine health check
+  engine load           Install the engine CLI shim into user PATH (%USERPROFILE%\.engine\bin)
+  engine unload         Remove the engine CLI shim from user PATH
   engine help           Show this help
 
 `engine init` is the agent-agnostic entry to initialize the engine layer: it
@@ -48,6 +50,14 @@ skip the migration step.
 `engine migrate` applies migration steps under engine/migrations/ newer than
 the local engine/VERSION in version order, writing the version back after each
 step; when nothing is pending it falls back to the idempotent contract migrator.
+
+`engine load` copies the current project's engine\bin\engine{.ps1,.cmd} into
+%USERPROFILE%\.engine\bin (the user-level PATH dir used by install.ps1). Use it
+after switching branches, recovering from a clobbered shim, or re-linking to a
+local checkout. It does not run migrate or doctor.
+
+`engine unload` removes the engine.* shims from %USERPROFILE%\.engine\bin.
+Project files under engine\ are untouched. Re-run `engine load` to restore.
 "@ | Write-Host
 }
 
@@ -111,6 +121,59 @@ function Run-Doctor {
     Write-Host "[engine] running doctor..."
     & $doctor
     if ($LASTEXITCODE -ne 0) { Write-Host "[engine] doctor reported issues (see above)" }
+  }
+}
+
+# Install-CliShim: 把当前项目的 engine\bin\engine{.ps1,.cmd} 复制到用户级 PATH
+# 目录(%USERPROFILE%\.engine\bin)。与 install.ps1 的 CLI 铺设逻辑保持一致,
+# 但只做 shim 装载,不拉远程、不跑 migrate/doctor。
+function Install-CliShim {
+  param([string]$Root)
+  $srcDir = Join-Path $Root "engine\bin"
+  $destDir = Join-Path $env:USERPROFILE ".engine\bin"
+  if (-not (Test-Path (Join-Path $srcDir "engine.ps1"))) {
+    Write-Error "Error: $srcDir\engine.ps1 not found. Run the installer first."
+    exit 2
+  }
+  New-Item -ItemType Directory -Force -Path $destDir | Out-Null
+  $installed = 0
+  foreach ($f in @("engine.ps1", "engine.cmd")) {
+    $src = Join-Path $srcDir $f
+    if (Test-Path $src) {
+      Copy-Item $src (Join-Path $destDir $f) -Force
+      Write-Host "  installed  $destDir\$f"
+      $installed++
+    }
+  }
+  Write-Host ""
+  Write-Host "Engine CLI shim installed to: $destDir"
+  $pathParts = ($env:PATH -split ";") | Where-Object { $_ }
+  if ($pathParts -notcontains $destDir) {
+    Write-Host "Note: $destDir is not in PATH. Add it to run 'engine' globally."
+  }
+}
+
+# Uninstall-CliShim: 从 %USERPROFILE%\.engine\bin 移除 engine.* shim。不动项目文件。
+function Uninstall-CliShim {
+  $destDir = Join-Path $env:USERPROFILE ".engine\bin"
+  if (-not (Test-Path $destDir)) {
+    Write-Host "Engine CLI shim not present at $destDir (nothing to unload)."
+    return
+  }
+  $removed = 0
+  foreach ($f in @("engine.ps1", "engine.cmd")) {
+    $p = Join-Path $destDir $f
+    if (Test-Path $p) {
+      Remove-Item $p -Force
+      Write-Host "  removed    $p"
+      $removed++
+    }
+  }
+  if ($removed -eq 0) {
+    Write-Host "Engine CLI shim not present at $destDir (nothing to unload)."
+  } else {
+    Write-Host ""
+    Write-Host "Engine CLI shim unloaded from: $destDir"
   }
 }
 
@@ -299,6 +362,16 @@ switch ($Command) {
       exit 2
     }
     Run-Doctor -Root $PWD.Path
+  }
+  "load" {
+    if (-not (Test-Path "engine")) {
+      Write-Error "Error: engine/ not found in $PWD. Run 'engine init' or the installer first."
+      exit 2
+    }
+    Install-CliShim -Root $PWD.Path
+  }
+  "unload" {
+    Uninstall-CliShim
   }
   { $_ -in @("help", "-h", "--help") } {
     Show-Help

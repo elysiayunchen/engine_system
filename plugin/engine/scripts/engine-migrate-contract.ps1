@@ -348,6 +348,8 @@ Doctor MUST validate the current Engine System v6 contract in addition to regist
 10. Generated self-view snapshots, when used, live under ``engine/.cache/`` and are never registered as authority.
 11. HANDOFF.md session history table keeps <= 8 rows; older rows move to ``engine/handoff-archive-YYYY-MM.md`` (search-only, not registered in ENGINE_MAP section 1, not loaded by SessionStart). Verified items in CONTEXT.md "to-verify" sections are removed.
 12. Task-level progress.md (v6.7.0+): active/paused task cards MUST have a corresponding ``engine/tasks/T-NNN/progress.md`` (7-section recovery anchor, see ``contract/src/20-file-templates.md`` FILE 13); done task cards MUST have their progress.md archived to ``engine/archive/tasks/T-NNN-progress.md`` and the live copy removed (mirrors D-027 HANDOFF archive). Projects stamped ``contract-version < 6.7.0`` get WARN (migration grace period, see D-028 section 9); ``>= 6.7.0`` get FAIL.
+13. Domain INVENTORY.md (v6.8.0+, D-028/T-033): bidirectional FAIL check enforced by ``check_inventory_bidirectional`` — (a) INVENTORY→code: every Entry file path in any ``engine/domains/<domain>/INVENTORY.md`` row must exist (``test -f``); (b) code→INVENTORY: every file path touched by a ``done`` task card (per its WRITE-SET and change capsule file list) must be represented in its domain's INVENTORY (the Entry file column must mention the path, or the domain must have at least one row for the feature area). Projects stamped ``contract-version < 6.8.0`` get WARN (migration grace period, see D-028 §9); ``>= 6.8.0`` get FAIL. INVENTORY total view ≤120 lines; sub-files ``engine/domains/<domain>/INVENTORY/<feature>.md`` ≤200 lines each. INVENTORY does not enter SessionStart full injection — only the first-line summary enters the domain dashboard.
+14. INVENTORY API uniqueness (v6.8.0+, D-028 §10 mechanism C): ``check_inventory_api_uniqueness`` scans the Public API column across all ``engine/domains/*/INVENTORY.md`` and ``engine/domains/*/INVENTORY/*.md`` files; the same API contract name must not appear more than once across the whole repo, duplicates = FAIL. Optional normalization (trim + lowercase) on the Feature column catches "same function different name" cases. Migration grace period same as #13: ``contract-version < 6.8.0`` WARN, ``>= 6.8.0`` FAIL.
 "@
 
 # v6.7.0 (D-028/T-032): ensure engine/skeleton/progress.md template exists in the
@@ -385,6 +387,67 @@ if (-not (Test-Path $skeletonProgress)) {
 "@
   Set-Content -Path $skeletonProgress -Value $progressTemplate -Encoding UTF8
   Write-Host "created $(Get-Relative $skeletonProgress) (v6.7.0 progress.md template)"
+}
+
+# v6.8.0 (D-028/T-033): ensure engine/skeleton/domains/INVENTORY.md template
+# exists in the target project so each domain can be instantiated from it.
+# Idempotent: only creates if missing, never overwrites.
+$skeletonInventory = Join-Path $EngineDir "skeleton\domains\INVENTORY.md"
+if (-not (Test-Path $skeletonInventory)) {
+  $skeletonInvDir = Split-Path -Parent $skeletonInventory
+  if (-not (Test-Path $skeletonInvDir)) { New-Item -ItemType Directory -Force -Path $skeletonInvDir | Out-Null }
+  $inventoryTemplate = @"
+# INVENTORY — [Domain Name]
+> Last updated: [date] | 域级功能索引 | 5 列 ≤120 行,见 contract/src/20-file-templates.md FILE 14
+
+| Feature | Entry file | Public API | Status | Last verified |
+|---------|-----------|------------|--------|---------------|
+| [功能名] | [path/to/entry] | [api_contract_name] | [stable/experimental/deprecated/wip] | [YYYY-MM-DD] |
+
+<!--
+  维护规则:
+  - 任务卡 done 时 MUST 更新涉及行（task-run.md 行为规则）
+  - Entry file 路径必须存在（Doctor INVENTORY→code FAIL 检查）
+  - Public API 全仓唯一（Doctor API 唯一性 FAIL 检查）
+  - 总览 ≤120 行,超出拆到 INVENTORY/<feature>.md 子文件
+  - 不写 API 完整签名 / 调用链 / 符号定位（交给 ast-grep 现生）
+-->
+"@
+  Set-Content -Path $skeletonInventory -Value $inventoryTemplate -Encoding UTF8
+  Write-Host "created $(Get-Relative $skeletonInventory) (v6.8.0 INVENTORY.md template)"
+}
+
+# v6.8.0 (D-028 §9/T-033): for each existing domain directory under
+# engine/domains/, create an empty-header INVENTORY.md stub if missing.
+# Idempotent: never overwrites an existing INVENTORY.md. The stub carries
+# the 5-column header + one example row + a "migrated from v6.7.x, features
+# pending" comment so Doctor's bidirectional check has a structure to read.
+$domainsRoot = Join-Path $EngineDir "domains"
+if (Test-Path $domainsRoot) {
+  Get-ChildItem -Path $domainsRoot -Directory -ErrorAction SilentlyContinue | ForEach-Object {
+    $domainName = $_.Name
+    $invFile = Join-Path $_.FullName "INVENTORY.md"
+    if (Test-Path $invFile) { return }
+    $stub = @"
+# INVENTORY — $domainName
+> Last updated: $Today | 域级功能索引 | 5 列 ≤120 行,见 contract/src/20-file-templates.md FILE 14
+
+| Feature | Entry file | Public API | Status | Last verified |
+|---------|-----------|------------|--------|---------------|
+| [功能名] | [path/to/entry] | [api_contract_name] | [stable/experimental/deprecated/wip] | [YYYY-MM-DD] |
+
+<!--
+  迁移自 v6.7.x:本 stub 由 engine-migrate-contract 创建,功能索引待补。
+  任务卡 done 时 MUST 更新涉及行（task-run.md 行为规则）。
+  Entry file 路径必须存在（Doctor INVENTORY→code FAIL 检查）。
+  Public API 全仓唯一（Doctor API 唯一性 FAIL 检查）。
+  总览 ≤120 行,超出拆到 INVENTORY/<feature>.md 子文件。
+  不写 API 完整签名 / 调用链 / 符号定位（交给 ast-grep 现生）。
+-->
+"@
+    Set-Content -Path $invFile -Value $stub -Encoding UTF8
+    Write-Host "created $(Get-Relative $invFile) (v6.8.0 INVENTORY stub for domain $domainName)"
+  }
 }
 
 $agentPath = Join-Path $Root "AGENTS.md"

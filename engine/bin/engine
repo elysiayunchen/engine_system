@@ -22,6 +22,8 @@ Usage:
   engine migrate        Run contract migration on existing engine files
   engine verify T-NNN   Run behavior verification for a task card
   engine doctor         Run engine health check
+  engine load           Install the engine CLI shim into user PATH (~/.local/bin)
+  engine unload         Remove the engine CLI shim from user PATH
   engine help           Show this help
 
 `engine init` is the agent-agnostic entry to initialize the engine layer: it
@@ -41,6 +43,14 @@ skip the migration step.
 newer than the local engine/VERSION, in version order (sort -V), writing the
 version back after each step. When nothing is pending it falls back to the
 idempotent contract migrator, so it still repairs/re-applies the v6 structure.
+
+`engine load` copies the current project's engine/bin/engine{,.ps1,.cmd} into
+~/.local/bin (the user-level PATH dir used by install.sh). Use it after
+switching branches, recovering from a clobbered shim, or re-linking to a
+local checkout. It does not run migrate or doctor.
+
+`engine unload` removes the engine* shims from ~/.local/bin. Project files
+under engine/ are untouched. Re-run `engine load` to restore the CLI.
 EOF
 }
 
@@ -200,6 +210,66 @@ run_doctor() {
   fi
 }
 
+# install_cli_shim: 把当前项目的 engine/bin/engine{,.ps1,.cmd} 复制到用户级 PATH
+# 目录(~/.local/bin)。与 install.sh 的 CLI 铺设逻辑保持一致,但只做 shim 装载,
+# 不拉远程、不跑 migrate/doctor。用于切分支/修 clobber/重链 local 检出。
+install_cli_shim() {
+  local root="$1"
+  local src_dir="$root/engine/bin"
+  local dest_dir="${HOME:-}/.local/bin"
+  if [ -z "${HOME:-}" ]; then
+    echo "Error: HOME is not set - cannot determine user-level bin dir." >&2
+    return 2
+  fi
+  if [ ! -f "$src_dir/engine" ]; then
+    echo "Error: $src_dir/engine not found. Run the installer first." >&2
+    return 2
+  fi
+  mkdir -p "$dest_dir"
+  local installed=0 f
+  for f in engine engine.ps1 engine.cmd; do
+    if [ -f "$src_dir/$f" ]; then
+      cp "$src_dir/$f" "$dest_dir/$f"
+      chmod +x "$dest_dir/$f" 2>/dev/null || true
+      echo "  installed  $dest_dir/$f"
+      installed=$((installed + 1))
+    fi
+  done
+  echo ""
+  echo "Engine CLI shim installed to: $dest_dir"
+  case ":$PATH:" in
+    *":$dest_dir:"*) ;;
+    *) echo "Note: $dest_dir is not in PATH. Add it to run 'engine' globally." ;;
+  esac
+}
+
+# uninstall_cli_shim: 从 ~/.local/bin 移除 engine* shim。不动项目文件。
+uninstall_cli_shim() {
+  local dest_dir="${HOME:-}/.local/bin"
+  if [ -z "${HOME:-}" ]; then
+    echo "Error: HOME is not set - cannot determine user-level bin dir." >&2
+    return 2
+  fi
+  if [ ! -d "$dest_dir" ]; then
+    echo "Engine CLI shim not present at $dest_dir (nothing to unload)."
+    return 0
+  fi
+  local removed=0 f
+  for f in engine engine.ps1 engine.cmd; do
+    if [ -f "$dest_dir/$f" ]; then
+      rm -f "$dest_dir/$f"
+      echo "  removed    $dest_dir/$f"
+      removed=$((removed + 1))
+    fi
+  done
+  if [ "$removed" -eq 0 ]; then
+    echo "Engine CLI shim not present at $dest_dir (nothing to unload)."
+  else
+    echo ""
+    echo "Engine CLI shim unloaded from: $dest_dir"
+  fi
+}
+
 # Parse global flags (apply to `update`).
 NO_MIGRATE=false
 CHECK_ONLY=false
@@ -303,6 +373,16 @@ case "${1:-help}" in
       exit 2
     fi
     run_doctor "$PWD"
+    ;;
+  load)
+    if [ ! -d "$PWD/engine" ]; then
+      echo "Error: engine/ not found in $PWD. Run 'engine init' or the installer first." >&2
+      exit 2
+    fi
+    install_cli_shim "$PWD"
+    ;;
+  unload)
+    uninstall_cli_shim
     ;;
   help|-h|--help)
     usage

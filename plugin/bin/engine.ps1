@@ -1,4 +1,4 @@
-# Engine System user-level CLI shim for Windows PowerShell.
+﻿# Engine System user-level CLI shim for Windows PowerShell.
 
 param(
   [Parameter(Position=0)][string]$Command = "help",
@@ -51,13 +51,20 @@ skip the migration step.
 the local engine/VERSION in version order, writing the version back after each
 step; when nothing is pending it falls back to the idempotent contract migrator.
 
-`engine load` copies the current project's engine\bin\engine{.ps1,.cmd} into
-%USERPROFILE%\.engine\bin (the user-level PATH dir used by install.ps1). Use it
-after switching branches, recovering from a clobbered shim, or re-linking to a
-local checkout. It does not run migrate or doctor.
+`engine load` re-installs engine external side-effects from the current
+project: the user-level CLI shim (%USERPROFILE%\.engine\bin) and the git
+pre-commit hook (when engine-managed or missing). Use after switching branches,
+clobbered shims, or re-linking to a local checkout. Does not run migrate/doctor
+and does not touch .claude\settings.json (use the installer or /engine-sync).
 
-`engine unload` removes the engine.* shims from %USERPROFILE%\.engine\bin.
-Project files under engine\ are untouched. Re-run `engine load` to restore.
+`engine unload` removes all engine tooling from the current project plus
+external side-effects: engine\bin, engine\scripts, engine\prompts,
+engine\migrations, .claude\commands, .claude\skills, runtime-law.md,
+engine\VERSION, engine\domains\routing.json, the user PATH shim, the
+engine-managed git pre-commit hook, and the engine-managed .claude\settings.json.
+User project memory is preserved: engine\{CONTEXT,HANDOFF,ENGINE_MAP,SYSTEM,
+AGENT_ADAPTERS,ENGINE_DOCTOR}.md, engine\{tasks,decisions,changes,evidence,
+workstreams,domains,checks}\, and root anchors (CLAUDE.md, AGENTS.md).
 "@ | Write-Host
 }
 
@@ -124,15 +131,14 @@ function Run-Doctor {
   }
 }
 
-# Install-CliShim: 把当前项目的 engine\bin\engine{.ps1,.cmd} 复制到用户级 PATH
-# 目录(%USERPROFILE%\.engine\bin)。与 install.ps1 的 CLI 铺设逻辑保持一致,
-# 但只做 shim 装载,不拉远程、不跑 migrate/doctor。
-function Install-CliShim {
+# Load-Engine: 重新铺设引擎工具的外部副作用(PATH shim + git hook)。
+# 不拉远程、不跑 migrate/doctor。.claude/settings.json 由 installer/engine-sync 维护。
+function Load-Engine {
   param([string]$Root)
   $srcDir = Join-Path $Root "engine\bin"
   $destDir = Join-Path $env:USERPROFILE ".engine\bin"
   if (-not (Test-Path (Join-Path $srcDir "engine.ps1"))) {
-    Write-Error "Error: $srcDir\engine.ps1 not found. Run the installer first."
+    Write-Error "Error: $srcDir\engine.ps1 not found. Engine tooling is missing - run the installer first."
     exit 2
   }
   New-Item -ItemType Directory -Force -Path $destDir | Out-Null
@@ -145,36 +151,119 @@ function Install-CliShim {
       $installed++
     }
   }
-  Write-Host ""
-  Write-Host "Engine CLI shim installed to: $destDir"
   $pathParts = ($env:PATH -split ";") | Where-Object { $_ }
   if ($pathParts -notcontains $destDir) {
     Write-Host "Note: $destDir is not in PATH. Add it to run 'engine' globally."
   }
+
+  # git pre-commit hook(仅当目标不存在或是 engine-managed 时重装)
+  $hookSrc = Join-Path $Root "engine\scripts\githooks\pre-commit"
+  if (Test-Path $hookSrc) {
+    $gitDir = git -C $Root rev-parse --git-dir 2>$null
+    if ($gitDir) {
+      $hookPath = Join-Path $gitDir "hooks\pre-commit"
+      $hookParent = Split-Path -Parent $hookPath
+      if (-not (Test-Path $hookParent)) { New-Item -ItemType Directory -Force -Path $hookParent | Out-Null }
+      if (-not (Test-Path $hookPath) -or ((Get-Content $hookPath -Raw -ErrorAction SilentlyContinue) -match 'Engine System.*pre-commit hook')) {
+        Copy-Item $hookSrc $hookPath -Force
+        Write-Host "  installed  $hookPath"
+        $installed++
+      } else {
+        Write-Host "  keep       $hookPath (user-defined)"
+      }
+    }
+  }
+
+  Write-Host ""
+  Write-Host "Engine external side-effects reloaded. ($installed items)"
+  Write-Host "Project tooling under engine\ is unchanged. Run 'engine update' to refresh from remote."
 }
 
-# Uninstall-CliShim: 从 %USERPROFILE%\.engine\bin 移除 engine.* shim。不动项目文件。
-function Uninstall-CliShim {
+# Unload-Engine: 拆掉所有引擎工具 + 外部副作用。保留用户项目记忆和根锚点。
+# 白名单删除策略:只删 install.ps1 铺设的引擎工具路径,其余全保留。
+function Unload-Engine {
+  param([string]$Root)
+  $removed = 0; $skipped = 0
+
+  # 1. PATH shim
   $destDir = Join-Path $env:USERPROFILE ".engine\bin"
-  if (-not (Test-Path $destDir)) {
-    Write-Host "Engine CLI shim not present at $destDir (nothing to unload)."
-    return
+  if (Test-Path $destDir) {
+    foreach ($f in @("engine.ps1", "engine.cmd")) {
+      $p = Join-Path $destDir $f
+      if (Test-Path $p) {
+        Remove-Item $p -Force
+        Write-Host "  removed    $p"
+        $removed++
+      }
+    }
   }
-  $removed = 0
-  foreach ($f in @("engine.ps1", "engine.cmd")) {
-    $p = Join-Path $destDir $f
-    if (Test-Path $p) {
-      Remove-Item $p -Force
-      Write-Host "  removed    $p"
+
+  # 2. git pre-commit hook(仅当 engine-managed)
+  $gitDir = git -C $Root rev-parse --git-dir 2>$null
+  if ($gitDir) {
+    $hookPath = Join-Path $gitDir "hooks\pre-commit"
+    if (Test-Path $hookPath) {
+      $content = Get-Content $hookPath -Raw -ErrorAction SilentlyContinue
+      if ($content -match 'Engine System.*pre-commit hook') {
+        Remove-Item $hookPath -Force
+        Write-Host "  removed    $hookPath (was engine-managed)"
+        $removed++
+      } else {
+        Write-Host "  keep       $hookPath (user-defined)"
+        $skipped++
+      }
+    }
+  }
+
+  # 3. .claude\settings.json(仅当含 _engine_system 标记)
+  $settings = Join-Path $Root ".claude\settings.json"
+  if (Test-Path $settings) {
+    $content = Get-Content $settings -Raw -ErrorAction SilentlyContinue
+    if ($content -match '"_engine_system"') {
+      Remove-Item $settings -Force
+      Write-Host "  removed    $settings (engine-managed)"
       $removed++
     }
   }
-  if ($removed -eq 0) {
-    Write-Host "Engine CLI shim not present at $destDir (nothing to unload)."
-  } else {
-    Write-Host ""
-    Write-Host "Engine CLI shim unloaded from: $destDir"
+
+  # 4. 引擎工具目录(白名单)
+  $toolDirs = @(
+    (Join-Path $Root "engine\bin"),
+    (Join-Path $Root "engine\scripts"),
+    (Join-Path $Root "engine\prompts"),
+    (Join-Path $Root "engine\migrations"),
+    (Join-Path $Root ".claude\commands"),
+    (Join-Path $Root ".claude\skills")
+  )
+  foreach ($d in $toolDirs) {
+    if (Test-Path $d) {
+      Remove-Item $d -Recurse -Force
+      Write-Host "  removed    $d"
+      $removed++
+    }
   }
+
+  # 5. 引擎工具单文件(白名单)
+  $toolFiles = @(
+    (Join-Path $Root "runtime-law.md"),
+    (Join-Path $Root "engine\VERSION"),
+    (Join-Path $Root "engine\domains\routing.json")
+  )
+  foreach ($tf in $toolFiles) {
+    if (Test-Path $tf) {
+      Remove-Item $tf -Force
+      Write-Host "  removed    $tf"
+      $removed++
+    }
+  }
+
+  Write-Host ""
+  Write-Host "Engine tooling unloaded. ($removed items removed, $skipped user-owned kept)"
+  Write-Host "Preserved: engine\{CONTEXT,HANDOFF,ENGINE_MAP,SYSTEM,AGENT_ADAPTERS,ENGINE_DOCTOR}.md,"
+  Write-Host "          engine\{tasks,decisions,changes,evidence,workstreams,domains,checks}\,"
+  Write-Host "          CLAUDE.md, AGENTS.md, and your project source."
+  Write-Host ""
+  Write-Host "To reinstall: .\install.ps1   (or   .\install.ps1 -Update   to keep memory)"
 }
 
 function New-Workstream {
@@ -368,10 +457,10 @@ switch ($Command) {
       Write-Error "Error: engine/ not found in $PWD. Run 'engine init' or the installer first."
       exit 2
     }
-    Install-CliShim -Root $PWD.Path
+    Load-Engine -Root $PWD.Path
   }
   "unload" {
-    Uninstall-CliShim
+    Unload-Engine -Root $PWD.Path
   }
   { $_ -in @("help", "-h", "--help") } {
     Show-Help

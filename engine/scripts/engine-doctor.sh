@@ -1246,6 +1246,131 @@ check_legacy_data_format() {
   fi
 }
 
+# v6.11.0 (D-029/T-036) AC-6: multi-session isolation health check.
+# cv >= 6.11.0 -> fail-closed (FAIL); cv < 6.11.0 -> fail-open (WARN, grace period).
+# Checks: (1) .cache/sessions dir exists (SessionStart hook should create);
+#         (2) session.lock format validity (>= 5 fields);
+#         (3) tombstone file staleness (>24h = previous coordinator exited abnormally).
+check_multi_session_isolation() {
+  local doctor_path="$ENGINE_DIR/ENGINE_DOCTOR.md"
+  local contract_version=""
+  if [ -f "$doctor_path" ]; then
+    contract_version="$(grep -oE 'contract-version:[[:space:]]*[0-9]+\.[0-9]+\.[0-9]+' "$doctor_path" 2>/dev/null | head -1 | sed 's/.*contract-version:[[:space:]]*//')"
+  fi
+  local cv_int=0
+  if [[ "$contract_version" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+    cv_int=$(( ${BASH_REMATCH[1]} * 10000 + ${BASH_REMATCH[2]} * 100 + ${BASH_REMATCH[3]} ))
+  fi
+  local violation_is_fail=0
+  if [ "$cv_int" -ge 61100 ] 2>/dev/null; then
+    violation_is_fail=1
+  fi
+
+  local sessions_dir="$ENGINE_DIR/.cache/sessions"
+  local lock_file="$ENGINE_DIR/.cache/session.lock"
+  local tombstone_file="$ENGINE_DIR/.cache/session.tombstone"
+
+  # 1. sessions dir exists
+  if [ ! -d "$sessions_dir" ]; then
+    if [ "$violation_is_fail" -eq 1 ]; then
+      fail "multi-session isolation: .cache/sessions dir missing (cv=$contract_version >= 6.11.0, SessionStart hook should create it)"
+      echo "  human: contract-version $contract_version requires multi-session isolation, but engine/.cache/sessions directory does not exist. SessionStart hook may not have run. Run 'engine context' to verify hook setup."
+    else
+      warn "multi-session isolation: .cache/sessions dir missing (grace period, cv=$contract_version < 6.11.0)"
+    fi
+    return 0
+  fi
+
+  # 2. lock file format validity
+  if [ -f "$lock_file" ]; then
+    local lock_line lock_field_count
+    lock_line="$(cat "$lock_file" 2>/dev/null || true)"
+    if [ -n "$lock_line" ]; then
+      lock_field_count="$(printf '%s' "$lock_line" | awk -F'|' '{print NF}')"
+      if [ "$lock_field_count" -lt 5 ]; then
+        if [ "$violation_is_fail" -eq 1 ]; then
+          fail "multi-session isolation: session.lock malformed ($lock_field_count fields, expected 5: pid|sid|role|started_at|task_id)"
+          echo "  human: engine/.cache/session.lock has $lock_field_count pipe-separated fields, expected at least 5. Remove the file and let SessionStart hook recreate it."
+        else
+          warn "multi-session isolation: session.lock malformed (grace period)"
+        fi
+      fi
+    fi
+  fi
+
+  # 3. tombstone staleness (>24h)
+  if [ -f "$tombstone_file" ]; then
+    local tombstone_line tombstone_ts ts_norm ts_sec now_sec age_sec
+    tombstone_line="$(cat "$tombstone_file" 2>/dev/null || true)"
+    tombstone_ts="$(printf '%s' "$tombstone_line" | cut -d'|' -f1)"
+    if [ -n "$tombstone_ts" ]; then
+      # Parse ISO 8601 timestamp (UTC). Try GNU date first, BSD date as fallback.
+      ts_norm="$(printf '%s' "$tombstone_ts" | sed 's/T/ /;s/Z$//;s/\..*$//')"
+      ts_sec="$(date -u -d "$ts_norm" +%s 2>/dev/null || date -u -j -f '%Y-%m-%d %H:%M:%S' "$ts_norm" +%s 2>/dev/null || echo 0)"
+      if [ "$ts_sec" -gt 0 ]; then
+        now_sec="$(date -u +%s 2>/dev/null || echo 0)"
+        if [ "$now_sec" -gt 0 ]; then
+          age_sec=$((now_sec - ts_sec))
+          if [ "$age_sec" -gt 86400 ]; then
+            if [ "$violation_is_fail" -eq 1 ]; then
+              fail "multi-session isolation: tombstone file is stale (${age_sec}s old, >24h) - run 'engine assume-coordinator --force' to clean up"
+              echo "  human: engine/.cache/session.tombstone is $((age_sec / 3600))h old. The previous coordinator exited abnormally. Run 'engine assume-coordinator --force' to take over."
+            else
+              warn "multi-session isolation: tombstone file stale (${age_sec}s old, grace period)"
+            fi
+          fi
+        fi
+      fi
+    fi
+  fi
+}
+
+# v6.11.0 (D-029/T-036) AC-7: workstream orphan check (WARN level).
+# For each engine/workstreams/<task>/<worker>/ shard, check if a matching
+# .cache/sessions/<worker_key>.meta file exists. If not, WARN (worker may
+# still be running, or exited without Stop hook firing).
+check_workstream_orphan() {
+  local workstreams_dir="$ENGINE_DIR/workstreams"
+  [ -d "$workstreams_dir" ] || return 0
+
+  local sessions_dir="$ENGINE_DIR/.cache/sessions"
+  local orphan_count=0
+  local task_dir worker_dir worker_name meta_found prefix meta meta_base meta_prefix
+  for task_dir in "$workstreams_dir"/*/; do
+    [ -d "$task_dir" ] || continue
+    for worker_dir in "$task_dir"*/; do
+      [ -d "$worker_dir" ] || continue
+      worker_name="$(basename "$worker_dir")"
+      meta_found=0
+      if [ -d "$sessions_dir" ]; then
+        if [ -f "$sessions_dir/$worker_name.meta" ]; then
+          meta_found=1
+        else
+          # Short prefix match (worker_name first 8 chars) - tolerates worker_id=agent_id vs session_key mismatch
+          prefix="${worker_name:0:8}"
+          for meta in "$sessions_dir"/*.meta; do
+            [ -f "$meta" ] || continue
+            meta_base="$(basename "$meta" .meta)"
+            meta_prefix="${meta_base:0:8}"
+            if [ "$meta_prefix" = "$prefix" ]; then
+              meta_found=1
+              break
+            fi
+          done
+        fi
+      fi
+      if [ "$meta_found" -eq 0 ]; then
+        warn "orphan workstream shard: $(basename "$task_dir")/$worker_name (no matching .cache/sessions/$worker_name.meta)"
+        echo "  human: Workstream shard for task $(basename "$task_dir") worker $worker_name has no .meta file. Worker may still be running, or exited without Stop hook firing. If stale, remove engine/workstreams/$(basename "$task_dir")/$worker_name/ manually."
+        orphan_count=$((orphan_count + 1))
+      fi
+    done
+  done
+  if [ "$orphan_count" -eq 0 ]; then
+    pass "workstream orphan: no orphan shards detected"
+  fi
+}
+
 check_plan_acceptance_evidence() {
   while IFS='|' read -r _ id title status plan spec notes verified _; do
     id="$(trim "$id")"
@@ -1310,6 +1435,8 @@ check_contract_debt
 check_task_card_done_evidence
 check_engine_version
 check_legacy_data_format
+check_multi_session_isolation
+check_workstream_orphan
 
 # ── Project-custom checks (engine/checks/) ──
 # Each project may place executable check-*.sh (FAIL on non-zero) or warn-*.sh

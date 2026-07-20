@@ -1284,6 +1284,128 @@ function Test-LegacyDataFormat {
   }
 }
 
+# v6.11.0 (D-029/T-036) AC-6: multi-session isolation health check.
+# cv >= 6.11.0 -> fail-closed (FAIL); cv < 6.11.0 -> fail-open (WARN, grace period).
+# Checks: (1) .cache/sessions dir exists (SessionStart hook should create);
+#         (2) session.lock format validity (>= 5 fields);
+#         (3) tombstone file staleness (>24h = previous coordinator exited abnormally).
+function Test-MultiSessionIsolation {
+  $doctorPath = Join-Path $engineDir "ENGINE_DOCTOR.md"
+  $contractVersion = ""
+  if (Test-Path $doctorPath) {
+    $m = Select-String -Path $doctorPath -Pattern 'contract-version:\s*([0-9]+\.[0-9]+\.[0-9]+)' -List -ErrorAction SilentlyContinue
+    if ($m) { $contractVersion = $m.Matches[0].Groups[1].Value }
+  }
+  $cvInt = 0
+  if ($contractVersion -match '^(\d+)\.(\d+)\.(\d+)$') {
+    $cvInt = [int]$Matches[1] * 10000 + [int]$Matches[2] * 100 + [int]$Matches[3]
+  }
+  $violationIsFail = $false
+  if ($cvInt -ge 61100) { $violationIsFail = $true }
+
+  $sessionsDir = Join-Path $engineDir '.cache\sessions'
+  $lockFile = Join-Path $engineDir '.cache\session.lock'
+  $tombstoneFile = Join-Path $engineDir '.cache\session.tombstone'
+
+  # 1. sessions dir exists
+  if (-not (Test-Path $sessionsDir)) {
+    if ($violationIsFail) {
+      Write-Fail "multi-session isolation: .cache/sessions dir missing (cv=$contractVersion >= 6.11.0, SessionStart hook should create it)"
+      Write-Output "  human: contract-version $contractVersion requires multi-session isolation, but engine/.cache/sessions directory does not exist. SessionStart hook may not have run. Run 'engine context' to verify hook setup."
+    } else {
+      Write-Warn "multi-session isolation: .cache/sessions dir missing (grace period, cv=$contractVersion < 6.11.0)"
+    }
+    return
+  }
+
+  # 2. lock file format validity
+  if (Test-Path $lockFile) {
+    try {
+      $lockLine = (Get-Content -Raw -Path $lockFile -Encoding UTF8 -ErrorAction Stop).Trim()
+      if ($lockLine) {
+        $lockFields = $lockLine -split '\|'
+        if ($lockFields.Length -lt 5) {
+          if ($violationIsFail) {
+            Write-Fail "multi-session isolation: session.lock malformed ($($lockFields.Length) fields, expected 5: pid|sid|role|started_at|task_id)"
+            Write-Output "  human: engine/.cache/session.lock has $($lockFields.Length) pipe-separated fields, expected at least 5. Remove the file and let SessionStart hook recreate it."
+          } else {
+            Write-Warn "multi-session isolation: session.lock malformed (grace period)"
+          }
+        }
+      }
+    } catch {}
+  }
+
+  # 3. tombstone staleness (>24h)
+  if (Test-Path $tombstoneFile) {
+    try {
+      $tombstoneLine = (Get-Content -Raw -Path $tombstoneFile -Encoding UTF8 -ErrorAction Stop).Trim()
+      $tombstoneParts = $tombstoneLine -split '\|'
+      if ($tombstoneParts.Length -ge 1) {
+        $tombstoneTs = $tombstoneParts[0]
+        if ($tombstoneTs) {
+          $ts = [datetime]::SpecifyKind([datetime]::Parse($tombstoneTs), [System.DateTimeKind]::Utc)
+          $ageSec = ([datetime]::UtcNow - $ts).TotalSeconds
+          if ($ageSec -gt 86400) {
+            if ($violationIsFail) {
+              Write-Fail "multi-session isolation: tombstone file is stale ($([int]$ageSec)s old, >24h) - run 'engine assume-coordinator --force' to clean up"
+              Write-Output "  human: engine/.cache/session.tombstone is $([int]($ageSec / 3600))h old. The previous coordinator exited abnormally. Run 'engine assume-coordinator --force' to take over."
+            } else {
+              Write-Warn "multi-session isolation: tombstone file stale ($([int]$ageSec)s old, grace period)"
+            }
+          }
+        }
+      }
+    } catch {}
+  }
+}
+
+# v6.11.0 (D-029/T-036) AC-7: workstream orphan check (WARN level).
+# For each engine/workstreams/<task>/<worker>/ shard, check if a matching
+# .cache/sessions/<worker_key>.meta file exists. If not, WARN (worker may
+# still be running, or exited without Stop hook firing).
+function Test-WorkstreamOrphan {
+  $workstreamsDir = Join-Path $engineDir 'workstreams'
+  if (-not (Test-Path $workstreamsDir)) { return }
+
+  $sessionsDir = Join-Path $engineDir '.cache\sessions'
+  $orphanCount = 0
+  $taskDirs = @(Get-ChildItem -Path $workstreamsDir -Directory -ErrorAction SilentlyContinue)
+  foreach ($taskDir in $taskDirs) {
+    $workerDirs = @(Get-ChildItem -Path $taskDir.FullName -Directory -ErrorAction SilentlyContinue)
+    foreach ($workerDir in $workerDirs) {
+      $workerName = $workerDir.Name
+      $metaFound = $false
+      if (Test-Path $sessionsDir) {
+        $metaPath = Join-Path $sessionsDir ($workerName + '.meta')
+        if (Test-Path $metaPath) {
+          $metaFound = $true
+        } else {
+          # Short prefix match (worker_name first 8 chars) - tolerates worker_id=agent_id vs session_key mismatch
+          $prefix = if ($workerName.Length -gt 8) { $workerName.Substring(0, 8) } else { $workerName }
+          $metaFiles = @(Get-ChildItem -Path $sessionsDir -Filter '*.meta' -ErrorAction SilentlyContinue)
+          foreach ($meta in $metaFiles) {
+            $metaBase = $meta.BaseName
+            $metaPrefix = if ($metaBase.Length -gt 8) { $metaBase.Substring(0, 8) } else { $metaBase }
+            if ($metaPrefix -eq $prefix) {
+              $metaFound = $true
+              break
+            }
+          }
+        }
+      }
+      if (-not $metaFound) {
+        Write-Warn "orphan workstream shard: $($taskDir.Name)/$workerName (no matching .cache/sessions/$workerName.meta)"
+        Write-Output "  human: Workstream shard for task $($taskDir.Name) worker $workerName has no .meta file. Worker may still be running, or exited without Stop hook firing. If stale, remove engine/workstreams/$($taskDir.Name)/$workerName/ manually."
+        $orphanCount++
+      }
+    }
+  }
+  if ($orphanCount -eq 0) {
+    Write-Pass "workstream orphan: no orphan shards detected"
+  }
+}
+
 if (Test-Path $engineDir) {
   Get-ChildItem -Path $engineDir -File -Filter "*.md" | ForEach-Object {
     $rel = "engine/$($_.Name)"
@@ -1364,6 +1486,8 @@ Test-ContractDebt
 Test-TaskCardDoneEvidence
 Test-EngineVersion
 Test-LegacyDataFormat
+Test-MultiSessionIsolation
+Test-WorkstreamOrphan
 
 # ── Project-custom checks (engine/checks/) ──
 function Run-CustomChecks {

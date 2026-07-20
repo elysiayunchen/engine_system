@@ -4,7 +4,7 @@
 
 ## 立即恢复点
 
-v6.9.0 已发版(T-034 AC 级 checkpoint 机制 + 任务粒度软门禁 + depends-on + WRITE-SET 静态预算)。T-034 11 个 AC 全部 PASS(AC-1~AC-10 含 AC-5.1 子编号):契约源 FILE 15(checkpoint.md 模板 + 7 栏 + 生命周期 + SessionStart 优先级链 + 与 progress.md 写入职责分离)+ engine-verify ×4 每个 AC PASS 后追加写 checkpoint.md + SessionStart hook ×4 优先注入 checkpoint.md + tasks/README.md 加 estimated_steps/checkpoint_plan/depends-on 字段 + 跨域拆卡协调规则 + ENGINE_DOCTOR #15 软门禁 4 阈值(AC>12 / WRITE-SET 路径>15 / steps>20 / WRITE-SET 字节>30KB)+ depends-on 阻塞 + 迁移宽限期 + tryout bypass + doctor ×4 实现 check_task_granularity + check_depends_on + check_writeset_budget + migrator ×4 加 #15 + skeleton/checkpoint.md 模板 + dogfood 自检(T-034 自身 verify 后生成 evidence/T-034/checkpoint.md)+ budget 2630→2730 + engine-verify.sh stdin 消费 bug 修复(eval 子进程加 </dev/null)。check.sh CHECK PASSED(0 failures, 8 warnings 全部是 bypass 的软门禁 WARN)。下一步:开干 T-035(v6.10.0 死代码检测)+ 完成后派子代理审查 T-034/T-035。3 个月 expiry 2026-10-31,早期预警 2026-09-15。
+T-037 Trae continuity 准则已 done(2026-07-20):engine/SYSTEM.md「项目开发准则」段加 `### Trae agent 工具对话延续准则` 子段(运行在 TRAE IDE/Work/CLI/Plugin 时 NEVER 主动中止对话,用 AskUserQuestion 延续,避免浪费用户发起对话额度)。AC-1 verify PASS(fp=e3b0c44298fc)。**T-036 v6.11.0 多会话锁 paused**:review 发现 P1-P7 问题待修(P1 AC-2 verify 4 份范围错位 + P2 worker_key 算法与 Stop hook safe_id 不一致 + P3 atomic 创建+写入两步分离有竞态 + P4-P6 AC-1/AC-2 verify 缺关键字检查 + P7 AC-18 缺 PowerShell 测试)。T-037 完成后 T-036 恢复 active 全修 P1-P7。下一步:T-036 → active + 全修 P1-P7。
 
 > Phase 1 = 通用化核心(prompt 抽离 / CLI 扩展 / 快速安装 / agent 检测——D-017 原文口径;实施细化与「薄壳」口径修正见 D-018)。v6.2 = 多 agent 通信层(engine context + DevComm Rule 扩展)。
 

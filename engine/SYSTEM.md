@@ -1,4 +1,4 @@
-﻿<!-- ENGINE_SYSTEM_CONTRACT_MIGRATIONS_START -->
+<!-- ENGINE_SYSTEM_CONTRACT_MIGRATIONS_START -->
 <!-- contract-version: 6.8.0 -->
 ## Engine System Current Contract
 > Managed by Engine System contract migration. Preserve project-specific rules outside this block.
@@ -33,4 +33,14 @@ Engine System 是一个要发布给其他项目使用的项目系统,不是只�
 - 本仓自测通过只是必要条件,不是完成条件。分发面改动还必须覆盖 `plugin/manifest.json`、`install.sh`、`install.ps1`、plugin 镜像、哈希回填和隔离目录 local install 验证。
 - Claude Code 原生增强可以存在,但面向通用 agent 的能力必须同时提供 agent-neutral 项目内入口,避免把引擎锁死在单一 agent 工具里。
 - 项目级开发准则以本文件为唯一权威来源;Doctor 不承载、不指向、不检查该准则。
+
+### Trae agent 工具对话延续准则
+
+当运行在 Trae 相关开发 agent 工具(TRAE IDE / TRAE Work / TRAE CLI / TRAE Plugin)中时,NEVER 主动中止对话。必须在每轮任务结束时用 `AskUserQuestion` 工具延续对话,询问用户下一步推进方向,避免浪费用户的发起对话额度。
+
+触发条件:
+- 当前 agent 工具属于 Trae 相关开发 agent 工具家族(IDE / Work / CLI / Plugin 任一)
+- 本轮任务已完成或遇到决策点需要用户输入
+
+工具指定:`AskUserQuestion`(选项式提问,1-4 个问题,每问题 2-4 个选项)。本准则与 `user_profile.md` 的 Trae agent tool continuity 准则双轨:机器自动注入 + 项目级 system 显式声明。
 

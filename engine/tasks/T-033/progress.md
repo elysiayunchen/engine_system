@@ -1,5 +1,5 @@
 # progress — [Task ID: T-033] [域级 INVENTORY.md 功能索引 + 双向 FAIL 检查 + v6.8.0 发布]
-> Last updated: 2026-07-19 | 任务级压缩恢复锚点 | 7 栏事件驱动更新,见 contract/src/20-file-templates.md FILE 13
+> Last updated: 2026-07-20 | 任务级压缩恢复锚点 | 7 栏事件驱动更新,见 contract/src/20-file-templates.md FILE 13
 
 ## §1 已读文件（理解项目）
 - contract/src/20-file-templates.md — FILE 14 INVENTORY.md 模板定义处
@@ -10,8 +10,8 @@
 - engine/domains/project-meta/INVENTORY.md — dogfood 自检域
 
 ## §2 已确认接口（不重复读）
-- check_inventory_bidirectional() — INVENTORY→code test -f + code→INVENTORY done WRITE-SET 检查
-- check_inventory_api_uniqueness() — 全仓 Public API 列唯一性扫描
+- check_inventory_bidirectional() / Test-InventoryBidirectional — INVENTORY→code test -f + code→INVENTORY done WRITE-SET 检查
+- check_inventory_api_uniqueness() / Test-InventoryApiUniqueness — 全仓 Public API 列唯一性扫描
 - upsert_block() — migrator 幂等写入 managed block
 
 ## §3 已排除路径（原 TRAIL 的家）
@@ -20,8 +20,9 @@
 - 2026-07-19 / code→INVENTORY 检查走 federation.json 全路径映射 / dogfood 简化足够 + 完整映射是 federation.json 职责 / 只看 done 任务 WRITE-SET 具体路径
 
 ## §4 当前进行到（压缩恢复点）
-正在做:T-033 11 个 AC 全部完成,准备跑 release.sh 6.8.0 发版
-下一步:release.sh 6.8.0 → push tag → 开干 T-034/T-035
+状态:T-033 已 done。commit 396a771 + tag v6.8.0 已推(2026-07-20)。
+完成:11/11 AC PASS(AC-1~AC-9 engine-verify + AC-10/AC-11 手动验证 VERSION ×3=6.8.0 + CHANGELOG v6.8.0 + check.sh 全绿)。GitHub Release workflow 由 push tag 自动触发。
+下一步:开干 T-034(checkpoint.md)/ T-035(死代码检测),按 D-028 依赖图 T-033→T-035 + T-034 弱依赖 T-032。
 
 ## §5 待确认问题
 - 无 / 阻塞:无 / 提出:无
@@ -29,6 +30,7 @@
 ## §6 已知风险/未解 bug
 - bash `[[ =~ ^<!-- ]]` 正则 syntax error / 影响:doctor 崩溃 / 缓解:改为 `== "<!--"*` glob(已修复)
 - `set -euo pipefail` + `grep|head|sed` 管道无匹配触发 ERR trap / 影响:doctor 提前 exit / 缓解:加 `|| true`(已修复)
+- AC-6/AC-6.1 verify pattern 仅匹配 bash snake_case 不匹配 PowerShell PascalCase / 影响:engine-verify T-033 误 FAIL / 缓解:T-033.md verify pattern 扩展为兼容 `check_inventory_bidirectional` + `Test-InventoryBidirectional` 两种命名(已修复)
 
 ## §7 回滚尝试
 - 无

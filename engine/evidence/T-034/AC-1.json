@@ -1,0 +1,1 @@
+{"ac":"AC-1","verify":"grep -q 'checkpoint.md' contract/src/20-file-templates.md && grep -q '已完成 AC\\|completed AC' contract/src/20-file-templates.md && grep -q '下一 AC\\|next AC' contract/src/20-file-templates.md","status":"pass","exit":0,"fingerprint":"sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855","timestamp":"2026-07-20T10:19:40Z"}

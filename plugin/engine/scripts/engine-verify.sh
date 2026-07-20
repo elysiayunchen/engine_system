@@ -49,7 +49,12 @@ while IFS= read -r line; do
   echo "verify: $verify_cmd"
   tmp_out="$(mktemp)"
   rc=0
-  ( cd "$ROOT" && eval "$verify_cmd" ) >"$tmp_out" 2>&1 || rc=$?
+  # v6.9.0 (T-034): redirect stdin from /dev/null so verify commands that
+  # spawn subshells reading stdin (e.g. `bash scripts/check.sh` in AC-10)
+  # do not consume the while-loop's stdin (which is the grep output feeding
+  # AC lines). Without this, ACs after a stdin-reading verify get skipped
+  # silently.
+  ( cd "$ROOT" && eval "$verify_cmd" ) </dev/null >"$tmp_out" 2>&1 || rc=$?
   rc=${rc:-0}
   fp="$(sha256sum "$tmp_out" | cut -d' ' -f1)"
   if [ "$rc" -eq 0 ]; then
@@ -61,9 +66,32 @@ while IFS= read -r line; do
     sed -n '1,5p' "$tmp_out" 2>/dev/null
   fi
   verify_escaped="$(printf '%s' "$verify_cmd" | sed 's/\\/\\\\/g; s/"/\\"/g')"
+  ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   printf '{"ac":"%s","verify":"%s","status":"%s","exit":%d,"fingerprint":"sha256:%s","timestamp":"%s"}\n' \
-    "$ac_id" "$verify_escaped" "$status" "$rc" "$fp" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    "$ac_id" "$verify_escaped" "$status" "$rc" "$fp" "$ts" \
     > "$evidence_dir/$ac_id.json"
+
+  # v6.9.0 (D-028/T-034): on AC PASS, append a line to checkpoint.md so
+  # SessionStart can re-anchor from AC-level completion state (priority 1
+  # in the re-anchor chain, see contract/src/20-file-templates.md FILE 15).
+  # verify is the only writer of checkpoint.md; agents write progress.md.
+  if [ "$status" = "pass" ]; then
+    checkpoint="$evidence_dir/checkpoint.md"
+    # First PASS creates the file with header.
+    if [ ! -f "$checkpoint" ]; then
+      cat > "$checkpoint" <<CPHD
+# Checkpoint — $task
+> Last updated: $(date -u +%Y-%m-%dT%H:%M:%SZ) by engine-verify | AC 级压缩恢复锚点,见 contract/src/20-file-templates.md FILE 15
+
+## 已完成 AC
+CPHD
+    fi
+    # Append one line per PASS; do not overwrite history.
+    # Verify command is shortened to a one-line summary (first 80 chars).
+    summary="$(printf '%s' "$verify_cmd" | tr '\n' ' ' | sed 's/[[:space:]]\+/ /g' | cut -c1-80)"
+    printf -- '- [x] %s %s — evidence/%s.json PASS @ %s\n' \
+      "$ac_id" "$summary" "$ac_id" "$ts" >> "$checkpoint"
+  fi
   rm -f "$tmp_out"
 done < <(grep '^AC:' "$task_file")
 

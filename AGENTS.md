@@ -1,4 +1,4 @@
-# AGENTS.md — Engine System (engine_system)
+﻿# AGENTS.md — Engine System (engine_system)
 
 > Bootloader / anchor (class: anchor). 把 agent 引到 ENGINE_MAP;权威规则在引擎文件,不在这里。
 
@@ -15,7 +15,7 @@ CLI: `engine context` · `engine workstream T-NNN <agent-id>` · `engine doctor`
 入口: 契约 `ENGINE_FILE_SYSTEM_v5.md` · 索引 `engine/ENGINE_MAP.md` · 状态 `engine/CONTEXT.md`
 
 <!-- ENGINE_SYSTEM_CONTRACT_MIGRATIONS_START -->
-<!-- contract-version: 6.5.0 -->
+<!-- contract-version: 6.8.0 -->
 ## Engine System Current Contract
 > Managed by Engine System contract migration. Preserve project-specific rules outside this block.
 
@@ -34,3 +34,4 @@ CLI: `engine context` · `engine workstream T-NNN <agent-id>` · `engine doctor`
 - `engine context` shows unmerged workstream shards; the coordinator re-reads them at the merge point before one shared-memory update.
 - Update check: `engine check-update` compares local `engine/VERSION` against the remote; session-start prints a non-blocking hint when a newer version exists.
 <!-- ENGINE_SYSTEM_CONTRACT_MIGRATIONS_END -->
+

@@ -641,6 +641,248 @@ check_inventory_api_uniqueness() {
   fi
 }
 
+# v6.9.0 (D-028 §10 mechanism A / T-034 AC-5.1): WRITE-SET static budget soft gate.
+# Sums `wc -c` of all files listed in active card's WRITE-SET; > 30KB triggers
+# soft gate (FAIL unless checkpoint_plan field is declared, D-028 §9 tryout bypass).
+# Migration grace period: contract-version < 6.9.0 -> WARN; >= 6.9.0 -> FAIL.
+check_writeset_budget() {
+  local tasks_dir="$ENGINE_DIR/tasks"
+  [ -d "$tasks_dir" ] || return 0
+
+  local doctor_path="$ENGINE_DIR/ENGINE_DOCTOR.md"
+  local contract_version=""
+  if [ -f "$doctor_path" ]; then
+    contract_version="$(grep -oE 'contract-version:[[:space:]]*[0-9]+\.[0-9]+\.[0-9]+' "$doctor_path" 2>/dev/null | head -1 | sed 's/.*contract-version:[[:space:]]*//' || true)"
+  fi
+  local cv_int=0
+  if [[ "$contract_version" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+    cv_int=$(( ${BASH_REMATCH[1]} * 10000 + ${BASH_REMATCH[2]} * 100 + ${BASH_REMATCH[3]} ))
+  fi
+  local violation_is_fail=0
+  if [ "$cv_int" -ge 60900 ] 2>/dev/null; then
+    violation_is_fail=1
+  fi
+
+  local BUDGET_BYTES=30720  # 30KB
+  local f
+  for f in "$tasks_dir"/T-*.md; do
+    [ -f "$f" ] || continue
+    [[ "$f" == *.spec.md ]] && continue
+    grep -q 'status:.*active' "$f" 2>/dev/null || continue
+    local tid; tid="$(basename "$f" .md)"
+    # checkpoint_plan bypass: any non-empty value (incl. tryout) downgrades FAIL->WARN.
+    local checkpoint_plan
+    checkpoint_plan="$(grep -oE 'checkpoint_plan:[[:space:]]*[^|]*' "$f" 2>/dev/null | head -1 | sed 's/.*checkpoint_plan:[[:space:]]*//' | tr -d ' \t' || true)"
+    local has_bypass=0
+    if [ -n "$checkpoint_plan" ]; then has_bypass=1; fi
+
+    # Sum wc -c of all concrete files in WRITE-SET (skip globs).
+    local write_set_line
+    write_set_line="$(grep '^WRITE-SET:' "$f" 2>/dev/null | head -1 | sed 's/^WRITE-SET:[[:space:]]*//' || true)"
+    [ -z "$write_set_line" ] && continue
+    local total_bytes=0
+    local ws_path
+    local IFS_save="$IFS"
+    IFS=','
+    for ws_path in $write_set_line; do
+      ws_path="$(printf '%s' "$ws_path" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+      [ -z "$ws_path" ] && continue
+      # Skip globs.
+      [[ "$ws_path" == *"*"* ]] && continue
+      local full="$ROOT/$ws_path"
+      if [ -f "$full" ]; then
+        local sz; sz="$(wc -c < "$full" 2>/dev/null | tr -d ' ' || echo 0)"
+        total_bytes=$((total_bytes + sz))
+      fi
+    done
+    IFS="$IFS_save"
+    if [ "$total_bytes" -gt "$BUDGET_BYTES" ]; then
+      local kb=$((total_bytes / 1024))
+      if [ "$has_bypass" -eq 1 ]; then
+        warn "task $tid WRITE-SET budget ${kb}KB > 30KB but checkpoint_plan declared (bypass, cv=$contract_version)"
+      elif [ "$violation_is_fail" -eq 1 ]; then
+        fail "task $tid WRITE-SET budget ${kb}KB > 30KB - split card or declare checkpoint_plan"
+        echo "  human: Active task $tid has WRITE-SET totaling ${kb}KB across listed files (threshold 30KB ~ 8000 tokens). Either split into smaller cards, or add a 'checkpoint_plan: <text or tryout>' field to the task card header to declare a bypass (D-028 §9)."
+      else
+        warn "task $tid WRITE-SET budget ${kb}KB > 30KB (grace period, cv=$contract_version < 6.9.0)"
+      fi
+    fi
+  done
+}
+
+# v6.9.0 (D-028 §9 / T-034 AC-6): task granularity soft gate.
+# 4 thresholds: AC count > 12, WRITE-SET distinct paths > 15, estimated_steps > 20,
+# WRITE-SET bytes > 30KB (delegated to check_writeset_budget).
+# Any threshold hit and no checkpoint_plan field = FAIL; declaring checkpoint_plan
+# (non-empty, including `tryout`) downgrades FAIL->WARN.
+# Migration grace period: contract-version < 6.9.0 -> WARN; >= 6.9.0 -> FAIL.
+check_task_granularity() {
+  local tasks_dir="$ENGINE_DIR/tasks"
+  [ -d "$tasks_dir" ] || return 0
+
+  local doctor_path="$ENGINE_DIR/ENGINE_DOCTOR.md"
+  local contract_version=""
+  if [ -f "$doctor_path" ]; then
+    contract_version="$(grep -oE 'contract-version:[[:space:]]*[0-9]+\.[0-9]+\.[0-9]+' "$doctor_path" 2>/dev/null | head -1 | sed 's/.*contract-version:[[:space:]]*//' || true)"
+  fi
+  local cv_int=0
+  if [[ "$contract_version" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+    cv_int=$(( ${BASH_REMATCH[1]} * 10000 + ${BASH_REMATCH[2]} * 100 + ${BASH_REMATCH[3]} ))
+  fi
+  local violation_is_fail=0
+  if [ "$cv_int" -ge 60900 ] 2>/dev/null; then
+    violation_is_fail=1
+  fi
+
+  local AC_THRESHOLD=12
+  local PATH_THRESHOLD=15
+  local STEPS_THRESHOLD=20
+
+  local f
+  for f in "$tasks_dir"/T-*.md; do
+    [ -f "$f" ] || continue
+    [[ "$f" == *.spec.md ]] && continue
+    grep -q 'status:.*active' "$f" 2>/dev/null || continue
+    local tid; tid="$(basename "$f" .md)"
+
+    # checkpoint_plan bypass: any non-empty value (incl. tryout) downgrades FAIL->WARN.
+    local checkpoint_plan
+    checkpoint_plan="$(grep -oE 'checkpoint_plan:[[:space:]]*[^|]*' "$f" 2>/dev/null | head -1 | sed 's/.*checkpoint_plan:[[:space:]]*//' | tr -d ' \t' || true)"
+    local has_bypass=0
+    if [ -n "$checkpoint_plan" ]; then has_bypass=1; fi
+
+    # AC count: count lines starting with "AC:".
+    local ac_count
+    ac_count="$(grep -c '^AC:' "$f" 2>/dev/null || echo 0)"
+
+    # WRITE-SET distinct paths: count comma-separated entries, de-dup mirror pairs
+    # (engine/X and plugin/engine/X count as 1).
+    local write_set_line
+    write_set_line="$(grep '^WRITE-SET:' "$f" 2>/dev/null | head -1 | sed 's/^WRITE-SET:[[:space:]]*//' || true)"
+    local distinct_count=0
+    if [ -n "$write_set_line" ]; then
+      local seen_tmp; seen_tmp="$(mktemp)"
+      trap 'rm -f "$seen_tmp"' RETURN
+      local p
+      local IFS_save="$IFS"
+      IFS=','
+      for p in $write_set_line; do
+        p="$(printf '%s' "$p" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+        [ -z "$p" ] && continue
+        # De-dup mirror pairs: strip "plugin/" prefix for comparison.
+        local canonical="$p"
+        case "$p" in
+          plugin/*) canonical="${p#plugin/}" ;;
+        esac
+        printf '%s\n' "$canonical" >> "$seen_tmp"
+      done
+      IFS="$IFS_save"
+      distinct_count="$(sort -u "$seen_tmp" | wc -l | tr -d ' ')"
+      rm -f "$seen_tmp"
+    fi
+
+    # estimated_steps: parse from header line "> estimated_steps: N | ..."
+    local estimated_steps=0
+    local es_line
+    es_line="$(grep -oE 'estimated_steps:[[:space:]]*[0-9]+' "$f" 2>/dev/null | head -1 | sed 's/.*estimated_steps:[[:space:]]*//' || true)"
+    if [ -n "$es_line" ]; then
+      estimated_steps="$es_line"
+    fi
+
+    # Check thresholds.
+    local hit=0
+    local hit_msg=""
+    if [ "$ac_count" -gt "$AC_THRESHOLD" ]; then
+      hit=1; hit_msg="AC count $ac_count > $AC_THRESHOLD"
+    fi
+    if [ "$distinct_count" -gt "$PATH_THRESHOLD" ]; then
+      hit=1; hit_msg="$hit_msg; WRITE-SET distinct paths $distinct_count > $PATH_THRESHOLD"
+    fi
+    if [ "$estimated_steps" -gt 0 ] && [ "$estimated_steps" -gt "$STEPS_THRESHOLD" ]; then
+      hit=1; hit_msg="$hit_msg; estimated_steps $estimated_steps > $STEPS_THRESHOLD"
+    fi
+
+    if [ "$hit" -eq 1 ]; then
+      if [ "$has_bypass" -eq 1 ]; then
+        warn "task $tid granularity soft gate hit ($hit_msg) but checkpoint_plan declared (bypass, cv=$contract_version)"
+      elif [ "$violation_is_fail" -eq 1 ]; then
+        fail "task $tid granularity soft gate hit ($hit_msg) - split card or declare checkpoint_plan"
+        echo "  human: Active task $tid exceeds granularity thresholds ($hit_msg). Either split into smaller cards, or add a 'checkpoint_plan: <text or tryout>' field to the task card header to declare a bypass (D-028 §9)."
+      else
+        warn "task $tid granularity soft gate hit ($hit_msg) (grace period, cv=$contract_version < 6.9.0)"
+      fi
+    fi
+  done
+}
+
+# v6.9.0 (D-028 §9 / T-034 AC-6): depends-on dependency gate.
+# Active card with `depends-on: T-NNN, T-NNN` field where any upstream is not done = FAIL.
+# Cross-domain split coordination. Migration grace period: < 6.9.0 -> WARN; >= 6.9.0 -> FAIL.
+check_depends_on() {
+  local tasks_dir="$ENGINE_DIR/tasks"
+  [ -d "$tasks_dir" ] || return 0
+
+  local doctor_path="$ENGINE_DIR/ENGINE_DOCTOR.md"
+  local contract_version=""
+  if [ -f "$doctor_path" ]; then
+    contract_version="$(grep -oE 'contract-version:[[:space:]]*[0-9]+\.[0-9]+\.[0-9]+' "$doctor_path" 2>/dev/null | head -1 | sed 's/.*contract-version:[[:space:]]*//' || true)"
+  fi
+  local cv_int=0
+  if [[ "$contract_version" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+    cv_int=$(( ${BASH_REMATCH[1]} * 10000 + ${BASH_REMATCH[2]} * 100 + ${BASH_REMATCH[3]} ))
+  fi
+  local violation_is_fail=0
+  if [ "$cv_int" -ge 60900 ] 2>/dev/null; then
+    violation_is_fail=1
+  fi
+
+  local f
+  for f in "$tasks_dir"/T-*.md; do
+    [ -f "$f" ] || continue
+    [[ "$f" == *.spec.md ]] && continue
+    grep -q 'status:.*active' "$f" 2>/dev/null || continue
+    local tid; tid="$(basename "$f" .md)"
+
+    # Parse depends-on field (comma-separated list of T-NNN).
+    local depends_line
+    depends_line="$(grep -oE 'depends-on:[[:space:]]*[^|]*' "$f" 2>/dev/null | head -1 | sed 's/.*depends-on:[[:space:]]*//' || true)"
+    # Also accept depends_on (underscore form).
+    if [ -z "$depends_line" ]; then
+      depends_line="$(grep -oE 'depends_on:[[:space:]]*[^|]*' "$f" 2>/dev/null | head -1 | sed 's/.*depends_on:[[:space:]]*//' || true)"
+    fi
+    [ -z "$depends_line" ] && continue
+
+    local IFS_save="$IFS"
+    IFS=','
+    local upstream
+    for upstream in $depends_line; do
+      upstream="$(printf '%s' "$upstream" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+      [ -z "$upstream" ] && continue
+      # Validate format T-NNN.
+      [[ "$upstream" =~ ^T-[0-9]+$ ]] || continue
+      local upstream_file="$tasks_dir/$upstream.md"
+      if [ ! -f "$upstream_file" ]; then
+        if [ "$violation_is_fail" -eq 1 ]; then
+          fail "task $tid depends-on $upstream but upstream card not found"
+          echo "  human: Active task $tid declares depends-on: $upstream, but no task card exists at engine/tasks/$upstream.md. Remove the depends-on entry or create the upstream card."
+        else
+          warn "task $tid depends-on $upstream not found (grace period, cv=$contract_version < 6.9.0)"
+        fi
+        continue
+      fi
+      if ! grep -q 'status:.*done' "$upstream_file" 2>/dev/null; then
+        if [ "$violation_is_fail" -eq 1 ]; then
+          fail "task $tid depends-on $upstream which is not done - block active"
+          echo "  human: Active task $tid declares depends-on: $upstream, but $upstream is not done. Either complete $upstream first (run 'engine verify $upstream' and mark done), or remove the depends-on entry if the dependency no longer applies."
+        else
+          warn "task $tid depends-on $upstream not done (grace period, cv=$contract_version < 6.9.0)"
+        fi
+      fi
+    done
+    IFS="$IFS_save"
+  done
+}
+
 check_pitfalls_semantics() {
   is_registered_name "PITFALLS.md" || return 0
   local path="$ENGINE_DIR/PITFALLS.md"
@@ -967,6 +1209,9 @@ check_handoff_history_cap
 check_progress_md
 check_inventory_bidirectional
 check_inventory_api_uniqueness
+check_writeset_budget
+check_task_granularity
+check_depends_on
 check_pitfalls_semantics
 check_sprint_semantics
 check_change_capsule_semantics

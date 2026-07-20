@@ -462,6 +462,29 @@ INVEOF
   echo "created engine/skeleton/domains/INVENTORY.md (v6.8.0 INVENTORY.md template)"
 fi
 
+# v6.9.0 (D-028/T-034): ensure engine/skeleton/checkpoint.md template exists
+# in the target project so evidence/checkpoint.md can be instantiated from it.
+# Idempotent: only creates if missing, never overwrites.
+skeleton_checkpoint="$ENGINE_DIR/skeleton/checkpoint.md"
+if [ ! -f "$skeleton_checkpoint" ]; then
+  mkdir -p "$(dirname "$skeleton_checkpoint")"
+  cat > "$skeleton_checkpoint" <<'CPEOF'
+# Checkpoint — [Task ID: T-NNN]
+> Last updated: [date] | AC 级压缩恢复锚点 | verify 脚本追加写,见 contract/src/20-file-templates.md FILE 15
+
+## 已完成 AC
+- [ ] AC-1 <待 verify>
+
+<!-- 维护规则:
+  - verify 脚本在每个 AC PASS 后追加写一行（不覆盖历史）
+  - agent 不写本文件（写 progress.md）
+  - 任务 done 时归档到 engine/archive/tasks/T-NNN-checkpoint.md
+  - SessionStart 优先注入本文件（覆盖 progress.md §4 与 HANDOFF 立即恢复点）
+-->
+CPEOF
+  echo "created engine/skeleton/checkpoint.md (v6.9.0 checkpoint.md template)"
+fi
+
 # v6.8.0 (D-028 §9/T-033): for each existing domain directory under
 # engine/domains/, create an empty-header INVENTORY.md stub if missing.
 # Idempotent: never overwrites an existing INVENTORY.md. The stub carries

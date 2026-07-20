@@ -417,6 +417,31 @@ if (-not (Test-Path $skeletonInventory)) {
   Write-Host "created $(Get-Relative $skeletonInventory) (v6.8.0 INVENTORY.md template)"
 }
 
+# v6.9.0 (D-028/T-034): ensure engine/skeleton/checkpoint.md template exists
+# in the target project so evidence/checkpoint.md can be instantiated from it.
+# Idempotent: only creates if missing, never overwrites.
+$skeletonCheckpoint = Join-Path $EngineDir "skeleton\checkpoint.md"
+if (-not (Test-Path $skeletonCheckpoint)) {
+  $skeletonCpDir = Split-Path -Parent $skeletonCheckpoint
+  if (-not (Test-Path $skeletonCpDir)) { New-Item -ItemType Directory -Force -Path $skeletonCpDir | Out-Null }
+  $checkpointTemplate = @"
+# Checkpoint — [Task ID: T-NNN]
+> Last updated: [date] | AC 级压缩恢复锚点 | verify 脚本追加写,见 contract/src/20-file-templates.md FILE 15
+
+## 已完成 AC
+- [ ] AC-1 <待 verify>
+
+<!-- 维护规则:
+  - verify 脚本在每个 AC PASS 后追加写一行（不覆盖历史）
+  - agent 不写本文件（写 progress.md）
+  - 任务 done 时归档到 engine/archive/tasks/T-NNN-checkpoint.md
+  - SessionStart 优先注入本文件（覆盖 progress.md §4 与 HANDOFF 立即恢复点）
+-->
+"@
+  Set-Content -Path $skeletonCheckpoint -Value $checkpointTemplate -Encoding UTF8
+  Write-Host "created $(Get-Relative $skeletonCheckpoint) (v6.9.0 checkpoint.md template)"
+}
+
 # v6.8.0 (D-028 §9/T-033): for each existing domain directory under
 # engine/domains/, create an empty-header INVENTORY.md stub if missing.
 # Idempotent: never overwrites an existing INVENTORY.md. The stub carries

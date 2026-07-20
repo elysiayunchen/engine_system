@@ -652,6 +652,213 @@ function Test-InventoryApiUniqueness {
   }
 }
 
+# v6.9.0 (D-028 §10 mechanism A / T-034 AC-5.1): WRITE-SET static budget soft gate.
+# Sums byte length of all files listed in active card's WRITE-SET; > 30KB triggers
+# soft gate (FAIL unless checkpoint_plan field is declared, D-028 §9 tryout bypass).
+# Migration grace period: contract-version < 6.9.0 -> WARN; >= 6.9.0 -> FAIL.
+function Test-WriteSetBudget {
+  $tasksDir = Join-Path $engineDir "tasks"
+  if (-not (Test-Path $tasksDir)) { return }
+
+  $doctorPath = Join-Path $engineDir "ENGINE_DOCTOR.md"
+  $contractVersion = ""
+  if (Test-Path $doctorPath) {
+    $m = Select-String -Path $doctorPath -Pattern 'contract-version:\s*([0-9]+\.[0-9]+\.[0-9]+)' -List -ErrorAction SilentlyContinue
+    if ($m) { $contractVersion = $m.Matches[0].Groups[1].Value }
+  }
+  $cvInt = 0
+  if ($contractVersion -match '^(\d+)\.(\d+)\.(\d+)$') {
+    $cvInt = [int]$Matches[1] * 10000 + [int]$Matches[2] * 100 + [int]$Matches[3]
+  }
+  $violationIsFail = $false
+  if ($cvInt -ge 60900) { $violationIsFail = $true }
+
+  $budgetBytes = 30720  # 30KB
+  $taskFiles = Get-ChildItem -Path $tasksDir -Filter 'T-*.md' -File -ErrorAction SilentlyContinue
+  foreach ($f in $taskFiles) {
+    if ($f.Name -like '*.spec.md') { continue }
+    $content = Get-Content -Raw -Path $f.FullName -Encoding UTF8 -ErrorAction SilentlyContinue
+    if ($content -notmatch 'status:.*active') { continue }
+    $tid = $f.BaseName
+    # checkpoint_plan bypass: any non-empty value (incl. tryout) downgrades FAIL->WARN.
+    $checkpointPlan = ""
+    if ($content -match 'checkpoint_plan:\s*([^|]*)') { $checkpointPlan = $Matches[1].Trim() }
+    $hasBypass = (-not [string]::IsNullOrEmpty($checkpointPlan))
+
+    # Sum byte length of all concrete files in WRITE-SET (skip globs).
+    $writeSetLine = ""
+    if ($content -match '(?m)^WRITE-SET:\s*(.*)$') { $writeSetLine = $Matches[1].Trim() }
+    if ([string]::IsNullOrEmpty($writeSetLine)) { continue }
+    $totalBytes = 0
+    foreach ($wsPath in ($writeSetLine -split ',')) {
+      $wsPath = $wsPath.Trim()
+      if ([string]::IsNullOrEmpty($wsPath)) { continue }
+      if ($wsPath -like '*\**' -or $wsPath -like '*/**' -or $wsPath -like '*\*' -or $wsPath -like '*/*') { continue }
+      $full = Join-Path $Root ($wsPath -replace '/', [IO.Path]::DirectorySeparatorChar)
+      if (Test-Path $full -PathType Leaf) {
+        $totalBytes += (Get-Item $full).Length
+      }
+    }
+    if ($totalBytes -gt $budgetBytes) {
+      $kb = [int]($totalBytes / 1024)
+      if ($hasBypass) {
+        Write-Warn "task $tid WRITE-SET budget ${kb}KB > 30KB but checkpoint_plan declared (bypass, cv=$contractVersion)"
+      } elseif ($violationIsFail) {
+        Write-Fail "task $tid WRITE-SET budget ${kb}KB > 30KB - split card or declare checkpoint_plan"
+        Write-Output "  human: Active task $tid has WRITE-SET totaling ${kb}KB across listed files (threshold 30KB ~ 8000 tokens). Either split into smaller cards, or add a 'checkpoint_plan: <text or tryout>' field to the task card header to declare a bypass (D-028 §9)."
+      } else {
+        Write-Warn "task $tid WRITE-SET budget ${kb}KB > 30KB (grace period, cv=$contractVersion < 6.9.0)"
+      }
+    }
+  }
+}
+
+# v6.9.0 (D-028 §9 / T-034 AC-6): task granularity soft gate.
+# 4 thresholds: AC count > 12, WRITE-SET distinct paths > 15, estimated_steps > 20,
+# WRITE-SET bytes > 30KB (delegated to Test-WriteSetBudget).
+# Any threshold hit and no checkpoint_plan field = FAIL; declaring checkpoint_plan
+# (non-empty, including `tryout`) downgrades FAIL->WARN.
+function Test-TaskGranularity {
+  $tasksDir = Join-Path $engineDir "tasks"
+  if (-not (Test-Path $tasksDir)) { return }
+
+  $doctorPath = Join-Path $engineDir "ENGINE_DOCTOR.md"
+  $contractVersion = ""
+  if (Test-Path $doctorPath) {
+    $m = Select-String -Path $doctorPath -Pattern 'contract-version:\s*([0-9]+\.[0-9]+\.[0-9]+)' -List -ErrorAction SilentlyContinue
+    if ($m) { $contractVersion = $m.Matches[0].Groups[1].Value }
+  }
+  $cvInt = 0
+  if ($contractVersion -match '^(\d+)\.(\d+)\.(\d+)$') {
+    $cvInt = [int]$Matches[1] * 10000 + [int]$Matches[2] * 100 + [int]$Matches[3]
+  }
+  $violationIsFail = $false
+  if ($cvInt -ge 60900) { $violationIsFail = $true }
+
+  $acThreshold = 12
+  $pathThreshold = 15
+  $stepsThreshold = 20
+
+  $taskFiles = Get-ChildItem -Path $tasksDir -Filter 'T-*.md' -File -ErrorAction SilentlyContinue
+  foreach ($f in $taskFiles) {
+    if ($f.Name -like '*.spec.md') { continue }
+    $content = Get-Content -Raw -Path $f.FullName -Encoding UTF8 -ErrorAction SilentlyContinue
+    if ($content -notmatch 'status:.*active') { continue }
+    $tid = $f.BaseName
+
+    # checkpoint_plan bypass: any non-empty value (incl. tryout) downgrades FAIL->WARN.
+    $checkpointPlan = ""
+    if ($content -match 'checkpoint_plan:\s*([^|]*)') { $checkpointPlan = $Matches[1].Trim() }
+    $hasBypass = (-not [string]::IsNullOrEmpty($checkpointPlan))
+
+    # AC count: count lines starting with "AC:".
+    $acCount = 0
+    foreach ($ln in ($content -split "`n")) {
+      if ($ln -match '^AC:') { $acCount++ }
+    }
+
+    # WRITE-SET distinct paths: count comma-separated entries, de-dup mirror pairs
+    # (engine/X and plugin/engine/X count as 1).
+    $writeSetLine = ""
+    if ($content -match '(?m)^WRITE-SET:\s*(.*)$') { $writeSetLine = $Matches[1].Trim() }
+    $distinctCount = 0
+    if (-not [string]::IsNullOrEmpty($writeSetLine)) {
+      $seen = New-Object System.Collections.Generic.HashSet[string]
+      foreach ($p in ($writeSetLine -split ',')) {
+        $p = $p.Trim()
+        if ([string]::IsNullOrEmpty($p)) { continue }
+        # De-dup mirror pairs: strip "plugin/" prefix for comparison.
+        $canonical = $p
+        if ($p -like 'plugin/*') { $canonical = $p -replace '^plugin/', '' }
+        [void]$seen.Add($canonical)
+      }
+      $distinctCount = $seen.Count
+    }
+
+    # estimated_steps: parse from header line "> estimated_steps: N | ..."
+    $estimatedSteps = 0
+    if ($content -match 'estimated_steps:\s*(\d+)') { $estimatedSteps = [int]$Matches[1] }
+
+    # Check thresholds.
+    $hit = 0
+    $hitMsg = ""
+    if ($acCount -gt $acThreshold) { $hit = 1; $hitMsg = "AC count $acCount > $acThreshold" }
+    if ($distinctCount -gt $pathThreshold) { $hit = 1; $hitMsg = "$hitMsg; WRITE-SET distinct paths $distinctCount > $pathThreshold" }
+    if ($estimatedSteps -gt 0 -and $estimatedSteps -gt $stepsThreshold) { $hit = 1; $hitMsg = "$hitMsg; estimated_steps $estimatedSteps > $stepsThreshold" }
+
+    if ($hit -eq 1) {
+      if ($hasBypass) {
+        Write-Warn "task $tid granularity soft gate hit ($hitMsg) but checkpoint_plan declared (bypass, cv=$contractVersion)"
+      } elseif ($violationIsFail) {
+        Write-Fail "task $tid granularity soft gate hit ($hitMsg) - split card or declare checkpoint_plan"
+        Write-Output "  human: Active task $tid exceeds granularity thresholds ($hitMsg). Either split into smaller cards, or add a 'checkpoint_plan: <text or tryout>' field to the task card header to declare a bypass (D-028 §9)."
+      } else {
+        Write-Warn "task $tid granularity soft gate hit ($hitMsg) (grace period, cv=$contractVersion < 6.9.0)"
+      }
+    }
+  }
+}
+
+# v6.9.0 (D-028 §9 / T-034 AC-6): depends-on dependency gate.
+# Active card with `depends-on: T-NNN, T-NNN` field where any upstream is not done = FAIL.
+# Cross-domain split coordination. Migration grace period: < 6.9.0 -> WARN; >= 6.9.0 -> FAIL.
+function Test-DependsOn {
+  $tasksDir = Join-Path $engineDir "tasks"
+  if (-not (Test-Path $tasksDir)) { return }
+
+  $doctorPath = Join-Path $engineDir "ENGINE_DOCTOR.md"
+  $contractVersion = ""
+  if (Test-Path $doctorPath) {
+    $m = Select-String -Path $doctorPath -Pattern 'contract-version:\s*([0-9]+\.[0-9]+\.[0-9]+)' -List -ErrorAction SilentlyContinue
+    if ($m) { $contractVersion = $m.Matches[0].Groups[1].Value }
+  }
+  $cvInt = 0
+  if ($contractVersion -match '^(\d+)\.(\d+)\.(\d+)$') {
+    $cvInt = [int]$Matches[1] * 10000 + [int]$Matches[2] * 100 + [int]$Matches[3]
+  }
+  $violationIsFail = $false
+  if ($cvInt -ge 60900) { $violationIsFail = $true }
+
+  $taskFiles = Get-ChildItem -Path $tasksDir -Filter 'T-*.md' -File -ErrorAction SilentlyContinue
+  foreach ($f in $taskFiles) {
+    if ($f.Name -like '*.spec.md') { continue }
+    $content = Get-Content -Raw -Path $f.FullName -Encoding UTF8 -ErrorAction SilentlyContinue
+    if ($content -notmatch 'status:.*active') { continue }
+    $tid = $f.BaseName
+
+    # Parse depends-on field (comma-separated list of T-NNN). Also accept depends_on.
+    $dependsLine = ""
+    if ($content -match 'depends-on:\s*([^|]*)') { $dependsLine = $Matches[1].Trim() }
+    if ([string]::IsNullOrEmpty($dependsLine) -and $content -match 'depends_on:\s*([^|]*)') { $dependsLine = $Matches[1].Trim() }
+    if ([string]::IsNullOrEmpty($dependsLine)) { continue }
+
+    foreach ($upstream in ($dependsLine -split ',')) {
+      $upstream = $upstream.Trim()
+      if ([string]::IsNullOrEmpty($upstream)) { continue }
+      if ($upstream -notmatch '^T-\d+$') { continue }
+      $upstreamFile = Join-Path $tasksDir ($upstream + ".md")
+      if (-not (Test-Path $upstreamFile)) {
+        if ($violationIsFail) {
+          Write-Fail "task $tid depends-on $upstream but upstream card not found"
+          Write-Output "  human: Active task $tid declares depends-on: $upstream, but no task card exists at engine/tasks/$upstream.md. Remove the depends-on entry or create the upstream card."
+        } else {
+          Write-Warn "task $tid depends-on $upstream not found (grace period, cv=$contractVersion < 6.9.0)"
+        }
+        continue
+      }
+      $upstreamContent = Get-Content -Raw -Path $upstreamFile -Encoding UTF8 -ErrorAction SilentlyContinue
+      if ($upstreamContent -notmatch 'status:.*done') {
+        if ($violationIsFail) {
+          Write-Fail "task $tid depends-on $upstream which is not done - block active"
+          Write-Output "  human: Active task $tid declares depends-on: $upstream, but $upstream is not done. Either complete $upstream first (run 'engine verify $upstream' and mark done), or remove the depends-on entry if the dependency no longer applies."
+        } else {
+          Write-Warn "task $tid depends-on $upstream not done (grace period, cv=$contractVersion < 6.9.0)"
+        }
+      }
+    }
+  }
+}
+
 function Test-PitfallsSemantics {
   if (-not (Test-RegisteredName "PITFALLS.md")) { return }
   $path = Join-Path $engineDir "PITFALLS.md"
@@ -1057,6 +1264,9 @@ Test-HandoffHistoryCap
 Test-ProgressMd
 Test-InventoryBidirectional
 Test-InventoryApiUniqueness
+Test-WriteSetBudget
+Test-TaskGranularity
+Test-DependsOn
 Test-PitfallsSemantics
 Test-SprintSemantics
 Test-ChangeCapsuleSemantics

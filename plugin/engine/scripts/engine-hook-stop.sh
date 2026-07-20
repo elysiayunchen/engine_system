@@ -214,19 +214,32 @@ if [ "$MODE" = "--pre-tool-use" ]; then
   path="$(normalize_path "$file_path")"
   is_runtime_cache "$path" && exit 0
 
-  if [ -n "$agent_id" ] && is_shared_memory "$path"; then
-    printf '{"decision":"block","reason":"[Engine System] Worker agent %s cannot write shared memory %s. | developer: Parallel workers write their own engine/workstreams/%s/%s/ shard; the coordinator merges shared CONTEXT/HANDOFF once."}\n' "$agent_id" "$path" "${active_task_id:-T-NNN}" "$(safe_id "$agent_id")"
+  # v6.11.0 (D-029/T-036) AC-4: PreToolUse 双信号扩展
+  # 信号 1: agent_id 非空 (subagent 由 Claude Code 传入)
+  # 信号 2: .cache/sessions/<session_key>.role=worker 文件存在 (顶层会话降级为 worker)
+  # OR 关系: 任一信号触发即视为 worker, 拦截共享记忆写入 + 限定 workstream 路径
+  is_worker=0
+  if [ -n "$agent_id" ]; then
+    is_worker=1
+  elif [ -n "$session_key" ] && [ -f "$ENGINE_DIR/.cache/sessions/$session_key.role=worker" ]; then
+    is_worker=1
+  fi
+  # worker 标识: 优先 agent_id, 否则用 session_key (顶层会话降级场景)
+  worker_id="${agent_id:-$session_key}"
+
+  if [ "$is_worker" -eq 1 ] && is_shared_memory "$path"; then
+    printf '{"decision":"block","reason":"[Engine System] Worker %s cannot write shared memory %s. | developer: Parallel workers write their own engine/workstreams/%s/%s/ shard; the coordinator merges shared CONTEXT/HANDOFF once."}\n' "$worker_id" "$path" "${active_task_id:-T-NNN}" "$(safe_id "$worker_id")"
     exit 0
   fi
 
-  if [ -n "$agent_id" ]; then
+  if [ "$is_worker" -eq 1 ]; then
     case "$path" in
       engine/workstreams/*)
-        agent_safe="$(safe_id "$agent_id")"
+        agent_safe="$(safe_id "$worker_id")"
         case "$path" in
           engine/workstreams/"${active_task_id:-T-NNN}"/"$agent_safe"/*) ;;
           *)
-            printf '{"decision":"block","reason":"[Engine System] Worker %s may only write its own workstream shard: engine/workstreams/%s/%s/."}\n' "$agent_id" "${active_task_id:-T-NNN}" "$agent_safe"
+            printf '{"decision":"block","reason":"[Engine System] Worker %s may only write its own workstream shard: engine/workstreams/%s/%s/."}\n' "$worker_id" "${active_task_id:-T-NNN}" "$agent_safe"
             exit 0
             ;;
         esac

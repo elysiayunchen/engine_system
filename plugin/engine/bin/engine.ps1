@@ -7,7 +7,8 @@ param(
   [switch]$CheckOnly,
   [switch]$NoMigrate,
   [switch]$Print,
-  [string]$Kind = "subagent"
+  [string]$Kind = "subagent",
+  [switch]$Force
 )
 
 $ErrorActionPreference = "Stop"
@@ -24,6 +25,8 @@ Usage:
   engine init --print   Print the raw agent-neutral init prompt (pipe/copy it)
   engine context        Load full session context (agent-agnostic, any AI agent)
   engine workstream T-NNN AGENT [--kind=subagent|session]   Create an isolated worker memory shard (default subagent)
+  engine assume-coordinator [--force]   Force-take coordinator lock + write tombstone (use after crash or to override)
+  engine merge-workstream <session-id>   Display worker shard + guide coordinator through merge steps (no auto-write)
   engine check-update   Check if a newer Engine System version is available
   engine update         Update tooling, then migrate + doctor (one-shot)
   engine update -CheckOnly       Only check for updates, change nothing
@@ -370,6 +373,139 @@ $goal
   }
 }
 
+# v6.11.0 (D-029/T-036) AC-9: assume-coordinator command
+# Force-take the coordinator lock; optionally write tombstone for the previous holder.
+# Use cases: (1) crash recovery when a previous coordinator left a stale lock;
+#            (2) explicit override of an active coordinator (-Force required).
+function Assume-Coordinator {
+  param([string]$Root, [switch]$Force)
+  $cacheDir = Join-Path $Root "engine\.cache"
+  $lockFile = Join-Path $cacheDir "session.lock"
+  $tombstoneFile = Join-Path $cacheDir "session.tombstone"
+  New-Item -ItemType Directory -Force -Path $cacheDir | Out-Null
+
+  $procId = $PID
+  $sessionId = if ($env:CLAUDE_SESSION_ID) { $env:CLAUDE_SESSION_ID } else { "anon-$procId" }
+  $startedAt = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+
+  # Detect active task from engine/tasks/T-NNN.md (skip .spec.md twins)
+  $taskId = ""
+  $tasksDir = Join-Path $Root "engine\tasks"
+  if (Test-Path $tasksDir) {
+    $taskFiles = Get-ChildItem -Path $tasksDir -Filter "T-*.md" -File -ErrorAction SilentlyContinue |
+      Where-Object { $_.Name -notmatch '\.spec\.md$' }
+    foreach ($tf in $taskFiles) {
+      $content = Get-Content -Raw -Path $tf.FullName -Encoding UTF8 -ErrorAction SilentlyContinue
+      if ($content -match 'status:\s*active') { $taskId = $tf.BaseName; break }
+    }
+  }
+
+  # Check existing lock
+  if (Test-Path $lockFile) {
+    $lockContent = (Get-Content -Raw -Path $lockFile -Encoding UTF8 -ErrorAction SilentlyContinue).Trim()
+    $parts = $lockContent -split '\|'
+    $lockPid = if ($parts.Count -ge 1) { $parts[0] } else { "" }
+    $lockSid = if ($parts.Count -ge 2) { $parts[1] } else { "" }
+    if (-not $Force) {
+      Write-Error "Error: lock held by pid=$lockPid sid=$lockSid. Use 'engine assume-coordinator --force' to override (writes tombstone for old holder)."
+      exit 2
+    }
+    # Force-override: write tombstone for the old coordinator, then take the lock
+    Remove-Item -Force -ErrorAction SilentlyContinue -Path $lockFile
+    $tombstoneContent = "$startedAt|$(if ($lockPid) { $lockPid } else { 'unknown' })|forced-replaced`n"
+    [System.IO.File]::WriteAllText($tombstoneFile, $tombstoneContent, (New-Object System.Text.UTF8Encoding $false))
+    Write-Host "Previous coordinator (pid=$lockPid sid=$lockSid) force-replaced."
+    Write-Host "Tombstone written: engine/.cache/session.tombstone"
+  } else {
+    # Fresh coordinator: clear any stale tombstone from a prior crash
+    if (Test-Path $tombstoneFile) {
+      Remove-Item -Force -ErrorAction SilentlyContinue -Path $tombstoneFile
+      Write-Host "Cleared stale tombstone from prior coordinator exit."
+    }
+  }
+
+  # Create new lock
+  $newLockContent = "$procId|$sessionId|coordinator|$startedAt|$taskId`n"
+  [System.IO.File]::WriteAllText($lockFile, $newLockContent, (New-Object System.Text.UTF8Encoding $false))
+
+  Write-Host "Lock acquired: engine/.cache/session.lock"
+  $taskDisplay = if ($taskId) { $taskId } else { "none" }
+  Write-Host "  pid=$procId sid=$sessionId role=coordinator started=$startedAt task=$taskDisplay"
+  Write-Host ""
+  Write-Host "This session is now the coordinator. Other sessions will be treated as workers."
+  Write-Host "Run 'engine context' to view active sessions."
+}
+
+# v6.11.0 (D-029/T-036) AC-10: merge-workstream command
+# Display a worker's workstream shard and guide the coordinator through merging it
+# into shared engine/CONTEXT.md and engine/HANDOFF.md. Does NOT auto-write shared memory.
+function Merge-Workstream {
+  param([string]$Root, [string]$SessionId)
+  if (-not $SessionId) {
+    Write-Error "Usage: engine merge-workstream <session-id>`nLists active workstreams if <session-id> is omitted."
+    exit 2
+  }
+
+  $wsRoot = Join-Path $Root "engine\workstreams"
+  if (-not (Test-Path $wsRoot)) {
+    Write-Error "Error: no workstreams directory at engine\workstreams\. Run 'engine workstream T-NNN AGENT --kind=session' to create a worker shard first."
+    exit 2
+  }
+
+  # Locate shard by session-id (may live under any task\<session-id>\).
+  $shardDir = ""
+  $taskId = ""
+  $tasksRoot = Get-ChildItem -Path $wsRoot -Directory -ErrorAction SilentlyContinue
+  foreach ($taskDir in $tasksRoot) {
+    $candidate = Join-Path $taskDir.FullName $SessionId
+    if (Test-Path $candidate) {
+      $shardDir = $candidate
+      $taskId = $taskDir.Name
+      break
+    }
+  }
+
+  if (-not $shardDir) {
+    Write-Error "Error: no workstream shard found for session-id '$SessionId'."
+    Write-Host "Available shards:" -ForegroundColor Yellow
+    $found = $false
+    foreach ($taskDir in $tasksRoot) {
+      $shards = Get-ChildItem -Path $taskDir.FullName -Directory -ErrorAction SilentlyContinue
+      foreach ($shard in $shards) {
+        Write-Host "  $($shard.Name) -> $($taskDir.Name)"
+        $found = $true
+      }
+    }
+    if (-not $found) { Write-Host "  (none)" }
+    exit 2
+  }
+
+  Write-Host "Workstream shard: engine\workstreams\$taskId\$SessionId\"
+  Write-Host "Task: $taskId | Worker: $SessionId"
+  Write-Host ""
+  Write-Host "--- BEGIN shard CONTEXT.md ---"
+  $ctxFile = Join-Path $shardDir "CONTEXT.md"
+  if (Test-Path $ctxFile) { Get-Content -Raw -Path $ctxFile -Encoding UTF8 } else { Write-Host "(missing: $ctxFile)" }
+  Write-Host "--- END shard CONTEXT.md ---"
+  Write-Host ""
+  Write-Host "--- BEGIN shard HANDOFF.md ---"
+  $hoFile = Join-Path $shardDir "HANDOFF.md"
+  if (Test-Path $hoFile) { Get-Content -Raw -Path $hoFile -Encoding UTF8 } else { Write-Host "(missing: $hoFile)" }
+  Write-Host "--- END shard HANDOFF.md ---"
+  Write-Host ""
+  Write-Host "Merge steps for the coordinator:"
+  Write-Host "  1. Re-read the shard above (Goal / Progress / Changed Paths / Evidence / Merge Notes)."
+  Write-Host "  2. Diff against shared engine/CONTEXT.md and engine/HANDOFF.md:"
+  Write-Host "       Compare-Object (Get-Content engine\CONTEXT.md) (Get-Content $ctxFile)"
+  Write-Host "       Compare-Object (Get-Content engine\HANDOFF.md) (Get-Content $hoFile)"
+  Write-Host "  3. Apply shard-specific progress / changed paths / evidence into shared memory."
+  Write-Host "  4. After merge, archive the shard: Move-Item $shardDir engine\workstreams\$taskId\.merged-$SessionId"
+  Write-Host "  5. Run 'engine verify $taskId' to confirm shared memory still passes AC."
+  Write-Host ""
+  Write-Host "Coordinator is the sole writer of shared engine\{CONTEXT,HANDOFF,ENGINE_MAP}.md."
+  Write-Host "Workers write only their own shard; merge-workstream never auto-writes shared memory."
+}
+
 switch ($Command) {
   "init" {
     $promptRel = "engine/prompts/init.md"
@@ -434,6 +570,33 @@ switch ($Command) {
       elseif ($a -eq '--print') { $effectivePrint = $true }
     }
     New-Workstream -Root $PWD.Path -TaskId $Task -AgentId $Agent -Kind $effectiveKind -Emit:$effectivePrint
+  }
+  "assume-coordinator" {
+    if (-not (Test-Path "engine")) {
+      Write-Error "Error: engine/ not found in $PWD."
+      exit 2
+    }
+    # v6.11.0 (D-029/T-036) AC-9: support both -Force (PS native) and --force (bash compat) via $args scan
+    $effectiveForce = $Force
+    foreach ($a in $args) {
+      $aStr = "$a"
+      if ($aStr -eq '--force' -or $aStr -eq '-f') { $effectiveForce = $true }
+    }
+    Assume-Coordinator -Root $PWD.Path -Force:$effectiveForce
+  }
+  "merge-workstream" {
+    if (-not (Test-Path "engine")) {
+      Write-Error "Error: engine/ not found in $PWD."
+      exit 2
+    }
+    # v6.11.0 (D-029/T-036) AC-10: session-id passed as positional $Task; bash compat via $args scan
+    $effectiveSid = $Task
+    for ($i = 0; $i -lt $args.Count; $i++) {
+      $aStr = "$($args[$i])"
+      if ($aStr -match '^--session-id=(.+)$') { $effectiveSid = $Matches[1] }
+      elseif ($aStr -eq '--session-id') { $i++; if ($i -lt $args.Count) { $effectiveSid = "$($args[$i])" } }
+    }
+    Merge-Workstream -Root $PWD.Path -SessionId $effectiveSid
   }
   "check-update" {
     $chk = Join-Path $PWD.Path "engine\scripts\engine-check-update.ps1"

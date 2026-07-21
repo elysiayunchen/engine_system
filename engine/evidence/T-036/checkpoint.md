@@ -1,75 +1,68 @@
 # Checkpoint — T-036
-> Last updated: 2026-07-20T14:59:53Z by engine-verify | AC 级压缩恢复锚点,见 contract/src/20-file-templates.md FILE 15
+> Last updated: 2026-07-20T23:55:00Z by engine-verify | AC 级压缩恢复锚点,见 contract/src/20-file-templates.md FILE 15
 
 ## 已完成 AC
-- [x] AC-1 grep -q 'session.lock\|atomic\|noclobber\|FileStream.*Exclusive' contract/src/30 — evidence/AC-1.json PASS @ 2026-07-20T14:59:53Z
-- [x] AC-2 grep -q 'session.lock\|session_lock\|SessionLock' engine/scripts/engine-hook-ses — evidence/AC-2.json PASS @ 2026-07-20T14:59:54Z
-- [x] AC-1 grep -q 'session.lock\|atomic\|noclobber\|FileStream.*Exclusive' contract/src/30 — evidence/AC-1.json PASS @ 2026-07-20T15:35:31Z
-- [x] AC-2 grep -q 'session.lock\|session_lock\|SessionLock' engine/scripts/engine-hook-ses — evidence/AC-2.json PASS @ 2026-07-20T15:35:31Z
-- [x] AC-3 grep -q '\.meta\|meta_file\|MetaFile' engine/scripts/engine-hook-stop.sh && grep — evidence/AC-3.json PASS @ 2026-07-20T15:35:31Z
-- [x] AC-4 grep -q 'role.*worker\|\.role' engine/scripts/engine-hook-stop.sh && grep -q 'ro — evidence/AC-4.json PASS @ 2026-07-20T15:35:31Z
-- [x] AC-1 grep -q 'session.lock\|atomic\|noclobber\|FileStream.*Exclusive' contract/src/30 — evidence/AC-1.json PASS @ 2026-07-20T15:40:02Z
-- [x] AC-2 grep -q 'session.lock\|session_lock\|SessionLock' engine/scripts/engine-hook-ses — evidence/AC-2.json PASS @ 2026-07-20T15:40:02Z
-- [x] AC-3 grep -q '\.meta\|meta_file\|MetaFile' engine/scripts/engine-hook-stop.sh && grep — evidence/AC-3.json PASS @ 2026-07-20T15:40:02Z
-- [x] AC-4 grep -q 'role.*worker\|\.role' engine/scripts/engine-hook-stop.sh && grep -q 'ro — evidence/AC-4.json PASS @ 2026-07-20T15:40:02Z
-- [x] AC-1 grep -q 'session.lock\|atomic\|noclobber\|FileStream.*Exclusive' contract/src/30 — evidence/AC-1.json PASS @ 2026-07-20T16:02:45Z
-- [x] AC-2 grep -q 'session.lock\|session_lock\|SessionLock' engine/scripts/engine-hook-ses — evidence/AC-2.json PASS @ 2026-07-20T16:02:46Z
-- [x] AC-3 grep -q '\.meta\|meta_file\|MetaFile' engine/scripts/engine-hook-stop.sh && grep — evidence/AC-3.json PASS @ 2026-07-20T16:02:46Z
-- [x] AC-4 grep -q 'role.*worker\|\.role' engine/scripts/engine-hook-stop.sh && grep -q 'ro — evidence/AC-4.json PASS @ 2026-07-20T16:02:46Z
-- [x] AC-1 grep -q 'session.lock\|atomic\|noclobber\|FileStream.*Exclusive' contract/src/30 — evidence/AC-1.json PASS @ 2026-07-20T16:07:01Z
-- [x] AC-2 grep -q 'session.lock\|session_lock\|SessionLock' engine/scripts/engine-hook-ses — evidence/AC-2.json PASS @ 2026-07-20T16:07:01Z
-- [x] AC-3 grep -q '\.meta\|meta_file\|MetaFile' engine/scripts/engine-hook-stop.sh && grep — evidence/AC-3.json PASS @ 2026-07-20T16:07:01Z
-- [x] AC-4 grep -q 'role.*worker\|\.role' engine/scripts/engine-hook-stop.sh && grep -q 'ro — evidence/AC-4.json PASS @ 2026-07-20T16:07:01Z
-- [x] AC-1 grep -q 'session.lock\|atomic\|noclobber\|FileStream.*Exclusive' contract/src/30 — evidence/AC-1.json PASS @ 2026-07-20T16:11:20Z
-- [x] AC-2 grep -q 'session.lock\|session_lock\|SessionLock' engine/scripts/engine-hook-ses — evidence/AC-2.json PASS @ 2026-07-20T16:11:21Z
-- [x] AC-3 grep -q '\.meta\|meta_file\|MetaFile' engine/scripts/engine-hook-stop.sh && grep — evidence/AC-3.json PASS @ 2026-07-20T16:11:21Z
-- [x] AC-4 grep -q 'role.*worker\|\.role' engine/scripts/engine-hook-stop.sh && grep -q 'ro — evidence/AC-4.json PASS @ 2026-07-20T16:11:21Z
-- [x] AC-1 grep -q 'session.lock\|atomic\|noclobber\|FileStream.*Exclusive' contract/src/30 — evidence/AC-1.json PASS @ 2026-07-20T16:15:45Z
-- [x] AC-2 grep -q 'session.lock\|session_lock\|SessionLock' engine/scripts/engine-hook-ses — evidence/AC-2.json PASS @ 2026-07-20T16:15:45Z
-- [x] AC-3 grep -q '\.meta\|meta_file\|MetaFile' engine/scripts/engine-hook-stop.sh && grep — evidence/AC-3.json PASS @ 2026-07-20T16:15:46Z
-- [x] AC-4 grep -q 'role.*worker\|\.role' engine/scripts/engine-hook-stop.sh && grep -q 'ro — evidence/AC-4.json PASS @ 2026-07-20T16:15:46Z
-- [x] AC-1 grep -q 'session.lock\|atomic\|noclobber\|FileStream.*Exclusive' contract/src/30 — evidence/AC-1.json PASS @ 2026-07-20T16:20:10Z
-- [x] AC-2 grep -q 'session.lock\|session_lock\|SessionLock' engine/scripts/engine-hook-ses — evidence/AC-2.json PASS @ 2026-07-20T16:20:10Z
-- [x] AC-3 grep -q '\.meta\|meta_file\|MetaFile' engine/scripts/engine-hook-stop.sh && grep — evidence/AC-3.json PASS @ 2026-07-20T16:20:11Z
-- [x] AC-4 grep -q 'role.*worker\|\.role' engine/scripts/engine-hook-stop.sh && grep -q 'ro — evidence/AC-4.json PASS @ 2026-07-20T16:20:11Z
-- [x] AC-1 grep -q 'session.lock\|atomic\|noclobber\|FileStream.*Exclusive' contract/src/30 — evidence/AC-1.json PASS @ 2026-07-20T16:51:58Z
-- [x] AC-2 grep -q 'session.lock\|session_lock\|SessionLock' engine/scripts/engine-hook-ses — evidence/AC-2.json PASS @ 2026-07-20T16:51:58Z
-- [x] AC-3 grep -q '\.meta\|meta_file\|MetaFile' engine/scripts/engine-hook-stop.sh && grep — evidence/AC-3.json PASS @ 2026-07-20T16:51:58Z
-- [x] AC-4 grep -q 'role.*worker\|\.role' engine/scripts/engine-hook-stop.sh && grep -q 'ro — evidence/AC-4.json PASS @ 2026-07-20T16:51:58Z
-- [x] AC-1 grep -q 'session.lock\|atomic\|noclobber\|FileStream.*Exclusive' contract/src/30 — evidence/AC-1.json PASS @ 2026-07-20T16:56:11Z
-- [x] AC-2 grep -q 'session.lock\|session_lock\|SessionLock' engine/scripts/engine-hook-ses — evidence/AC-2.json PASS @ 2026-07-20T16:56:11Z
-- [x] AC-3 grep -q '\.meta\|meta_file\|MetaFile' engine/scripts/engine-hook-stop.sh && grep — evidence/AC-3.json PASS @ 2026-07-20T16:56:11Z
-- [x] AC-4 grep -q 'role.*worker\|\.role' engine/scripts/engine-hook-stop.sh && grep -q 'ro — evidence/AC-4.json PASS @ 2026-07-20T16:56:11Z
-- [x] AC-1 grep -q 'session.lock\|atomic\|noclobber\|FileStream.*Exclusive' contract/src/30 — evidence/AC-1.json PASS @ 2026-07-20T17:00:32Z
-- [x] AC-2 grep -q 'session.lock\|session_lock\|SessionLock' engine/scripts/engine-hook-ses — evidence/AC-2.json PASS @ 2026-07-20T17:00:32Z
-- [x] AC-3 grep -q '\.meta\|meta_file\|MetaFile' engine/scripts/engine-hook-stop.sh && grep — evidence/AC-3.json PASS @ 2026-07-20T17:00:33Z
-- [x] AC-4 grep -q 'role.*worker\|\.role' engine/scripts/engine-hook-stop.sh && grep -q 'ro — evidence/AC-4.json PASS @ 2026-07-20T17:00:33Z
-- [x] AC-1 grep -q 'session.lock\|atomic\|noclobber\|FileStream.*Exclusive' contract/src/30 — evidence/AC-1.json PASS @ 2026-07-20T17:05:38Z
-- [x] AC-2 grep -q 'session.lock\|session_lock\|SessionLock' engine/scripts/engine-hook-ses — evidence/AC-2.json PASS @ 2026-07-20T17:05:38Z
-- [x] AC-3 grep -q '\.meta\|meta_file\|MetaFile' engine/scripts/engine-hook-stop.sh && grep — evidence/AC-3.json PASS @ 2026-07-20T17:05:38Z
-- [x] AC-4 grep -q 'role.*worker\|\.role' engine/scripts/engine-hook-stop.sh && grep -q 'ro — evidence/AC-4.json PASS @ 2026-07-20T17:05:38Z
-- [x] AC-1 grep -q 'session.lock\|atomic\|noclobber\|FileStream.*Exclusive' contract/src/30 — evidence/AC-1.json PASS @ 2026-07-20T17:09:10Z
-- [x] AC-2 grep -q 'session.lock\|session_lock\|SessionLock' engine/scripts/engine-hook-ses — evidence/AC-2.json PASS @ 2026-07-20T17:09:10Z
-- [x] AC-3 grep -q '\.meta\|meta_file\|MetaFile' engine/scripts/engine-hook-stop.sh && grep — evidence/AC-3.json PASS @ 2026-07-20T17:09:10Z
-- [x] AC-4 grep -q 'role.*worker\|\.role' engine/scripts/engine-hook-stop.sh && grep -q 'ro — evidence/AC-4.json PASS @ 2026-07-20T17:09:10Z
-- [x] AC-1 grep -q 'session.lock\|atomic\|noclobber\|FileStream.*Exclusive' contract/src/30 — evidence/AC-1.json PASS @ 2026-07-20T17:38:51Z
-- [x] AC-2 grep -q 'session.lock\|session_lock\|SessionLock' engine/scripts/engine-hook-ses — evidence/AC-2.json PASS @ 2026-07-20T17:38:51Z
-- [x] AC-3 grep -q '\.meta\|meta_file\|MetaFile' engine/scripts/engine-hook-stop.sh && grep — evidence/AC-3.json PASS @ 2026-07-20T17:38:51Z
-- [x] AC-4 grep -q 'role.*worker\|\.role' engine/scripts/engine-hook-stop.sh && grep -q 'ro — evidence/AC-4.json PASS @ 2026-07-20T17:38:51Z
-- [x] AC-5 grep -q 'Active Sessions\|active_session\|ActiveSession' engine/scripts/engine-c — evidence/AC-5.json PASS @ 2026-07-20T17:38:51Z
-- [x] AC-1 grep -q 'session.lock\|atomic\|noclobber\|FileStream.*Exclusive' contract/src/30 — evidence/AC-1.json PASS @ 2026-07-20T17:51:48Z
-- [x] AC-2 grep -q 'session.lock\|session_lock\|SessionLock' engine/scripts/engine-hook-ses — evidence/AC-2.json PASS @ 2026-07-20T17:51:48Z
-- [x] AC-3 grep -q '\.meta\|meta_file\|MetaFile' engine/scripts/engine-hook-stop.sh && grep — evidence/AC-3.json PASS @ 2026-07-20T17:51:48Z
-- [x] AC-4 grep -q 'role.*worker\|\.role' engine/scripts/engine-hook-stop.sh && grep -q 'ro — evidence/AC-4.json PASS @ 2026-07-20T17:51:49Z
-- [x] AC-5 grep -q 'Active Sessions\|active_session\|ActiveSession' engine/scripts/engine-c — evidence/AC-5.json PASS @ 2026-07-20T17:51:49Z
-- [x] AC-6 grep -q 'check_multi_session_isolation\|multi_session_isolation\|MultiSessionIso — evidence/AC-6.json PASS @ 2026-07-20T17:51:49Z
-- [x] AC-7 grep -q 'check_workstream_orphan\|workstream_orphan\|WorkstreamOrphan' engine/sc — evidence/AC-7.json PASS @ 2026-07-20T17:51:49Z
-- [x] AC-1 grep -q 'session.lock\|atomic\|noclobber\|FileStream.*Exclusive' contract/src/30 — evidence/AC-1.json PASS @ 2026-07-20T19:54:10Z
-- [x] AC-2 grep -q 'session.lock\|session_lock\|SessionLock' engine/scripts/engine-hook-ses — evidence/AC-2.json PASS @ 2026-07-20T19:54:10Z
-- [x] AC-3 grep -q '\.meta\|meta_file\|MetaFile' engine/scripts/engine-hook-stop.sh && grep — evidence/AC-3.json PASS @ 2026-07-20T19:54:10Z
-- [x] AC-4 grep -q 'role.*worker\|\.role' engine/scripts/engine-hook-stop.sh && grep -q 'ro — evidence/AC-4.json PASS @ 2026-07-20T19:54:10Z
-- [x] AC-5 grep -q 'Active Sessions\|active_session\|ActiveSession' engine/scripts/engine-c — evidence/AC-5.json PASS @ 2026-07-20T19:54:10Z
-- [x] AC-6 grep -q 'check_multi_session_isolation\|multi_session_isolation\|MultiSessionIso — evidence/AC-6.json PASS @ 2026-07-20T19:54:10Z
-- [x] AC-7 grep -q 'check_workstream_orphan\|workstream_orphan\|WorkstreamOrphan' engine/sc — evidence/AC-7.json PASS @ 2026-07-20T19:54:10Z
-- [x] AC-8 grep -q '\-\-kind\|--kind' engine/bin/engine && grep -q '\-\-kind\|--kind' engin — evidence/AC-8.json PASS @ 2026-07-20T19:54:10Z
-- [x] AC-9 grep -q 'assume-coordinator\|assume_coordinator\|AssumeCoordinator' engine/bin/e — evidence/AC-9.json PASS @ 2026-07-20T19:54:10Z
+- [x] AC-1 grep -q 'session.lock\|atomic\|noclobber\|FileStream.*Exclusive' contract/src/30 — evidence/AC-1.json PASS @ 2026-07-20T23:53:04Z
+- [x] AC-2 grep -q 'session.lock\|session_lock\|SessionLock' engine/scripts/engine-hook-ses — evidence/AC-2.json PASS @ 2026-07-20T23:53:04Z
+- [x] AC-3 grep -q '\.meta\|meta_file\|MetaFile' engine/scripts/engine-hook-stop.sh && grep — evidence/AC-3.json PASS @ 2026-07-20T23:53:04Z
+- [x] AC-4 grep -q 'role.*worker\|\.role' engine/scripts/engine-hook-stop.sh && grep -q 'ro — evidence/AC-4.json PASS @ 2026-07-20T23:53:04Z
+- [x] AC-5 grep -q 'Active Sessions\|active_session\|ActiveSession' engine/scripts/engine-c — evidence/AC-5.json PASS @ 2026-07-20T23:53:04Z
+- [x] AC-6 grep -q 'check_multi_session_isolation\|multi_session_isolation\|MultiSessionIso — evidence/AC-6.json PASS @ 2026-07-20T23:53:04Z
+- [x] AC-7 grep -q 'check_workstream_orphan\|workstream_orphan\|WorkstreamOrphan' engine/sc — evidence/AC-7.json PASS @ 2026-07-20T23:53:04Z
+- [x] AC-8 grep -q '\-\-kind\|--kind' engine/bin/engine && grep -q '\-\-kind\|--kind' engin — evidence/AC-8.json PASS @ 2026-07-20T23:53:04Z
+- [x] AC-9 grep -q 'assume-coordinator\|assume_coordinator\|AssumeCoordinator' engine/bin/e — evidence/AC-9.json PASS @ 2026-07-20T23:53:05Z
+- [x] AC-10 grep -q 'merge-workstream\|merge_workstream\|MergeWorkstream' engine/bin/engine  — evidence/AC-10.json PASS @ 2026-07-20T23:53:05Z
+- [x] AC-11 grep -q 'multi.session\|多会话' engine/ENGINE_DOCTOR.md && grep -q 'multi.ses — evidence/AC-11.json PASS @ 2026-07-20T23:53:05Z
+- [x] AC-12 grep -q '多会话\|multi.session\|multi-session' engine/AGENT_ADAPTERS.md && gr — evidence/AC-12.json PASS @ 2026-07-20T23:53:05Z
+- [x] AC-13 grep -q 'multi.session\|多会话\|session.lock' engine/scripts/engine-migrate-c — evidence/AC-13.json PASS @ 2026-07-20T23:53:05Z
+- [x] AC-15 test "$(tr -d '[:space:]' < VERSION)" = "6.11.0" && test "$(tr -d '[:space:]' <  — evidence/AC-15.json PASS @ 2026-07-20T23:54:01Z
+- [x] AC-17 grep -q 'ENGINE_DISABLE_MULTI_SESSION\|DISABLE_MULTI_SESSION\|disable.multi.sess — evidence/AC-17.json PASS @ 2026-07-20T23:54:56Z
+- [x] AC-1 grep -q 'session.lock\|atomic\|noclobber\|FileStream.*Exclusive' contract/src/30 — evidence/AC-1.json PASS @ 2026-07-21T00:02:51Z
+- [x] AC-2 grep -q 'session.lock\|session_lock\|SessionLock' engine/scripts/engine-hook-ses — evidence/AC-2.json PASS @ 2026-07-21T00:02:51Z
+- [x] AC-3 grep -q '\.meta\|meta_file\|MetaFile' engine/scripts/engine-hook-stop.sh && grep — evidence/AC-3.json PASS @ 2026-07-21T00:02:51Z
+- [x] AC-4 grep -q 'role.*worker\|\.role' engine/scripts/engine-hook-stop.sh && grep -q 'ro — evidence/AC-4.json PASS @ 2026-07-21T00:02:51Z
+- [x] AC-5 grep -q 'Active Sessions\|active_session\|ActiveSession' engine/scripts/engine-c — evidence/AC-5.json PASS @ 2026-07-21T00:02:51Z
+- [x] AC-6 grep -q 'check_multi_session_isolation\|multi_session_isolation\|MultiSessionIso — evidence/AC-6.json PASS @ 2026-07-21T00:02:51Z
+- [x] AC-7 grep -q 'check_workstream_orphan\|workstream_orphan\|WorkstreamOrphan' engine/sc — evidence/AC-7.json PASS @ 2026-07-21T00:02:51Z
+- [x] AC-8 grep -q '\-\-kind\|--kind' engine/bin/engine && grep -q '\-\-kind\|--kind' engin — evidence/AC-8.json PASS @ 2026-07-21T00:02:51Z
+- [x] AC-9 grep -q 'assume-coordinator\|assume_coordinator\|AssumeCoordinator' engine/bin/e — evidence/AC-9.json PASS @ 2026-07-21T00:02:51Z
+- [x] AC-10 grep -q 'merge-workstream\|merge_workstream\|MergeWorkstream' engine/bin/engine  — evidence/AC-10.json PASS @ 2026-07-21T00:02:51Z
+- [x] AC-11 grep -q 'multi.session\|多会话' engine/ENGINE_DOCTOR.md && grep -q 'multi.ses — evidence/AC-11.json PASS @ 2026-07-21T00:02:52Z
+- [x] AC-12 grep -q '多会话\|multi.session\|multi-session' engine/AGENT_ADAPTERS.md && gr — evidence/AC-12.json PASS @ 2026-07-21T00:02:52Z
+- [x] AC-13 grep -q 'multi.session\|多会话\|session.lock' engine/scripts/engine-migrate-c — evidence/AC-13.json PASS @ 2026-07-21T00:02:52Z
+- [x] AC-14 bash scripts/check.sh && diff -q engine/scripts/engine-hook-session-start.sh plu — evidence/AC-14.json PASS @ 2026-07-21T00:03:38Z
+- [x] AC-15 test "$(tr -d '[:space:]' < VERSION)" = "6.11.0" && test "$(tr -d '[:space:]' <  — evidence/AC-15.json PASS @ 2026-07-21T00:03:38Z
+- [x] AC-16 bash scripts/check.sh — evidence/AC-16.json PASS @ 2026-07-21T00:04:26Z
+- [x] AC-17 grep -q 'ENGINE_DISABLE_MULTI_SESSION\|DISABLE_MULTI_SESSION\|disable.multi.sess — evidence/AC-17.json PASS @ 2026-07-21T00:04:26Z
+- [x] AC-1 grep -q 'session.lock\|atomic\|noclobber\|FileStream.*Exclusive' contract/src/30 — evidence/AC-1.json PASS @ 2026-07-21T00:07:39Z
+- [x] AC-2 grep -q 'session.lock\|session_lock\|SessionLock' engine/scripts/engine-hook-ses — evidence/AC-2.json PASS @ 2026-07-21T00:07:39Z
+- [x] AC-3 grep -q '\.meta\|meta_file\|MetaFile' engine/scripts/engine-hook-stop.sh && grep — evidence/AC-3.json PASS @ 2026-07-21T00:07:39Z
+- [x] AC-4 grep -q 'role.*worker\|\.role' engine/scripts/engine-hook-stop.sh && grep -q 'ro — evidence/AC-4.json PASS @ 2026-07-21T00:07:39Z
+- [x] AC-5 grep -q 'Active Sessions\|active_session\|ActiveSession' engine/scripts/engine-c — evidence/AC-5.json PASS @ 2026-07-21T00:07:39Z
+- [x] AC-6 grep -q 'check_multi_session_isolation\|multi_session_isolation\|MultiSessionIso — evidence/AC-6.json PASS @ 2026-07-21T00:07:39Z
+- [x] AC-7 grep -q 'check_workstream_orphan\|workstream_orphan\|WorkstreamOrphan' engine/sc — evidence/AC-7.json PASS @ 2026-07-21T00:07:39Z
+- [x] AC-8 grep -q '\-\-kind\|--kind' engine/bin/engine && grep -q '\-\-kind\|--kind' engin — evidence/AC-8.json PASS @ 2026-07-21T00:07:39Z
+- [x] AC-9 grep -q 'assume-coordinator\|assume_coordinator\|AssumeCoordinator' engine/bin/e — evidence/AC-9.json PASS @ 2026-07-21T00:07:39Z
+- [x] AC-10 grep -q 'merge-workstream\|merge_workstream\|MergeWorkstream' engine/bin/engine  — evidence/AC-10.json PASS @ 2026-07-21T00:07:39Z
+- [x] AC-11 grep -q 'multi.session\|多会话' engine/ENGINE_DOCTOR.md && grep -q 'multi.ses — evidence/AC-11.json PASS @ 2026-07-21T00:07:39Z
+- [x] AC-12 grep -q '多会话\|multi.session\|multi-session' engine/AGENT_ADAPTERS.md && gr — evidence/AC-12.json PASS @ 2026-07-21T00:07:39Z
+- [x] AC-13 grep -q 'multi.session\|多会话\|session.lock' engine/scripts/engine-migrate-c — evidence/AC-13.json PASS @ 2026-07-21T00:07:39Z
+- [x] AC-15 test "$(tr -d '[:space:]' < VERSION)" = "6.11.0" && test "$(tr -d '[:space:]' <  — evidence/AC-15.json PASS @ 2026-07-21T00:09:42Z
+- [x] AC-17 grep -q 'ENGINE_DISABLE_MULTI_SESSION\|DISABLE_MULTI_SESSION\|disable.multi.sess — evidence/AC-17.json PASS @ 2026-07-21T00:11:46Z
+- [x] AC-18 test -f tests/workstream/test_worker_mode.sh && test -f tests/workstream/test_do — evidence/AC-18.json PASS @ 2026-07-21T00:12:23Z
+- [x] AC-1 grep -q 'session.lock\|atomic\|noclobber\|FileStream.*Exclusive' contract/src/30 — evidence/AC-1.json PASS @ 2026-07-21T00:15:01Z
+- [x] AC-2 grep -q 'session.lock\|session_lock\|SessionLock' engine/scripts/engine-hook-ses — evidence/AC-2.json PASS @ 2026-07-21T00:15:01Z
+- [x] AC-3 grep -q '\.meta\|meta_file\|MetaFile' engine/scripts/engine-hook-stop.sh && grep — evidence/AC-3.json PASS @ 2026-07-21T00:15:01Z
+- [x] AC-4 grep -q 'role.*worker\|\.role' engine/scripts/engine-hook-stop.sh && grep -q 'ro — evidence/AC-4.json PASS @ 2026-07-21T00:15:01Z
+- [x] AC-5 grep -q 'Active Sessions\|active_session\|ActiveSession' engine/scripts/engine-c — evidence/AC-5.json PASS @ 2026-07-21T00:15:01Z
+- [x] AC-6 grep -q 'check_multi_session_isolation\|multi_session_isolation\|MultiSessionIso — evidence/AC-6.json PASS @ 2026-07-21T00:15:02Z
+- [x] AC-7 grep -q 'check_workstream_orphan\|workstream_orphan\|WorkstreamOrphan' engine/sc — evidence/AC-7.json PASS @ 2026-07-21T00:15:02Z
+- [x] AC-8 grep -q '\-\-kind\|--kind' engine/bin/engine && grep -q '\-\-kind\|--kind' engin — evidence/AC-8.json PASS @ 2026-07-21T00:15:02Z
+- [x] AC-9 grep -q 'assume-coordinator\|assume_coordinator\|AssumeCoordinator' engine/bin/e — evidence/AC-9.json PASS @ 2026-07-21T00:15:02Z
+- [x] AC-10 grep -q 'merge-workstream\|merge_workstream\|MergeWorkstream' engine/bin/engine  — evidence/AC-10.json PASS @ 2026-07-21T00:15:02Z
+- [x] AC-11 grep -q 'multi.session\|多会话' engine/ENGINE_DOCTOR.md && grep -q 'multi.ses — evidence/AC-11.json PASS @ 2026-07-21T00:15:02Z
+- [x] AC-12 grep -q '多会话\|multi.session\|multi-session' engine/AGENT_ADAPTERS.md && gr — evidence/AC-12.json PASS @ 2026-07-21T00:15:02Z
+- [x] AC-13 grep -q 'multi.session\|多会话\|session.lock' engine/scripts/engine-migrate-c — evidence/AC-13.json PASS @ 2026-07-21T00:15:02Z
+- [x] AC-15 test "$(tr -d '[:space:]' < VERSION)" = "6.11.0" && test "$(tr -d '[:space:]' <  — evidence/AC-15.json PASS @ 2026-07-21T00:17:09Z
+- [x] AC-17 grep -q 'ENGINE_DISABLE_MULTI_SESSION\|DISABLE_MULTI_SESSION\|disable.multi.sess — evidence/AC-17.json PASS @ 2026-07-21T00:19:12Z
+- [x] AC-18 test -f tests/workstream/test_worker_mode.sh && test -f tests/workstream/test_do — evidence/AC-18.json PASS @ 2026-07-21T00:19:44Z

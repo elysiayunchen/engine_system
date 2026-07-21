@@ -1,14 +1,14 @@
 # HANDOFF — 会话交接
 
-> Engine System (engine_system) · Last updated: 2026-07-20
+> Engine System (engine_system) · Last updated: 2026-07-21
 
 ## 立即恢复点
 
-T-036 v6.11.0 多会话锁 active。**AC-1~AC-17 全部 verify PASS(17 pass, 1 fail=AC-18)**。已落地 8 个 commit(c470886/6215b34/3d67559/66e8f6a/b39ab5d + 75585cd~78071c3 共 13 commits):atomic 独占 lock + 协调者/worker 角色 + PreToolUse 双信号拦截 + assume-coordinator/merge-workstream/disable-multi-session 三命令 + ENGINE_DOCTOR #17/#18 + AGENT_ADAPTERS C 档扩展 + migrator + plugin 镜像 + 版本三处一致 = 6.11.0。
+T-036 v6.11.0 多会话锁 **全部 18 AC verify PASS**(18 pass, 0 fail)。已落地 14 commits(c470886/6215b34/3d67559/66e8f6a/b39ab5d/75585cd~78071c3/15ed6ec + AC-18 pending):atomic 独占 lock + 协调者/worker 角色 + PreToolUse 双信号拦截 + assume-coordinator/merge-workstream/disable-multi-session 三命令 + ENGINE_DOCTOR #17/#18 + AGENT_ADAPTERS C 档扩展 + migrator + plugin 镜像 + 版本三处一致 = 6.11.0 + AC-18 端到端测试 8 个文件(4 bash + 4 PowerShell,共 82 断言全 PASS)。
 
-**AC-16 check.sh 全绿已完成**(commit pending):修复 SessionStart hook stdin 阻塞 bug(bash `cat` → `IFS= read -r -t 0` 非阻塞守卫;PS1 `[Console]::In.ReadToEnd()` → `$input | Out-String` 与 Stop hook 一致)+ 契约预算基线 2830→2930(D-029/T-036 背书 +100,沿用 v6.7.0~v6.10.0 每版本 +100 范式)+ manifest SHA256 重生成。check.sh CHECK PASSED(0 failures, 6 warnings 全部是 bypass/hygiene WARN:T-036 自身 writeset_budget/granularity checkpoint_plan:tryout bypass;CHANGE-2026-07-20-04.md 占位符待填;HANDOFF 长行修剪中)。
+**AC-18 端到端测试创建完成**(commit pending):tests/workstream/ 下 8 个测试文件(test_worker_mode/test_double_signal/test_lock_recovery/test_kill_switch 各 .sh + .ps1)。bash 41 断言 + PowerShell 41 断言 = 82 全 PASS。修复 test_double_signal.sh D2/D3 失败(D2:WRITE-SET 加入 engine/CONTEXT.md 让协调者可写;D3:worker shard 路径用 session_key `s-top-main` 匹配 safe_id 算法)。同时修复 checkpoint.md 慢性膨胀(86 行 → 18 行,只保留最新 PASS 记录;根因是 engine-verify.sh 每次 PASS 都 append 不 dedup,T-038 将处理)。
 
-**下一步:AC-18 端到端测试创建**(tests/workstream/test_worker_mode.{sh,ps1} + test_double_signal.{sh,ps1} + test_lock_recovery.{sh,ps1} + test_kill_switch.{sh,ps1} 共 8 个测试文件)。完成后跑 `engine verify T-036` 全 18 AC PASS + `git push origin main`(当前 18 commits ahead)。
+**下一步:`git push origin main`**(当前 19 commits ahead)。push 后 T-036 全部完成,可开 T-038(checkpoint.md dedup 修复)或 T-034/T-035 后续任务。
 
 > Phase 1 = 通用化核心(prompt 抽离 / CLI 扩展 / 快速安装 / agent 检测——D-017 原文口径;实施细化与「薄壳」口径修正见 D-018)。v6.2 = 多 agent 通信层(engine context + DevComm Rule 扩展)。
 

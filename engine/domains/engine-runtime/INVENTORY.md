@@ -53,3 +53,5 @@
 | Handoff 行为契约 | contract/src/behaviors/handoff.md | handoff_behavior() | stable | 2026-07-19 |
 | Task-run 行为契约 | contract/src/behaviors/task-run.md | task_run_behavior() | stable | 2026-07-20 |
 | Verify-writeback 行为契约 | contract/src/behaviors/verify-writeback.md | verify_writeback_behavior() | stable | 2026-07-20 |
+| checkpoint dedup 测试 | tests/workstream/test_checkpoint_dedup.sh | test_checkpoint_dedup() | stable | 2026-07-22 |
+| checkpoint dedup 测试 ps1 | tests/workstream/test_checkpoint_dedup.ps1 | Test-CheckpointDedup() | stable | 2026-07-22 |

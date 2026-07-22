@@ -1,5 +1,17 @@
 # Changelog
 
+## v6.11.2 (2026-07-22)
+
+- 修复 `engine-verify.{sh,ps1}` 的 checkpoint.md append-without-dedup bug(T-039 patch):T-036 v6.11.0 done 18/18 AC PASS 但 checkpoint.md 达 111 行(18 ACs × 6 轮 verify),远超契约 ≤4KB ~100 行预算,SessionStart 注入时逼近 N1=400 行上限。根因是契约源 FILE 15 写"追加写,不覆盖历史行"——这是设计错误,verify 是 checkpoint.md 唯一写入者,同 AC-N 重复 PASS 无信息价值。
+- AC-1 契约源 `contract/src/20-file-templates.md` FILE 15 改"追加写"→"dedup 写"共 7 处:line ~1656 写入格式段、line ~1628 表格、line ~1675 skeleton、line ~1683 注释、line ~1692 维护规则;补 dedup 语义说明段(v6.11.2/T-039);`compile.sh` 重生成 `ENGINE_FILE_SYSTEM_v5.md` dist 同步。
+- AC-2 `engine-verify.sh` + `engine-verify.ps1`(4 份含 plugin 镜像)实现 dedup:verify PASS 前 grep 同 AC-N 行(`^- \[x\] $ac_id `),存在则 grep -v 移除旧行后 append 新行(sh) / Where-Object -notmatch 过滤后 Set-Content 再 Add-Content(ps1),不存在则直接 append;header 创建逻辑不变。
+- AC-3 `engine/skeleton/checkpoint.md` + `plugin/engine/skeleton/checkpoint.md`(2 份)注释更新:"追加写"→"dedup 写"。
+- AC-4 现有 5 个 checkpoint.md 文件清理(T-034/T-035/T-036/T-037/T-038):各保留每个 AC-N 最新时间戳一行,header 不变。清理后:T-036 111→22 行(18 ACs),T-034 60→15 行(11 ACs),T-035 51→15 行(11 ACs),T-037 6→5 行(1 AC),T-038 35→14 行(10 ACs)。
+- AC-5 端到端测试 `tests/workstream/test_checkpoint_dedup.{sh,ps1}`:黑盒测试 dedup 算法(1) 首次 PASS 创建 1 行(2) 同 AC 再 PASS 仍 1 行且时间戳更新(3) 不同 AC 追加新行(4) AC-1 再 PASS 总数仍 2 行;sh + ps1 双版本均 PASS。
+- AC-6 版本三处一致 = 6.11.2 + CHANGELOG 含 v6.11.2 + plugin 镜像 diff -q 4 份 verify 脚本对称。
+- AC-7 完整发布门禁 `bash scripts/check.sh` 全绿。
+- 详见 `engine/changes/CHANGE-2026-07-22-01.md`。
+
 ## v6.11.1 (2026-07-21)
 
 - 修复 D-029 落地 5 处实现层遗漏(T-038 patch):T-036 v6.11.0 done 18/18 AC PASS 但 AC 多为 grep 文本验证,实现层有 4 处未覆盖 + 1 处部分覆盖。本 patch 把 D-029 §8 审视结论真正落地到实现层。

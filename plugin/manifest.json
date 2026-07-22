@@ -43,7 +43,7 @@
     { "src": "engine/scripts/engine-migrate-contract.ps1", "sha256": "dfccfe1e15a2f9aa465ea70ba7bf94d12101c09de71cd3cb08787d9cfb61006e", "dest": "engine/scripts/engine-migrate-contract.ps1", "protect": true },
     { "src": "engine/scripts/engine-verify.sh", "sha256": "d1d5bef46230e5ef6260f91800e2fc0250a59e9fdd29b214b3b261aa36444768", "dest": "engine/scripts/engine-verify.sh", "protect": true },
     { "src": "engine/scripts/engine-verify.ps1", "sha256": "b3be4d19088b9d28a7410be898a6225ba40c8fae856bc73edd039c301ed16f66", "dest": "engine/scripts/engine-verify.ps1", "protect": true },
-    { "src": "engine/scripts/githooks/pre-commit", "sha256": "8606821039fde40c6857cc3aa0058b8393d0b36a7cd1bd5a498f623c7e235673", "dest": "engine/scripts/githooks/pre-commit", "protect": true },
+    { "src": "engine/scripts/githooks/pre-commit", "sha256": "f24d1c31dc542a34f39a6c0a95a56ccbbb9f6f8eaf88661a661584de01a9b132", "dest": "engine/scripts/githooks/pre-commit", "protect": true },
     { "src": "bin/engine", "sha256": "264737c7a8f9e5c72d194c9ad9c40333caa18f2f703caa9d7dfc377d333410b8", "dest": "engine/bin/engine", "protect": true },
     { "src": "bin/engine.ps1", "sha256": "f8f370e8073268c0c00ee6382e60f8c275d29d6e8ab986eec9be71dd2b07d13f", "dest": "engine/bin/engine.ps1", "protect": true },
     { "src": "bin/engine.cmd", "sha256": "c2c9ce913c02aacfb4d62a80dd5928932096236a80e3ebc097a1d8b725430f8a", "dest": "engine/bin/engine.cmd", "protect": true },

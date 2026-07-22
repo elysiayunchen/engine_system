@@ -1,0 +1,1 @@
+{"ac":"AC-3","verify":"bash contract/compile.sh 2>&1 | grep -q 'manifest sha256 backfilled' && git diff --name-only | grep -E '^plugin/(manifest\\.json|engine/scripts/githooks/pre-commit)$'","status":"pass","exit":0,"fingerprint":"sha256:04b6a1c15ac46c18496794f7f33d5fb30ca743b24d3b9f339417391cafc532a5","timestamp":"2026-07-22T12:04:03Z"}

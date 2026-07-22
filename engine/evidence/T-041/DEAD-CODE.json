@@ -1,0 +1,16 @@
+{
+  "task": "T-041",
+  "timestamp": "2026-07-22T12:04:54Z",
+  "exempt_all": false,
+  "exempt_reason": null,
+  "linter": "shellcheck",
+  "entries": [
+    {"type":"linter","file":"tests/workstream/test_precommit_self_exempt.sh","line":24,"severity":"warning","message":"Quote expansions in case patterns to match literally rather than as a glob. [SC2254]","exempt":false,"exempt_reason":null},
+    {"type":"linter","file":"tests/workstream/test_precommit_self_exempt.sh","line":24,"severity":"warning","message":"Quote expansions in case patterns to match literally rather than as a glob. [SC2254]","exempt":false,"exempt_reason":null},
+    {"type":"linter","file":"tests/workstream/test_precommit_self_exempt.sh","line":24,"severity":"warning","message":"Quote expansions in case patterns to match literally rather than as a glob. [SC2254]","exempt":false,"exempt_reason":null}
+  ],
+  "summary": {
+    "warn_count": 3,
+    "exempt_count": 0
+  }
+}

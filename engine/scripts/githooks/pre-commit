@@ -209,11 +209,27 @@ fi
 if [ -n "$protected" ]; then
   # protected is newline-separated; normalize to comma-separated for match_any_glob.
   protected_csv="$(printf '%s\n' "$protected" | tr '\n' ',' | sed 's/,$//')"
+  # T-041 (v6.11.3): active/closing 任务卡自身豁免 protected 检查。
+  # protected_paths 门禁目的是防跨任务卡改动,不是阻止任务卡改自己的元数据。
+  # 任务卡 T-NNN 改 .md / .spec.md / 子目录(progress 等) / 归档 progress 时豁免;
+  # 其他 protected 路径(ENGINE_FILE_SYSTEM_v5.md / contract/src/** / plugin/manifest.json 等)
+  # 仍需 decision scope 覆盖。修复 T-039/T-040 撞的门禁死循环。
+  exempt_id=""
+  if [ -n "$task_file" ]; then
+    exempt_id="$(basename "$task_file" .md)"
+  fi
   old_ifs="$IFS"; IFS='
 '
   for file in $staged; do
     [ -n "$file" ] || continue
     match_any_glob "$file" "$protected_csv" || continue
+    # T-041: 任务卡 T-NNN 自身及其衍生文件豁免 protected 检查
+    if [ -n "$exempt_id" ]; then
+      case "$file" in
+        engine/tasks/$exempt_id.md|engine/tasks/$exempt_id.spec.md|engine/tasks/$exempt_id/*|engine/archive/tasks/$exempt_id-progress.md)
+          continue ;;
+      esac
+    fi
     if [ -z "$task_decision" ]; then
       violation="$file (no task decision)"
     elif [ ! -f "$ENGINE_DIR/decisions/$task_decision.md" ]; then

@@ -33,3 +33,4 @@
 
 | Term | Plain meaning | Added by |
 |------|--------------|----------|
+| Scaling ceremony | Project-chosen extra structure (freeze lists, multi-role review, FU tracking) beyond the engine's minimum task card format; useful at scale but not engine-mandated | Trial feedback 2026-07-22 |

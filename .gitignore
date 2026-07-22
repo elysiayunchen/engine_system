@@ -12,3 +12,6 @@ outputs/
 
 # workbuddy scratch (agent memory doodles, not part of the deliverable)
 .workbuddy/
+
+# Claude Code local skill installation (source of truth: plugin/.claude/skills/)
+.claude/skills/

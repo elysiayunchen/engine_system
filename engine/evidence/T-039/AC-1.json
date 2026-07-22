@@ -1,0 +1,1 @@
+{"ac":"AC-1","verify":"grep -q 'dedup' contract/src/20-file-templates.md && ! grep -q 'verify 脚本追加写,不覆盖历史行' contract/src/20-file-templates.md && grep -q 'dedup' ENGINE_FILE_SYSTEM_v5.md","status":"pass","exit":0,"fingerprint":"sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855","timestamp":"2026-07-22T09:17:01Z"}

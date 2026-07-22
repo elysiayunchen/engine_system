@@ -85,10 +85,12 @@ while IFS= read -r line; do
     "$ac_id" "$verify_escaped" "$status" "$rc" "$fp" "$ts" \
     > "$evidence_dir/$ac_id.json"
 
-  # v6.9.0 (D-028/T-034): on AC PASS, append a line to checkpoint.md so
+  # v6.9.0 (D-028/T-034): on AC PASS, write a line to checkpoint.md so
   # SessionStart can re-anchor from AC-level completion state (priority 1
   # in the re-anchor chain, see contract/src/20-file-templates.md FILE 15).
   # verify is the only writer of checkpoint.md; agents write progress.md.
+  # v6.11.2 (T-039): dedup — replace existing AC-N line (update timestamp),
+  # append if new AC-N. Original append-without-dedup caused unbounded growth.
   if [ "$status" = "pass" ]; then
     checkpoint="$evidence_dir/checkpoint.md"
     # First PASS creates the file with header.
@@ -100,11 +102,18 @@ while IFS= read -r line; do
 ## 已完成 AC
 CPHD
     fi
-    # Append one line per PASS; do not overwrite history.
+    # Dedup: remove existing AC-N line(s) if any, then append fresh line.
+    # grep -v filters out lines matching this AC-N; preserves header and other ACs.
     # Verify command is shortened to a one-line summary (first 80 chars).
     summary="$(printf '%s' "$verify_cmd" | tr '\n' ' ' | sed 's/[[:space:]]\+/ /g' | cut -c1-80)"
-    printf -- '- [x] %s %s — evidence/%s.json PASS @ %s\n' \
-      "$ac_id" "$summary" "$ac_id" "$ts" >> "$checkpoint"
+    new_line="$(printf -- '- [x] %s %s — evidence/%s.json PASS @ %s' "$ac_id" "$summary" "$ac_id" "$ts")"
+    grep -v "^- \[x\] ${ac_id} " "$checkpoint" > "$checkpoint.tmp" 2>/dev/null || true
+    if [ -s "$checkpoint.tmp" ]; then
+      mv "$checkpoint.tmp" "$checkpoint"
+    else
+      rm -f "$checkpoint.tmp"
+    fi
+    printf -- '%s\n' "$new_line" >> "$checkpoint"
   fi
   rm -f "$tmp_out"
 done < <(grep '^AC:' "$task_file")

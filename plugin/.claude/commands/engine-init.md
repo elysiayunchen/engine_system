@@ -2324,15 +2324,15 @@ All new rules → engine/SYSTEM.md; this file only excerpts with `source:` tags.
 
 
 ### FILE 15 — engine/skeleton/checkpoint.md（AC 级压缩恢复锚点骨架）
-> Class: skeleton（操作产物模板,不登记 ENGINE_MAP §1）。生成于 `engine/skeleton/checkpoint.md`（源仓）+ `plugin/engine/skeleton/checkpoint.md`（plugin 镜像）,随 install 分发。每个 active/paused 任务卡的 `engine/evidence/T-NNN/checkpoint.md` 由 `engine-verify.{sh,ps1}` 在 AC verify PASS 后追加写实例化（非骨架拷贝）。
+> Class: skeleton（操作产物模板,不登记 ENGINE_MAP §1）。生成于 `engine/skeleton/checkpoint.md`（源仓）+ `plugin/engine/skeleton/checkpoint.md`（plugin 镜像）,随 install 分发。每个 active/paused 任务卡的 `engine/evidence/T-NNN/checkpoint.md` 由 `engine-verify.{sh,ps1}` 在 AC verify PASS 后 dedup 写实例化（非骨架拷贝）。
 
-**设计宗旨（v6.9.0 / D-028 LPHP T-034）**：短上下文 agent 接管大型项目时,任务跨多个 AC 才完成,中途被压缩会丢失"已完成哪些 AC""关键中间状态""下一 AC 是什么"等进度细节。checkpoint.md 把这些细节做成机制——**verify 脚本机器追加 + SessionStart 优先注入**,不靠 agent 自觉。它与 progress.md（FILE 13）写入职责分离:verify 写 checkpoint.md（AC 级完成状态,客观证据）,agent 写 progress.md（任务级进行中状态,主观判断）。两者写入路径与时机均分离,无并发写冲突。
+**设计宗旨（v6.9.0 / D-028 LPHP T-034）**：短上下文 agent 接管大型项目时,任务跨多个 AC 才完成,中途被压缩会丢失"已完成哪些 AC""关键中间状态""下一 AC 是什么"等进度细节。checkpoint.md 把这些细节做成机制——**verify 脚本机器 dedup 写 + SessionStart 优先注入**,不靠 agent 自觉。它与 progress.md（FILE 13）写入职责分离:verify 写 checkpoint.md（AC 级完成状态,客观证据）,agent 写 progress.md（任务级进行中状态,主观判断）。两者写入路径与时机均分离,无并发写冲突。
 
 **与 progress.md（FILE 13）的写入职责分离**：
 
 | 文件 | 写入者 | 写入时机 | 内容形态 |
 |------|--------|----------|----------|
-| checkpoint.md | `engine-verify.{sh,ps1}` 脚本（机器） | 每个 AC verify PASS 后追加写 | `- [x] AC-N <摘要> — evidence/AC-N.json PASS @ <ISO ts>` |
+| checkpoint.md | `engine-verify.{sh,ps1}` 脚本（机器） | 每个 AC verify PASS 后 dedup 写(同 AC-N 替换,新 AC-N 追加) | `- [x] AC-N <摘要> — evidence/AC-N.json PASS @ <ISO ts>` |
 | progress.md | agent（人/模型） | 事件驱动更新（§1~§7） | 任务级进行中状态（已读文件、已确认接口、当前进行到等） |
 
 > 两者不互相替代:checkpoint 是 AC 级客观完成状态（机器写,不可篡改),progress 是任务级主观进行中状态（agent 写,可编辑）。SessionStart 优先注入 checkpoint,其次 progress。
@@ -2358,12 +2358,14 @@ All new rules → engine/SYSTEM.md; this file only excerpts with `source:` tags.
 
 **归档触发**：任务卡 status 从 active/paused → done 时,SessionStart hook 不再注入;原 checkpoint.md 文件迁到 `engine/archive/tasks/T-NNN-checkpoint.md`（与 progress.md / HANDOFF 归档机制对称,见 D-027）。归档文件不进 §1 注册、Doctor 不校验其预算,仅供按需搜索考古。
 
-**写入格式（verify 脚本追加写）**：
+**写入格式（verify 脚本 dedup 写）**：
 
-每次 AC verify PASS 时,verify 脚本在 `engine/evidence/T-NNN/checkpoint.md` 末尾追加一行:
+每次 AC verify PASS 时,verify 脚本在 `engine/evidence/T-NNN/checkpoint.md` 中替换同 AC-N 已有行(更新时间戳),无则追加新行:
 ```
 - [x] AC-N <verify 命令一句话摘要> — evidence/AC-N.json PASS @ <ISO timestamp>
 ```
+
+> **dedup 语义(v6.11.2/T-039)**:verify 是 checkpoint.md 的唯一写入者。同一 AC-N 的重复 PASS 无信息价值(verify 是幂等的),只有时间戳更新有意义。因此同 AC-N 的已有行被替换为最新时间戳版本,而非追加新行。新 AC-N 追加到末尾。原"追加写,不覆盖历史"设计(v6.9.0/T-034)导致 checkpoint.md 无限膨胀(T-036 达 111 行/18 ACs),已在 T-039 修正。
 
 文件首次创建时（即第一个 AC PASS 时）,verify 脚本写入文件头:
 ```markdown
@@ -2379,13 +2381,13 @@ All new rules → engine/SYSTEM.md; this file only excerpts with `source:` tags.
 
 ```markdown
 # Checkpoint — [Task ID: T-NNN]
-> Last updated: [date] | AC 级压缩恢复锚点 | verify 脚本追加写,见 contract/src/20-file-templates.md FILE 15
+> Last updated: [date] | AC 级压缩恢复锚点 | verify 脚本 dedup 写,见 contract/src/20-file-templates.md FILE 15
 
 ## 已完成 AC
 - [ ] AC-1 <待 verify>
 
 <!-- 维护规则:
-  - verify 脚本在每个 AC PASS 后追加写一行（不覆盖历史）
+  - verify 脚本在每个 AC PASS 后 dedup 写一行(同 AC-N 替换,新 AC-N 追加)
   - agent 不写本文件（写 progress.md）
   - 任务 done 时归档到 engine/archive/tasks/T-NNN-checkpoint.md
   - SessionStart 优先注入本文件（覆盖 progress.md §4 与 HANDOFF 立即恢复点）
@@ -2394,7 +2396,7 @@ All new rules → engine/SYSTEM.md; this file only excerpts with `source:` tags.
 
 **维护规则**：
 - 骨架文件是模板,实例化由 verify 脚本自动完成（非手工拷贝）;
-- verify 脚本追加写,不覆盖历史行;
+- verify 脚本 dedup 写:同 AC-N 替换最新时间戳,新 AC-N 追加;
 - agent 不写 checkpoint.md（写 progress.md）;
 - 单行 ≤500 字符（与 CONTEXT.md 单行限制一致）;
 - 整文件预算 ≤4KB（约 100 行）,超限由 Doctor WARN 提示归档旧条目;

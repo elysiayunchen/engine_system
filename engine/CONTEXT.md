@@ -1,14 +1,14 @@
 # CONTEXT — 当前状态
 
-> Engine System (engine_system) · Last updated: 2026-07-20 · Profile: CLI-LEAN
+> Engine System (engine_system) · Last updated: 2026-07-22 · Profile: CLI-LEAN
 
 ## 状态面板
 
 | 维度 | 状态 |
 |------|------|
 | 构建 | ✅ 正常（纯 markdown + shell 脚本，无构建步骤） |
-| 上次完成 | **v6.10.0 正式发版(T-035 verify 死代码检测 + done 门项)**:T-035 11/11 AC PASS(含 AC-2.1 jscpd 委托子编号)。新增 contract/src/30-operational.md DEAD CODE DETECTION 段(linter 委托优先级表 .sh→shellcheck / .ps1→PSScriptAnalyzer / .md.json→跳过 + 反向调用点扫描步骤 + DEAD-CODE.json / COPY-PASTE.json 格式 + WARN→done 门项 + 迁移宽限期 + 豁免场景);engine-verify ×4 加 detect_dead_code / Invoke-DeadCodeDetection(WRITE-SET 文件收集 + linter 自检 + shellcheck/Invoke-ScriptAnalyzer + reverse-call-site scan + jscpd 可用性检查 + DEAD-CODE.json + COPY-PASTE.json 输出)+ recursion guard(task-specific `ENGINE_VERIFY_RECURSE_GUARD=$task` 防止 AC verify 命令递归调用同任务 engine-verify 死循环);engine-doctor ×4 加 check_warn_done_gate / Test-WarnDoneGate(顶层 `exempt_all: true` 批量豁免 + per-entry `exempt: true` 细粒度 + 迁移宽限期 contract-version < 6.10.0 降级 WARN);ENGINE_DOCTOR.md dogfood + plugin 镜像加 #16 + #28 镜像,contract-version 6.9.0→6.10.0;engine-migrate-contract ×4 加 #16 heredoc;contract/budget.json 2730→2830;T-035 自身 DEAD-CODE.json warn_count=76(全部是既有 engine-doctor.sh / engine-migrate-contract.sh 历史代码风格警告,shellcheck 首次扫描的副产品)已用 exempt_all 批量豁免。check.sh CHECK PASSED(0 failures)。 |
-| 进行中 | **D-028 LPHP 大型项目接管方向已收尾**:4 版本(v6.7.0 T-032 progress.md / v6.8.0 T-033 INVENTORY / v6.9.0 T-034 checkpoint / v6.10.0 T-035 死代码检测)全部 done。后续可考虑 patch 版本调整 linter 委托表或 jscpd 配置。3 个月 expiry 2026-10-31 之前可做 pilot 验证。 |
+| 上次完成 | **v6.11.2 patch(T-039 checkpoint.md append→dedup 修复)**:T-039 7/7 AC PASS。修复 `engine-verify.{sh,ps1}` 的 checkpoint.md append-without-dedup bug——同 AC-N 重复 PASS 无信息价值(verify 是幂等的),改为 dedup 写(同 AC-N replace 最新时间戳行,新 AC-N append)。契约源 FILE 15 "追加写"→"dedup 写" 7 处 + compile.sh 重生成 dist;verify 脚本 ×4(engine + plugin 镜像)实现 dedup(grep -v + append sh / Where-Object + Set/Add-Content ps1);skeleton ×2 注释更新;5 个 checkpoint.md 清理(T-036 111→22 行 / T-034 60→15 / T-035 51→15 / T-037 6→5 / T-038 35→14);端到端测试 test_checkpoint_dedup.{sh,ps1} 双版本 4 用例 PASS;版本 6.11.2 + CHANGELOG + manifest SHA256 更新;init.md ×3 契约文本同步;T-038 progress.md 归档 + DEAD-CODE 豁免。check.sh CHECK PASSED,engine verify T-039 7/7 PASS。 |
+| 进行中 | **D-028 LPHP 大型项目接管方向已收尾**:5 版本(v6.7.0 T-032 progress.md / v6.8.0 T-033 INVENTORY / v6.9.0 T-034 checkpoint / v6.10.0 T-035 死代码检测 / v6.11.0 T-036 多会话隔离 / v6.11.1 T-038 隔离层 gap 修复 / v6.11.2 T-039 checkpoint dedup)全部 done。后续可考虑 T-034 checkpoint.md 长任务断点(weakly dependent)或新任务待规划。 |
 | 阻塞 | 无。 |
 
 ## 当前假设 / 决策（本轮拍板）
@@ -33,5 +33,5 @@
 
 - 待验证：Copilot CLI / Codex CLI 原生 hook 的 block 决策支持。
 - 待验证：真实下游项目从旧 contract-version 迁移到 6.6 后的首次任务采用与并行 workstream 手感,以及 HANDOFF 历史归档触发是否如期在首次写入时执行。
-- 待验证：D-029(approved 2026-07-20)多 Claude Code 实例并行抢写引擎记忆三件套的隔离机制。主线方案 A(多会话锁 + worker 自动降级 + PreToolUse 双信号)approved。**T-036 v6.11.0 active**:AC-1 ✅(契约源 30-operational.md MULTI-SESSION ISOLATION 段)+ AC-2 ✅(SessionStart hook lock 检测)+ AC-3 ✅(Stop hook .meta + lock release + tombstone,4 份 + plugin 镜像)。review P1-P7 全修已 commit c470886(worker_key 算法统一 + atomic 竞态修复 + verify 增强)。AC-4~AC-18 后期任务(PreToolUse 双信号 / Active Sessions 面板 / Doctor 检查 / workstream 命令 / assume-coordinator / merge-workstream / ENGINE_DOCTOR.md / AGENT_ADAPTERS.md / migrator / plugin manifest SHA256 / 版本三处一致 / check.sh 全绿 / kill switch / 端到端测试)。expiry 2026-11-30,早期预警 2026-09-15。
+- 已验证：T-036 v6.11.0 done(18/18 AC PASS)——D-029 多 Claude Code 实例并行抢写引擎记忆三件套的隔离机制已落地:多会话锁 + worker 自动降级 + PreToolUse 双信号 + Active Sessions 面板 + workstream 命令。expiry 2026-11-30,早期预警 2026-09-15。
 - 已验证：T-037(done 2026-07-20)engine/SYSTEM.md「项目开发准则」段加 `### Trae agent 工具对话延续准则` 子段——运行在 Trae 相关开发 agent 工具(TRAE IDE/Work/CLI/Plugin)时 NEVER 主动中止对话,用 AskUserQuestion 延续,避免浪费用户发起对话额度。AC-1 PASS(fp=e3b0c44298fc)。与 user_profile.md Trae agent tool continuity 准则双轨(机器自动注入 + 项目级 system 显式声明)。

@@ -105,10 +105,12 @@ foreach ($line in (Get-Content $taskFile -Encoding UTF8)) {
   $json = '{"ac":"' + $acId + '","verify":"' + $verifyEscaped + '","status":"' + $status + '","exit":' + $rc + ',"fingerprint":"sha256:' + $fp + '","timestamp":"' + $ts + '"}'
   $json | Set-Content -Path (Join-Path $evidenceDir ($acId + ".json")) -Encoding UTF8
 
-  # v6.9.0 (D-028/T-034): on AC PASS, append a line to checkpoint.md so
+  # v6.9.0 (D-028/T-034): on AC PASS, write a line to checkpoint.md so
   # SessionStart can re-anchor from AC-level completion state (priority 1
   # in the re-anchor chain, see contract/src/20-file-templates.md FILE 15).
   # verify is the only writer of checkpoint.md; agents write progress.md.
+  # v6.11.2 (T-039): dedup — replace existing AC-N line (update timestamp),
+  # append if new AC-N. Original append-without-dedup caused unbounded growth.
   if ($status -eq "pass") {
     $checkpoint = Join-Path $evidenceDir "checkpoint.md"
     if (-not (Test-Path $checkpoint)) {
@@ -118,6 +120,10 @@ foreach ($line in (Get-Content $taskFile -Encoding UTF8)) {
     $summary = ($verifyCmd -replace '\s+', ' ').Trim()
     if ($summary.Length -gt 80) { $summary = $summary.Substring(0, 80) }
     $line = "- [x] $acId $summary — evidence/$acId.json PASS @ $ts"
+    # Dedup: remove existing AC-N line(s) if any, then append fresh line.
+    $existing = Get-Content -Path $checkpoint -Encoding UTF8
+    $filtered = $existing | Where-Object { $_ -notmatch "^- \[x\] $acId " }
+    Set-Content -Path $checkpoint -Value $filtered -Encoding UTF8
     Add-Content -Path $checkpoint -Value $line -Encoding UTF8
   }
 }

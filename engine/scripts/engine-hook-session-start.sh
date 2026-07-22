@@ -126,7 +126,9 @@ if [ -z "$ms_disabled" ]; then
     ms_payload="$(cat 2>/dev/null || true)"
   fi
   ms_sid="$(printf '%s' "$ms_payload" | grep -oE '"session_id"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | sed 's/.*"session_id"[[:space:]]*:[[:space:]]*"//;s/"//')"
-  [ -n "$ms_sid" ] || ms_sid="anon-$$"
+  # v6.11.1 (D-029/T-038) AC-3: UUID fallback 替换 anon-PID(PID 复用风险)
+  # 优先级:Claude Code payload session_id > uuidgen > /proc/sys/kernel/random/uuid > timestamp(最后兜底)
+  [ -n "$ms_sid" ] || ms_sid="$(uuidgen 2>/dev/null || cat /proc/sys/kernel/random/uuid 2>/dev/null || printf 'fallback-%s' "$(date +%s%N 2>/dev/null || date +%s)")"
   ms_pid="$$"
   ms_started="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date 2>/dev/null || echo unknown)"
   ms_task=""

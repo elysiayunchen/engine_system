@@ -141,7 +141,9 @@ is_shared_memory() {
   case "$1" in
     AGENTS.md|CLAUDE.md|engine/ENGINE_MAP.md|engine/SYSTEM.md|engine/REPO_GUIDE.md|\
     engine/CONTEXT.md|engine/HANDOFF.md|engine/PITFALLS.md|engine/SPRINT.md|engine/ROADMAP.md|\
-    engine/domains/*/CONTEXT.md|engine/domains/*/PITFALLS.md|engine/plans/*|docs/*/specs/*|docs/specs/*)
+    engine/domains/*/CONTEXT.md|engine/domains/*/PITFALLS.md|engine/domains/*/INVENTORY.md|\
+    engine/tasks/T-*/progress.md|engine/evidence/T-*/checkpoint.md|\
+    engine/plans/*|docs/*/specs/*|docs/specs/*)
       return 0 ;;
     *) return 1 ;;
   esac

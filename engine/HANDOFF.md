@@ -4,11 +4,11 @@
 
 ## 立即恢复点
 
-T-036 v6.11.0 多会话锁 **全部 18 AC verify PASS**(18 pass, 0 fail)。已落地 14 commits(c470886/6215b34/3d67559/66e8f6a/b39ab5d/75585cd~78071c3/15ed6ec + AC-18 pending):atomic 独占 lock + 协调者/worker 角色 + PreToolUse 双信号拦截 + assume-coordinator/merge-workstream/disable-multi-session 三命令 + ENGINE_DOCTOR #17/#18 + AGENT_ADAPTERS C 档扩展 + migrator + plugin 镜像 + 版本三处一致 = 6.11.0 + AC-18 端到端测试 8 个文件(4 bash + 4 PowerShell,共 82 断言全 PASS)。
+T-036 v6.11.0 多会话锁 **验收通过 18/18 AC PASS**(fp=036bea53676e)。本轮验收修复 3 个阻塞:(1) `engine-doctor.sh` line 958 多行整数比较 bug(`grep -c || echo 0` 在无匹配时产生 `0\n0`,改用 `|| true + :-0` 默认值);(2) T-036 done 后归档 progress.md 到 `engine/archive/tasks/T-036-progress.md`;(3) DEAD-CODE.json 90 条 warning 用 `exempt_all: true` 批量豁免(D-028 §9 范式,全部来自既有 engine-doctor/engine-hook-stop/engine-migrate-contract 历史代码风格警告,与 T-036 新增代码无关)。AC-14 + AC-16 evidence 用真实 fingerprint 覆盖占位符。
 
-**AC-18 端到端测试创建完成**(commit pending):tests/workstream/ 下 8 个测试文件(test_worker_mode/test_double_signal/test_lock_recovery/test_kill_switch 各 .sh + .ps1)。bash 41 断言 + PowerShell 41 断言 = 82 全 PASS。修复 test_double_signal.sh D2/D3 失败(D2:WRITE-SET 加入 engine/CONTEXT.md 让协调者可写;D3:worker shard 路径用 session_key `s-top-main` 匹配 safe_id 算法)。同时修复 checkpoint.md 慢性膨胀(86 行 → 18 行,只保留最新 PASS 记录;根因是 engine-verify.sh 每次 PASS 都 append 不 dedup,T-038 将处理)。
+**check.sh 全绿**(CHECK PASSED,仅剩 2 个 WARN 不阻塞:HANDOFF.md 下一步指针未更新、contract debt 54>47 留待后续)。已落地 15 commits。
 
-**下一步:`git push origin main`**(当前 19 commits ahead)。push 后 T-036 全部完成,可开 T-038(checkpoint.md dedup 修复)或 T-034/T-035 后续任务。
+**下一步:开 T-038**(engine-verify.sh checkpoint.md append 不 dedup 修复,根因是每次 verify 都 append PASS 记录导致 SessionStart 注入超 N1=400;T-036 验收期间发现)或 push 后跟 GitHub Release workflow。
 
 > Phase 1 = 通用化核心(prompt 抽离 / CLI 扩展 / 快速安装 / agent 检测——D-017 原文口径;实施细化与「薄壳」口径修正见 D-018)。v6.2 = 多 agent 通信层(engine context + DevComm Rule 扩展)。
 

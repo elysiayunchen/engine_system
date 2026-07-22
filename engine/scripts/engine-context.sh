@@ -144,21 +144,26 @@ if [ -f "$lock_file_ctx" ] || [ -d "$sessions_dir_ctx" ]; then
 fi
 
 # Unmerged worker shards. Keep this dashboard compact; full shard content is read on demand.
+# v6.11.1 (D-029/T-038) AC-5: support two-level agents/a-<id>/ and sessions/s-<id>/ layouts.
 if [ -n "$active_task" ]; then
   workstream_root="$ENGINE_DIR/workstreams/$task_id"
   if [ -d "$workstream_root" ]; then
     found_workstream=0
-    for ctx in "$workstream_root"/*/CONTEXT.md; do
+    # Find CONTEXT.md anywhere under workstream_root (handles legacy flat + new agents/sessions trees).
+    while IFS= read -r ctx; do
       [ -f "$ctx" ] || continue
       if [ "$found_workstream" -eq 0 ]; then
         echo "──── Parallel Workstreams (unmerged) ────"
         found_workstream=1
       fi
       owner="$(basename "$(dirname "$ctx")")"
+      # Strip a-/s- prefix added in v6.11.1 for display only.
+      owner="${owner#a-}"
+      owner="${owner#s-}"
       state="$(grep -m 1 '^>' "$ctx" 2>/dev/null)"
       progress="$(awk '/^## Progress/{on=1;next} on && /^-[[:space:]]/{print;exit}' "$ctx" 2>/dev/null)"
       echo "* $owner: ${state#> } ${progress:+| $progress}"
-    done
+    done < <(find "$workstream_root" -name CONTEXT.md -type f 2>/dev/null)
     [ "$found_workstream" -eq 0 ] || echo ""
   fi
 fi

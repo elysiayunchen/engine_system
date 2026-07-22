@@ -66,3 +66,31 @@
 
 - 环境变量 `ENGINE_DISABLE_MULTI_SESSION=1` 或 `engine/.cache/multi-session.disabled` 标志文件存在时,SessionStart hook 跳过 lock 检测,所有会话降级为单会话模式(等同 v6.10.0 行为,fail-open)。
 - 仅用于 v6.11.0 升级期间发现兼容性问题时的紧急回退。长期开启 kill switch 等于放弃多会话锁保护,应尽快定位问题并重新启用。
+
+### Worker 写分片目录约定(v6.11.1+, D-029/T-038)
+
+- **s-/a- 前缀 + sessions/agents 目录隔离**:`engine workstream T-NNN AGENT --kind=subagent|session` 自动按 kind 切换目录:
+  - `--kind=subagent` → `engine/workstreams/<task>/agents/a-<agent>/`(subagent 由 Claude Code 派生,PreToolUse 第 1 信号 `agent_id` 非空)
+  - `--kind=session` → `engine/workstreams/<task>/sessions/s-<agent>/`(顶层会话降级,PreToolUse 第 2 信号 `.role=worker` 文件存在)
+- 前缀只是人类可读视觉提示,机器识别通过 `.role=worker` 标志 + workstream 目录路径(不依赖前缀)。
+- `.cache/sessions/<agent>.role=worker` 标志 key 用 AGENT 不加 s- 前缀(与 SessionStart hook 算的 `<sid>-main` key 一致,确保 PreToolUse 检测匹配)。
+- 已有 workstreams 目录不存在(.gitignore),无 migration 风险。
+
+### ENGINE_WORKER 环境变量(B 档兜底, v6.11.1+)
+
+- B 档适配器(Codex / Cursor / Aider)无 SessionStart hook 自动写 `.role=worker` 标志,需用户显式设 `ENGINE_WORKER=1` 环境变量后,pre-commit hook 拒绝共享三件套 staged:
+  ```bash
+  export ENGINE_WORKER=1
+  ```
+- 这是 B 档手动标记,与 C 档 PreToolUse 双信号机器强制互补。未来若 B 档适配器支持 SessionStart hook 自动检测则替换。
+- Coordinator 会话不应设 `ENGINE_WORKER=1`(否则无法 stage 共享三件套用于回写)。
+- Worker 模式下不应同时设 `ENGINE_WORKER=1` 与 `engine assume-coordinator --force`(语义冲突)。
+
+### Worker 模式条件化写入实现(v6.11.1+, D-029/T-038)
+
+- **D-028 三文件 worker 写分片边界已落地到实现层**(契约源 `contract/src/30-operational.md` 第 359-367 行):
+  - **progress.md**: worker 写 `engine/workstreams/<task>/<sid>/progress.md` 分片(7 栏结构同共享版本),不写共享 `engine/tasks/T-NNN/progress.md`(被 PreToolUse hook `is_shared_memory` 拦截)。
+  - **checkpoint.md**: worker 写分片,不写共享 `engine/evidence/T-NNN/checkpoint.md`(被拦截)。
+  - **INVENTORY.md**: worker **不写**共享 `engine/domains/<domain>/INVENTORY.md`(被拦截),改为在自己分片 HANDOFF.md 的 "Merge Notes" 段记录 INVENTORY entry 变更清单。
+- **HANDOFF 归档角色门控**: HANDOFF 历史表归档只在协调者执行;worker 不增行不归档,只写自己分片 HANDOFF.md。
+- Doctor 通过 `check_worker_mode_implementation` 检查 `is_shared_memory` 是否含三类文件 pattern,缺失任一 = FAIL。

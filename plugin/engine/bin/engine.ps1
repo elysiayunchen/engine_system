@@ -309,7 +309,13 @@ function New-Workstream {
     }
   }
   if (-not $goal) { $goal = "See engine/tasks/$TaskId.md" }
-  $dir = Join-Path $Root ("engine\workstreams\" + $TaskId + "\" + $AgentId)
+  # v6.11.1 (D-029/T-038) AC-5: s-/a- 前缀约定 + sessions/agents 目录隔离
+  # subagent → <task>/agents/a-<agent>/ (subagent 由 Claude Code 派生,agent_id 非空)
+  # session  → <task>/sessions/s-<agent>/ (顶层会话降级,PreToolUse 双信号第 2 信号)
+  # 前缀只加在目录路径上(人类可读视觉提示),.role=worker 标志 key 用 $AgentId 不加前缀
+  # (与 SessionStart hook 算的 <sid>-main key 一致,确保 PreToolUse 检测匹配)
+  $subdir = if ($Kind -eq "subagent") { "agents\a-$AgentId" } else { "sessions\s-$AgentId" }
+  $dir = Join-Path $Root ("engine\workstreams\" + $TaskId + "\" + $subdir)
   New-Item -ItemType Directory -Force -Path $dir | Out-Null
   $ctx = Join-Path $dir "CONTEXT.md"
   $handoff = Join-Path $dir "HANDOFF.md"
@@ -365,9 +371,9 @@ $goal
     Write-Host "Session-degraded worker marker created: engine/.cache/sessions/$AgentId.role=worker"
     Write-Host "Top-level session will be treated as worker by PreToolUse hook (signal 2)."
   }
-  Write-Host "Workstream ready: engine/workstreams/$TaskId/$AgentId/"
+  Write-Host "Workstream ready: engine/workstreams/$TaskId/$subdir/"
   Write-Host "Worker writes only this shard; coordinator owns shared CONTEXT/HANDOFF."
-  Write-Host "Kind: $Kind"
+  Write-Host "Kind: $Kind (directory: agents/ for subagent, sessions/ for session)"
   if ($Emit) {
     Write-Output (Get-Content -Raw -Path $ctx -Encoding UTF8)
     Write-Output (Get-Content -Raw -Path $handoff -Encoding UTF8)
@@ -386,7 +392,8 @@ function Assume-Coordinator {
   New-Item -ItemType Directory -Force -Path $cacheDir | Out-Null
 
   $procId = $PID
-  $sessionId = if ($env:CLAUDE_SESSION_ID) { $env:CLAUDE_SESSION_ID } else { "anon-$procId" }
+  # v6.11.1 (D-029/T-038) AC-3: UUID fallback 替换 anon-PID(PID 复用风险)
+  $sessionId = if ($env:CLAUDE_SESSION_ID) { $env:CLAUDE_SESSION_ID } else { [guid]::NewGuid().ToString() }
   $startedAt = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
 
   # Detect active task from engine/tasks/T-NNN.md (skip .spec.md twins)

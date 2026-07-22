@@ -148,7 +148,9 @@ if (-not $msDisabled) {
   $msPayload = $input | Out-String
   $msSid = ""
   if ($msPayload -match '"session_id"\s*:\s*"([^"]*)"') { $msSid = $Matches[1] }
-  if (-not $msSid) { $msSid = "anon-" + $PID }
+  # v6.11.1 (D-029/T-038) AC-3: UUID fallback 替换 anon-PID(PID 复用风险)
+  # 优先级:Claude Code payload session_id > [guid]::NewGuid() (PS 5.1 .NET 内置可用)
+  if (-not $msSid) { $msSid = [guid]::NewGuid().ToString() }
   $msPid = $PID
   $msStarted = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
   $msTask = ""

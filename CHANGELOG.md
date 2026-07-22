@@ -1,5 +1,18 @@
 # Changelog
 
+## v6.11.1 (2026-07-21)
+
+- 修复 D-029 落地 5 处实现层遗漏(T-038 patch):T-036 v6.11.0 done 18/18 AC PASS 但 AC 多为 grep 文本验证,实现层有 4 处未覆盖 + 1 处部分覆盖。本 patch 把 D-029 §8 审视结论真正落地到实现层。
+- AC-1 is_shared_memory 扩展含 D-028 三文件:`engine-hook-stop.{sh,ps1}` ×4(plugin 镜像)的 `is_shared_memory` / `Is-SharedMemory` 函数加 `engine/tasks/T-*/progress.md`、`engine/evidence/T-*/checkpoint.md`、`engine/domains/*/INVENTORY.md` pattern。worker 模式下 PreToolUse 拦截这三类文件写共享版本,强制 worker 写 `engine/workstreams/<task>/<sid>/` 分片。这是 D-029 要解决的"progress.md 抢写"痛点的根治。
+- AC-2 prompts 加 worker 模式条件化指引:`task-run.md` ×4(plugin 镜像)加「Worker 模式条件化写入指引」段(progress.md/checkpoint.md/INVENTORY.md worker 写分片不写共享)+ progress.md 段 + INVENTORY.md 段加 worker 条件化注释;`handoff.md` ×4 加「HANDOFF 归档角色门控」段(Coordinator add row + archive,Worker don't add row don't archive)。
+- AC-3 UUID fallback 替换 anon-PID:`engine-hook-session-start.{sh,ps1}` ×4 与 `engine/bin/engine` + `engine/bin/engine.ps1` 的 assume_coordinator 函数均改为 UUID v4 fallback(sh 用 `uuidgen || /proc/sys/kernel/random/uuid || anon-PID` 兜底;ps1 用 `[guid]::NewGuid().ToString()`)。解决 PID 复用导致 session_key 碰撞风险。
+- AC-4 pre-commit worker 检测:`githooks/pre-commit` ×2(plugin 镜像)加 `ENGINE_WORKER=1` 环境变量检测,B 档适配器(Codex/Cursor/Aider)用户显式设此变量后 pre-commit 拒绝共享三件套 staged,与 C 档 PreToolUse 双信号机器强制互补。
+- AC-5 s-/a- 前缀约定 + sessions/agents 目录隔离:`engine/bin/engine` + `engine/bin/engine.ps1` + `engine/bin/engine.cmd` ×2(plugin 镜像)改为根据 kind 切换目录:`subagent` → `<task>/agents/a-<agent>/`,`session` → `<task>/sessions/s-<agent>/`。前缀只是人类可读视觉提示,机器识别通过 `.role=worker` 标志 + workstream 目录路径(不依赖前缀)。
+- AC-6 文档更新:`ENGINE_DOCTOR.md` ×2 加 #19/#31 worker 模式实现层检查(检测 `is_shared_memory` 是否含三类文件 pattern,缺失任一 = FAIL);`AGENT_ADAPTERS.md` ×2 加 s-/a- 前缀约定 + ENGINE_WORKER 环境变量使用说明 + Worker 模式条件化写入实现段;contract-version 6.11.0→6.11.1。
+- AC-7 plugin 镜像同步:4 份 .sh + 4 份 .ps1 + 2 份 pre-commit + 2 份 bin 完整对称验证,manifest SHA256 已更新。
+- AC-10 端到端测试:`tests/workstream/test_worker_writes_shard.{sh,ps1}` 验证 worker 模式下写 progress.md/checkpoint.md/INVENTORY.md 被拦截,写自己分片不被拦。
+- 详见 `engine/changes/CHANGE-2026-07-21-02.md`。
+
 ## v6.11.0 (2026-07-20)
 
 - 多 Claude Code 实例并行抢写引擎记忆三件套的隔离机制(D-029/T-036):SessionStart hook 复用 Claude Code payload 已传入的 `session_id`,用 atomic 独占 lock file(`engine/.cache/session.lock` 5 字段 `pid|session_id|role|started_at|task_id`)分配协调者/worker 角色,第一个会话获协调者(写共享三件套),后续会话降级 worker(写 `engine/workstreams/<task>/<session-id>/` 隔离分片)。

@@ -88,7 +88,15 @@ create_workstream() {
   esac
   task_file="$root/engine/tasks/$task.md"
   [ -f "$task_file" ] || { echo "Error: task card not found: engine/tasks/$task.md" >&2; return 2; }
-  dir="$root/engine/workstreams/$task/$agent"
+  # v6.11.1 (D-029/T-038) AC-5: s-/a- 前缀约定 + sessions/agents 目录隔离
+  # subagent → <task>/agents/a-<agent>/ (subagent 由 Claude Code 派生,agent_id 非空)
+  # session  → <task>/sessions/s-<agent>/ (顶层会话降级,PreToolUse 双信号第 2 信号)
+  # 前缀只加在目录路径上(人类可读视觉提示),.role=worker 标志 key 用 $agent 不加前缀
+  # (与 SessionStart hook 算的 <sid>-main key 一致,确保 PreToolUse 检测匹配)
+  case "$kind" in
+    subagent) dir="$root/engine/workstreams/$task/agents/a-$agent" ;;
+    session)  dir="$root/engine/workstreams/$task/sessions/s-$agent" ;;
+  esac
   goal="$(grep '^GOAL:' "$task_file" 2>/dev/null | head -1 | sed 's/^GOAL:[[:space:]]*//')"
   if [ -z "$goal" ]; then
     goal="$(awk '
@@ -148,9 +156,14 @@ EOF
     echo "Session-degraded worker marker created: engine/.cache/sessions/$agent.role=worker"
     echo "Top-level session will be treated as worker by PreToolUse hook (signal 2)."
   fi
-  echo "Workstream ready: engine/workstreams/$task/$agent/"
+  # v6.11.1 (D-029/T-038) AC-5: 显示新目录路径(kind=agents|sessions, prefix=a-|s-)
+  case "$kind" in
+    subagent) ws_path="engine/workstreams/$task/agents/a-$agent" ;;
+    session)  ws_path="engine/workstreams/$task/sessions/s-$agent" ;;
+  esac
+  echo "Workstream ready: $ws_path/"
   echo "Worker writes only this shard; coordinator owns shared CONTEXT/HANDOFF."
-  echo "Kind: $kind"
+  echo "Kind: $kind (directory: agents/ for subagent, sessions/ for session)"
   if [ -n "$print_flag" ]; then
     cat "$dir/CONTEXT.md"
     cat "$dir/HANDOFF.md"
@@ -179,7 +192,8 @@ assume_coordinator() {
   mkdir -p "$cache_dir" 2>/dev/null || true
 
   local pid="$$"
-  local session_id="${CLAUDE_SESSION_ID:-anon-$pid}"
+  # v6.11.1 (D-029/T-038) AC-3: UUID fallback 替换 anon-PID(PID 复用风险)
+  local session_id="${CLAUDE_SESSION_ID:-$(uuidgen 2>/dev/null || cat /proc/sys/kernel/random/uuid 2>/dev/null || printf 'fallback-%s' "$(date +%s%N 2>/dev/null || date +%s)")}"
   local started_at
   started_at="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || printf '%s' '')"
 

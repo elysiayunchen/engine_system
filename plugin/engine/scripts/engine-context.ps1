@@ -172,6 +172,8 @@ if ($activeTask) {
       Write-Output "---- Parallel Workstreams (unmerged) ----"
       foreach ($ctx in $ctxFiles) {
         $owner = $ctx.Directory.Name
+        # v6.11.1 (D-029/T-038) AC-5: strip a-/s- prefix added for two-level agents/sessions layout.
+        if ($owner -like 'a-*' -or $owner -like 's-*') { $owner = $owner.Substring(2) }
         $lines = Get-Content $ctx.FullName -ErrorAction SilentlyContinue
         $state = ($lines | Where-Object { $_ -match '^>' } | Select-Object -First 1) -replace '^>\s*', ''
         $progress = ""

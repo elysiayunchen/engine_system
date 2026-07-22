@@ -1,4 +1,4 @@
-# Engine System - write/stop gate (PowerShell twin of engine-hook-stop.sh).
+﻿# Engine System - write/stop gate (PowerShell twin of engine-hook-stop.sh).
 param([string]$Mode = "stop")
 
 $ErrorActionPreference = "Continue"
@@ -126,6 +126,9 @@ function Is-SharedMemory([string]$Path) {
   return (
     $Path -like 'engine/domains/*/CONTEXT.md' -or
     $Path -like 'engine/domains/*/PITFALLS.md' -or
+    $Path -like 'engine/domains/*/INVENTORY.md' -or
+    $Path -like 'engine/tasks/T-*/progress.md' -or
+    $Path -like 'engine/evidence/T-*/checkpoint.md' -or
     $Path -like 'engine/plans/*' -or
     $Path -like 'docs/*/specs/*' -or
     $Path -like 'docs/specs/*'

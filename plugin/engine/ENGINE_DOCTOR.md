@@ -144,6 +144,17 @@ silently treat the script as legacy.
     `engine merge-workstream <worker>` to absorb the shard into shared engine memory,
     or remove the orphan shard if obsolete. This check is WARN-only because shards may
     legitimately persist after merge for archival under `.merged-<session-id>/`.
+31. Worker mode implementation layer (v6.11.1+, D-029/T-038): `check_worker_mode_implementation`
+    enforces that PreToolUse hook's `is_shared_memory` / `Is-SharedMemory` function
+    (in `engine/scripts/engine-hook-stop.{sh,ps1}` + plugin mirror) covers the three
+    D-028 worker-write-boundary files: `engine/tasks/T-*/progress.md`,
+    `engine/evidence/T-*/checkpoint.md`, `engine/domains/*/INVENTORY.md`. Missing any
+    of these patterns = FAIL because it lets workers write shared
+    progress.md/checkpoint.md/INVENTORY.md and re-introduces the exact write-race
+    D-029 was designed to solve. Also verifies `engine/scripts/githooks/pre-commit`
+    (and plugin mirror) contains `ENGINE_WORKER` worker mode detection
+    (B-tier fallback). Migration grace period: `contract-version < 6.11.1` WARN,
+    `>= 6.11.1` FAIL.
 
 ## Script Contract
 Preferred commands:

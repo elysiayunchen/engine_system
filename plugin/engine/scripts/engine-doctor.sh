@@ -945,9 +945,14 @@ check_warn_done_gate() {
     # warn_count > 0: count per-entry exempt fields. Pattern `"exempt":` is
     # specific to per-entry (top-level is `"exempt_all":`, reason is
     # `"exempt_reason":`, count is `"exempt_count":` — none collide).
+    # NOTE: `grep -c` returns exit 1 with no match — `|| echo 0` would append
+    # a second "0" line and produce "0\n0", breaking the integer comparison
+    # below. Use `|| true` and rely on `:-0` defaulting instead.
     local total_entries exempt_entries
-    total_entries="$(grep -cE '"exempt"[[:space:]]*:[[:space:]]*' "$dc_file" 2>/dev/null || echo 0)"
-    exempt_entries="$(grep -cE '"exempt"[[:space:]]*:[[:space:]]*true' "$dc_file" 2>/dev/null || echo 0)"
+    total_entries=$(grep -cE '"exempt"[[:space:]]*:[[:space:]]*' "$dc_file" 2>/dev/null || true)
+    total_entries=${total_entries:-0}
+    exempt_entries=$(grep -cE '"exempt"[[:space:]]*:[[:space:]]*true' "$dc_file" 2>/dev/null || true)
+    exempt_entries=${exempt_entries:-0}
     # Defensive: if total_entries is 0 (parse failed), skip rather than
     # falsely failing on an unparseable file.
     if [ "$total_entries" -eq 0 ]; then

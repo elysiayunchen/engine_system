@@ -1,0 +1,1 @@
+{"ac":"AC-4","verify":"grep -q 'ENGINE_WORKER' engine/scripts/githooks/pre-commit && grep -q 'ENGINE_WORKER' plugin/engine/scripts/githooks/pre-commit && grep -q 'worker\\|ENGINE_WORKER' engine/scripts/githooks/pre-commit","status":"pass","exit":0,"fingerprint":"sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855","timestamp":"2026-07-22T04:36:37Z"}

@@ -167,6 +167,19 @@ if [ "$strict_task_mode" -eq 1 ]; then
   IFS="$old_ifs"
 fi
 
+# v6.11.1 (D-029/T-038) AC-4: B 档 pre-commit 兜底——ENGINE_WORKER=1 时拒绝共享三件套 staged
+# B 档适配器(Codex/Cursor/Aider)无 SessionStart hook 自动写 .role=worker 标志,
+# 用户显式设 ENGINE_WORKER=1 环境变量后,pre-commit 拒绝共享三件套 staged。
+# 与 C 档 PreToolUse 双信号机器强制互补。
+if [ "${ENGINE_WORKER:-}" = "1" ]; then
+  shared_staged="$(printf '%s\n' "$staged" | grep -E '^engine/(CONTEXT|HANDOFF|ENGINE_MAP)\.md$' | head -1)"
+  if [ -n "$shared_staged" ]; then
+    printf '\n[Engine System] Worker mode (ENGINE_WORKER=1) cannot stage shared memory: %s\n' "$shared_staged" >&2
+    printf 'Stage your engine/workstreams/<task>/<sid>/ shard instead.\n\n' >&2
+    exit 1
+  fi
+fi
+
 # Code changes must carry shared memory or a worker shard in the same commit.
 code_changed="$(printf '%s\n' "$staged" | grep -vE '^(engine/|\.engine/)' | head -1)"
 memory_written="$(printf '%s\n' "$staged" | grep -E '^engine/(CONTEXT|HANDOFF|ENGINE_MAP)\.md$|^engine/workstreams/[^/]+/[^/]+/(CONTEXT|HANDOFF)\.md$' | head -1)"

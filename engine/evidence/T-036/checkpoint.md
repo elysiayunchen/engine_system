@@ -66,3 +66,46 @@
 - [x] AC-15 test "$(tr -d '[:space:]' < VERSION)" = "6.11.0" && test "$(tr -d '[:space:]' <  — evidence/AC-15.json PASS @ 2026-07-21T00:17:09Z
 - [x] AC-17 grep -q 'ENGINE_DISABLE_MULTI_SESSION\|DISABLE_MULTI_SESSION\|disable.multi.sess — evidence/AC-17.json PASS @ 2026-07-21T00:19:12Z
 - [x] AC-18 test -f tests/workstream/test_worker_mode.sh && test -f tests/workstream/test_do — evidence/AC-18.json PASS @ 2026-07-21T00:19:44Z
+- [x] AC-1 grep -q 'session.lock\|atomic\|noclobber\|FileStream.*Exclusive' contract/src/30 — evidence/AC-1.json PASS @ 2026-07-21T01:14:20Z
+- [x] AC-2 grep -q 'session.lock\|session_lock\|SessionLock' engine/scripts/engine-hook-ses — evidence/AC-2.json PASS @ 2026-07-21T01:14:20Z
+- [x] AC-3 grep -q '\.meta\|meta_file\|MetaFile' engine/scripts/engine-hook-stop.sh && grep — evidence/AC-3.json PASS @ 2026-07-21T01:14:20Z
+- [x] AC-4 grep -q 'role.*worker\|\.role' engine/scripts/engine-hook-stop.sh && grep -q 'ro — evidence/AC-4.json PASS @ 2026-07-21T01:14:20Z
+- [x] AC-5 grep -q 'Active Sessions\|active_session\|ActiveSession' engine/scripts/engine-c — evidence/AC-5.json PASS @ 2026-07-21T01:14:20Z
+- [x] AC-6 grep -q 'check_multi_session_isolation\|multi_session_isolation\|MultiSessionIso — evidence/AC-6.json PASS @ 2026-07-21T01:14:20Z
+- [x] AC-7 grep -q 'check_workstream_orphan\|workstream_orphan\|WorkstreamOrphan' engine/sc — evidence/AC-7.json PASS @ 2026-07-21T01:14:20Z
+- [x] AC-8 grep -q '\-\-kind\|--kind' engine/bin/engine && grep -q '\-\-kind\|--kind' engin — evidence/AC-8.json PASS @ 2026-07-21T01:14:20Z
+- [x] AC-9 grep -q 'assume-coordinator\|assume_coordinator\|AssumeCoordinator' engine/bin/e — evidence/AC-9.json PASS @ 2026-07-21T01:14:20Z
+- [x] AC-10 grep -q 'merge-workstream\|merge_workstream\|MergeWorkstream' engine/bin/engine  — evidence/AC-10.json PASS @ 2026-07-21T01:14:20Z
+- [x] AC-11 grep -q 'multi.session\|多会话' engine/ENGINE_DOCTOR.md && grep -q 'multi.ses — evidence/AC-11.json PASS @ 2026-07-21T01:14:21Z
+- [x] AC-12 grep -q '多会话\|multi.session\|multi-session' engine/AGENT_ADAPTERS.md && gr — evidence/AC-12.json PASS @ 2026-07-21T01:14:21Z
+- [x] AC-13 grep -q 'multi.session\|多会话\|session.lock' engine/scripts/engine-migrate-c — evidence/AC-13.json PASS @ 2026-07-21T01:14:21Z
+- [x] AC-15 test "$(tr -d '[:space:]' < VERSION)" = "6.11.0" && test "$(tr -d '[:space:]' <  — evidence/AC-15.json PASS @ 2026-07-21T01:18:03Z
+- [x] AC-1 grep -q 'session.lock\|atomic\|noclobber\|FileStream.*Exclusive' contract/src/30 — evidence/AC-1.json PASS @ 2026-07-21T01:21:00Z
+- [x] AC-2 grep -q 'session.lock\|session_lock\|SessionLock' engine/scripts/engine-hook-ses — evidence/AC-2.json PASS @ 2026-07-21T01:21:01Z
+- [x] AC-3 grep -q '\.meta\|meta_file\|MetaFile' engine/scripts/engine-hook-stop.sh && grep — evidence/AC-3.json PASS @ 2026-07-21T01:21:01Z
+- [x] AC-4 grep -q 'role.*worker\|\.role' engine/scripts/engine-hook-stop.sh && grep -q 'ro — evidence/AC-4.json PASS @ 2026-07-21T01:21:01Z
+- [x] AC-5 grep -q 'Active Sessions\|active_session\|ActiveSession' engine/scripts/engine-c — evidence/AC-5.json PASS @ 2026-07-21T01:21:01Z
+- [x] AC-6 grep -q 'check_multi_session_isolation\|multi_session_isolation\|MultiSessionIso — evidence/AC-6.json PASS @ 2026-07-21T01:21:01Z
+- [x] AC-7 grep -q 'check_workstream_orphan\|workstream_orphan\|WorkstreamOrphan' engine/sc — evidence/AC-7.json PASS @ 2026-07-21T01:21:01Z
+- [x] AC-8 grep -q '\-\-kind\|--kind' engine/bin/engine && grep -q '\-\-kind\|--kind' engin — evidence/AC-8.json PASS @ 2026-07-21T01:21:01Z
+- [x] AC-9 grep -q 'assume-coordinator\|assume_coordinator\|AssumeCoordinator' engine/bin/e — evidence/AC-9.json PASS @ 2026-07-21T01:21:01Z
+- [x] AC-10 grep -q 'merge-workstream\|merge_workstream\|MergeWorkstream' engine/bin/engine  — evidence/AC-10.json PASS @ 2026-07-21T01:21:01Z
+- [x] AC-11 grep -q 'multi.session\|多会话' engine/ENGINE_DOCTOR.md && grep -q 'multi.ses — evidence/AC-11.json PASS @ 2026-07-21T01:21:01Z
+- [x] AC-12 grep -q '多会话\|multi.session\|multi-session' engine/AGENT_ADAPTERS.md && gr — evidence/AC-12.json PASS @ 2026-07-21T01:21:01Z
+- [x] AC-13 grep -q 'multi.session\|多会话\|session.lock' engine/scripts/engine-migrate-c — evidence/AC-13.json PASS @ 2026-07-21T01:21:01Z
+- [x] AC-15 test "$(tr -d '[:space:]' < VERSION)" = "6.11.0" && test "$(tr -d '[:space:]' <  — evidence/AC-15.json PASS @ 2026-07-21T01:24:54Z
+- [x] AC-17 grep -q 'ENGINE_DISABLE_MULTI_SESSION\|DISABLE_MULTI_SESSION\|disable.multi.sess — evidence/AC-17.json PASS @ 2026-07-21T01:29:20Z
+- [x] AC-18 test -f tests/workstream/test_worker_mode.sh && test -f tests/workstream/test_do — evidence/AC-18.json PASS @ 2026-07-21T01:29:58Z
+- [x] AC-1 grep -q 'session.lock\|atomic\|noclobber\|FileStream.*Exclusive' contract/src/30 — evidence/AC-1.json PASS @ 2026-07-21T01:44:18Z
+- [x] AC-2 grep -q 'session.lock\|session_lock\|SessionLock' engine/scripts/engine-hook-ses — evidence/AC-2.json PASS @ 2026-07-21T01:44:18Z
+- [x] AC-3 grep -q '\.meta\|meta_file\|MetaFile' engine/scripts/engine-hook-stop.sh && grep — evidence/AC-3.json PASS @ 2026-07-21T01:44:18Z
+- [x] AC-4 grep -q 'role.*worker\|\.role' engine/scripts/engine-hook-stop.sh && grep -q 'ro — evidence/AC-4.json PASS @ 2026-07-21T01:44:18Z
+- [x] AC-5 grep -q 'Active Sessions\|active_session\|ActiveSession' engine/scripts/engine-c — evidence/AC-5.json PASS @ 2026-07-21T01:44:18Z
+- [x] AC-6 grep -q 'check_multi_session_isolation\|multi_session_isolation\|MultiSessionIso — evidence/AC-6.json PASS @ 2026-07-21T01:44:18Z
+- [x] AC-7 grep -q 'check_workstream_orphan\|workstream_orphan\|WorkstreamOrphan' engine/sc — evidence/AC-7.json PASS @ 2026-07-21T01:44:18Z
+- [x] AC-8 grep -q '\-\-kind\|--kind' engine/bin/engine && grep -q '\-\-kind\|--kind' engin — evidence/AC-8.json PASS @ 2026-07-21T01:44:18Z
+- [x] AC-9 grep -q 'assume-coordinator\|assume_coordinator\|AssumeCoordinator' engine/bin/e — evidence/AC-9.json PASS @ 2026-07-21T01:44:18Z
+- [x] AC-10 grep -q 'merge-workstream\|merge_workstream\|MergeWorkstream' engine/bin/engine  — evidence/AC-10.json PASS @ 2026-07-21T01:44:18Z
+- [x] AC-11 grep -q 'multi.session\|多会话' engine/ENGINE_DOCTOR.md && grep -q 'multi.ses — evidence/AC-11.json PASS @ 2026-07-21T01:44:19Z
+- [x] AC-12 grep -q '多会话\|multi.session\|multi-session' engine/AGENT_ADAPTERS.md && gr — evidence/AC-12.json PASS @ 2026-07-21T01:44:19Z
+- [x] AC-13 grep -q 'multi.session\|多会话\|session.lock' engine/scripts/engine-migrate-c — evidence/AC-13.json PASS @ 2026-07-21T01:44:19Z

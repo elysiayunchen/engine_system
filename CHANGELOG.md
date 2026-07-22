@@ -1,5 +1,17 @@
 # Changelog
 
+## v6.11.3 (2026-07-22)
+
+- 小任务 progress.md 7 栏豁免条款(T-040 patch):T-039 归档 progress.md 实际写成 4 栏自创格式(§1 Goal / §2 Current Step / §3 Done / §4 Next AC),暴露契约对小任务过度强制——强制产出空栏噪声淹没信号,反而违反 D-028 §6「机制错配」原则。本 patch 把"小任务确实不需要 7 栏事件驱动"正式化为契约条款,避免契约与实际再次漂移。
+- AC-1 契约源 `contract/src/20-file-templates.md` FILE 13 加「小任务豁免（v6.11.3 / T-040）」子段(放在「禁止」段后、「生命周期规则」段前):条件 `estimated_steps ≤ 10` 且 `checkpoint_plan = inline`(`tryout` 不算豁免,因为 tryout 卡可能复杂)时,7 栏骨架不变但事件驱动更新触发点降级为仅 §1(已读文件)+ §4(当前进行到 / 压缩恢复点)必填;§2/§3/§5/§6/§7 可留空或写单行 `n/a (small task exempt)` 占位;豁免理由 + 边界(不适用于非 inline 任务)+ Doctor 不增减检查逻辑(由 agent 自觉 + 契约文本约束)。
+- AC-2 `contract/src/behaviors/task-run.md` 在「Task progress.md event-driven update」段末加「## Small task exemption (v6.11.3 / T-040)」子段:英文(与上下文段对齐),交叉引用 FILE 13,说明 §1+§4 only 的触发降级 + 豁免理由(避免契约与实际漂移,引用 T-039 实证)。
+- AC-3 `contract/budget.json` max_lines 2930→2940(新增 ~10 行豁免条款,预算注释追加 v6.11.3/T-040 项);`compile.sh` 重生 5 dist(ENGINE_FILE_SYSTEM_v5.md / runtime-law.md / rules.json / plugin/.claude/commands/engine-init.md / engine/prompts/init.md)+ behavior skills/prompts synced;3 处 dist 均含「小任务豁免」段。
+- AC-4 plugin 镜像对称:init.md + behaviors/task-run.md + SKILL.md 3 处 `diff -q` 全部对称(compile.sh 自动同步,本 AC 校验对称性)。
+- AC-5 版本三处一致 = 6.11.3 + CHANGELOG 含 v6.11.3 段 + manifest SHA256 更新。
+- AC-6 完整发布门禁 `bash scripts/check.sh` 全绿。
+- 本任务自身狗粮豁免(estimated_steps=6 ≤ 10, checkpoint_plan=inline),progress.md 仅填 §1+§4,§2/§3/§5/§6/§7 写 n/a 占位。
+- 详见 `engine/changes/CHANGE-2026-07-22-02.md`。
+
 ## v6.11.2 (2026-07-22)
 
 - 修复 `engine-verify.{sh,ps1}` 的 checkpoint.md append-without-dedup bug(T-039 patch):T-036 v6.11.0 done 18/18 AC PASS 但 checkpoint.md 达 111 行(18 ACs × 6 轮 verify),远超契约 ≤4KB ~100 行预算,SessionStart 注入时逼近 N1=400 行上限。根因是契约源 FILE 15 写"追加写,不覆盖历史行"——这是设计错误,verify 是 checkpoint.md 唯一写入者,同 AC-N 重复 PASS 无信息价值。

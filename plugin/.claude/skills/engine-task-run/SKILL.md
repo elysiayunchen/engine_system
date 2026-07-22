@@ -39,6 +39,18 @@ Lifecycle:
 
 When the active task card has no `progress.md` yet, instantiate it from `engine/skeleton/progress.md` before the first mid-task checkpoint. Doctor flags active/paused cards missing `progress.md` with WARN (with migration grace period, see `ENGINE_DOCTOR.md`).
 
+## Small task exemption / 小任务豁免 (v6.11.3 / T-040)
+
+When the task card header declares both `estimated_steps ≤ 10` AND `checkpoint_plan = inline` (or an architect-declared equivalent bypass value; `tryout` does NOT qualify because tryout cards may still be complex, e.g. T-036 estimated_steps=18), the 7-section progress.md skeleton is still used (single source of truth, `engine/skeleton/progress.md` unchanged), but event-driven update triggers relax to **§1 (已读文件) + §4 (当前进行到 / 压缩恢复点) only**:
+
+- §1 — still triggered on "after reading a file" (small tasks at least read the task card + contract source)
+- §4 — still triggered on "after an AC passes / status switch"
+- §2/§3/§5/§6/§7 — may be left empty or filled with a single `n/a (small task exempt)` line (avoids being misjudged as missing file)
+
+Rationale: small patch tasks (≤10 steps, single commit, ≤7 ACs) typically have no "interface confirmed" / "design path rejected" / "question waiting for architect" / "known bug" worth recording — everything fits in the task card GOAL/CONSTRAINTS. Forcing all 7 sections produces empty noise, violating the D-028 §6 anti-pattern rule. T-039 progress.md actually drifted to a 4-section self-invented format (§1 Goal / §2 Current Step / §3 Done / §4 Next AC), which is the symptom this exemption formalizes. See `contract/src/20-file-templates.md` FILE 13 for the full clause.
+
+Boundary: exemption does NOT apply when `estimated_steps > 10` or `checkpoint_plan` is not inline; the latter still follows full 7-section event-driven updates. Doctor does not add/remove checks (exemption enforced by agent self-discipline + contract text; Doctor still only checks progress.md existence + migration grace period).
+
 ## Domain INVENTORY.md update on done (v6.8.0 / D-028/T-033)
 
 Short-context agents re-derive project structure by re-reading code, which is expensive and misses existing functionality → duplicate work / dead code. The domain-level `engine/domains/<domain>/INVENTORY.md` (5-column table, ≤120 rows, see `contract/src/20-file-templates.md` FILE 14) is the machine-checkable reverse index: **semantic layer human-written (agent maintains on done), symbol layer machine-generated (ast-grep / ctags)**.

@@ -1443,6 +1443,22 @@ All new rules → engine/SYSTEM.md; this file only excerpts with `source:` tags.
 **禁止**：每一步都写（噪声淹没信号）/ 只在压缩前写（hook 不让 agent 写盘,机制错配——见 D-028 §6）/ 跨栏合并（§3 vs §7 边界丢失）。
 
 
+**小任务豁免（v6.11.3 / T-040）**：
+
+当任务卡 header 同时满足:
+- `estimated_steps ≤ 10`
+- `checkpoint_plan = inline`（或架构师显式声明的等价 bypass 值;`tryout` 不算豁免,因为 tryout 是试错卡,可能仍然复杂）
+
+progress.md 7 栏骨架不变（`engine/skeleton/progress.md` 单一来源,不改）,但事件驱动更新触发点降级为 **仅 §1 + §4 必填**:
+- §1 已读文件 — 仍按"每读完一个文件后追加"触发（小任务至少读了任务卡本身和契约源）
+- §4 当前进行到（压缩恢复点）— 仍按"跑完一个 AC / 状态切换时"触发
+- §2/§3/§5/§6/§7 — 可留空,或写单行 `n/a (small task exempt)` 占位（避免被误判为缺失文件）
+
+豁免理由:小任务（≤10 步,单 commit,7 AC 内）通常没有"接口确认""路径排除""待架构师回复""已知 bug"等可记录的中途决策,强制 7 栏产出空栏噪声淹没信号,反而违反 D-028 §6「机制错配」原则。T-039 progress.md 实际采用 4 栏自创格式（§1 Goal / §2 Current Step / §3 Done / §4 Next AC）即契约与实际漂移的实证,本豁免把"小任务确实不需要 7 栏"正式化为契约条款。
+
+边界:豁免不适用于 `estimated_steps > 10` 或 `checkpoint_plan` 非 inline 的任务;后者仍按完整 7 栏事件驱动。本豁免由 agent 自觉 + 契约文本约束,Doctor 不增减检查逻辑（仍只检查 progress.md 存在性 + 迁移宽限期）。
+
+
 **生命周期规则**：
 
 | 状态 | progress.md 位置 | SessionStart 注入 | HANDOFF 关系 |

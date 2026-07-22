@@ -5,7 +5,7 @@
     "protected_paths": "engine/decisions/rules.json",
     "federation": "engine/domains/federation.json"
   },
-  "max_lines": 2930,
+  "max_lines": 2940,
   "max_rules": 13,
   "debt_baseline": 47
 }

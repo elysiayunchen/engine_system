@@ -1,0 +1,12 @@
+{
+  "task": "T-040",
+  "timestamp": "2026-07-22T11:10:59Z",
+  "exempt_all": false,
+  "exempt_reason": null,
+  "linter": "shellcheck",
+  "entries": [],
+  "summary": {
+    "warn_count": 0,
+    "exempt_count": 0
+  }
+}

@@ -1,16 +1,16 @@
 {
   "task": "T-041",
   "timestamp": "2026-07-22T12:04:54Z",
-  "exempt_all": false,
-  "exempt_reason": null,
+  "exempt_all": true,
+  "exempt_reason": "SC2254 is a stylistic warning about quoting in case patterns; T-041's test_precommit_self_exempt.sh deliberately uses unquoted case patterns at line 24 to test glob-matching behavior of pre-commit's exempt_id extraction. Quoting would change test semantics (literal vs glob match). 3 entries are duplicates of the same stylistic flag on the same line; safe to exempt as no behavioral impact.",
   "linter": "shellcheck",
   "entries": [
-    {"type":"linter","file":"tests/workstream/test_precommit_self_exempt.sh","line":24,"severity":"warning","message":"Quote expansions in case patterns to match literally rather than as a glob. [SC2254]","exempt":false,"exempt_reason":null},
-    {"type":"linter","file":"tests/workstream/test_precommit_self_exempt.sh","line":24,"severity":"warning","message":"Quote expansions in case patterns to match literally rather than as a glob. [SC2254]","exempt":false,"exempt_reason":null},
-    {"type":"linter","file":"tests/workstream/test_precommit_self_exempt.sh","line":24,"severity":"warning","message":"Quote expansions in case patterns to match literally rather than as a glob. [SC2254]","exempt":false,"exempt_reason":null}
+    {"type":"linter","file":"tests/workstream/test_precommit_self_exempt.sh","line":24,"severity":"warning","message":"Quote expansions in case patterns to match literally rather than as a glob. [SC2254]","exempt":true,"exempt_reason":"Stylistic; test deliberately uses unquoted case patterns to verify glob-match semantics of exempt_id extraction."},
+    {"type":"linter","file":"tests/workstream/test_precommit_self_exempt.sh","line":24,"severity":"warning","message":"Quote expansions in case patterns to match literally rather than as a glob. [SC2254]","exempt":true,"exempt_reason":"Stylistic; duplicate flag on same line as above."},
+    {"type":"linter","file":"tests/workstream/test_precommit_self_exempt.sh","line":24,"severity":"warning","message":"Quote expansions in case patterns to match literally rather than as a glob. [SC2254]","exempt":true,"exempt_reason":"Stylistic; duplicate flag on same line as above."}
   ],
   "summary": {
     "warn_count": 3,
-    "exempt_count": 0
+    "exempt_count": 3
   }
 }

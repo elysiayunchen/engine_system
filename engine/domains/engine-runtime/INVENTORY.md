@@ -55,3 +55,4 @@
 | Verify-writeback 行为契约 | contract/src/behaviors/verify-writeback.md | verify_writeback_behavior() | stable | 2026-07-20 |
 | checkpoint dedup 测试 | tests/workstream/test_checkpoint_dedup.sh | test_checkpoint_dedup() | stable | 2026-07-22 |
 | checkpoint dedup 测试 ps1 | tests/workstream/test_checkpoint_dedup.ps1 | Test-CheckpointDedup() | stable | 2026-07-22 |
+| pre-commit 自身豁免测试 | tests/workstream/test_precommit_self_exempt.sh | test_precommit_self_exempt() | stable | 2026-07-22 |

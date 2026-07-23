@@ -64,10 +64,10 @@ path-glob → domain 路由表。机读源:`engine/domains/federation.json`;Sess
 
 ### 当前状态
 
-- 最近 change capsule：`engine/changes/CHANGE-2026-07-23-06.md`
+- 最近 change capsule：`engine/changes/CHANGE-2026-07-23-07.md`
 - 活跃任务卡：无。前序: T-047 done(Windows PS 5.1 compat: non-ASCII in string literals) / T-046 done(install.sh/ps1 manifest src 列表同步修复) / T-045 done(CI 红灯修复 — doctor multi-session isolation CI 环境降 WARN) / T-044 done(issue #10 P037 legacy fallback 移除) / T-043 done(issue #10 P038 parser 修复) / T-042 done(issue #9 PS 5.1 LF fix + T-041 cleanup) / T-041 done(pre-commit 自身豁免) / T-040 done(v6.11.3) / T-039 done(v6.11.2) / T-038 done(v6.11.1) / T-036 done(v6.11.0 多会话锁)
 - 待批决策：D-018(proposed); Q2 基准试点库待拍板
-- 已批准决策：D-001~D-015, D-017, D-024~D-027, D-029, D-030, D-031, D-032, D-033（详见 `engine/decisions/`）
+- 已批准决策：D-001~D-015, D-017, D-024~D-027, D-029, D-030, D-031, D-032, D-033, D-034（详见 `engine/decisions/`）
 
 ### 已知缺口
 

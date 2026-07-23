@@ -1,0 +1,1 @@
+{"ac":"AC-5","verify":"test -f tests/workstream/test_precommit_yaml_frontmatter.sh && bash tests/workstream/test_precommit_yaml_frontmatter.sh","status":"pass","exit":0,"fingerprint":"sha256:270634ed9d27c84b9f4143df39584c7d372ff51a0779417185df43cfc7195377","timestamp":"2026-07-23T10:18:45Z"}

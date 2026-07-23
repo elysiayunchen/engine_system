@@ -109,17 +109,17 @@ foreach ($line in (Get-Content $taskFile -Encoding UTF8)) {
   # SessionStart can re-anchor from AC-level completion state (priority 1
   # in the re-anchor chain, see contract/src/20-file-templates.md FILE 15).
   # verify is the only writer of checkpoint.md; agents write progress.md.
-  # v6.11.2 (T-039): dedup — replace existing AC-N line (update timestamp),
+  # v6.11.2 (T-039): dedup - replace existing AC-N line (update timestamp),
   # append if new AC-N. Original append-without-dedup caused unbounded growth.
   if ($status -eq "pass") {
     $checkpoint = Join-Path $evidenceDir "checkpoint.md"
     if (-not (Test-Path $checkpoint)) {
-      $header = "# Checkpoint - $Task`r`n> Last updated: $ts by engine-verify | AC 级压缩恢复锚点,见 contract/src/20-file-templates.md FILE 15`r`n`r`n## 已完成 AC`r`n"
+      $header = "# Checkpoint - $Task`r`n> Last updated: $ts by engine-verify | AC-level recovery anchor (compressed), see contract/src/20-file-templates.md FILE 15`r`n`r`n## Completed AC`r`n"
       Set-Content -Path $checkpoint -Value $header -Encoding UTF8
     }
     $summary = ($verifyCmd -replace '\s+', ' ').Trim()
     if ($summary.Length -gt 80) { $summary = $summary.Substring(0, 80) }
-    $line = "- [x] $acId $summary — evidence/$acId.json PASS @ $ts"
+    $line = "- [x] $acId $summary - evidence/$acId.json PASS @ $ts"
     # Dedup: remove existing AC-N line(s) if any, then append fresh line.
     $existing = Get-Content -Path $checkpoint -Encoding UTF8
     $filtered = $existing | Where-Object { $_ -notmatch "^- \[x\] $acId " }
@@ -128,7 +128,7 @@ foreach ($line in (Get-Content $taskFile -Encoding UTF8)) {
   }
 }
 
-# v6.10.0 (D-028/T-035): Dead code detection — runs AFTER all AC verify commands.
+# v6.10.0 (D-028/T-035): Dead code detection - runs AFTER all AC verify commands.
 # Self-checks linter availability (PSScriptAnalyzer for .ps1; shellcheck twin
 # is in engine-verify.sh), scans WRITE-SET-touched .ps1/.sh files, runs reverse
 # call-site scan, and emits evidence/T-NNN/DEAD-CODE.json + COPY-PASTE.json.
@@ -309,7 +309,7 @@ function Invoke-DeadCodeDetection {
   $json += "}`n"
   $json | Set-Content -Path $jsonFile -Encoding UTF8 -NoNewline
 
-  # Write COPY-PASTE.json (jscpd委托,D-028 section 10 mechanism B).
+  # Write COPY-PASTE.json (jscpd delegated, D-028 section 10 mechanism B).
   $cpFile = Join-Path $EvidenceDir "COPY-PASTE.json"
   $cpJson = "{`n"
   $cpJson += "  `"task`": `"$TaskId`",`n"

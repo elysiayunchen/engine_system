@@ -1,14 +1,14 @@
 # CONTEXT — 当前状态
 
-> Engine System (engine_system) · Last updated: 2026-07-22 · Profile: CLI-LEAN
+> Engine System (engine_system) · Last updated: 2026-07-23 · Profile: CLI-LEAN
 
 ## 状态面板
 
 | 维度 | 状态 |
 |------|------|
 | 构建 | ✅ 正常（纯 markdown + shell 脚本，无构建步骤） |
-| 上次完成 | **v6.11.3 patch(T-040 小任务 progress.md 豁免条款)**:T-040 6/6 AC PASS。把"小任务确实不需要 7 栏事件驱动"正式化为契约条款。AC-1 contract/src/20-file-templates.md FILE 13 加「小任务豁免」子段(条件 estimated_steps ≤ 10 + checkpoint_plan=inline → 仅 §1+§4 必填,§2/§3/§5/§6/§7 写 `n/a (small task exempt)` 占位;豁免理由引用 T-039 实证 + 边界 + Doctor 不增减检查);AC-2 contract/src/behaviors/task-run.md 加「## Small task exemption / 小任务豁免」子段(双语 heading 兼容 grep 大小写敏感);AC-3 contract/budget.json max_lines 2930→2940 + compile.sh 重生 5 dist(3 处 dist 含豁免段已 grep 验证:ENGINE_FILE_SYSTEM_v5.md / plugin/.claude/commands/engine-init.md / engine/prompts/init.md);AC-4 plugin 镜像 3 处 diff -q 对称(init.md / behaviors/task-run.md / SKILL.md);AC-5 VERSION 三处 6.11.3 + CHANGELOG v6.11.3 段 + manifest SHA256 重生;AC-6 check.sh 0 failures 4 warnings 非阻塞 PASS。本任务自身狗粮豁免(estimated_steps=6 + inline),progress.md 仅 §1+§4 → 归档到 engine/archive/tasks/T-040-progress.md。动机:T-039 归档 progress.md 实际写成 4 栏自创格式(§1 Goal / §2 Current Step / §3 Done / §4 Next AC),反映契约对小任务过度强制——豁免条款首次应用即狗粮验证。 |
-| 进行中 | 无 active 任务卡。下一步可选方向:`git commit` + 可选 `git tag v6.11.3 && git push && git push --tags` 触发 GitHub Release workflow;规划下一任务卡(候选方向:D-018 批 / Q2 真实大库试点 / contract debt 54>47 削减)。 |
+| 上次完成 | **v6.11.4 patch(T-042 issue #9 LF-only engine.ps1 PS 5.1 解析失败修复 + T-041 cleanup)**:T-042 6/6 AC PASS。修复 GitHub issue #9 — install.ps1 产出 LF-only engine.ps1,PS 5.1 解析 here-string 时累积行号错位导致 `Unexpected token '}'` 报错,engine.cmd shim 在仅有 PS 5.1 的 Windows 系统上完全不可用。方案 A+B 双保险(D-030 批准):(A) install.ps1 加 `Convert-ToCrlf` 辅助函数,Download-File 下载 .ps1 后 + Copy-Local 复制 .ps1 后字节级 LF→CRLF 转换;(B) 3 个 engine.cmd(engine/bin + plugin/bin + plugin/engine/bin)改 pwsh 优先检测(`where pwsh` 找到则用 PS 7,fallback PS 5.1)。.gitattributes 不变(D-015 `*.ps1 text eol=lf` 跨平台策略保留),仓库源继续 LF,转换只发生在用户机器。checksum 兼容:Get-NormalizedTextSha256 strip CRLF→LF 再哈希,manifest 校验不受影响。字节级根因证据:install.ps1 自身也是 LF-only(LF=464)且有 1 个 here-string(L264)却能跑完整个安装,证明 PS 5.1 对 LF-only here-string 解析 bug 是累积性行号错位(here-string 数量 + 首现位置决定何时炸),非 here-string 本身禁用。本任务顺带清理 T-041 post-done 遗留(progress.md 归档 / INVENTORY 加 1 行 / DEAD-CODE.json exempt_all:true 3 个 SC2254 stylistic 警告)。check.sh 0 failures 4 warnings 非阻塞 PASS。 |
+| 进行中 | 无 active 任务卡。下一步可选方向:`git commit` + 可选 `git tag v6.11.4 && git push && git push --tags` 触发 GitHub Release workflow;回复 GitHub issue #9(修复在 v6.11.4);规划下一任务卡(候选方向:D-018 批 / Q2 真实大库试点 / contract debt 54>47 削减 / HANDOFF 历史表 11 行待归档)。 |
 | 阻塞 | 无。 |
 
 ## 当前假设 / 决策（本轮拍板）

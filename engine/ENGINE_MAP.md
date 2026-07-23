@@ -1,6 +1,6 @@
 # ENGINE_MAP — 引擎索引
 
-> Engine System (engine_system) · Revision: 32 · Last updated: 2026-07-22
+> Engine System (engine_system) · Revision: 33 · Last updated: 2026-07-23
 > ⚠️ MVP dogfood 实例（精简版）。完整 v5.5 注册表（§1.1 / §1.2 / §2 / §3 / 预算）待 `/engine-reconcile` 或 `/engine-init` 补全。
 
 ## §0 Profile & Read-Gate
@@ -37,7 +37,7 @@ path-glob → domain 路由表。机读源:`engine/domains/federation.json`;Sess
 
 ## §4 完整性与新鲜度
 
-- 全局 revision：32
+- 全局 revision：33
 
 ### 里程碑状态
 
@@ -52,7 +52,7 @@ path-glob → domain 路由表。机读源:`engine/domains/federation.json`;Sess
 | v6.5 (D-025/T-029) | ✅ | 全路径任务范围、严格采用门、done 逐 AC evidence、写入归属、workstream 分片 |
 | v6.6 (D-027/T-031) | ✅ | HANDOFF 8 条上限 + 月归档、Doctor WARN、migrator item 11 |
 | v6.11.0 (D-029/T-036) | ✅ | 多会话锁(coordinator/worker)、双信号检测、kill switch、stale 接管 |
-| v6.11.4 行为层 | ✅ | task-run.md 仪式缩放指导:契约最小格式 vs 项目可选增强,防下游误认自选仪式为引擎强制 |
+| v6.11.4 行为层 + 安装器鲁棒性 | ✅ | (a) task-run.md 仪式缩放指导:契约最小格式 vs 项目可选增强,防下游误认自选仪式为引擎强制;(b) T-042 issue #9 PS 5.1 LF-only here-string 解析失败修复:install.ps1 加 Convert-ToCrlf + 3 个 engine.cmd pwsh 优先检测(方案 A+B 双保险,D-030 批准) |
 | N1-N5 | ✅ | 全部达成 |
 
 ### 运营工件层
@@ -61,10 +61,10 @@ path-glob → domain 路由表。机读源:`engine/domains/federation.json`;Sess
 
 ### 当前状态
 
-- 最近 change capsule：`engine/changes/CHANGE-2026-07-22-03.md`
-- 活跃任务卡：无。前序: T-041 done(pre-commit 自身豁免) / T-040 done(v6.11.3) / T-039 done(v6.11.2) / T-038 done(v6.11.1) / T-036 done(v6.11.0 多会话锁)
+- 最近 change capsule：`engine/changes/CHANGE-2026-07-23-01.md`
+- 活跃任务卡：无。前序: T-042 done(issue #9 PS 5.1 LF fix + T-041 cleanup) / T-041 done(pre-commit 自身豁免) / T-040 done(v6.11.3) / T-039 done(v6.11.2) / T-038 done(v6.11.1) / T-036 done(v6.11.0 多会话锁)
 - 待批决策：D-018(proposed); Q2 基准试点库待拍板
-- 已批准决策：D-001~D-015, D-017, D-024~D-027, D-029, D-031（详见 `engine/decisions/`）
+- 已批准决策：D-001~D-015, D-017, D-024~D-027, D-029, D-030, D-031（详见 `engine/decisions/`）
 
 ### 已知缺口
 

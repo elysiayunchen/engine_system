@@ -534,7 +534,7 @@ function Disable-MultiSession {
         Write-Host "Multi-session lock ENABLED. Flag file removed."
         Write-Host "Future sessions will use coordinator/worker role assignment."
       } else {
-        Write-Host "Flag file does not exist — multi-session lock already enabled."
+        Write-Host "Flag file does not exist - multi-session lock already enabled."
       }
     }
     "status" {

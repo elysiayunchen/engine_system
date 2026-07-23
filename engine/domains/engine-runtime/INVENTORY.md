@@ -32,8 +32,8 @@
 | GitHub Release workflow | .github/workflows/release.yml | package_release() | stable | 2026-07-19 |
 | CI 检查 workflow | .github/workflows/ci.yml | run_ci_checks() | stable | 2026-07-19 |
 | 引擎文件系统契约文档 | ENGINE_FILE_SYSTEM_v5.md | fs_contract_doc() | stable | 2026-07-19 |
-| 安装脚本 | install.sh | install_engine() | stable | 2026-07-19 |
-| 安装脚本 ps1 | install.ps1 | Install-Engine() | stable | 2026-07-19 |
+| 安装脚本 | install.sh | install_engine() | stable | 2026-07-23 |
+| 安装脚本 ps1 | install.ps1 | Install-Engine() | stable | 2026-07-23 |
 | Git 属性配置 | .gitattributes | git_attr_config() | stable | 2026-07-19 |
 | 仓库发布门禁 ps1 | scripts/check.ps1 | Run-AllChecks() | stable | 2026-07-19 |
 | 引擎健康检查契约 | engine/ENGINE_DOCTOR.md | doctor_contract() | stable | 2026-07-19 |
@@ -58,4 +58,5 @@
 | pre-commit 自身豁免测试 | tests/workstream/test_precommit_self_exempt.sh | test_precommit_self_exempt() | stable | 2026-07-22 |
 | YAML frontmatter parser 测试 | tests/workstream/test_precommit_yaml_frontmatter.sh | test_precommit_yaml_frontmatter() | stable | 2026-07-23 |
 | legacy fallback 移除测试 | tests/workstream/test_precommit_no_legacy_fallback.sh | test_precommit_no_legacy_fallback() | stable | 2026-07-23 |
+| CI sessions 降级测试 | tests/workstream/test_doctor_ci_sessions.sh | test_doctor_ci_sessions() | stable | 2026-07-23 |
 | task-card 门禁测试套件 | tests/task-card/run-task-tests.sh | run_task_tests() | stable | 2026-07-23 |

@@ -1,5 +1,18 @@
 # Changelog
 
+## v6.11.7 (2026-07-23)
+
+- 修复 GitHub Actions CI 自 v6.11.0 起持续红灯(10+ 次 consecutive failures)— engine-doctor.sh `check_multi_session_isolation` + engine-doctor.ps1 `Test-MultiSessionIsolation` 在 cv>=6.11.0 时硬 FAIL "`.cache/sessions` dir missing"(T-045 patch)。但 `.cache/sessions` 是 SessionStart hook 的运行时产物,CI 环境非交互式 agent 会话,SessionStart 永不运行;且 `.gitignore` 钉住 `engine/.cache/`,CI checkout 后目录永不创建 → 每次 CI 红灯。
+- AC-1 `engine-doctor.sh` `check_multi_session_isolation`:检测 `$CI=true` 或 `$GITHUB_ACTIONS=true` 时 sessions dir missing 从 FAIL 降为 WARN,human 提示 "CI environment: SessionStart hook not expected to run, sessions dir absence is normal"。交互式环境行为不变(仍硬 FAIL)。
+- AC-2 `engine-doctor.ps1` `Test-MultiSessionIsolation`:同样改 `$env:CI -eq 'true' -or $env:GITHUB_ACTIONS -eq 'true'`。
+- AC-3 plugin 镜像 doctor sh+ps1 `diff -q` 一致(4 处)。
+- AC-4 测试 `tests/workstream/test_doctor_ci_sessions.sh` 3 场景:(1) `CI=true` + 无 sessions dir → WARN 不 FAIL (2) 无 CI 变量 + 无 sessions dir + cv>=6.11.0 → FAIL(行为不变,交互式场景仍硬门禁) (3) `CI=true` + 有 sessions dir → PASS(不误报)。3/3 PASS。
+- AC-5 完整发布门禁 `bash scripts/check.sh` 在 `$env:CI=true; $env:GITHUB_ACTIONS=true` 下:0 failures, 4 warnings(含新增 WARN for sessions-dir-missing-in-CI,符合预期)。
+- 不改 ENGINE_DOCTOR.md managed block 描述(CI 降级是实现细节);不改 migrator;不改 pre-commit;不改其他 doctor 检查;不改 contract/src。本任务自身狗粮豁免(estimated_steps=5 ≤ 10, checkpoint_plan=inline),progress.md 仅填 §1+§4。
+- `plugin/manifest.json` SHA256 更新:engine-doctor.sh `614e0c8e... → a767a8c1...`;engine-doctor.ps1 `afd5e65a... → bdc9a148...`(ps1 hash 手动修正匹配 staged blob)。
+- 详见 `engine/changes/CHANGE-2026-07-23-04.md`。
+- **T-046 (伴随修复)**: install.sh/install.ps1 的 FILES 数组与 plugin/manifest.json src 列表不一致(CI 红灯第二个根因)——manifest 有 61 条,installer 各只有 57 条,缺 4 条 skeleton 文件(checkpoint.md/progress.md/domains/INVENTORY.md/tasks/README.md,自 v6.7.0/T-032 起预存 bug)。同时修 installer case 语句的 blanket `engine/skeleton/*` 重映射 bug(只应重映射 ENGINE_MAP/CONTEXT/HANDOFF 三个文件)。`check.ps1` "manifest matches install.sh/ps1" 检查从 FAIL → PASS。详见 `engine/changes/CHANGE-2026-07-23-05.md`。
+
 ## v6.11.6 (2026-07-23)
 
 - 修复 GitHub issue #10 P037 — pre-commit legacy fallback 移除(T-044 patch,D-032 approved):无 active/closing 卡 + strict_task_mode=0(< 6.5)时拿 lex-largest done 卡当 governing 卡,导致历史 done 卡误管新 commit。done 卡是冷历史,不应 govern。

@@ -7,8 +7,8 @@
 | 维度 | 状态 |
 |------|------|
 | 构建 | ✅ 正常（纯 markdown + shell 脚本，无构建步骤） |
-| 上次完成 | **v6.11.6 patch(T-044 issue #10 P037 legacy fallback 移除)**:T-044 5/5 AC PASS。修复 GitHub issue #10 的 P037 — pre-commit legacy fallback(L111-116,原 L89-94)在无 active 卡 + strict_task_mode=0(<6.5)时拿 lex-largest done 卡当 governing 卡,导致历史 done 卡误管新 commit。按 D-032(已批)移除 fallback 块(`if [ -z "$task_file" ] && [ "$strict_task_mode" -eq 0 ]` + `ls -1 T-*.md | sort -r` 扫 done 卡)。strict_task_mode=0 项目无 active/closing 卡时改为 fail-open(跳过 task-card governance,protected_paths 仍检查)。更新 L94-98 注释说明 fail-open 语义 + P037 fix 标记。plugin 镜像同步。测试 test_precommit_no_legacy_fallback.sh 4 场景 8/8 PASS。task-card gate C6/C7 更新反映新行为(done 卡不 govern → protected 文件无 task_decision → block)。D-032 scope 扩展加 T-044 完整 WRITE-SET 含 plugin/manifest.json。DEAD-CODE 9 警告全豁免(test helper)。check.sh 0 failures 3 warnings 非阻塞 PASS。issue #10 P037+P038 全修复(P038 在 v6.11.5/T-043)。 |
-| 进行中 | 无 active 任务卡。下一步可选方向:`git commit` + 可选 `git tag v6.11.6 && git push && git push --tags` 触发 GitHub Release workflow;回复 GitHub issue #10(P037+P038 全修复 in v6.11.5+v6.11.6);或 push T-042 v6.11.4 / T-043 v6.11.5(尚未 push)+ 回复 issue #9。 |
+| 上次完成 | **v6.11.7 patch(T-045 CI 红灯修复 + T-046 install.sh/ps1 manifest 同步)**:T-045 5/5 + T-046 5/5 AC PASS。修复 GitHub Actions CI 持续红灯两个根因:(1) engine-doctor.sh/ps1 `check_multi_session_isolation` 在 cv>=6.11.0 时硬 FAIL "`.cache/sessions` dir missing" — CI 环境 SessionStart hook 不运行,检测 `CI=true`/`GITHUB_ACTIONS=true` 时降 FAIL→WARN;(2) install.sh/ps1 FILES 数组与 manifest.json src 列表不一致(61 vs 57,缺 4 条 skeleton 条目,自 v6.7.0 起预存 bug)+ case 语句 blanket `engine/skeleton/*` 重映射 bug 修复。check.sh 全绿。 |
+| 进行中 | 无 active 任务卡。下一步可选方向:`git push origin main` 验证 GitHub Actions workflow 转绿;可选 `git tag v6.11.7 && git push --tags` 触发 GitHub Release workflow;或处理非阻塞 WARN(contract debt 54>47 / `CHANGE-2026-07-23-03.md` 占位符)。 |
 | 阻塞 | 无。 |
 
 ## 当前假设 / 决策（本轮拍板）

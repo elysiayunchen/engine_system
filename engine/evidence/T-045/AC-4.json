@@ -1,0 +1,1 @@
+{"ac":"AC-4","verify":"test -f tests/workstream/test_doctor_ci_sessions.sh && bash tests/workstream/test_doctor_ci_sessions.sh","status":"pass","exit":0,"fingerprint":"sha256:8c0c966c42310cf1505c4572e9fb36bc2c763a3d4ee850133f9289b105bf93f6","timestamp":"2026-07-23T13:59:44Z"}

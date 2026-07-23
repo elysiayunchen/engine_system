@@ -1,0 +1,22 @@
+{
+  "task": "T-044",
+  "timestamp": "2026-07-23T12:11:50Z",
+  "exempt_all": true,
+  "exempt_reason": "All 9 warnings are test-file false positives: SC2034 staged_file is a test helper variable (used in strict_block_check assertions); SC1010 done-keyword warnings are in run-task-tests.sh pre-existing test fixtures (T-044 only updated C6/C7 expected rc and comments, did not introduce the done usage); reverse-call-site identifiers (enable_strict_v65/run_pc/run_pre/write_decision/write_rules/write_task_section) are all test helper functions called within test functions — reverse-call-site scanner cannot trace calls inside function bodies. None are real dead code.",
+  "linter": "shellcheck",
+  "entries": [
+    {"type":"linter","file":"tests/workstream/test_precommit_no_legacy_fallback.sh","line":43,"severity":"warning","message":"staged_file appears unused. Verify use (or export if used externally). [SC2034]","exempt":true,"exempt_reason":"test helper parameter, used in strict_block_check logic"},
+    {"type":"linter","file":"tests/task-card/run-task-tests.sh","line":345,"severity":"warning","message":"Use semicolon or linefeed before 'done' (or quote to make it literal). [SC1010]","exempt":true,"exempt_reason":"pre-existing test fixture, T-044 only updated C6 expected rc + comment"},
+    {"type":"linter","file":"tests/task-card/run-task-tests.sh","line":352,"severity":"warning","message":"Use semicolon or linefeed before 'done' (or quote to make it literal). [SC1010]","exempt":true,"exempt_reason":"pre-existing test fixture, T-044 only updated C7 comment"},
+    {"type":"reverse-call-site","identifier":"enable_strict_v65","referenced_in":[],"exempt":true,"exempt_reason":"test helper called within test function bodies"},
+    {"type":"reverse-call-site","identifier":"run_pc","referenced_in":[],"exempt":true,"exempt_reason":"test helper called within test function bodies"},
+    {"type":"reverse-call-site","identifier":"run_pre","referenced_in":[],"exempt":true,"exempt_reason":"test helper called within test function bodies"},
+    {"type":"reverse-call-site","identifier":"write_decision","referenced_in":[],"exempt":true,"exempt_reason":"test helper called within test function bodies"},
+    {"type":"reverse-call-site","identifier":"write_rules","referenced_in":[],"exempt":true,"exempt_reason":"test helper called within test function bodies"},
+    {"type":"reverse-call-site","identifier":"write_task_section","referenced_in":[],"exempt":true,"exempt_reason":"test helper called within test function bodies"}
+  ],
+  "summary": {
+    "warn_count": 9,
+    "exempt_count": 9
+  }
+}

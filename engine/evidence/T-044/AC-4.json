@@ -1,0 +1,1 @@
+{"ac":"AC-4","verify":"test -f tests/workstream/test_precommit_no_legacy_fallback.sh && bash tests/workstream/test_precommit_no_legacy_fallback.sh","status":"pass","exit":0,"fingerprint":"sha256:c2bba90d0975e5a26c6280ea1c9a2ac00a6af7933e1ad80cef64f2d606e140cf","timestamp":"2026-07-23T12:10:37Z"}

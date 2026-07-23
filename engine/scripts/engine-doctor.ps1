@@ -1309,6 +1309,11 @@ function Test-MultiSessionIsolation {
 
   # 1. sessions dir exists
   if (-not (Test-Path $sessionsDir)) {
+    # CI/非交互式环境 (T-045): SessionStart hook 不会运行, sessions dir 缺失是正常状态
+    if ($env:CI -eq 'true' -or $env:GITHUB_ACTIONS -eq 'true') {
+      Write-Warn "multi-session isolation: .cache/sessions dir missing (CI environment, SessionStart hook not expected to run, cv=$contractVersion)"
+      return
+    }
     if ($violationIsFail) {
       Write-Fail "multi-session isolation: .cache/sessions dir missing (cv=$contractVersion >= 6.11.0, SessionStart hook should create it)"
       Write-Output "  human: contract-version $contractVersion requires multi-session isolation, but engine/.cache/sessions directory does not exist. SessionStart hook may not have run. Run 'engine context' to verify hook setup."

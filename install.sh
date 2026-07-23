@@ -154,7 +154,7 @@ verify_checksums() {
     # Map src to dest (same mapping as FILES array)
     local dest_file
     case "$src" in
-      engine/skeleton/*) dest_file="engine/${src#engine/skeleton/}" ;;
+      engine/skeleton/ENGINE_MAP.md|engine/skeleton/CONTEXT.md|engine/skeleton/HANDOFF.md) dest_file="engine/${src#engine/skeleton/}" ;;
       engine/*) dest_file="engine/${src#engine/}" ;;
       bin/*)    dest_file="engine/bin/${src#bin/}" ;;
       migrations/*) dest_file="engine/migrations/${src#migrations/}" ;;
@@ -259,6 +259,10 @@ FILES=(
   "engine/skeleton/ENGINE_MAP.md:engine/ENGINE_MAP.md:false"
   "engine/skeleton/CONTEXT.md:engine/CONTEXT.md:false"
   "engine/skeleton/HANDOFF.md:engine/HANDOFF.md:false"
+  "engine/skeleton/checkpoint.md:engine/skeleton/checkpoint.md:false"
+  "engine/skeleton/progress.md:engine/skeleton/progress.md:false"
+  "engine/skeleton/domains/INVENTORY.md:engine/skeleton/domains/INVENTORY.md:false"
+  "engine/skeleton/tasks/README.md:engine/skeleton/tasks/README.md:false"
   "engine/checks/README.md:engine/checks/README.md:false"
   ".claude/settings.json:.claude/settings.json:false"
 )

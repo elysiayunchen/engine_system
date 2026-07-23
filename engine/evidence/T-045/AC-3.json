@@ -1,0 +1,1 @@
+{"ac":"AC-3","verify":"diff -q engine/scripts/engine-doctor.sh plugin/engine/scripts/engine-doctor.sh && diff -q engine/scripts/engine-doctor.ps1 plugin/engine/scripts/engine-doctor.ps1","status":"pass","exit":0,"fingerprint":"sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855","timestamp":"2026-07-23T13:59:43Z"}

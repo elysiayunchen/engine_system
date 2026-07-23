@@ -1,0 +1,1 @@
+{"ac":"AC-2","verify":"grep -q 'engine/skeleton/checkpoint.md.*engine\\\\\\\\skeleton\\\\\\\\checkpoint.md' install.ps1 && grep -q 'engine/skeleton/progress.md.*engine\\\\\\\\skeleton\\\\\\\\progress.md' install.ps1","status":"pass","exit":0,"fingerprint":"sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855","timestamp":"2026-07-23T14:32:53Z"}

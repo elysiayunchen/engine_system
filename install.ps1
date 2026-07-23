@@ -137,7 +137,7 @@ function Verify-Checksums {
       }
       # Map src to dest
       $destFile = $entry.src -replace '/', '\'
-      if ($entry.src -like "engine/skeleton/*") { $destFile = "engine\" + (($entry.src -replace '^engine/skeleton/', '') -replace '/', '\') }
+      if ($entry.src -in @("engine/skeleton/ENGINE_MAP.md","engine/skeleton/CONTEXT.md","engine/skeleton/HANDOFF.md")) { $destFile = "engine\" + (($entry.src -replace '^engine/skeleton/', '') -replace '/', '\') }
       elseif ($entry.src -like "engine/*") { $destFile = $entry.src -replace '/', '\' }
       elseif ($entry.src -like "bin/*") { $destFile = "engine\bin\" + ($entry.src -replace '^bin/', '') }
       elseif ($entry.src -like "migrations/*") { $destFile = "engine\migrations\" + ($entry.src -replace '^migrations/', '') }
@@ -224,6 +224,10 @@ $FILES = @(
   @{ src = "engine/skeleton/ENGINE_MAP.md";         dest = "engine\ENGINE_MAP.md";         protect = $false }
   @{ src = "engine/skeleton/CONTEXT.md";            dest = "engine\CONTEXT.md";            protect = $false }
   @{ src = "engine/skeleton/HANDOFF.md";            dest = "engine\HANDOFF.md";            protect = $false }
+  @{ src = "engine/skeleton/checkpoint.md";          dest = "engine\skeleton\checkpoint.md";          protect = $false }
+  @{ src = "engine/skeleton/progress.md";           dest = "engine\skeleton\progress.md";           protect = $false }
+  @{ src = "engine/skeleton/domains/INVENTORY.md";  dest = "engine\skeleton\domains\INVENTORY.md";  protect = $false }
+  @{ src = "engine/skeleton/tasks/README.md";       dest = "engine\skeleton\tasks\README.md";       protect = $false }
   @{ src = "engine/checks/README.md";                 dest = "engine\checks\README.md";                 protect = $false }
   @{ src = ".claude/settings.json";                dest = ".claude\settings.json";                protect = $false }
 )

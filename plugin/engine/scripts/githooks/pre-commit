@@ -40,11 +40,33 @@ parse_task_patterns() {
     return 0
   fi
   awk -v field="$_field" '
-    BEGIN { in_section=0; out="" }
+    BEGIN { in_section=0; in_frontmatter_block=0; in_frontmatter_field=0; out=""; field_lc=tolower(field) }
     {
       sub(/\r$/, "")
-      if ($0 ~ "^##[[:space:]]+" field "[[:space:]]*$") { in_section=1; next }
+      # YAML frontmatter block boundary (--- open/close)
+      if ($0 ~ /^---[[:space:]]*$/) {
+        in_frontmatter_block = !in_frontmatter_block
+        in_frontmatter_field = 0
+        next
+      }
+      line_lc = tolower($0)
+      # markdown section header (## field, case-insensitive)
+      if (line_lc ~ "^##[[:space:]]+" field_lc "[[:space:]]*$") { in_section=1; in_frontmatter_field=0; next }
       if (in_section && $0 ~ "^##[[:space:]]+") { exit }
+      # YAML frontmatter field header (field:, case-insensitive, only inside frontmatter_block)
+      if (in_frontmatter_block && line_lc ~ "^" field_lc ":$") {
+        in_frontmatter_field=1; in_section=0; next
+      }
+      # frontmatter field exit: non-indented non-empty line
+      if (in_frontmatter_field && $0 !~ /^[[:space:]]/ && $0 != "") { in_frontmatter_field=0 }
+      # collect frontmatter field list items (indented - entries)
+      if (in_frontmatter_field && $0 ~ /^[[:space:]]+-[[:space:]]+/) {
+        sub(/^[[:space:]]+-[[:space:]]+/, "")
+        sub(/[[:space:]]+\(.*/, "")
+        if ($0 != "") out = (out == "" ? $0 : out "," $0)
+        next
+      }
+      # collect markdown section list items (original logic)
       if (in_section && $0 ~ "^-[[:space:]]+") {
         sub(/^-[[:space:]]+/, "")
         sub(/[[:space:]]+\(.*/, "")

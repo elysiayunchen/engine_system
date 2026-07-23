@@ -1,5 +1,5 @@
 # INVENTORY — engine-runtime
-> Last updated: 2026-07-19 | 域级功能索引 | 5 列 ≤120 行,见 contract/src/20-file-templates.md FILE 14
+> Last updated: 2026-07-23 | 域级功能索引 | 5 列 ≤120 行,见 contract/src/20-file-templates.md FILE 14
 
 | Feature | Entry file | Public API | Status | Last verified |
 |---------|-----------|------------|--------|---------------|
@@ -56,3 +56,4 @@
 | checkpoint dedup 测试 | tests/workstream/test_checkpoint_dedup.sh | test_checkpoint_dedup() | stable | 2026-07-22 |
 | checkpoint dedup 测试 ps1 | tests/workstream/test_checkpoint_dedup.ps1 | Test-CheckpointDedup() | stable | 2026-07-22 |
 | pre-commit 自身豁免测试 | tests/workstream/test_precommit_self_exempt.sh | test_precommit_self_exempt() | stable | 2026-07-22 |
+| YAML frontmatter parser 测试 | tests/workstream/test_precommit_yaml_frontmatter.sh | test_precommit_yaml_frontmatter() | stable | 2026-07-23 |

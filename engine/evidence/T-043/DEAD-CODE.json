@@ -1,0 +1,15 @@
+{
+  "task": "T-043",
+  "timestamp": "2026-07-23T10:19:37Z",
+  "exempt_all": true,
+  "exempt_reason": "SC2034 HERE 变量在测试断言中实际使用(test helper);assert_eq 是测试 helper 函数,在测试用例内调用,reverse-call-site 扫描未找到定义属 false positive。两者均为测试文件 stylistic 警告,非真实死代码。",
+  "linter": "shellcheck",
+  "entries": [
+    {"type":"linter","file":"tests/workstream/test_precommit_yaml_frontmatter.sh","line":63,"severity":"warning","message":"HERE appears unused. Verify use (or export if used externally). [SC2034]","exempt":true,"exempt_reason":"test helper variable, used in test assertions"},
+    {"type":"reverse-call-site","identifier":"assert_eq","referenced_in":[],"exempt":true,"exempt_reason":"test assertion helper, called within test functions"}
+  ],
+  "summary": {
+    "warn_count": 2,
+    "exempt_count": 2
+  }
+}

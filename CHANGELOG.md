@@ -1,5 +1,17 @@
 # Changelog
 
+## v6.11.5 (2026-07-23)
+
+- 修复 GitHub issue #10 P038 — pre-commit `parse_task_patterns` 不支持 YAML frontmatter 多行 `write-set:` 格式(T-043 patch):用该格式的任务卡被误报「no readable WRITE-SET」拦截非相关 commit。两个解析分支(inline grep L37-41 + awk markdown L42-55)都不识别 YAML frontmatter `field:` 缩进列表。
+- AC-1 awk 分支扩展:新增 `in_frontmatter_block` 边界状态(`^---$` 开闭切换)+ `in_frontmatter_field` 字段头匹配(`^field:$` 缩进 `- ` 列表项收集),与现有 markdown `## field` section 分支并存。
+- AC-2 case 敏感性修复:awk 内 `tolower` 比较,大写 `WRITE-SET` 调用能匹配小写 `write-set:` frontmatter 字段(原 inline grep `^${_field}:` case-sensitive 漏匹配)。
+- AC-3 frontmatter 边界检测:awk 限定 YAML frontmatter 字段匹配在 `^---$` 之间,避免 markdown body 误匹配 `field:` 行。
+- AC-4 plugin 镜像 `git diff --no-index` 一致。
+- AC-5 测试 `tests/workstream/test_precommit_yaml_frontmatter.sh` 覆盖 7 场景(YAML 多行 / markdown section / inline 单行 / 大小写混合 ×2 / frontmatter 边界 body decoy / 无 frontmatter body decoy),7/7 PASS。
+- AC-6 完整发布门禁 `bash scripts/check.sh` 全绿。
+- 不改 P037 legacy fallback(L89-94,留 T-044/D-032);不改 protected_paths / worker mode / memory-written / done evidence 检查。
+- 详见 `engine/changes/CHANGE-2026-07-23-02.md`。
+
 ## v6.11.4 (2026-07-23)
 
 - 修复 GitHub issue #9 — LF-only engine.ps1 PowerShell 5.1 解析失败(T-042 patch):installer 产出 LF-only `engine.ps1`,PS 5.1 解析 here-string 时行号错位导致 `Unexpected token '}'` 报错,`engine.cmd` shim 在仅有 PS 5.1 的 Windows 系统上完全不可用。方案 A+B 双保险(D-030 批准)。

@@ -23,10 +23,10 @@ try {
   function Write-CheckpointLine {
     param([string]$AcId, [string]$Summary, [string]$Ts)
     if (-not (Test-Path $Checkpoint)) {
-      $header = "# Checkpoint - T-TEST`r`n> Last updated: $Ts by engine-verify | AC 级压缩恢复锚点`r`n`r`n## 已完成 AC`r`n"
+      $header = "# Checkpoint - T-TEST`r`n> Last updated: $Ts by engine-verify | AC-level recovery anchor (compressed)`r`n`r`n## Completed AC`r`n"
       Set-Content -Path $Checkpoint -Value $header -Encoding UTF8
     }
-    $line = "- [x] $AcId $Summary — evidence/$AcId.json PASS @ $Ts"
+    $line = "- [x] $AcId $Summary - evidence/$AcId.json PASS @ $Ts"
     # Dedup: remove existing AC-N line(s) if any, then append fresh line.
     $existing = Get-Content -Path $Checkpoint -Encoding UTF8
     $filtered = $existing | Where-Object { $_ -notmatch "^- \[x\] $AcId " }

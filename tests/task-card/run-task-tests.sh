@@ -340,14 +340,14 @@ write_task "$r" T-001 active "src/**,engine/**" ""
 git -C "$r" add src/app.js engine/CONTEXT.md
 run_pc "unprotected-path-ok" "$r" 0
 
-# C6. 受保护路径变更,无 active 但有 done 任务卡(decision 覆盖) → rc=0(fallback)
+# C6. 受保护路径变更,无 active 但有 done 任务卡 → rc=1(T-044/D-032: legacy fallback 移除,done 卡不再 govern,protected 文件无 task_decision 覆盖 → block)
 r="$(new_repo)"; write_rules "$r" "engine/decisions/**"
 write_task "$r" T-001 done "engine/**" "" "D-001"
 write_decision "$r" D-001 approved "engine/decisions/**"
 git -C "$r" add engine/decisions/rules.json engine/CONTEXT.md
-run_pc "protected-done-fallback" "$r" 0
+run_pc "protected-done-fallback" "$r" 1
 
-# C7. 受保护路径变更,无 active,done 任务卡 decision scope 不覆盖 → rc=1
+# C7. 受保护路径变更,无 active,done 任务卡 decision scope 不覆盖 → rc=1(同 C6,done 卡不 govern)
 r="$(new_repo)"; write_rules "$r" "engine/decisions/**"
 write_task "$r" T-001 done "engine/**" "" "D-001"
 write_decision "$r" D-001 approved "engine/tasks/**"

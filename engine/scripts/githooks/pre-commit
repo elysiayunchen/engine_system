@@ -92,8 +92,10 @@ match_any_glob() {
 }
 
 # Prefer the active card. A staged card being closed remains the governing
-# boundary. Only legacy (<6.5/no marker) projects fall back to an unrelated
-# historical done card.
+# boundary. Legacy (<6.5/no marker) projects without an active/closing card
+# fail open (no task-card governance); v6.5+ projects require an active card.
+# (P037 fix, T-044/D-032: removed legacy fallback that picked lex-largest
+# done card — done cards are cold history and must not govern new commits.)
 task_file=""
 for f in "$ENGINE_DIR"/tasks/T-*.md; do
   [ -f "$f" ] || continue
@@ -107,12 +109,6 @@ if [ -z "$task_file" ]; then
     fi
   done)"
   [ -n "$closing_task_path" ] && task_file="$ROOT/$closing_task_path"
-fi
-if [ -z "$task_file" ] && [ "$strict_task_mode" -eq 0 ]; then
-  for f in $(ls -1 "$ENGINE_DIR"/tasks/T-*.md 2>/dev/null | sort -r); do
-    [ -f "$f" ] || continue
-    if grep -q 'status:.*done' "$f" 2>/dev/null; then task_file="$f"; break; fi
-  done
 fi
 
 if [ -z "$task_file" ] && [ "$strict_task_mode" -eq 1 ]; then

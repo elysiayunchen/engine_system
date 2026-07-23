@@ -1,5 +1,17 @@
 # Changelog
 
+## v6.11.6 (2026-07-23)
+
+- 修复 GitHub issue #10 P037 — pre-commit legacy fallback 移除(T-044 patch,D-032 approved):无 active/closing 卡 + strict_task_mode=0(< 6.5)时拿 lex-largest done 卡当 governing 卡,导致历史 done 卡误管新 commit。done 卡是冷历史,不应 govern。
+- AC-1 移除 pre-commit L111-116 legacy fallback 块(`if [ -z "$task_file" ] && [ "$strict_task_mode" -eq 0 ]` + 内部 `ls -1 T-*.md | sort -r` 扫 done 卡)。strict_task_mode=0 项目无 active 卡时改为 fail-open(跳过 task-card governance)。
+- AC-2 strict_task_mode=0 无 active/closing 卡 → fail-open(pre-commit 不再拿 done 卡,task_file 空 → 跳过 WRITE-SET/FORBIDDEN 检查;protected_paths 检查仍执行,需 decision 覆盖)。
+- AC-3 plugin 镜像 `git diff --no-index` 一致。
+- AC-4 测试 `tests/workstream/test_precommit_no_legacy_fallback.sh` 覆盖 4 场景:无 active+旧项目放行 / 无 active+新项目 block / 有 active 正常 governing / 源码 fallback 模式清除,8/8 PASS。
+- AC-5 完整发布门禁 `bash scripts/check.sh` 全绿;task-card gate 更新 C6/C7 测试反映新行为(done 卡不 govern → protected 文件无 task_decision → block)。
+- 行为变化:旧项目(< 6.5)无 active 卡时 protected 文件 commit 会 block(原 fallback 用 done 卡的 decision 覆盖,现在 task_decision 空)。缓解:旧项目升级到 6.5+ 用 strict 模式,或建 active 卡。
+- D-032 scope 扩展加 T-044 完整 WRITE-SET(含 plugin/manifest.json,pre-commit 改动触发 SHA256)。
+- 详见 `engine/changes/CHANGE-2026-07-23-03.md` 与 D-032。
+
 ## v6.11.5 (2026-07-23)
 
 - 修复 GitHub issue #10 P038 — pre-commit `parse_task_patterns` 不支持 YAML frontmatter 多行 `write-set:` 格式(T-043 patch):用该格式的任务卡被误报「no readable WRITE-SET」拦截非相关 commit。两个解析分支(inline grep L37-41 + awk markdown L42-55)都不识别 YAML frontmatter `field:` 缩进列表。

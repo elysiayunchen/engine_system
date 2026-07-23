@@ -1,0 +1,1 @@
+{"ac":"AC-2","verify":"! grep -q 'strict_task_mode.*-eq 0' engine/scripts/githooks/pre-commit","status":"pass","exit":0,"fingerprint":"sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855","timestamp":"2026-07-23T12:10:37Z"}

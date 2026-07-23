@@ -57,3 +57,5 @@
 | checkpoint dedup 测试 ps1 | tests/workstream/test_checkpoint_dedup.ps1 | Test-CheckpointDedup() | stable | 2026-07-22 |
 | pre-commit 自身豁免测试 | tests/workstream/test_precommit_self_exempt.sh | test_precommit_self_exempt() | stable | 2026-07-22 |
 | YAML frontmatter parser 测试 | tests/workstream/test_precommit_yaml_frontmatter.sh | test_precommit_yaml_frontmatter() | stable | 2026-07-23 |
+| legacy fallback 移除测试 | tests/workstream/test_precommit_no_legacy_fallback.sh | test_precommit_no_legacy_fallback() | stable | 2026-07-23 |
+| task-card 门禁测试套件 | tests/task-card/run-task-tests.sh | run_task_tests() | stable | 2026-07-23 |

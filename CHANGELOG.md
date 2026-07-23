@@ -1,5 +1,16 @@
 # Changelog
 
+## v6.11.8 (2026-07-23)
+
+- 修复 GitHub Actions CI Windows job 持续红灯 — `check.ps1` "Windows PowerShell compatibility" 步骤用 PS 5.1 `Parser.ParseFile()` 解析所有 .ps1 文件,PS 5.1 对无 BOM 文件按 Windows-1252 codepage 读取(非 UTF-8)。两个文件的**字符串字面量**含非 ASCII 字符,其 UTF-8 字节序列含 0x94(Windows-1252 左弯引号 `"`),被 PS 5.1 误认为字符串终止符,导致 parse 失败(T-047 patch)。
+- AC-1 `engine/bin/engine.ps1` L537:em-dash `—` (U+2014) UTF-8 `E2 80 94`,byte 0x94 = `"` in Windows-1252 → 替换为 ASCII `-`。
+- AC-2 `engine/scripts/engine-verify.ps1` L117:Chinese `锚` (U+951A) UTF-8 `E9 94 9A` 含 byte 0x94;L122 em-dash 同 AC-1 → 替换为 ASCII 等价物(`AC-level recovery anchor (compressed), see ...` / `Completed AC` / ASCII `-`)。注释中的 em-dash/Chinese 也一并清理(3 行,使文件 ASCII-only)。
+- AC-3 plugin 镜像 `engine/bin/engine.ps1` + `engine/scripts/engine-verify.ps1` byte-identical(`diff -q` PASS,SHA256 MATCH)。
+- AC-4 `bash scripts/check.sh` 全绿(0 failures)。
+- 根因分析:PS 5.1 `Parser.ParseFile()` 对无 BOM 文件用系统默认 codepage(Windows Server US = Windows-1252)读取,而非 UTF-8。任何 UTF-8 字符含 byte 0x93/0x94(Windows-1252 弯引号)在字符串字面量中都会提前终止 string。`install.ps1` (ASCII-only) 已 PASS,`engine-doctor.ps1` (非 ASCII 仅在注释 + § 安全字符) 已 PASS,证明方案有效。注释中的非 ASCII 字符安全(PS 5.1 跳过注释字节)。
+- 不改 .sh 双胞胎(engine-verify.sh 保留 Chinese,bash 不受 PS 5.1 影响);不改 .gitattributes;不改 check.ps1 的 compat 检查逻辑。
+- 详见 `engine/changes/CHANGE-2026-07-23-06.md`。
+
 ## v6.11.7 (2026-07-23)
 
 - 修复 GitHub Actions CI 自 v6.11.0 起持续红灯(10+ 次 consecutive failures)— engine-doctor.sh `check_multi_session_isolation` + engine-doctor.ps1 `Test-MultiSessionIsolation` 在 cv>=6.11.0 时硬 FAIL "`.cache/sessions` dir missing"(T-045 patch)。但 `.cache/sessions` 是 SessionStart hook 的运行时产物,CI 环境非交互式 agent 会话,SessionStart 永不运行;且 `.gitignore` 钉住 `engine/.cache/`,CI checkout 后目录永不创建 → 每次 CI 红灯。

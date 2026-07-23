@@ -4,11 +4,11 @@
 
 ## 立即恢复点
 
-T-045 CI 红灯修复 + T-046 install.sh/ps1 manifest 同步 **done** 5/5 + 5/5 AC PASS。修复 GitHub Actions CI 持续红灯两个根因:(1) engine-doctor.sh/ps1 `check_multi_session_isolation` 在 cv>=6.11.0 时硬 FAIL "`.cache/sessions` dir missing" — CI 环境 SessionStart hook 不运行,检测 `CI=true`/`GITHUB_ACTIONS=true` 时降 FAIL→WARN;(2) install.sh/ps1 FILES 数组与 manifest.json src 列表不一致(61 vs 57,缺 4 条 skeleton 条目,自 v6.7.0 起预存 bug)+ case 语句 blanket `engine/skeleton/*` 重映射 bug 修复(只重映射 ENGINE_MAP/CONTEXT/HANDOFF)。
+T-047 Windows PS 5.1 compat 修复 **done** 4/4 AC PASS。修复 GitHub Actions CI Windows job 持续红灯——`check.ps1` "Windows PowerShell compatibility" 步骤用 PS 5.1 `Parser.ParseFile()` 解析 .ps1 文件,PS 5.1 对无 BOM 文件按 Windows-1252 codepage 读取。engine/bin/engine.ps1 L537 em-dash `—` (UTF-8 `E2 80 94`,byte 0x94=Win-1252 `"`) + engine/scripts/engine-verify.ps1 L117 Chinese `锚` (UTF-8 `E9 94 9A`) + L122 em-dash 在字符串字面量中提前终止 string → 替换为 ASCII 等价物。plugin 镜像 byte-identical。
 
-**check.sh 全绿**(manifest matches install.sh + install.ps1 均 PASS;project doctor 0 failures)。
+**check.sh 全绿**(0 failures;manifest SHA256 auto-regenerated)。
 
-下一步: `git push origin main` 观察 GitHub Actions workflow 转绿;可选 `git tag v6.11.7 && git push --tags` 触发 GitHub Release workflow;或处理非阻塞 WARN(contract debt 54>47 / `CHANGE-2026-07-23-03.md` 占位符)。
+下一步: `git push origin main` 观察 GitHub Actions Windows CI 转绿;可选 `git tag v6.11.8 && git push --tags` 触发 GitHub Release workflow;或处理非阻塞 WARN(contract debt 54>47)。
 
 > Phase 1 = 通用化核心(prompt 抽离 / CLI 扩展 / 快速安装 / agent 检测——D-017 原文口径;实施细化与「薄壳」口径修正见 D-018)。v6.2 = 多 agent 通信层(engine context + DevComm Rule 扩展)。
 

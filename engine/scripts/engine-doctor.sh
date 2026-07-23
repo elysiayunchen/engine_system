@@ -305,7 +305,7 @@ check_context_semantics() {
       echo "  human: CONTEXT.md is missing the '$label' row in its status panel. Add a table row for '$label' with current information."
       continue
     fi
-    value="$(printf '%s' "$row" | awk -F'|' '{print $3}' | xargs)"
+    value="$(printf '%s' "$row" | awk -F'|' '{print $3}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
     if [[ -z "$value" || "$value" =~ ^\[.*\]$ || "$value" == "TBD" || "$value" == "TODO" ]]; then
       warn "CONTEXT.md status row '$label' is placeholder or empty"
       echo "  human: The '$label' row in CONTEXT.md has no real value (placeholder or empty). Fill in the actual status."

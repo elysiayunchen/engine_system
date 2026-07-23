@@ -52,6 +52,7 @@ function Download-File {
     $releaseUrl = "https://github.com/$REPO/releases/download/v$Version/plugin/$Src"
     try {
       Invoke-WebRequest -Uri $releaseUrl -OutFile $Dest -UseBasicParsing -TimeoutSec 30 -ErrorAction Stop
+      Convert-ToCrlf $Dest
       return
     } catch {
       # Release artifact not found -- fallback to raw content
@@ -59,6 +60,7 @@ function Download-File {
   }
 
   Invoke-WebRequest -Uri $url -OutFile $Dest -UseBasicParsing -TimeoutSec 30
+  Convert-ToCrlf $Dest
 }
 
 # Copy from local offline directory (when -Local is specified)
@@ -68,6 +70,7 @@ function Copy-Local {
   $srcPath = Join-Path $LocalDir ($Src -replace '/', '\')
   if (Test-Path $srcPath) {
     Copy-Item $srcPath $Dest -Force
+    Convert-ToCrlf $Dest
   } else {
     Write-Host "  FAIL  local file not found: $srcPath" -ForegroundColor Red
     exit 1
@@ -95,6 +98,28 @@ function Get-NormalizedTextSha256 {
   } finally {
     $sha.Dispose()
   }
+}
+
+# Convert LF-only line endings to CRLF for .ps1 files on Windows (issue #9 / D-030).
+# PS 5.1 miscounts lines in LF-only .ps1 files with here-strings, causing parse errors
+# (`Unexpected token '}'` at wrong line numbers). Repository source stays LF (.gitattributes,
+# D-015 cross-platform policy); user-machine install converts .ps1 to CRLF.
+# Checksum verification is unaffected: Get-NormalizedTextSha256 strips CRLF before hashing.
+function Convert-ToCrlf {
+  param([string]$Path)
+  if (-not (Test-Path $Path)) { return }
+  if (-not $Path.EndsWith('.ps1')) { return }
+  [byte[]]$bytes = [System.IO.File]::ReadAllBytes((Resolve-Path $Path).Path)
+  $out = New-Object System.Collections.Generic.List[byte]
+  for ($i = 0; $i -lt $bytes.Length; $i++) {
+    if ($bytes[$i] -eq 10) {
+      if ($i -eq 0 -or $bytes[$i - 1] -ne 13) { $out.Add(13) }
+      $out.Add(10)
+    } else {
+      $out.Add($bytes[$i])
+    }
+  }
+  [System.IO.File]::WriteAllBytes((Resolve-Path $Path).Path, $out.ToArray())
 }
 
 function Verify-Checksums {

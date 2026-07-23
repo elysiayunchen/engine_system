@@ -1,5 +1,17 @@
 # Changelog
 
+## v6.11.4 (2026-07-23)
+
+- 修复 GitHub issue #9 — LF-only engine.ps1 PowerShell 5.1 解析失败(T-042 patch):installer 产出 LF-only `engine.ps1`,PS 5.1 解析 here-string 时行号错位导致 `Unexpected token '}'` 报错,`engine.cmd` shim 在仅有 PS 5.1 的 Windows 系统上完全不可用。方案 A+B 双保险(D-030 批准)。
+- AC-1 `install.ps1` 加 `Convert-ToCrlf` 辅助函数(L100-120):`Download-File` 下载 `.ps1` 后将 LF 转 CRLF 写盘(PS 5.1 需要 CRLF 正确解析 here-string)。仓库源保持 LF(`.gitattributes` 钉 `*.ps1 text eol=lf`,D-015 跨平台策略);用户机器侧转 CRLF。checksum 兼容:`Get-NormalizedTextSha256`(L83-98)strip CRLF→LF 再算 hash,与 manifest(LF)一致。
+- AC-2 `install.ps1` `Copy-Local`(-Local 离线包)复制 `.ps1` 后同样转 CRLF(L73)。
+- AC-3 三个 `engine.cmd`(engine/bin + plugin/bin + plugin/engine/bin)改 pwsh 优先检测:`where pwsh` 找到则用 PS 7,否则回退 PS 5.1。PS 7 解析 LF-only here-string 正确,兜底 git clone 场景(方案 A 仅覆盖 install.ps1 路径)。
+- AC-4 plugin 镜像对称:三个 engine.cmd `Get-FileHash` 一致。
+- AC-5 版本三处一致 = 6.11.4 + CHANGELOG + manifest SHA256 更新(`bin/engine.cmd`: c2c9ce... → b618a2...)。
+- AC-6 完整发布门禁 `bash scripts/check.sh` 全绿。
+- 字节级根因分析:install.ps1 自身也是 LF-only(LF=464)且有 1 个 here-string(L264)却能跑完整个安装,证明 PS 5.1 对 LF-only here-string 解析 bug 是累积性行号错位(here-string 数量+首现位置决定何时炸),非 here-string 本身禁用。engine.ps1 有 3 个 here-string 首个在 L20,累积错位导致 183/268 报错。方案 A 转 CRLF 根治,方案 B pwsh 优先兜底。
+- 详见 `engine/changes/CHANGE-2026-07-23-01.md` 与 D-030。
+
 ## v6.11.3 (2026-07-22)
 
 - 小任务 progress.md 7 栏豁免条款(T-040 patch):T-039 归档 progress.md 实际写成 4 栏自创格式(§1 Goal / §2 Current Step / §3 Done / §4 Next AC),暴露契约对小任务过度强制——强制产出空栏噪声淹没信号,反而违反 D-028 §6「机制错配」原则。本 patch 把"小任务确实不需要 7 栏事件驱动"正式化为契约条款,避免契约与实际再次漂移。

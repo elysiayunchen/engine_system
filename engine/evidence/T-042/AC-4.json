@@ -1,0 +1,1 @@
+{"ac":"AC-4","verify":"diff -q engine/bin/engine.cmd plugin/bin/engine.cmd && diff -q engine/bin/engine.cmd plugin/engine/bin/engine.cmd","status":"pass","exit":0,"fingerprint":"sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855","timestamp":"2026-07-23T04:53:29Z"}

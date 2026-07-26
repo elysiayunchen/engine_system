@@ -1,5 +1,5 @@
 # INVENTORY — engine-runtime
-> Last updated: 2026-07-23 | 域级功能索引 | 5 列 ≤120 行,见 contract/src/20-file-templates.md FILE 14
+> Last updated: 2026-07-26 | 域级功能索引 | 5 列 ≤120 行,见 contract/src/20-file-templates.md FILE 14
 
 | Feature | Entry file | Public API | Status | Last verified |
 |---------|-----------|------------|--------|---------------|
@@ -60,3 +60,7 @@
 | legacy fallback 移除测试 | tests/workstream/test_precommit_no_legacy_fallback.sh | test_precommit_no_legacy_fallback() | stable | 2026-07-23 |
 | CI sessions 降级测试 | tests/workstream/test_doctor_ci_sessions.sh | test_doctor_ci_sessions() | stable | 2026-07-23 |
 | task-card 门禁测试套件 | tests/task-card/run-task-tests.sh | run_task_tests() | stable | 2026-07-23 |
+| 多会话隔离测试套件 (v6.12.0) | tests/multi-session/run-multi-session-tests.sh | run_multi_session_tests() | stable | 2026-07-26 |
+| pre-commit 多卡 union 测试 | tests/task-card/test_multi_active_union.sh | test_multi_active_union() | stable | 2026-07-26 |
+| Doctor 多卡 WRITE-SET 交集检查 | engine/scripts/engine-doctor.sh | check_multi_card_writeset_overlap() | stable | 2026-07-26 |
+| Doctor 多卡交集检查 ps1 | engine/scripts/engine-doctor.ps1 | Test-MultiCardWritesetOverlap() | stable | 2026-07-26 |

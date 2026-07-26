@@ -51,6 +51,13 @@ else
   fail "workstream shards"
 fi
 
+step "Multi-session isolation (union gating + lease + role lifecycle, v6.12.0 D-035)"
+if bash tests/multi-session/run-multi-session-tests.sh; then
+  pass "multi-session fixtures"
+else
+  fail "multi-session isolation"
+fi
+
 step "Fractal memory (federation routing + L2 assembly)"
 if bash tests/fractal-memory/run-fractal-tests.sh; then
   pass "fractal memory fixtures"

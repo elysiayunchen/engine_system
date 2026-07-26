@@ -1,0 +1,1 @@
+{"ac":"AC-9","verify":"bash contract/compile.sh && bash engine/scripts/engine-doctor.sh","status":"pass","exit":0,"fingerprint":"sha256:cf91e66c86ece8856b832d0d2a13c57eb15cc6d966958935b733cc6afc779010","timestamp":"2026-07-26T20:24:58Z"}

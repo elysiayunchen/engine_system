@@ -64,31 +64,32 @@ is_task_bootstrap_path() {
   case "$1" in engine/tasks/T-*.md|engine/decisions/D-*.md) return 0 ;; *) return 1 ;; esac
 }
 
-find_active_task() {
+# v6.12.0 (D-035) RC-1 fix: collect EVERY active card, not the lexicographically
+# first one. Multiple top-level sessions may each hold their own active card;
+# gating is per-path union across cards (see block_scope).
+find_active_tasks() {
   local f
   for f in "$ENGINE_DIR"/tasks/T-*.md; do
     [ -f "$f" ] || continue
+    case "$f" in *.spec.md) continue ;; esac
     if grep -q 'status:.*active' "$f" 2>/dev/null; then
-      printf '%s' "$f"
-      return 0
+      printf '%s\n' "$f"
     fi
   done
-  return 1
 }
 
 # Once an active card is edited to done, it is no longer discoverable as active.
-# A dirty done card remains the governing boundary through Stop/commit.
-find_closing_task() {
+# A dirty done card remains a governing boundary through Stop/commit.
+find_closing_tasks() {
   local f rel
   for f in "$ENGINE_DIR"/tasks/T-*.md; do
     [ -f "$f" ] || continue
+    case "$f" in *.spec.md) continue ;; esac
     grep -q 'status:.*done' "$f" 2>/dev/null || continue
     rel="engine/tasks/$(basename "$f")"
     [ -n "$(git -C "$ROOT" status --porcelain -- "$rel" 2>/dev/null)" ] || continue
-    printf '%s' "$f"
-    return 0
+    printf '%s\n' "$f"
   done
-  return 1
 }
 
 # Supports both historical `WRITE-SET: a,b` and current section-list form:
@@ -137,57 +138,162 @@ is_runtime_cache() {
   case "$1" in engine/.cache/*|.engine/*) return 0 ;; *) return 1 ;; esac
 }
 
-is_shared_memory() {
+# v6.12.0 (D-035) RC-4 fix: split the old is_shared_memory blanket.
+# - Shared singletons: one authoritative copy repo-wide; coordinator-only for
+#   every worker kind (top-level worker session or in-session subagent).
+# - Task-local files (per-task progress/checkpoint): governed by the owning
+#   card's WRITE-SET union instead, so a worker session driving its OWN card
+#   can still record progress. In-session subagents (agent_id set) keep the
+#   old blanket: they shard everything and the coordinator merges (v6.5).
+is_shared_singleton() {
   case "$1" in
     AGENTS.md|CLAUDE.md|engine/ENGINE_MAP.md|engine/SYSTEM.md|engine/REPO_GUIDE.md|\
     engine/CONTEXT.md|engine/HANDOFF.md|engine/PITFALLS.md|engine/SPRINT.md|engine/ROADMAP.md|\
     engine/domains/*/CONTEXT.md|engine/domains/*/PITFALLS.md|engine/domains/*/INVENTORY.md|\
-    engine/tasks/T-*/progress.md|engine/evidence/T-*/checkpoint.md|\
     engine/plans/*|docs/*/specs/*|docs/specs/*)
       return 0 ;;
     *) return 1 ;;
   esac
 }
 
+is_task_local() {
+  case "$1" in
+    engine/tasks/T-*/progress.md|engine/evidence/T-*/checkpoint.md) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+is_shared_memory() {
+  is_shared_singleton "$1" || is_task_local "$1"
+}
+
 strict_task_mode=0
 is_strict_task_project && strict_task_mode=1
-active_task="$(find_active_task 2>/dev/null || true)"
-task_phase="active"
-if [ -z "$active_task" ] && [ "$strict_task_mode" -eq 1 ]; then
-  active_task="$(find_closing_task 2>/dev/null || true)"
-  [ -n "$active_task" ] && task_phase="closing"
-fi
-active_task_id=""
-write_set=""
-forbidden=""
-if [ -n "$active_task" ]; then
-  active_task_id="$(basename "$active_task" .md)"
-  write_set="$(parse_task_patterns WRITE-SET "$active_task")"
-  forbidden="$(parse_task_patterns FORBIDDEN "$active_task")"
-fi
 
+# v6.12.0 (D-035): cache every governing card (all active, else dirty-done
+# closing cards). Parallel arrays: file / id / WRITE-SET / FORBIDDEN.
+card_files=()
+card_ids=()
+card_ws=()
+card_fb=()
+task_phase="active"
+while IFS= read -r _card; do
+  [ -n "$_card" ] || continue
+  card_files+=("$_card")
+done < <(find_active_tasks 2>/dev/null)
+# Closing (dirty done) cards always co-govern: one session may be closing its
+# card while another session's card is still active (D-035).
+_had_active="${#card_files[@]}"
+while IFS= read -r _card; do
+  [ -n "$_card" ] || continue
+  card_files+=("$_card")
+done < <(find_closing_tasks 2>/dev/null)
+if [ "$_had_active" -eq 0 ] && [ "${#card_files[@]}" -gt 0 ]; then
+  task_phase="closing"
+fi
+for _card in "${card_files[@]}"; do
+  card_ids+=("$(basename "$_card" .md)")
+  card_ws+=("$(parse_task_patterns WRITE-SET "$_card")")
+  card_fb+=("$(parse_task_patterns FORBIDDEN "$_card")")
+done
+# Primary card = first found. Display/meta only; gating is per-path union.
+active_task="${card_files[0]:-}"
+active_task_id="${card_ids[0]:-}"
+
+card_id_list() {
+  local out="" id
+  for id in "${card_ids[@]}"; do
+    out="${out:+$out, }$id"
+  done
+  printf '%s' "$out"
+}
+
+# True when the argument names any governing card (worker shard path check).
+is_governing_task_id() {
+  local want="$1" id
+  for id in "${card_ids[@]}"; do
+    [ "$id" = "$want" ] && return 0
+  done
+  return 1
+}
+
+# Union gating (D-035 RC-1/RC-2): a path is allowed when at least one governing
+# card lists it in WRITE-SET and not in that same card's FORBIDDEN. One card's
+# FORBIDDEN no longer vetoes another card's WRITE-SET. Task/decision card files
+# are always writable (bootstrap channel): creating or updating a card must
+# never be blocked by someone else's card.
 block_scope() {
-  local path="$1"
-  if [ -z "$active_task" ]; then
+  local path="$1" i ws fb readable=0
+  if [ "${#card_files[@]}" -eq 0 ]; then
     if [ "$strict_task_mode" -eq 1 ] && ! is_task_bootstrap_path "$path"; then
       printf '{"decision":"block","reason":"[Engine System] No active task card governs %s. | developer: This project uses the v6.5 strict workflow. Create or activate engine/tasks/T-NNN.md before editing ordinary project files."}\n' "$path"
       return 0
     fi
     return 1
   fi
-  if [ -n "$forbidden" ] && match_glob "$path" "$forbidden"; then
-    printf '{"decision":"block","reason":"[Engine System] Path %s is in FORBIDDEN for %s. | developer: This file is explicitly off-limits for the current task."}\n' "$path" "$active_task_id"
+  is_task_bootstrap_path "$path" && return 1
+  i=0
+  while [ "$i" -lt "${#card_files[@]}" ]; do
+    ws="${card_ws[$i]}"
+    fb="${card_fb[$i]}"
+    i=$((i + 1))
+    [ -n "$ws" ] || continue
+    readable=1
+    if [ -n "$fb" ] && match_glob "$path" "$fb"; then continue; fi
+    match_glob "$path" "$ws" && return 1
+  done
+  if [ "$readable" -eq 0 ]; then
+    printf '{"decision":"block","reason":"[Engine System] No governing task card has a readable WRITE-SET (%s). | developer: The task boundary is malformed, so writes are paused until a card is fixed."}\n' "$(card_id_list)"
     return 0
   fi
-  if [ -z "$write_set" ]; then
-    printf '{"decision":"block","reason":"[Engine System] Active task %s has no readable WRITE-SET. | developer: The task boundary is malformed, so writes are paused until the task card is fixed."}\n' "$active_task_id"
-    return 0
-  fi
-  if ! match_glob "$path" "$write_set"; then
-    printf '{"decision":"block","reason":"[Engine System] Path %s is outside the WRITE-SET of %s. | developer: This file is outside the current task scope. Current WRITE-SET: %s"}\n' "$path" "$active_task_id" "$write_set"
-    return 0
-  fi
+  printf '{"decision":"block","reason":"[Engine System] Path %s is outside the WRITE-SET of every active card (%s). | developer: Add the path to YOUR card WRITE-SET, or create a task card for this goal."}\n' "$path" "$(card_id_list)"
+  return 0
+}
+
+# Which governing card covers this path? Prints the card index; rc 1 when none.
+covering_card_index() {
+  local path="$1" i ws fb
+  i=0
+  while [ "$i" -lt "${#card_files[@]}" ]; do
+    ws="${card_ws[$i]}"
+    fb="${card_fb[$i]}"
+    if [ -n "$ws" ] && match_glob "$path" "$ws"; then
+      if [ -z "$fb" ] || ! match_glob "$path" "$fb"; then
+        printf '%s' "$i"
+        return 0
+      fi
+    fi
+    i=$((i + 1))
+  done
   return 1
+}
+
+# v6.12.0 (D-035) RC-3 fix: lease freshness by heartbeat mtime, not pid
+# liveness. The lock records the transient hook shell pid (always dead by the
+# next check), so instead each session renews .cache/sessions/<key>.hb on every
+# PreToolUse and the holder re-stamps the lock at UserPromptSubmit. Fresh =
+# newest of lock/.hb mtime within ENGINE_SESSION_TTL_MIN (default 120 minutes).
+mtime_epoch() {
+  stat -c %Y "$1" 2>/dev/null || stat -f %m "$1" 2>/dev/null || printf ''
+}
+
+lease_fresh() {
+  local lock="$1" ttl_min="${ENGINE_SESSION_TTL_MIN:-120}" lock_sid hb newest m now age
+  [ -f "$lock" ] || return 1
+  case "$ttl_min" in ''|*[!0-9]*) ttl_min=120 ;; esac
+  newest="$(mtime_epoch "$lock")"
+  lock_sid="$(cut -d'|' -f2 "$lock" 2>/dev/null | head -1)"
+  if [ -n "$lock_sid" ]; then
+    hb="$ENGINE_DIR/.cache/sessions/$(safe_id "${lock_sid}-main").hb"
+    m="$(mtime_epoch "$hb")"
+    if [ -n "$m" ]; then
+      if [ -z "$newest" ] || [ "$m" -gt "$newest" ] 2>/dev/null; then newest="$m"; fi
+    fi
+  fi
+  [ -n "$newest" ] || return 1
+  now="$(date +%s 2>/dev/null)" || return 0
+  age=$((now - newest))
+  [ "$age" -le $((ttl_min * 60)) ]
 }
 
 session_id="$(json_field session_id)"
@@ -202,11 +308,16 @@ if [ "$MODE" = "--pre-tool-use" ]; then
   file_path="$(json_field file_path)"
   [ -n "$file_path" ] || file_path="$(json_field path)"
 
+  # v6.12.0 (D-035): every tool call renews this session's lease heartbeat.
+  if [ -n "$session_key" ]; then
+    mkdir -p "$ENGINE_DIR/.cache/sessions" 2>/dev/null || true
+    touch "$ENGINE_DIR/.cache/sessions/$session_key.hb" 2>/dev/null || true
+  fi
+
   # Shell commands can write arbitrary paths. Mark the session for conservative
   # whole-worktree validation at Stop instead of pretending attribution is exact.
   if [ "$tool_name" = "Bash" ] || [ "$tool_name" = "Shell" ]; then
     if [ -n "$session_key" ]; then
-      mkdir -p "$ENGINE_DIR/.cache/sessions" 2>/dev/null || true
       : > "$ENGINE_DIR/.cache/sessions/$session_key.global" 2>/dev/null || true
     fi
     exit 0
@@ -216,21 +327,65 @@ if [ "$MODE" = "--pre-tool-use" ]; then
   path="$(normalize_path "$file_path")"
   is_runtime_cache "$path" && exit 0
 
-  # v6.11.0 (D-029/T-036) AC-4: PreToolUse 双信号扩展
-  # 信号 1: agent_id 非空 (subagent 由 Claude Code 传入)
-  # 信号 2: .cache/sessions/<session_key>.role=worker 文件存在 (顶层会话降级为 worker)
-  # OR 关系: 任一信号触发即视为 worker, 拦截共享记忆写入 + 限定 workstream 路径
+  # v6.11.0 (D-029/T-036) AC-4 dual-signal, scope narrowed by v6.12.0 (D-035):
+  # signal 1: agent_id set (in-session subagent, passed by Claude Code)
+  # signal 2: .cache/sessions/<session_key>.role=worker flag (demoted top-level session)
   is_worker=0
   if [ -n "$agent_id" ]; then
     is_worker=1
   elif [ -n "$session_key" ] && [ -f "$ENGINE_DIR/.cache/sessions/$session_key.role=worker" ]; then
     is_worker=1
   fi
-  # worker 标识: 优先 agent_id, 否则用 session_key (顶层会话降级场景)
   worker_id="${agent_id:-$session_key}"
 
-  if [ "$is_worker" -eq 1 ] && is_shared_memory "$path"; then
-    printf '{"decision":"block","reason":"[Engine System] Worker %s cannot write shared memory %s. | developer: Parallel workers write their own engine/workstreams/%s/%s/ shard; the coordinator merges shared CONTEXT/HANDOFF once."}\n' "$worker_id" "$path" "${active_task_id:-T-NNN}" "$(safe_id "$worker_id")"
+  # Shared singleton writes resolve against the coordinator lease (D-035):
+  # - in-session subagents never own the lease -> always shard
+  # - top-level sessions: holder writes; non-holder blocked while the lease is
+  #   fresh; a stale or free lease is claimed on the spot (self-healing, incl.
+  #   sessions stuck with an obsolete .role=worker flag from RC-3b)
+  if is_shared_singleton "$path"; then
+    if [ -n "$agent_id" ]; then
+      printf '{"decision":"block","reason":"[Engine System] Worker %s cannot write shared memory %s. | developer: Parallel workers write their own engine/workstreams/<task>/%s/ shard; the coordinator merges shared CONTEXT/HANDOFF once."}\n' "$worker_id" "$path" "$(safe_id "$worker_id")"
+      exit 0
+    fi
+    if [ -n "$session_id" ]; then
+      lock_file="$ENGINE_DIR/.cache/session.lock"
+      now_iso="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date 2>/dev/null || echo unknown)"
+      if [ ! -f "$lock_file" ]; then
+        mkdir -p "$ENGINE_DIR/.cache" 2>/dev/null || true
+        ( set -C; printf '%s|%s|coordinator|%s|%s\n' "$$" "$session_id" "$now_iso" "${active_task_id:-}" > "$lock_file" ) 2>/dev/null || true
+      fi
+      lock_sid="$(cut -d'|' -f2 "$lock_file" 2>/dev/null | head -1)"
+      if [ -n "$lock_sid" ] && [ "$lock_sid" != "$session_id" ]; then
+        if lease_fresh "$lock_file"; then
+          if [ "$is_worker" -eq 1 ]; then
+            printf '{"decision":"block","reason":"[Engine System] Worker %s cannot write shared memory %s. | developer: Parallel workers write their own engine/workstreams/<task>/%s/ shard; the coordinator merges shared CONTEXT/HANDOFF once."}\n' "$worker_id" "$path" "$(safe_id "$worker_id")"
+          else
+            printf '{"decision":"block","reason":"[Engine System] Shared memory %s is leased by another live session. | developer: Run engine assume-coordinator to take over, or write your own workstreams shard and let the coordinator merge."}\n' "$path"
+          fi
+          exit 0
+        fi
+        # Stale lease: take over and continue as coordinator.
+        printf '%s|%s|coordinator|%s|%s\n' "$$" "$session_id" "$now_iso" "${active_task_id:-}" > "$lock_file" 2>/dev/null || true
+        printf '%s|%s|stale-recovered\n' "$now_iso" "unknown" > "$ENGINE_DIR/.cache/session.tombstone" 2>/dev/null || true
+      fi
+      # Holding (or just claimed) the lease: coordinator from here on.
+      if [ -n "$session_key" ]; then
+        rm -f "$ENGINE_DIR/.cache/sessions/$session_key.role=worker" 2>/dev/null || true
+      fi
+      is_worker=0
+    elif [ "$is_worker" -eq 1 ]; then
+      # No session identity (non-Claude harness): keep the flag-based block.
+      printf '{"decision":"block","reason":"[Engine System] Worker %s cannot write shared memory %s. | developer: Parallel workers write their own engine/workstreams/<task>/%s/ shard; the coordinator merges shared CONTEXT/HANDOFF once."}\n' "$worker_id" "$path" "$(safe_id "$worker_id")"
+      exit 0
+    fi
+  fi
+
+  # In-session subagents keep the v6.5 blanket: task-local progress/checkpoint
+  # files also go through their shard; the coordinator merges. Top-level worker
+  # sessions write task-local files of their OWN card via WRITE-SET union.
+  if [ -n "$agent_id" ] && is_task_local "$path"; then
+    printf '{"decision":"block","reason":"[Engine System] Subagent %s cannot write task file %s directly. | developer: Record it in your engine/workstreams/<task>/%s/ shard; the coordinator merges."}\n' "$agent_id" "$path" "$(safe_id "$agent_id")"
     exit 0
   fi
 
@@ -238,10 +393,26 @@ if [ "$MODE" = "--pre-tool-use" ]; then
     case "$path" in
       engine/workstreams/*)
         agent_safe="$(safe_id "$worker_id")"
+        shard_task="${path#engine/workstreams/}"
+        shard_task="${shard_task%%/*}"
         case "$path" in
-          engine/workstreams/"${active_task_id:-T-NNN}"/"$agent_safe"/*) ;;
+          engine/workstreams/"$shard_task"/"$agent_safe"/*)
+            # v6.12.0 (D-035) RC-4 fix: a shard may live under ANY governing
+            # card, not only the lexicographically first one. A validated own
+            # shard is the sanctioned worker write channel: allow it directly
+            # instead of demanding every card list workstreams in WRITE-SET.
+            if [ "${#card_ids[@]}" -gt 0 ] && ! is_governing_task_id "$shard_task"; then
+              printf '{"decision":"block","reason":"[Engine System] Workstream shard task %s is not an active card (%s). | developer: Run engine workstream against your own active card."}\n' "$shard_task" "$(card_id_list)"
+              exit 0
+            fi
+            if [ -n "$session_key" ]; then
+              ledger="$ENGINE_DIR/.cache/sessions/$session_key.paths"
+              grep -Fxq "$path" "$ledger" 2>/dev/null || printf '%s\n' "$path" >> "$ledger" 2>/dev/null || true
+            fi
+            exit 0
+            ;;
           *)
-            printf '{"decision":"block","reason":"[Engine System] Worker %s may only write its own workstream shard: engine/workstreams/%s/%s/."}\n' "$worker_id" "${active_task_id:-T-NNN}" "$agent_safe"
+            printf '{"decision":"block","reason":"[Engine System] Worker %s may only write its own workstream shard: engine/workstreams/<task>/%s/."}\n' "$worker_id" "$agent_safe"
             exit 0
             ;;
         esac
@@ -252,7 +423,6 @@ if [ "$MODE" = "--pre-tool-use" ]; then
   if block_scope "$path"; then exit 0; fi
 
   if [ -n "$session_key" ]; then
-    mkdir -p "$ENGINE_DIR/.cache/sessions" 2>/dev/null || true
     ledger="$ENGINE_DIR/.cache/sessions/$session_key.paths"
     grep -Fxq "$path" "$ledger" 2>/dev/null || printf '%s\n' "$path" >> "$ledger" 2>/dev/null || true
   fi
@@ -296,12 +466,15 @@ while IFS= read -r -d '' rec || [ -n "$rec" ]; do
   esac
 done < <(git -C "$ROOT" status --porcelain -z -uall 2>/dev/null)
 
-if [ -n "$active_task" ] || [ "$strict_task_mode" -eq 1 ]; then
+if [ "${#card_files[@]}" -gt 0 ] || [ "$strict_task_mode" -eq 1 ]; then
   for path in "${governed_paths[@]}"; do
     if [ -n "$agent_id" ] && is_shared_memory "$path"; then
-      printf '{"decision":"block","reason":"[Engine System] Worker agent %s changed shared memory %s. Use engine/workstreams/%s/%s/ and let the coordinator merge."}\n' "$agent_id" "$path" "$active_task_id" "$(safe_id "$agent_id")"
+      printf '{"decision":"block","reason":"[Engine System] Worker agent %s changed shared memory %s. Use engine/workstreams/<task>/%s/ and let the coordinator merge."}\n' "$agent_id" "$path" "$(safe_id "$agent_id")"
       exit 0
     fi
+    # Workstream shards are the sanctioned worker channel; the conservative
+    # whole-worktree fallback may also see sibling sessions' shards - never block.
+    case "$path" in engine/workstreams/*/*/*) continue ;; esac
     if block_scope "$path"; then exit 0; fi
   done
 fi
@@ -311,11 +484,12 @@ if [ "$code_changed" -eq 1 ] && [ "$engine_written" -eq 0 ]; then
   exit 0
 fi
 
-# Domain routing remains a code-path concern. Engine-memory routing is governed by WRITE-SET.
-if [ -n "$active_task" ] && [ "${#code_paths[@]}" -gt 0 ]; then
+# Domain routing remains a code-path concern. Engine-memory routing is governed
+# by WRITE-SET. v6.12.0 (D-035): each code path is judged against the domains of
+# the card that covers it, not against the first active card.
+if [ "${#card_files[@]}" -gt 0 ] && [ "${#code_paths[@]}" -gt 0 ]; then
   fed="$ENGINE_DIR/domains/federation.json"
-  task_domains="$(grep '^>.*domain:' "$active_task" 2>/dev/null | head -1 | sed 's/.*domain:[[:space:]]*//' | sed 's/|.*//' | tr -d ' ')"
-  if [ -f "$fed" ] && [ -n "$task_domains" ]; then
+  if [ -f "$fed" ]; then
     federation="$(awk '
       /"default_domain"/ { if (match($0, /"default_domain"[[:space:]]*:[[:space:]]*"([^"]+)"/, m)) print "DEFAULT\t" m[1]; next }
       /^[[:space:]]*"[A-Za-z0-9_-]+"[[:space:]]*:[[:space:]]*\{/ { if (match($0, /"([A-Za-z0-9_-]+)"/, m)) { domain=m[1]; in_paths=0 }; next }
@@ -325,6 +499,12 @@ if [ -n "$active_task" ] && [ "${#code_paths[@]}" -gt 0 ]; then
     ' "$fed" 2>/dev/null)"
     default_dom="$(printf '%s\n' "$federation" | awk -F'\t' '/^DEFAULT/{print $2; exit}')"
     for path in "${code_paths[@]}"; do
+      cover_idx="$(covering_card_index "$path" || true)"
+      [ -n "$cover_idx" ] || continue
+      cover_file="${card_files[$cover_idx]}"
+      cover_id="${card_ids[$cover_idx]}"
+      task_domains="$(grep '^>.*domain:' "$cover_file" 2>/dev/null | head -1 | sed 's/.*domain:[[:space:]]*//' | sed 's/|.*//' | tr -d ' ')"
+      [ -n "$task_domains" ] || continue
       path_dom=""
       while IFS=$'\t' read -r d g; do
         [ "$d" = "DEFAULT" ] && continue
@@ -333,7 +513,7 @@ if [ -n "$active_task" ] && [ "${#code_paths[@]}" -gt 0 ]; then
       done <<< "$federation"
       [ -n "$path_dom" ] || path_dom="${default_dom:-root}"
       if ! printf '%s' ",$task_domains," | grep -qF ",$path_dom,"; then
-        printf '{"decision":"block","reason":"[Engine System] Path %s belongs to domain %s, outside task %s domains [%s]."}\n' "$path" "$path_dom" "$active_task_id" "$task_domains"
+        printf '{"decision":"block","reason":"[Engine System] Path %s belongs to domain %s, outside task %s domains [%s]."}\n' "$path" "$path_dom" "$cover_id" "$task_domains"
         exit 0
       fi
     done

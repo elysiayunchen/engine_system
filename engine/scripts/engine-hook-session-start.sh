@@ -25,22 +25,54 @@ fi
 # UserPromptSubmit calls this compact mode. It is deliberately short: enough to
 # restore the non-negotiable boundary after long runs without reinjecting L2.
 if [ "$MODE" = "--guard" ]; then
-  guard_task=""
+  # v6.12.0 (D-035): the guard also renews this session's lease heartbeat and
+  # re-claims a free coordinator lock at the earliest point of each turn.
+  guard_payload=""
+  if [ ! -t 0 ] && IFS= read -r -t 0 _ 2>/dev/null; then
+    guard_payload="$(cat 2>/dev/null || true)"
+  fi
+  guard_sid="$(printf '%s' "$guard_payload" | grep -oE '"session_id"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | sed 's/.*"session_id"[[:space:]]*:[[:space:]]*"//;s/"//')"
+  guard_disabled="${ENGINE_DISABLE_MULTI_SESSION:-}"
+  [ -f "$ENGINE_DIR/.cache/multi-session.disabled" ] && guard_disabled=1
+  if [ -n "$guard_sid" ] && [ -z "$guard_disabled" ]; then
+    guard_key="$(printf '%s-%s' "$guard_sid" "main" | tr -c 'A-Za-z0-9._-' '_' | cut -c1-64)"
+    mkdir -p "$ENGINE_DIR/.cache/sessions" 2>/dev/null || true
+    touch "$ENGINE_DIR/.cache/sessions/${guard_key}.hb" 2>/dev/null || true
+    GUARD_LOCK="$ENGINE_DIR/.cache/session.lock"
+    if [ -f "$GUARD_LOCK" ]; then
+      guard_lock_sid="$(cut -d'|' -f2 "$GUARD_LOCK" 2>/dev/null | head -1)"
+      if [ "$guard_lock_sid" = "$guard_sid" ]; then
+        touch "$GUARD_LOCK" 2>/dev/null || true
+      fi
+    else
+      guard_now="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date 2>/dev/null || echo unknown)"
+      ( set -C; printf '%s|%s|coordinator|%s|\n' "$$" "$guard_sid" "$guard_now" > "$GUARD_LOCK" ) 2>/dev/null || true
+    fi
+  fi
+  guard_ids=""
+  guard_count=0
   for f in "$ENGINE_DIR"/tasks/T-*.md; do
     [ -f "$f" ] || continue
-    if grep -q 'status:.*active' "$f" 2>/dev/null; then guard_task="$f"; break; fi
+    case "$f" in *.spec.md) continue ;; esac
+    grep -q 'status:.*active' "$f" 2>/dev/null || continue
+    guard_id="$(basename "$f" .md)"
+    guard_ids="${guard_ids:+$guard_ids, }$guard_id"
+    guard_count=$((guard_count + 1))
+    if [ "$guard_count" -le 3 ]; then
+      guard_goal="$(grep -m 1 '^GOAL:' "$f" 2>/dev/null | sed 's/^GOAL:[[:space:]]*//')"
+      [ -n "$guard_goal" ] || guard_goal="$(awk '/^##[[:space:]]+GOAL/{on=1;next} on && /^##/{exit} on && NF{print;exit}' "$f" 2>/dev/null)"
+      guard_goals="${guard_goals:-}
+$guard_id GOAL: $(printf '%.200s' "$guard_goal")"
+    fi
   done
-  if [ -n "$guard_task" ]; then
-    guard_id="$(basename "$guard_task" .md)"
-    guard_goal="$(grep -m 1 '^GOAL:' "$guard_task" 2>/dev/null | sed 's/^GOAL:[[:space:]]*//')"
-    [ -n "$guard_goal" ] || guard_goal="$(awk '/^##[[:space:]]+GOAL/{on=1;next} on && /^##/{exit} on && NF{print;exit}' "$guard_task" 2>/dev/null)"
-    echo "[Engine Guard] ACTIVE: $guard_id | Re-check before writing."
-    printf 'GOAL: %.240s\n' "$guard_goal"
-    echo "BOUNDARY: read engine/tasks/$guard_id.md before edits; PreToolUse enforces WRITE-SET/FORBIDDEN."
+  if [ "$guard_count" -gt 0 ]; then
+    echo "[Engine Guard] ACTIVE: $guard_ids | Re-check before writing."
+    printf '%s\n' "${guard_goals:-}" | sed '/^$/d'
+    echo "BOUNDARY: write only inside YOUR card's WRITE-SET; PreToolUse union-gates across all active cards."
   else
     echo "[Engine Guard] ACTIVE: none | v6.5+ ordinary writes are blocked; create/select a task card first."
   fi
-  echo "PARALLEL: workers share the task and write engine/workstreams/<task>/<agent>/; coordinator owns shared memory."
+  echo "PARALLEL: each session drives its own card; same-task workers write engine/workstreams/<task>/<agent>/; only the lease-holding coordinator writes shared memory."
   exit 0
 fi
 
@@ -88,23 +120,35 @@ if [ -f "$fed" ]; then
 fi
 
 # v6 S1: active 任务卡重注入——对抗漂移的核心锚点。
+# v6.12.0 (D-035): 多卡并行——注入全部 active 卡(≤3 张全文,超出仅列 header),
+# 并提示 union gating 边界(只在自己卡的 WRITE-SET 内写)。
 active_task=""
+active_count=0
+active_ids=""
 for f in "$ENGINE_DIR"/tasks/T-*.md; do
   [ -f "$f" ] || continue
-  if grep -q 'status:.*active' "$f" 2>/dev/null; then
-    active_task="$f"
-    break
+  case "$f" in *.spec.md) continue ;; esac
+  grep -q 'status:.*active' "$f" 2>/dev/null || continue
+  task_id="$(basename "$f" .md)"
+  active_count=$((active_count + 1))
+  active_ids="${active_ids:+$active_ids, }$task_id"
+  [ -n "$active_task" ] || active_task="$f"
+  if [ "$active_count" -le 3 ]; then
+    echo "──── 🎯 Active Task Card ($task_id) ────"
+    echo "⚠️ 所有项目路径(含 engine/*)必须在某张 active 卡的 WRITE-SET 内;本卡 FORBIDDEN 碰了即被拦截。"
+    cat "$f" 2>/dev/null || log_error "failed to read active task card: $f"
+    echo ""
+  else
+    echo "──── 🎯 Additional active card: $task_id (read engine/tasks/$task_id.md) ────"
+    echo ""
   fi
 done
-if [ -n "$active_task" ]; then
-  task_id="$(basename "$active_task" .md)"
-  echo "──── 🎯 Active Task Card ($task_id) ────"
-  echo "⚠️ 所有项目路径(含 engine/*)必须在 WRITE-SET 内;FORBIDDEN 碰了即被拦截。"
-  cat "$active_task" 2>/dev/null || log_error "failed to read active task card: $active_task"
-  echo ""
-else
+if [ "$active_count" -eq 0 ]; then
   echo "──── 🎯 Active Task Card: none ────"
   echo "contract-version 6.5+ blocks ordinary writes until a task card is active; finish with engine verify T-NNN."
+  echo ""
+elif [ "$active_count" -gt 1 ]; then
+  echo "⚠️ Multi-card parallel ($active_ids): work under ONE card; write only inside YOUR card's WRITE-SET (union gating)."
   echo ""
 fi
 
@@ -118,6 +162,9 @@ ms_disabled="${ENGINE_DISABLE_MULTI_SESSION:-}"
 if [ -z "$ms_disabled" ]; then
   LOCK="$ENGINE_DIR/.cache/session.lock"
   mkdir -p "$ENGINE_DIR/.cache/sessions" 2>/dev/null || true
+  # v6.12.0 (D-035): GC orphan session files older than 7 days(旧会话的
+  # role 旗标/心跳/账本不得阴魂不散地影响 resume 会话)。
+  find "$ENGINE_DIR/.cache/sessions" -maxdepth 1 -type f -mtime +7 -delete 2>/dev/null || true
   # 从 stdin JSON payload 读取 session_id(Claude Code 已传入)。
   # 防阻塞:仅当 stdin 非终端且数据可立即读时才 cat;否则跳过(避免测试/CI 无 stdin 时挂起)。
   # read -t 0 是 bash builtin,不消费任何字节,仅检测 stdin 是否有数据可读。
@@ -133,37 +180,63 @@ if [ -z "$ms_disabled" ]; then
   ms_started="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date 2>/dev/null || echo unknown)"
   ms_task=""
   [ -n "$active_task" ] && ms_task="$(basename "$active_task" .md)"
+  # key 算法与 Stop hook safe_id 完全一致(tr -c 'A-Za-z0-9._-' '_',截 64)。
+  ms_key="$(printf '%s-%s' "$ms_sid" "main" | tr -c 'A-Za-z0-9._-' '_' | cut -c1-64)"
+  [ -n "$ms_key" ] || ms_key="anon-main"
+  touch "$ENGINE_DIR/.cache/sessions/${ms_key}.hb" 2>/dev/null || true
 
-  # atomic 独占创建+写入 lock (POSIX noclobber,无 TOCTOU;创建+写入在子 shell 内一次完成,避免空文件窗口)
-  # P3 修复:原版 `( set -C; : > "$LOCK" )` 创建空文件后,`printf > "$LOCK"` 写入是两步分离,
-  # 中间窗口可能被另一进程检测到 LOCK 存在但空文件 → cut -d'|' -f1 返回空 → kill -0 "" 失败 →
-  # 误判"lock holder 已退出" → 接管 → 两个协调者。新版用 printf > "$LOCK" 在 noclobber 子 shell 内
-  # 一次性创建+写入,无空文件窗口。
+  # v6.12.0 (D-035) RC-3 fix:lock 内 pid 是 hook shell 的瞬时 pid(写完即死),
+  # kill -0 恒判 stale → 人人接管 → 保护空转。液性改为租约:lock mtime 或持锁
+  # 会话 .hb 心跳 mtime 在 ENGINE_SESSION_TTL_MIN(默认 120 分钟)内即算活。
+  # 心跳由 PreToolUse(每次工具调用)与 UserPromptSubmit guard(每轮)续租。
+  ms_mtime_epoch() {
+    stat -c %Y "$1" 2>/dev/null || stat -f %m "$1" 2>/dev/null || printf ''
+  }
+  ms_lease_fresh() {
+    local ttl_min="${ENGINE_SESSION_TTL_MIN:-120}" lock_sid hb newest m now age
+    [ -f "$LOCK" ] || return 1
+    case "$ttl_min" in ''|*[!0-9]*) ttl_min=120 ;; esac
+    newest="$(ms_mtime_epoch "$LOCK")"
+    lock_sid="$(cut -d'|' -f2 "$LOCK" 2>/dev/null | head -1)"
+    if [ -n "$lock_sid" ]; then
+      hb="$ENGINE_DIR/.cache/sessions/$(printf '%s-%s' "$lock_sid" "main" | tr -c 'A-Za-z0-9._-' '_' | cut -c1-64).hb"
+      m="$(ms_mtime_epoch "$hb")"
+      if [ -n "$m" ]; then
+        if [ -z "$newest" ] || [ "$m" -gt "$newest" ] 2>/dev/null; then newest="$m"; fi
+      fi
+    fi
+    [ -n "$newest" ] || return 1
+    now="$(date +%s 2>/dev/null)" || return 0
+    age=$((now - newest))
+    [ "$age" -le $((ttl_min * 60)) ]
+  }
+
+  # atomic 独占创建+写入 lock(POSIX noclobber,无 TOCTOU;创建+写入一次完成,无空文件窗口)
   if ( set -C; printf '%s|%s|%s|%s|%s\n' "$ms_pid" "$ms_sid" "coordinator" "$ms_started" "$ms_task" > "$LOCK" ) 2>/dev/null; then
-    echo "──── 👑 Coordinator (multi-session lock acquired) ────"
-    echo "本会话为协调者:可写共享三件套(CONTEXT/HANDOFF/ENGINE_MAP)。其他会话将降级 worker。"
+    rm -f "$ENGINE_DIR/.cache/sessions/${ms_key}.role=worker" 2>/dev/null || true
+    echo "──── 👑 Coordinator (multi-session lease acquired) ────"
+    echo "本会话为协调者:可写共享三件套(CONTEXT/HANDOFF/ENGINE_MAP)。并行会话请各持一张任务卡。"
   else
-    # lock 已存在 → 检查 pid 存活(双信号第 1 步;第 2 步 StartTime 比对由 ps 调用,跨平台固有边界)
-    existing="$(cat "$LOCK" 2>/dev/null || true)"
-    lock_pid="$(printf '%s' "$existing" | cut -d'|' -f1)"
-    lock_alive=0
-    [ -n "$lock_pid" ] && kill -0 "$lock_pid" 2>/dev/null && lock_alive=1
-    if [ "$lock_alive" -eq 1 ]; then
-      # 降级 worker:写 .cache/sessions/<key>.role=worker 标志(PreToolUse 双信号第 2 信号)
-      # key 用 <sid>-main 与 Stop hook 的 session_key 计算一致(顶层会话 agent_id 视为 main);
-      # 算法与 Stop hook safe_id 完全相同(tr -c 'A-Za-z0-9._-' '_' 保留 . _ - 字符),
-      # 避免 session_id 含 . 时 worker_key 与 session_key 不匹配导致双信号失效(P2 修复)。
-      worker_key="$(printf '%s-%s' "$ms_sid" "main" | tr -c 'A-Za-z0-9._-' '_' | cut -c1-64)"
-      [ -n "$worker_key" ] || worker_key="anon-main"
-      : > "$ENGINE_DIR/.cache/sessions/${worker_key}.role=worker" 2>/dev/null || true
-      echo "──── 🔧 Worker (multi-session lock held by pid=$lock_pid) ────"
-      echo "本会话降级为 worker:只能写 engine/workstreams/<task>/<sid>/ 分片。跑 'engine workstream T-NNN <sid> --kind=session' 启动。"
-    else
-      # lock holder 已退出 → 接管协调者(覆盖 lock + 写 tombstone 通知其他会话)
+    ms_lock_sid="$(cut -d'|' -f2 "$LOCK" 2>/dev/null | head -1)"
+    if [ "$ms_lock_sid" = "$ms_sid" ]; then
+      # 同一会话 resume/clear/compact 重入:重盖自己的租约,清掉残留 worker 旗标(RC-3b)。
       printf '%s|%s|%s|%s|%s\n' "$ms_pid" "$ms_sid" "coordinator" "$ms_started" "$ms_task" > "$LOCK" 2>/dev/null || true
-      printf '%s|%s|%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date)" "$lock_pid" "stale-recovered" > "$ENGINE_DIR/.cache/session.tombstone" 2>/dev/null || true
-      echo "──── 👑 Coordinator (recovered from stale lock pid=$lock_pid) ────"
-      echo "本会话接管协调者(原 lock holder pid=$lock_pid 已退出)。"
+      rm -f "$ENGINE_DIR/.cache/sessions/${ms_key}.role=worker" 2>/dev/null || true
+      echo "──── 👑 Coordinator (own lease re-acquired) ────"
+      echo "本会话恢复协调者租约(resume/compact 重入)。"
+    elif ms_lease_fresh; then
+      # 租约新鲜 → 降级 worker:写 .role=worker 旗标(PreToolUse 双信号第 2 信号)。
+      : > "$ENGINE_DIR/.cache/sessions/${ms_key}.role=worker" 2>/dev/null || true
+      echo "──── 🔧 Worker (lease held by another live session) ────"
+      echo "本会话降级为 worker:激活/新建自己的任务卡照常干活(union gating);共享三件套由协调者写。"
+      echo "同卡协作时跑 'engine workstream T-NNN <sid> --kind=session' 写自己的分片。"
+    else
+      # 租约超时 → 接管协调者(覆盖 lock + tombstone 通知 + 清自身旗标)。
+      printf '%s|%s|%s|%s|%s\n' "$ms_pid" "$ms_sid" "coordinator" "$ms_started" "$ms_task" > "$LOCK" 2>/dev/null || true
+      printf '%s|%s|%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date)" "${ms_lock_sid:-unknown}" "stale-recovered" > "$ENGINE_DIR/.cache/session.tombstone" 2>/dev/null || true
+      rm -f "$ENGINE_DIR/.cache/sessions/${ms_key}.role=worker" 2>/dev/null || true
+      echo "──── 👑 Coordinator (recovered from stale lease) ────"
+      echo "本会话接管协调者(原持锁会话心跳超时 TTL=${ENGINE_SESSION_TTL_MIN:-120}min)。"
     fi
   fi
   echo ""

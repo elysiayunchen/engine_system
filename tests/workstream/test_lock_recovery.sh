@@ -49,20 +49,29 @@ EOF
 
 echo "=== lock recovery (bash) ==="
 
-# L1: Stale lock (pid dead — use a pid guaranteed not to exist, e.g. 999999) → SessionStart auto-recovers.
+# L1: Stale lease (v6.12.0 D-035: staleness = lock/heartbeat mtime past TTL, not
+# pid death - the recorded pid is the transient hook shell and is always dead).
+# A dead pid with a FRESH mtime must NOT be recovered; a TTL-old lock must be.
+command -v perl >/dev/null 2>&1 || { echo "SKIP  lock_recovery (perl not available)"; exit 0; }
+backdate() { perl -e 'my $t=time-$ARGV[0]; utime $t,$t,$ARGV[1] or exit 1' "$1" "$2"; }
 r="$(new_fixture)"
 lock_file="$r/engine/.cache/session.lock"
 tombstone_file="$r/engine/.cache/session.tombstone"
 started="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date)"
-# Use a definitely-dead pid (very high number, no process can have this on test machines)
 printf '999999|stale-coordinator|coordinator|%s|T-001\n' "$started" > "$lock_file"
 
+# L1a: fresh mtime (dead pid) -> second session demoted, NOT recovered
 payload='{"session_id":"recovery-session"}'
 out="$(printf '%s' "$payload" | CLAUDE_PROJECT_DIR="$r" bash "$START_SH" 2>/dev/null)"
-if printf '%s' "$out" | grep -q 'recovered from stale'; then ok "L1 stale lock auto-recovered message"; else bad "L1 stale lock auto-recovered message -> out=${out:0:120}"; fi
-if [ -f "$tombstone_file" ]; then ok "L1 tombstone written"; else bad "L1 tombstone written"; fi
+if printf '%s' "$out" | grep -q 'Worker (lease held'; then ok "L1a fresh-mtime lock demotes (pid irrelevant)"; else bad "L1a -> $(printf '%s' "$out" | grep -E 'Coordinator|Worker' | head -1)"; fi
+
+# L1b: TTL-old lock -> auto-recovered + tombstone
+backdate 10800 "$lock_file"
+out="$(printf '%s' "$payload" | CLAUDE_PROJECT_DIR="$r" bash "$START_SH" 2>/dev/null)"
+if printf '%s' "$out" | grep -q 'recovered from stale'; then ok "L1b stale lease auto-recovered message"; else bad "L1b stale lease auto-recovered message -> out=${out:0:120}"; fi
+if [ -f "$tombstone_file" ]; then ok "L1b tombstone written"; else bad "L1b tombstone written"; fi
 lock_content="$(cat "$lock_file")"
-if printf '%s' "$lock_content" | grep -q 'recovery-session'; then ok "L1 lock now held by recovery-session"; else bad "L1 lock now held by recovery-session"; fi
+if printf '%s' "$lock_content" | grep -q 'recovery-session'; then ok "L1b lock now held by recovery-session"; else bad "L1b lock now held by recovery-session"; fi
 
 # L2: engine assume-coordinator (no --force) refuses when lock held by live pid.
 r2="$(new_fixture)"
@@ -94,6 +103,17 @@ if [ -f "$tombstone3" ]; then ok "L3 tombstone written"; else bad "L3 tombstone 
 if grep -q 'forced-replaced' "$tombstone3" 2>/dev/null; then ok "L3 tombstone reason=forced-replaced"; else bad "L3 tombstone reason=forced-replaced"; fi
 lock_after3="$(cat "$lock_file3")"
 if printf '%s' "$lock_after3" | grep -qv 'old-coordinator'; then ok "L3 lock overwritten (old-coordinator gone)"; else bad "L3 lock overwritten"; fi
+
+# L3b: assume-coordinator WITHOUT --force succeeds on a TTL-stale lease (v6.12.0:
+# crash recovery is the no-force case; stale-recovered tombstone).
+r3b="$(new_fixture)"
+lock3b="$r3b/engine/.cache/session.lock"
+printf '999999|gone-coordinator|coordinator|2026-01-01T00:00:00Z|T-001\n' > "$lock3b"
+backdate 10800 "$lock3b"
+rc3b=0
+out3b="$(cd "$r3b" && bash "$ENGINE_BIN" assume-coordinator 2>&1)" || rc3b=$?
+if [ "$rc3b" -eq 0 ]; then ok "L3b no-force takeover of stale lease"; else bad "L3b -> exit=$rc3b out=${out3b:0:120}"; fi
+if grep -q 'stale-recovered' "$r3b/engine/.cache/session.tombstone" 2>/dev/null; then ok "L3b tombstone reason=stale-recovered"; else bad "L3b tombstone reason"; fi
 
 # L4: engine assume-coordinator on no-lock → fresh coordinator + clears stale tombstone.
 r4="$(new_fixture)"

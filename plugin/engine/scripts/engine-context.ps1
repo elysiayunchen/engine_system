@@ -80,29 +80,44 @@ if (Test-Path $FedFile) {
   Write-Output ""
 }
 
-# Active task card.
+# Active task cards.
+# v6.12.0 (D-035): multiple active cards may run in parallel (one per session);
+# show up to 3 in full, headers beyond.
 $tasksDir = Join-Path $EngineDir "tasks"
 $activeTask = $null
 $activeTaskId = $null
+$activeCount = 0
+$activeIds = @()
 if (Test-Path $tasksDir) {
-  $taskFiles = Get-ChildItem -Path $tasksDir -File -Filter "T-*.md" -ErrorAction SilentlyContinue | Sort-Object Name
+  $taskFiles = Get-ChildItem -Path $tasksDir -File -Filter "T-*.md" -ErrorAction SilentlyContinue |
+    Where-Object { $_.Name -notmatch '\.spec\.md$' } | Sort-Object Name
   foreach ($tf in $taskFiles) {
     $content = Get-Content -Raw -Path $tf.FullName -Encoding UTF8 -ErrorAction SilentlyContinue
     if ($content -match 'status:\s*active') {
-      $activeTask = $tf.FullName
-      $activeTaskId = $tf.BaseName
-      break
+      $activeCount++
+      $activeIds += $tf.BaseName
+      if (-not $activeTask) {
+        $activeTask = $tf.FullName
+        $activeTaskId = $tf.BaseName
+      }
+      if ($activeCount -le 3) {
+        Write-Output "---- Active Task Card ($($tf.BaseName)) ----"
+        Write-Output "Every project path, including engine/*, MUST be covered by some active card's WRITE-SET (union gating) and outside that card's FORBIDDEN."
+        Get-Content $tf.FullName | ForEach-Object { Write-Output $_ }
+        Write-Output ""
+      } else {
+        Write-Output "---- Additional active card: $($tf.BaseName) (read engine/tasks/$($tf.BaseName).md) ----"
+        Write-Output ""
+      }
     }
   }
 }
-if ($activeTask) {
-  Write-Output "---- Active Task Card ($activeTaskId) ----"
-  Write-Output "Every project path, including engine/*, MUST be within WRITE-SET and outside FORBIDDEN."
-  Get-Content $activeTask | ForEach-Object { Write-Output $_ }
-  Write-Output ""
-} else {
+if ($activeCount -eq 0) {
   Write-Output "---- Active Task Card: none ----"
   Write-Output "contract-version 6.5+ blocks ordinary writes until engine/tasks/T-NNN.md is created or activated. Completion requires: engine verify T-NNN."
+  Write-Output ""
+} elseif ($activeCount -gt 1) {
+  Write-Output "Multi-card parallel ($($activeIds -join ', ')): work under ONE card; write only inside YOUR card's WRITE-SET."
   Write-Output ""
 }
 

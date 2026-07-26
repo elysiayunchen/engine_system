@@ -1,12 +1,15 @@
 #!/bin/sh
 # Engine System - agent-neutral commit gate.
 # 1. Enforce task WRITE-SET/FORBIDDEN for every staged project path, including engine files.
+#    v6.12.0 (D-035): union gating across ALL active cards - a path passes when at
+#    least one governing card lists it in WRITE-SET and not in that card's FORBIDDEN.
 # 2. Require project-memory write-back for code changes.
-# 3. Require approved decisions for protected paths.
+# 3. Require approved decisions for protected paths (per covering card).
 # 4. Warn when root anchors gain unsourced rules.
 
 ROOT="${CLAUDE_PROJECT_DIR:-$PWD}"
 ENGINE_DIR="$ROOT/engine"
+TAB="$(printf '\t')"
 
 staged="$(git diff --cached --name-only -z 2>/dev/null | tr '\0' '\n')"
 [ -n "$staged" ] || exit 0
@@ -82,7 +85,11 @@ match_any_glob() {
   set -f
   IFS=','
   for _p in $_pats; do
-    _p="$(printf '%s' "$_p" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+    # Trim via parameter expansion - no subshells. A sed pipe here costs two
+    # process spawns per glob token, which on Windows turns a large commit
+    # (many staged files x many WRITE-SET entries) into minutes of hang.
+    _p="${_p#"${_p%%[![:space:]]*}"}"
+    _p="${_p%"${_p##*[![:space:]]}"}"
     [ -n "$_p" ] || continue
     case "$_path" in $_p) IFS="$_old"; set +f; return 0 ;; esac
   done
@@ -91,27 +98,82 @@ match_any_glob() {
   return 1
 }
 
-# Prefer the active card. A staged card being closed remains the governing
-# boundary. Legacy (<6.5/no marker) projects without an active/closing card
-# fail open (no task-card governance); v6.5+ projects require an active card.
-# (P037 fix, T-044/D-032: removed legacy fallback that picked lex-largest
-# done card — done cards are cold history and must not govern new commits.)
-task_file=""
-for f in "$ENGINE_DIR"/tasks/T-*.md; do
-  [ -f "$f" ] || continue
-  if grep -q 'status:.*active' "$f" 2>/dev/null; then task_file="$f"; break; fi
+# v6.12.0 (D-035) RC-1 fix: every active card governs, plus every staged card
+# being closed (status done in the index). The old single-card pick (lex-first
+# active) judged other sessions' files against the wrong card. (P037 heritage,
+# T-044/D-032: done cards on disk stay cold and never govern.)
+governing_files=""
+for _f in "$ENGINE_DIR"/tasks/T-*.md; do
+  [ -f "$_f" ] || continue
+  case "$_f" in *.spec.md) continue ;; esac
+  grep -q 'status:.*active' "$_f" 2>/dev/null || continue
+  governing_files="${governing_files}${governing_files:+
+}$_f"
 done
-if [ -z "$task_file" ]; then
-  closing_task_path="$(printf '%s\n' "$staged" | grep -E '^engine/tasks/T-[0-9]+\.md$' | sort -r | while IFS= read -r _task_path; do
-    if git -C "$ROOT" show ":$_task_path" 2>/dev/null | grep -q 'status:.*done'; then
-      printf '%s\n' "$_task_path"
-      break
-    fi
-  done)"
-  [ -n "$closing_task_path" ] && task_file="$ROOT/$closing_task_path"
+closing_paths="$(printf '%s\n' "$staged" | grep -E '^engine/tasks/T-[0-9]+\.md$' | while IFS= read -r _task_path; do
+  if git -C "$ROOT" show ":$_task_path" 2>/dev/null | grep -q 'status:.*done'; then
+    printf '%s\n' "$ROOT/$_task_path"
+  fi
+done)"
+if [ -n "$closing_paths" ]; then
+  governing_files="${governing_files}${governing_files:+
+}$closing_paths"
 fi
 
-if [ -z "$task_file" ] && [ "$strict_task_mode" -eq 1 ]; then
+# Pre-parse each governing card once: <file>TAB<id>TAB<write-set>TAB<forbidden>
+card_meta=""
+card_id_list=""
+old_ifs="$IFS"; IFS='
+'
+for _f in $governing_files; do
+  [ -n "$_f" ] || continue
+  IFS="$old_ifs"
+  _id="$(basename "$_f" .md)"
+  _ws="$(parse_task_patterns WRITE-SET "$_f")"
+  _fb="$(parse_task_patterns FORBIDDEN "$_f")"
+  card_meta="${card_meta}${card_meta:+
+}${_f}${TAB}${_id}${TAB}${_ws}${TAB}${_fb}"
+  card_id_list="${card_id_list:+$card_id_list, }$_id"
+  IFS='
+'
+done
+IFS="$old_ifs"
+
+# Union check: pass when at least one card's WRITE-SET covers the path and that
+# same card's FORBIDDEN does not. One card's FORBIDDEN never vetoes another card.
+union_allows() {
+  _upath="$1"
+  [ -n "$card_meta" ] || return 1
+  while IFS="$TAB" read -r _cf _cid _cws _cfb; do
+    [ -n "$_cid" ] || continue
+    [ -n "$_cws" ] || continue
+    if [ -n "$_cfb" ] && match_any_glob "$_upath" "$_cfb"; then continue; fi
+    if match_any_glob "$_upath" "$_cws"; then return 0; fi
+  done <<UNION_EOF
+$card_meta
+UNION_EOF
+  return 1
+}
+
+# Print the decision id of the first card covering the path (for protected paths).
+covering_decision() {
+  _dpath="$1"
+  [ -n "$card_meta" ] || return 1
+  while IFS="$TAB" read -r _cf _cid _cws _cfb; do
+    [ -n "$_cid" ] || continue
+    [ -n "$_cws" ] || continue
+    if [ -n "$_cfb" ] && match_any_glob "$_dpath" "$_cfb"; then continue; fi
+    if match_any_glob "$_dpath" "$_cws"; then
+      grep 'decision:' "$_cf" 2>/dev/null | head -1 | sed 's/.*decision:[[:space:]]*//' | sed 's/[[:space:]|].*//'
+      return 0
+    fi
+  done <<COVER_EOF
+$card_meta
+COVER_EOF
+  return 1
+}
+
+if [ -z "$card_meta" ] && [ "$strict_task_mode" -eq 1 ]; then
   old_ifs="$IFS"; IFS='
 '
   for file in $staged; do
@@ -126,26 +188,20 @@ if [ -z "$task_file" ] && [ "$strict_task_mode" -eq 1 ]; then
   IFS="$old_ifs"
 fi
 
-if [ -n "$task_file" ]; then
-  task_id="$(basename "$task_file" .md)"
-  write_set="$(parse_task_patterns WRITE-SET "$task_file")"
-  forbidden="$(parse_task_patterns FORBIDDEN "$task_file")"
-  if [ -z "$write_set" ]; then
-    printf '\n[Engine System] %s has no readable WRITE-SET; commit blocked.\n\n' "$task_id" >&2
-    exit 1
-  fi
+if [ -n "$card_meta" ]; then
   old_ifs="$IFS"; IFS='
 '
   for file in $staged; do
     [ -n "$file" ] || continue
     case "$file" in engine/.cache/*|.engine/*) continue ;; esac
-    if [ -n "$forbidden" ] && match_any_glob "$file" "$forbidden"; then
-      printf '\n[Engine System] %s is FORBIDDEN by %s; commit blocked.\n\n' "$file" "$task_id" >&2
-      IFS="$old_ifs"
-      exit 1
-    fi
-    if ! match_any_glob "$file" "$write_set"; then
-      printf '\n[Engine System] %s is outside %s WRITE-SET; commit blocked.\nWRITE-SET: %s\n\n' "$file" "$task_id" "$write_set" >&2
+    # Bootstrap channel (D-035): task/decision card files commit freely; the
+    # protected-path check below still applies its own per-card rules.
+    is_task_bootstrap_path "$file" && continue
+    # Workstream shards are the sanctioned worker write channel.
+    case "$file" in engine/workstreams/*/*/*) continue ;; esac
+    if ! union_allows "$file"; then
+      printf '\n[Engine System] %s is outside the WRITE-SET of every governing card (%s); commit blocked.\n' "$file" "$card_id_list" >&2
+      printf 'Add the path to YOUR card WRITE-SET (outside its FORBIDDEN), or split the commit per card.\n\n' >&2
       IFS="$old_ifs"
       exit 1
     fi
@@ -185,10 +241,9 @@ if [ "$strict_task_mode" -eq 1 ]; then
   IFS="$old_ifs"
 fi
 
-# v6.11.1 (D-029/T-038) AC-4: B 档 pre-commit 兜底——ENGINE_WORKER=1 时拒绝共享三件套 staged
-# B 档适配器(Codex/Cursor/Aider)无 SessionStart hook 自动写 .role=worker 标志,
-# 用户显式设 ENGINE_WORKER=1 环境变量后,pre-commit 拒绝共享三件套 staged。
-# 与 C 档 PreToolUse 双信号机器强制互补。
+# v6.11.1 (D-029/T-038) AC-4: B tier pre-commit backstop - with ENGINE_WORKER=1
+# set, refuse staging the shared memory trio (Codex/Cursor/Aider have no
+# SessionStart hook to write the .role=worker flag; the user sets the env var).
 if [ "${ENGINE_WORKER:-}" = "1" ]; then
   shared_staged="$(printf '%s\n' "$staged" | grep -E '^engine/(CONTEXT|HANDOFF|ENGINE_MAP)\.md$' | head -1)"
   if [ -n "$shared_staged" ]; then
@@ -219,37 +274,49 @@ else
   protected=""
 fi
 
-task_decision=""
-if [ -n "$task_file" ]; then
-  task_decision="$(grep 'decision:' "$task_file" 2>/dev/null | head -1 | sed 's/.*decision:[[:space:]]*//' | sed 's/[[:space:]|].*//')"
-fi
+# True when engine/tasks/T-NNN is active in the worktree or staged as done.
+card_owns_itself() {
+  _cid="$1"
+  _card="$ENGINE_DIR/tasks/$_cid.md"
+  if [ -f "$_card" ] && grep -q 'status:.*active' "$_card" 2>/dev/null; then return 0; fi
+  git -C "$ROOT" show ":engine/tasks/$_cid.md" 2>/dev/null | grep -q 'status:.*done' && return 0
+  return 1
+}
 
 if [ -n "$protected" ]; then
   # protected is newline-separated; normalize to comma-separated for match_any_glob.
   protected_csv="$(printf '%s\n' "$protected" | tr '\n' ',' | sed 's/,$//')"
-  # T-041 (v6.11.3): active/closing 任务卡自身豁免 protected 检查。
-  # protected_paths 门禁目的是防跨任务卡改动,不是阻止任务卡改自己的元数据。
-  # 任务卡 T-NNN 改 .md / .spec.md / 子目录(progress 等) / 归档 progress 时豁免;
-  # 其他 protected 路径(ENGINE_FILE_SYSTEM_v5.md / contract/src/** / plugin/manifest.json 等)
-  # 仍需 decision scope 覆盖。修复 T-039/T-040 撞的门禁死循环。
-  exempt_id=""
-  if [ -n "$task_file" ]; then
-    exempt_id="$(basename "$task_file" .md)"
-  fi
+  # v6.12.0 (D-035) RC-5 fix: exemption is per card ("every card exempts its own
+  # files"), replacing the single lex-first exempt_id (T-041) that blocked a
+  # lex-later card from committing itself while another card was active.
+  # Decision cards are the bootstrap channel and commit freely; tampering is
+  # guarded by git history + architect review, not by a write lock.
   old_ifs="$IFS"; IFS='
 '
   for file in $staged; do
     [ -n "$file" ] || continue
     match_any_glob "$file" "$protected_csv" || continue
-    # T-041: 任务卡 T-NNN 自身及其衍生文件豁免 protected 检查
-    if [ -n "$exempt_id" ]; then
-      case "$file" in
-        engine/tasks/$exempt_id.md|engine/tasks/$exempt_id.spec.md|engine/tasks/$exempt_id/*|engine/archive/tasks/$exempt_id-progress.md)
-          continue ;;
-      esac
-    fi
-    if [ -z "$task_decision" ]; then
-      violation="$file (no task decision)"
+    case "$file" in
+      engine/decisions/D-*.md) continue ;;
+      engine/tasks/*)
+        _base="${file#engine/tasks/}"
+        _tid="${_base%%/*}"
+        _tid="${_tid%.spec.md}"
+        _tid="${_tid%.md}"
+        case "$_tid" in
+          T-*) card_owns_itself "$_tid" && continue ;;
+        esac
+        ;;
+      engine/archive/tasks/*-progress.md)
+        _tid="$(basename "$file" | sed 's/-progress\.md$//')"
+        case "$_tid" in
+          T-*) card_owns_itself "$_tid" && continue ;;
+        esac
+        ;;
+    esac
+    task_decision="$(covering_decision "$file" || true)"
+    if [ -z "$task_decision" ] || [ "$task_decision" = "none" ]; then
+      violation="$file (no covering card with a decision)"
     elif [ ! -f "$ENGINE_DIR/decisions/$task_decision.md" ]; then
       violation="$file (decision $task_decision missing)"
     elif ! grep -q 'status.*approved' "$ENGINE_DIR/decisions/$task_decision.md" 2>/dev/null; then

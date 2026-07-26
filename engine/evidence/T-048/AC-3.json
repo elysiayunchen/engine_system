@@ -1,0 +1,1 @@
+{"ac":"AC-3","verify":"bash tests/multi-session/test_lock_liveness.sh","status":"pass","exit":0,"fingerprint":"sha256:63cb7a28b896783221fc32b80f379c8ffc3bfacb78de5bd565b5dd0381ae7167","timestamp":"2026-07-26T20:10:21Z"}

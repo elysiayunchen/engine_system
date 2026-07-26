@@ -62,10 +62,14 @@ EOF
 
 echo "=== PreToolUse dual-signal (bash) ==="
 
-# D1: Top-level session (no agent_id) + .role=worker marker exists → MUST block shared write.
+# D1: Top-level session (no agent_id) + .role=worker marker + a FRESH lease held
+# by another session → MUST block shared write. (v6.12.0 D-035: a worker flag
+# with no live lease self-heals into coordinator instead - see
+# tests/multi-session/test_shared_write_lease.sh W1/W4.)
 r="$(new_fixture)"
 # Create .role=worker marker for s-top-main (matches SessionStart worker_key algo: <sid>-main, safe_id'd)
 : > "$r/engine/.cache/sessions/s-top-main.role=worker"
+printf '111|other-session|coordinator|2026-01-01T00:00:00Z|T-001\n' > "$r/engine/.cache/session.lock"
 payload='{"session_id":"s-top","tool_name":"Edit","tool_input":{"file_path":"engine/CONTEXT.md"}}'
 out="$(printf '%s' "$payload" | CLAUDE_PROJECT_DIR="$r" bash "$STOP_SH" --pre-tool-use 2>/dev/null)"
 got="$(classify "$out")"

@@ -54,21 +54,30 @@ AC: AC-1 test | verify: true
 
   Write-Output "=== lock recovery (ps1) ==="
 
-  # L1: Stale lock (pid dead, use 999999) -> SessionStart auto-recovers.
+  # L1: Stale lease (v6.12.0 D-035: staleness = lock/heartbeat mtime past TTL,
+  # not pid death - the recorded pid is the transient hook shell, always dead).
   $r = New-Fixture
   $lockFile = Join-Path $r "engine\.cache\session.lock"
   $tombstoneFile = Join-Path $r "engine\.cache\session.tombstone"
   $started = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
   Set-Content -Path $lockFile -Value "999999|stale-coordinator|coordinator|$started|T-001" -NoNewline
 
+  # L1a: fresh mtime (dead pid) -> second session demoted, NOT recovered
   $env:CLAUDE_PROJECT_DIR = $r
   $payload = '{"session_id":"recovery-session"}'
   $out = $payload | & pwsh -NoProfile -File $StartPS1 2>$null
   $env:CLAUDE_PROJECT_DIR = ""
-  if ($out -match 'recovered from stale') { Ok "L1 stale lock auto-recovered message" } else { Bad "L1 stale lock auto-recovered message" }
-  if (Test-Path $tombstoneFile) { Ok "L1 tombstone written" } else { Bad "L1 tombstone written" }
+  if ($out -match 'Worker \(lease held') { Ok "L1a fresh-mtime lock demotes (pid irrelevant)" } else { Bad "L1a fresh-mtime lock demotes" }
+
+  # L1b: TTL-old lock -> auto-recovered + tombstone
+  (Get-Item $lockFile).LastWriteTime = (Get-Date).AddHours(-3)
+  $env:CLAUDE_PROJECT_DIR = $r
+  $out = $payload | & pwsh -NoProfile -File $StartPS1 2>$null
+  $env:CLAUDE_PROJECT_DIR = ""
+  if ($out -match 'recovered from stale') { Ok "L1b stale lease auto-recovered message" } else { Bad "L1b stale lease auto-recovered message" }
+  if (Test-Path $tombstoneFile) { Ok "L1b tombstone written" } else { Bad "L1b tombstone written" }
   $lockContent = Get-Content -Raw -Path $lockFile
-  if ($lockContent -match 'recovery-session') { Ok "L1 lock now held by recovery-session" } else { Bad "L1 lock now held by recovery-session" }
+  if ($lockContent -match 'recovery-session') { Ok "L1b lock now held by recovery-session" } else { Bad "L1b lock now held by recovery-session" }
 
   # L2: engine assume-coordinator (no --force) refuses when lock held by live pid.
   $r2 = New-Fixture

@@ -1365,6 +1365,56 @@ function Test-MultiSessionIsolation {
   }
 }
 
+# v6.12.0 (D-035) multi-card WRITE-SET overlap check (WARN level).
+# Union gating allows several active cards in parallel; when two cards declare
+# the SAME WRITE-SET entry (string-equal), both sessions may write it and the
+# race falls back to git. Shared singletons and engine/tasks/* own-card paths
+# are expected overlaps and excluded.
+function Test-MultiCardWritesetOverlap {
+  $tasksDir = Join-Path $engineDir 'tasks'
+  if (-not (Test-Path $tasksDir)) { return }
+  $activeCards = @()
+  Get-ChildItem -Path $tasksDir -Filter 'T-*.md' -File -ErrorAction SilentlyContinue |
+    Where-Object { $_.Name -notmatch '\.spec\.md$' } | ForEach-Object {
+      $c = Get-Content -Raw -Path $_.FullName -Encoding UTF8 -ErrorAction SilentlyContinue
+      if ($c -match 'status:\s*[^|]*active') { $activeCards += ,@($_.BaseName, $c) }
+    }
+  if ($activeCards.Count -lt 2) { return }
+  $seen = @{}
+  $dups = @{}
+  foreach ($pair in $activeCards) {
+    $cardId = $pair[0]; $content = $pair[1]
+    $entries = @()
+    $inlineMatch = [regex]::Match($content, '(?m)^WRITE-SET:\s*(.+)$')
+    if ($inlineMatch.Success) {
+      $entries = $inlineMatch.Groups[1].Value -split ',' | ForEach-Object { $_.Trim() }
+    } else {
+      $inSection = $false
+      foreach ($line in ($content -split "`n")) {
+        $l = $line.TrimEnd("`r")
+        if ($l -match '^##\s+WRITE-SET\s*$') { $inSection = $true; continue }
+        if ($inSection -and $l -match '^##\s+') { break }
+        if ($inSection -and $l -match '^-\s+(.+)$') { $entries += $Matches[1].Trim() }
+      }
+    }
+    foreach ($e in $entries) {
+      if (-not $e) { continue }
+      if ($e -match '^engine/(CONTEXT|HANDOFF|ENGINE_MAP|SYSTEM|REPO_GUIDE|PITFALLS|SPRINT|ROADMAP)\.md$') { continue }
+      if ($e -match '^engine/tasks/') { continue }
+      if ($seen.ContainsKey($e) -and $seen[$e] -ne $cardId) {
+        $dups[$e] = "$($seen[$e])+$cardId"
+      } else {
+        $seen[$e] = $cardId
+      }
+    }
+  }
+  if ($dups.Count -gt 0) {
+    $list = ($dups.GetEnumerator() | ForEach-Object { "$($_.Key) ($($_.Value))" }) -join '; '
+    Write-Warn "multi-card WRITE-SET overlap: $list"
+    Write-Host "  human: two active task cards declare the same WRITE-SET entry. Union gating lets both sessions write it, so concurrent edits race at the git layer. Narrow one card's WRITE-SET, or accept the risk knowingly."
+  }
+}
+
 # v6.11.0 (D-029/T-036) AC-7: workstream orphan check (WARN level).
 # For each engine/workstreams/<task>/<worker>/ shard, check if a matching
 # .cache/sessions/<worker_key>.meta file exists. If not, WARN (worker may
@@ -1492,6 +1542,7 @@ Test-TaskCardDoneEvidence
 Test-EngineVersion
 Test-LegacyDataFormat
 Test-MultiSessionIsolation
+Test-MultiCardWritesetOverlap
 Test-WorkstreamOrphan
 
 # ── Project-custom checks (engine/checks/) ──

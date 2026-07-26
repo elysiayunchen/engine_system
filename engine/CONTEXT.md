@@ -7,8 +7,8 @@
 | 维度 | 状态 |
 |------|------|
 | 构建 | ✅ 正常（纯 markdown + shell 脚本，无构建步骤） |
-| 上次完成 | **v6.12.0(T-048 多任务卡并行 union gating + 会话租约液性修复,D-035)**:根治「激活一张任务卡后其他 agent 被全面拦截」。六项根因:三层门禁单卡假设(lex-first 卡治理一切)/ bootstrap 豁免仅零卡分支 / protected 单 exempt_id / lock 记 hook shell 瞬时 pid(kill -0 恒判死 → 人人自封 coordinator,v6.11.0 保护实证空转)/ .role=worker 旗标无清理(resume 永久 worker 死锁)/ worker 分片钉死 lex-first 卡。修复:union gating(路径 ∈ 任一 active 卡 WRITE-SET 且 ∉ 该卡 FORBIDDEN)+ 任务/决策卡 bootstrap 恒豁免 + protected 逐卡豁免 + 租约液性(lock/hb mtime TTL 默认 120min,PreToolUse/guard 续租)+ 写时验租约(free/stale 原子抢占含自愈升格)+ 旗标全生命周期清理 + worker 面收窄(自己卡的 progress/checkpoint 直写)+ assume-coordinator stale 免 --force + 展示层多卡化 + doctor 交集 WARN。契约净减 14 行(2896/2940);migrator → 6.12.0。 |
-| 进行中 | T-048 收尾(verify + 提交)。下一步:真实双会话并行试用(两实例各持一张卡),观察 TTL 手感与 overlap WARN 噪声;可选 tag v6.12.0。 |
+| 上次完成 | **v6.12.1(T-049 issue #11 门禁静默失效家族 9 项修复)**:verify 全 SKIP 改 exit 3 显式 parse-failure(A-1)+ 首分隔符锚定兼容 `\| verify:`/`→ verify:` 双拼法(A-2)+ AC id 字母分组(A-3);hook/doctor 统一三格式 WRITE-SET 解析,frontmatter 卡不再锁仓(B-1/B-2);裸目录条目匹配子文件(B-3);status 检测全站点行首锚定 + 同卡 active+done 冲突 FAIL(C-1,本仓 T-049 卡自身曾复现自锁,实证);migrator contract-version 改 engine/VERSION 优先(D-1);INVENTORY 未初始化显式 SKIP(D-2);AC 模板反套套逻辑三问 + verify 可疑模式 WARN(E-1);doctor unbound/整数比较/未知旗标吞噬修复(E-2/E-3/附加);仓外绝对路径不受门禁治理(scratchpad 误拦修复)。verify 10/10 PASS。前序 **v6.12.0(T-048 多任务卡并行 union gating + 会话租约液性修复,D-035)**:根治「激活一张任务卡后其他 agent 被全面拦截」。六项根因:三层门禁单卡假设(lex-first 卡治理一切)/ bootstrap 豁免仅零卡分支 / protected 单 exempt_id / lock 记 hook shell 瞬时 pid(kill -0 恒判死 → 人人自封 coordinator,v6.11.0 保护实证空转)/ .role=worker 旗标无清理(resume 永久 worker 死锁)/ worker 分片钉死 lex-first 卡。修复:union gating(路径 ∈ 任一 active 卡 WRITE-SET 且 ∉ 该卡 FORBIDDEN)+ 任务/决策卡 bootstrap 恒豁免 + protected 逐卡豁免 + 租约液性(lock/hb mtime TTL 默认 120min,PreToolUse/guard 续租)+ 写时验租约(free/stale 原子抢占含自愈升格)+ 旗标全生命周期清理 + worker 面收窄(自己卡的 progress/checkpoint 直写)+ assume-coordinator stale 免 --force + 展示层多卡化 + doctor 交集 WARN。契约净减 14 行(2896/2940);migrator → 6.12.0。 |
+| 进行中 | T-049 收尾提交。下一步:push main 验证 CI → 可选 tag v6.12.1;回复并关闭 GitHub issue #11;真实双会话并行试用(两实例各持一张卡)采集 TTL/overlap WARN 手感。 |
 | 阻塞 | 无。 |
 
 ## 当前假设 / 决策（本轮拍板）

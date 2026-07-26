@@ -81,7 +81,7 @@ active_ids=""
 for f in "$ENGINE_DIR"/tasks/T-*.md; do
   [ -f "$f" ] || continue
   case "$f" in *.spec.md) continue ;; esac
-  grep -q 'status:.*active' "$f" 2>/dev/null || continue
+  grep -Eq '^[[:space:]]*(>[[:space:]]*)?status:[[:space:]]*active' "$f" 2>/dev/null || continue
   task_id="$(basename "$f" .md)"
   active_count=$((active_count + 1))
   active_ids="${active_ids:+$active_ids, }$task_id"
@@ -204,7 +204,7 @@ fi
 proposed_count=0
 for f in "$ENGINE_DIR"/decisions/D-*.md; do
   [ -f "$f" ] || continue
-  if grep -q 'status:.*proposed' "$f" 2>/dev/null; then
+  if grep -Eq '^[[:space:]]*(>[[:space:]]*)?status:[[:space:]]*proposed' "$f" 2>/dev/null; then
     if [ "$proposed_count" -eq 0 ]; then
       echo "──── ⏳ Pending Decisions (proposed) ────"
     fi

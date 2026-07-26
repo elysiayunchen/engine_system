@@ -66,7 +66,7 @@ function Find-ActiveTasks {
   foreach ($tf in (Get-ChildItem -Path $tasksDir -File -Filter "T-*.md" -ErrorAction SilentlyContinue | Sort-Object Name)) {
     if ($tf.Name -like '*.spec.md') { continue }
     $content = Get-Content -Raw -Path $tf.FullName -Encoding UTF8 -ErrorAction SilentlyContinue
-    if ($content -match 'status:\s*active') { $found += $tf }
+    if ($content -match '(?m)^\s*(>\s*)?status:\s*active') { $found += $tf }
   }
   return $found
 }
@@ -80,7 +80,7 @@ function Find-ClosingTasks {
   foreach ($tf in (Get-ChildItem -Path $tasksDir -File -Filter 'T-*.md' -ErrorAction SilentlyContinue | Sort-Object Name)) {
     if ($tf.Name -like '*.spec.md') { continue }
     $content = Get-Content -Raw -Path $tf.FullName -Encoding UTF8 -ErrorAction SilentlyContinue
-    if ($content -notmatch 'status:\s*done') { continue }
+    if ($content -notmatch '(?m)^\s*(>\s*)?status:\s*done') { continue }
     $rel = 'engine/tasks/' + $tf.Name
     $dirty = git -C $Root status --porcelain -- $rel 2>$null
     if ($dirty) { $found += $tf }
@@ -88,6 +88,9 @@ function Find-ClosingTasks {
   return $found
 }
 
+# Supports all three accepted spellings (v6.12.1, issue #11 B-1 - aligned with
+# the pre-commit parser from T-043): inline `WRITE-SET: a,b`, markdown section
+# `## WRITE-SET` list, and YAML frontmatter multi-line `write-set:` list.
 function Get-TaskPatterns([string]$Field, [string]$TaskContent) {
   $lines = $TaskContent -split "`n"
   foreach ($lineRaw in $lines) {
@@ -96,15 +99,34 @@ function Get-TaskPatterns([string]$Field, [string]$TaskContent) {
       return $Matches[1].Trim()
     }
   }
+  $fieldLc = $Field.ToLowerInvariant()
   $inSection = $false
+  $inFmBlock = $false
+  $inFmField = $false
   $items = New-Object System.Collections.Generic.List[string]
   foreach ($lineRaw in $lines) {
     $line = $lineRaw.TrimEnd("`r")
-    if ($line -match ('^##\s+' + [regex]::Escape($Field) + '\s*$')) {
-      $inSection = $true
+    if ($line -match '^---\s*$') {
+      $inFmBlock = -not $inFmBlock
+      $inFmField = $false
+      continue
+    }
+    $lineLc = $line.ToLowerInvariant()
+    if ($lineLc -match ('^##\s+' + [regex]::Escape($fieldLc) + '\s*$')) {
+      $inSection = $true; $inFmField = $false
       continue
     }
     if ($inSection -and $line -match '^##\s+') { break }
+    if ($inFmBlock -and $lineLc -match ('^' + [regex]::Escape($fieldLc) + ':$')) {
+      $inFmField = $true; $inSection = $false
+      continue
+    }
+    if ($inFmField -and $line -notmatch '^\s' -and $line -ne '') { $inFmField = $false }
+    if ($inFmField -and $line -match '^\s+-\s+(.+)$') {
+      $item = ($Matches[1] -replace '\s+\(.*$', '').Trim()
+      if ($item) { $items.Add($item) }
+      continue
+    }
     if ($inSection -and $line -match '^-\s+(.+)$') {
       $item = ($Matches[1] -replace '\s+\(.*$', '').Trim()
       if ($item) { $items.Add($item) }
@@ -117,7 +139,9 @@ function Match-Glob([string]$Path, [string]$Patterns) {
   if (-not $Patterns) { return $false }
   foreach ($pRaw in ($Patterns -split ',')) {
     $p = $pRaw.Trim()
-    if ($p -and $Path -like $p) { return $true }
+    if (-not $p) { continue }
+    # v6.12.1 (issue #11 B-3): a bare directory entry also matches its children.
+    if ($Path -like $p -or $Path -like ($p + '/*')) { return $true }
   }
   return $false
 }
@@ -309,6 +333,9 @@ if ($Mode -eq '--pre-tool-use') {
   if (-not $filePath) { exit 0 }
 
   $path = Normalize-ProjectPath $filePath
+  # Still absolute after ROOT-stripping = outside this worktree (scratchpad,
+  # temp dirs, other repos). Not a project path; not governed (v6.12.1).
+  if ($path -match '^([A-Za-z]:)?/') { exit 0 }
   if (Is-RuntimeCache $path) { exit 0 }
 
   # v6.11.0 (D-029/T-036) AC-4 dual-signal, scope narrowed by v6.12.0 (D-035):

@@ -1,0 +1,1 @@
+{"ac":"AC-8","verify":"bash tests/behavior-verify/test_verify_tautology_warn.sh && grep -q 'Would it fail' contract/src/20-file-templates.md","status":"pass","exit":0,"fingerprint":"sha256:5e578eda7a681d7a77b1c4854169c38a88a8207273c7a6aa76cd6e0e90323d65","timestamp":"2026-07-26T21:24:03Z"}

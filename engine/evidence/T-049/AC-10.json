@@ -1,0 +1,1 @@
+{"ac":"AC-10","verify":"grep -q '6\\.12\\.1' VERSION && grep -q 'v6.12.1' CHANGELOG.md","status":"pass","exit":0,"fingerprint":"sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855","timestamp":"2026-07-26T21:36:02Z"}

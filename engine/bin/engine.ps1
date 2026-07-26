@@ -404,7 +404,7 @@ function Assume-Coordinator {
       Where-Object { $_.Name -notmatch '\.spec\.md$' }
     foreach ($tf in $taskFiles) {
       $content = Get-Content -Raw -Path $tf.FullName -Encoding UTF8 -ErrorAction SilentlyContinue
-      if ($content -match 'status:\s*active') { $taskId = $tf.BaseName; break }
+      if ($content -match '(?m)^\s*(>\s*)?status:\s*active') { $taskId = $tf.BaseName; break }
     }
   }
 

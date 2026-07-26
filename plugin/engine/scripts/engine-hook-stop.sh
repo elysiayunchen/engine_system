@@ -72,7 +72,10 @@ find_active_tasks() {
   for f in "$ENGINE_DIR"/tasks/T-*.md; do
     [ -f "$f" ] || continue
     case "$f" in *.spec.md) continue ;; esac
-    if grep -q 'status:.*active' "$f" 2>/dev/null; then
+    # v6.12.1 (issue #11 C-1): anchored to line start. The old unanchored
+    # 'status:.*active' matched prose that merely QUOTED the pattern, pinning
+    # done cards as active and locking the whole repo.
+    if grep -Eq '^[[:space:]]*(>[[:space:]]*)?status:[[:space:]]*active' "$f" 2>/dev/null; then
       printf '%s\n' "$f"
     fi
   done
@@ -85,16 +88,18 @@ find_closing_tasks() {
   for f in "$ENGINE_DIR"/tasks/T-*.md; do
     [ -f "$f" ] || continue
     case "$f" in *.spec.md) continue ;; esac
-    grep -q 'status:.*done' "$f" 2>/dev/null || continue
+    grep -Eq '^[[:space:]]*(>[[:space:]]*)?status:[[:space:]]*done' "$f" 2>/dev/null || continue
     rel="engine/tasks/$(basename "$f")"
     [ -n "$(git -C "$ROOT" status --porcelain -- "$rel" 2>/dev/null)" ] || continue
     printf '%s\n' "$f"
   done
 }
 
-# Supports both historical `WRITE-SET: a,b` and current section-list form:
-#   ## WRITE-SET
-#   - a/**
+# Supports all three accepted spellings (v6.12.1, issue #11 B-1 - aligned with
+# the pre-commit parser from T-043): inline `WRITE-SET: a,b`, markdown section
+# `## WRITE-SET` list, and YAML frontmatter multi-line `write-set:` list.
+# Before this, a card written only in the frontmatter (spec) format was
+# rejected by the hook with "no readable WRITE-SET", pausing all writes.
 parse_task_patterns() {
   local field="$1" file="$2" inline
   inline="$(grep "^${field}:" "$file" 2>/dev/null | head -1 | sed "s/^${field}:[[:space:]]*//;s/\r$//")"
@@ -103,11 +108,27 @@ parse_task_patterns() {
     return 0
   fi
   awk -v field="$field" '
-    BEGIN { in_section=0; out="" }
+    BEGIN { in_section=0; in_frontmatter_block=0; in_frontmatter_field=0; out=""; field_lc=tolower(field) }
     {
       sub(/\r$/, "")
-      if ($0 ~ "^##[[:space:]]+" field "[[:space:]]*$") { in_section=1; next }
+      if ($0 ~ /^---[[:space:]]*$/) {
+        in_frontmatter_block = !in_frontmatter_block
+        in_frontmatter_field = 0
+        next
+      }
+      line_lc = tolower($0)
+      if (line_lc ~ "^##[[:space:]]+" field_lc "[[:space:]]*$") { in_section=1; in_frontmatter_field=0; next }
       if (in_section && $0 ~ "^##[[:space:]]+") { exit }
+      if (in_frontmatter_block && line_lc ~ "^" field_lc ":$") {
+        in_frontmatter_field=1; in_section=0; next
+      }
+      if (in_frontmatter_field && $0 !~ /^[[:space:]]/ && $0 != "") { in_frontmatter_field=0 }
+      if (in_frontmatter_field && $0 ~ /^[[:space:]]+-[[:space:]]+/) {
+        sub(/^[[:space:]]+-[[:space:]]+/, "")
+        sub(/[[:space:]]+\(.*/, "")
+        if ($0 != "") out = (out == "" ? $0 : out "," $0)
+        next
+      }
       if (in_section && $0 ~ "^-[[:space:]]+") {
         sub(/^-[[:space:]]+/, "")
         sub(/[[:space:]]+\(.*/, "")
@@ -127,7 +148,9 @@ match_glob() {
     p="${p#"${p%%[![:space:]]*}"}"
     p="${p%"${p##*[![:space:]]}"}"
     [ -n "$p" ] || continue
-    case "$path" in $p) IFS="$saved_ifs"; set +f; return 0 ;; esac
+    # v6.12.1 (issue #11 B-3): a bare directory entry also matches its
+    # children - `engine/evidence/T-049` covers `engine/evidence/T-049/x.json`.
+    case "$path" in $p|$p/*) IFS="$saved_ifs"; set +f; return 0 ;; esac
   done
   IFS="$saved_ifs"
   set +f
@@ -325,6 +348,11 @@ if [ "$MODE" = "--pre-tool-use" ]; then
 
   [ -n "$file_path" ] || exit 0
   path="$(normalize_path "$file_path")"
+  # Still absolute after ROOT-stripping = outside this worktree (scratchpad,
+  # temp dirs, other repos). Not a project path; not governed (v6.12.1).
+  case "$path" in
+    /*|[A-Za-z]:/*) exit 0 ;;
+  esac
   is_runtime_cache "$path" && exit 0
 
   # v6.11.0 (D-029/T-036) AC-4 dual-signal, scope narrowed by v6.12.0 (D-035):

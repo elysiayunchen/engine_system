@@ -49,6 +49,7 @@
 | Claude hook 配置 | .claude/settings.json | claude_hook_settings() | stable | 2026-07-19 |
 | engine-sync 命令 | .claude/commands/engine-sync.md | engine_sync_cmd() | stable | 2026-07-19 |
 | 文件模板契约源 | contract/src/20-file-templates.md | file_templates_src() | stable | 2026-07-19 |
+| 核心契约源(Hard Rules) | contract/src/00-core.md | core_rules_src() | stable | 2026-07-26 |
 | 运营契约源 | contract/src/30-operational.md | operational_src() | stable | 2026-07-19 |
 | Handoff 行为契约 | contract/src/behaviors/handoff.md | handoff_behavior() | stable | 2026-07-19 |
 | Task-run 行为契约 | contract/src/behaviors/task-run.md | task_run_behavior() | stable | 2026-07-20 |
@@ -64,3 +65,7 @@
 | pre-commit 多卡 union 测试 | tests/task-card/test_multi_active_union.sh | test_multi_active_union() | stable | 2026-07-26 |
 | Doctor 多卡 WRITE-SET 交集检查 | engine/scripts/engine-doctor.sh | check_multi_card_writeset_overlap() | stable | 2026-07-26 |
 | Doctor 多卡交集检查 ps1 | engine/scripts/engine-doctor.ps1 | Test-MultiCardWritesetOverlap() | stable | 2026-07-26 |
+| Doctor 状态冲突检查 (v6.12.1) | engine/scripts/engine-doctor.sh | check_status_conflict() | stable | 2026-07-26 |
+| verify 解析硬化测试组 (v6.12.1) | tests/behavior-verify/test_verify_allskip_loud.sh | test_verify_allskip_loud() | stable | 2026-07-26 |
+| hook frontmatter 解析测试 (v6.12.1) | tests/multi-session/test_hook_frontmatter_writeset.sh | test_hook_frontmatter_writeset() | stable | 2026-07-26 |
+| migrator 版本源测试 (v6.12.1) | tests/update-flow/test_migrator_version_source.sh | test_migrator_version_source() | stable | 2026-07-26 |

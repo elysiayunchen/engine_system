@@ -54,7 +54,7 @@ if [ "$MODE" = "--guard" ]; then
   for f in "$ENGINE_DIR"/tasks/T-*.md; do
     [ -f "$f" ] || continue
     case "$f" in *.spec.md) continue ;; esac
-    grep -q 'status:.*active' "$f" 2>/dev/null || continue
+    grep -Eq '^[[:space:]]*(>[[:space:]]*)?status:[[:space:]]*active' "$f" 2>/dev/null || continue
     guard_id="$(basename "$f" .md)"
     guard_ids="${guard_ids:+$guard_ids, }$guard_id"
     guard_count=$((guard_count + 1))
@@ -128,7 +128,7 @@ active_ids=""
 for f in "$ENGINE_DIR"/tasks/T-*.md; do
   [ -f "$f" ] || continue
   case "$f" in *.spec.md) continue ;; esac
-  grep -q 'status:.*active' "$f" 2>/dev/null || continue
+  grep -Eq '^[[:space:]]*(>[[:space:]]*)?status:[[:space:]]*active' "$f" 2>/dev/null || continue
   task_id="$(basename "$f" .md)"
   active_count=$((active_count + 1))
   active_ids="${active_ids:+$active_ids, }$task_id"
@@ -248,7 +248,7 @@ fi
 for f in "$ENGINE_DIR"/tasks/T-*.md; do
   [ -f "$f" ] || continue
   [[ "$f" == *.spec.md ]] && continue
-  if grep -q 'status:.*\(active\|paused\)' "$f" 2>/dev/null; then
+  if grep -Eq '^[[:space:]]*(>[[:space:]]*)?status:[[:space:]]*(active|paused)' "$f" 2>/dev/null; then
     cp_id="$(basename "$f" .md)"
     cp="$ENGINE_DIR/evidence/$cp_id/checkpoint.md"
     if [ -f "$cp" ]; then
@@ -265,7 +265,7 @@ done
 for f in "$ENGINE_DIR"/tasks/T-*.md; do
   [ -f "$f" ] || continue
   [[ "$f" == *.spec.md ]] && continue
-  if grep -q 'status:.*\(active\|paused\)' "$f" 2>/dev/null; then
+  if grep -Eq '^[[:space:]]*(>[[:space:]]*)?status:[[:space:]]*(active|paused)' "$f" 2>/dev/null; then
     prog_id="$(basename "$f" .md)"
     prog="$ENGINE_DIR/tasks/$prog_id/progress.md"
     if [ -f "$prog" ]; then
@@ -304,7 +304,7 @@ fi
 proposed_count=0
 for f in "$ENGINE_DIR"/decisions/D-*.md; do
   [ -f "$f" ] || continue
-  if grep -q 'status:.*proposed' "$f" 2>/dev/null; then
+  if grep -Eq '^[[:space:]]*(>[[:space:]]*)?status:[[:space:]]*proposed' "$f" 2>/dev/null; then
     if [ "$proposed_count" -eq 0 ]; then
       echo "──── ⏳ Pending Decisions (proposed) ────"
     fi

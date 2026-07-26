@@ -202,7 +202,7 @@ assume_coordinator() {
   for task_file in "$root"/engine/tasks/T-*.md; do
     [ -f "$task_file" ] || continue
     case "$task_file" in *.spec.md) continue ;; esac
-    if grep -q 'status:[[:space:]]*active' "$task_file" 2>/dev/null; then
+    if grep -Eq '^[[:space:]]*(>[[:space:]]*)?status:[[:space:]]*active' "$task_file" 2>/dev/null; then
       task_id="$(basename "$task_file" .md)"
       break
     fi

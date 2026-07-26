@@ -19,13 +19,16 @@ ENGINE_DIR="$ROOT/engine"
 MAP="$ENGINE_DIR/ENGINE_MAP.md"
 MARK_START='<!-- ENGINE_SYSTEM_CONTRACT_MIGRATIONS_START -->'
 MARK_END='<!-- ENGINE_SYSTEM_CONTRACT_MIGRATIONS_END -->'
-# Contract version: read from VERSION file (repo root, then engine/), fall back to 6.0.0.
-# Written into the managed block header so Doctor / future incremental migrations can
-# identify which contract version a project has installed.
-if [ -f "$ROOT/VERSION" ]; then
-  CONTRACT_VERSION="$(tr -d '[:space:]' < "$ROOT/VERSION")"
-elif [ -f "$ENGINE_DIR/VERSION" ]; then
+# Contract version: read engine/VERSION FIRST (the toolchain stamp), then the
+# repo-root VERSION, fall back to 6.0.0. v6.12.1 (issue #11 D-1): downstream
+# product repos ship their own root VERSION (the PRODUCT version); preferring it
+# stamped e.g. contract-version 3.0.0 into managed blocks, silently degrading
+# every versioned Doctor gate to the migration grace period. The engine's own
+# repo keeps root VERSION == engine/VERSION, so upstream behavior is unchanged.
+if [ -f "$ENGINE_DIR/VERSION" ]; then
   CONTRACT_VERSION="$(tr -d '[:space:]' < "$ENGINE_DIR/VERSION")"
+elif [ -f "$ROOT/VERSION" ]; then
+  CONTRACT_VERSION="$(tr -d '[:space:]' < "$ROOT/VERSION")"
 else
   CONTRACT_VERSION="6.0.0"
 fi

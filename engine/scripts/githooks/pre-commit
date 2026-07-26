@@ -91,7 +91,8 @@ match_any_glob() {
     _p="${_p#"${_p%%[![:space:]]*}"}"
     _p="${_p%"${_p##*[![:space:]]}"}"
     [ -n "$_p" ] || continue
-    case "$_path" in $_p) IFS="$_old"; set +f; return 0 ;; esac
+    # v6.12.1 (issue #11 B-3): a bare directory entry also matches its children.
+    case "$_path" in $_p|$_p/*) IFS="$_old"; set +f; return 0 ;; esac
   done
   IFS="$_old"
   set +f
@@ -106,12 +107,14 @@ governing_files=""
 for _f in "$ENGINE_DIR"/tasks/T-*.md; do
   [ -f "$_f" ] || continue
   case "$_f" in *.spec.md) continue ;; esac
-  grep -q 'status:.*active' "$_f" 2>/dev/null || continue
+  # v6.12.1 (issue #11 C-1): anchored - unanchored matching pinned done cards
+  # whose PROSE merely quoted the pattern, locking the repo.
+  grep -Eq '^[[:space:]]*(>[[:space:]]*)?status:[[:space:]]*active' "$_f" 2>/dev/null || continue
   governing_files="${governing_files}${governing_files:+
 }$_f"
 done
 closing_paths="$(printf '%s\n' "$staged" | grep -E '^engine/tasks/T-[0-9]+\.md$' | while IFS= read -r _task_path; do
-  if git -C "$ROOT" show ":$_task_path" 2>/dev/null | grep -q 'status:.*done'; then
+  if git -C "$ROOT" show ":$_task_path" 2>/dev/null | grep -Eq '^[[:space:]]*(>[[:space:]]*)?status:[[:space:]]*done'; then
     printf '%s\n' "$ROOT/$_task_path"
   fi
 done)"
@@ -218,7 +221,7 @@ if [ "$strict_task_mode" -eq 1 ]; then
   for task_path in $staged; do
     case "$task_path" in engine/tasks/T-*.md) ;; *) continue ;; esac
     task_snapshot="$(git -C "$ROOT" show ":$task_path" 2>/dev/null || true)"
-    printf '%s\n' "$task_snapshot" | grep -q 'status:.*done' || continue
+    printf '%s\n' "$task_snapshot" | grep -Eq '^[[:space:]]*(>[[:space:]]*)?status:[[:space:]]*done' || continue
     printf '%s\n' "$task_snapshot" | grep -qi 'exempt' && continue
     done_task_id="$(basename "$task_path" .md)"
     ac_ids="$(printf '%s\n' "$task_snapshot" | sed -n 's/^AC:[[:space:]]*\(AC-[0-9][0-9]*\(\.[0-9][0-9]*\)*\).*/\1/p')"
@@ -278,8 +281,8 @@ fi
 card_owns_itself() {
   _cid="$1"
   _card="$ENGINE_DIR/tasks/$_cid.md"
-  if [ -f "$_card" ] && grep -q 'status:.*active' "$_card" 2>/dev/null; then return 0; fi
-  git -C "$ROOT" show ":engine/tasks/$_cid.md" 2>/dev/null | grep -q 'status:.*done' && return 0
+  if [ -f "$_card" ] && grep -Eq '^[[:space:]]*(>[[:space:]]*)?status:[[:space:]]*active' "$_card" 2>/dev/null; then return 0; fi
+  git -C "$ROOT" show ":engine/tasks/$_cid.md" 2>/dev/null | grep -Eq '^[[:space:]]*(>[[:space:]]*)?status:[[:space:]]*done' && return 0
   return 1
 }
 

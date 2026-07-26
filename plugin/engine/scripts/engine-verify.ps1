@@ -43,6 +43,11 @@ $evidenceDir = Join-Path $EngineDir ("evidence\" + $Task)
 New-Item -ItemType Directory -Path $evidenceDir -Force | Out-Null
 
 $passCount = 0; $failCount = 0; $skipCount = 0
+# v6.12.1 (issue #11 E-1): tautology heuristics. Track how many PASS ACs have
+# the empty-output fingerprint; if ALL of them do, the verify commands may be
+# tautologies. WARN only - never changes the exit code.
+$emptyFpHash = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+$emptyFpPass = 0
 Write-Output "[Engine System behavior verify] $Task"
 Write-Output ""
 
@@ -61,16 +66,30 @@ if (Test-Path $gitBash) {
 foreach ($line in (Get-Content $taskFile -Encoding UTF8)) {
   if ($line -notmatch '^AC:') { continue }
   $acId = ""
-  if ($line -match '^AC:\s*(AC-\d+(?:\.\d+)*)') { $acId = $Matches[1] }
+  # v6.12.1 (issue #11 A-3): AC ids may carry a letter group (AC-A1, AC-B12)
+  # in addition to plain/dotted numerics (AC-1, AC-1.2).
+  if ($line -match '^AC:\s*(AC-[A-Za-z]*\d+(?:\.\d+)*)') { $acId = $Matches[1] }
   if (-not $acId) { continue }
   $verifyCmd = ""
-  if ($line -match 'verify:\s*(.+?)\s*$') { $verifyCmd = $Matches[1] }
+  # v6.12.1 (issue #11 A-2): anchor extraction to the FIRST separator (pipe or
+  # legacy U+2192 arrow) followed by 'verify:'. The old bare 'verify:' match
+  # latched onto the last literal occurrence, truncating any verify command
+  # that itself contains the string 'verify:'. The arrow is built from its
+  # code point so this file stays ASCII-only (P008/T-047).
+  $sepArrow = [string][char]0x2192
+  $sepClass = "[|$sepArrow]"
+  if ($line -match "^AC:[^|$sepArrow]*$sepClass\s*verify:\s*(.+?)\s*$") { $verifyCmd = $Matches[1] }
   if (-not $verifyCmd) {
     Write-Output "SKIP  $acId (no verify command)"
     $skipCount++; continue
   }
   Write-Output "-- $acId --"
   Write-Output "verify: $verifyCmd"
+  # v6.12.1 (issue #11 E-1): a verify command that checks this card's own
+  # evidence directory proves only that a file was written, not behavior.
+  if ($verifyCmd -like "*engine/evidence/$Task/*") {
+    Write-Output "WARN suspicious verify (self-referential evidence path): $acId"
+  }
   Push-Location $Root
   # v6.10.0 (T-035): set ENGINE_VERIFY_RECURSE_GUARD=<task> so any AC verify
   # that recursively invokes engine-verify for the SAME task exits 0
@@ -94,6 +113,7 @@ foreach ($line in (Get-Content $taskFile -Encoding UTF8)) {
   $sha.Dispose()
   if ($rc -eq 0) {
     $status = "pass"; $passCount++
+    if ($fp -eq $emptyFpHash) { $emptyFpPass++ }
     Write-Output "PASS  (exit=0, fp=$($fp.Substring(0,12)))"
   } else {
     $status = "fail"; $failCount++
@@ -327,4 +347,15 @@ Invoke-DeadCodeDetection -TaskId $Task -EvidenceDir $evidenceDir -TaskFile $task
 Write-Output ""
 Write-Output "=========================================="
 Write-Output "$Task`: $passCount pass, $failCount fail, $skipCount skip"
+# v6.12.1 (issue #11 A-1): all-SKIP is a parse failure, not a clean result.
+$totalAcs = $passCount + $failCount + $skipCount
+if ($totalAcs -gt 0 -and $passCount -eq 0 -and $failCount -eq 0) {
+  [Console]::Error.WriteLine("ERROR: $totalAcs ACs declared but no parseable verify command was found.")
+  [Console]::Error.WriteLine("The card likely uses a split/block format; engine-verify only reads single-line 'AC: AC-N ... | verify: <cmd>'.")
+  [Console]::Error.WriteLine("This is a parse failure, not a clean result.")
+  exit 3
+}
+if ($passCount -gt 0 -and $emptyFpPass -eq $passCount) {
+  Write-Output "WARN all PASS fingerprints are the empty-string hash - verify commands may be tautologies"
+}
 if ($failCount -ne 0) { exit 1 }

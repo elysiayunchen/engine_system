@@ -93,7 +93,7 @@ if (Test-Path $tasksDir) {
     Where-Object { $_.Name -notmatch '\.spec\.md$' } | Sort-Object Name
   foreach ($tf in $taskFiles) {
     $content = Get-Content -Raw -Path $tf.FullName -Encoding UTF8 -ErrorAction SilentlyContinue
-    if ($content -match 'status:\s*active') {
+    if ($content -match '(?m)^\s*(>\s*)?status:\s*active') {
       $activeCount++
       $activeIds += $tf.BaseName
       if (-not $activeTask) {
@@ -236,7 +236,7 @@ if (Test-Path $decisionsDir) {
   $proposedFound = $false
   foreach ($df in $decFiles) {
     $content = Get-Content -Raw -Path $df.FullName -Encoding UTF8 -ErrorAction SilentlyContinue
-    if ($content -match 'status:\s*proposed') {
+    if ($content -match '(?m)^\s*(>\s*)?status:\s*proposed') {
       if (-not $proposedFound) {
         Write-Output "---- Pending Decisions (proposed) ----"
         $proposedFound = $true

@@ -43,14 +43,35 @@ mkdir -p "$evidence_dir"
 pass_count=0
 fail_count=0
 skip_count=0
+# v6.12.1 (issue #11 E-1): tautology heuristics. Track how many PASS ACs have
+# the empty-output fingerprint; if ALL of them do, the verify commands likely
+# produce no output at all (e.g. bare `test -f` / `grep -q` chains) and may be
+# tautologies. WARN only - never changes the exit code.
+empty_fp_hash="e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+empty_fp_pass=0
 
 echo "【Engine System · 行为化验收】$task"
 echo ""
 
 while IFS= read -r line; do
-  ac_id="$(printf '%s' "$line" | sed -n 's/^AC:[[:space:]]*\(AC-[0-9][0-9]*\(\.[0-9][0-9]*\)*\).*/\1/p')"
+  # v6.12.1 (issue #11 A-3): AC ids may carry a letter group (AC-A1, AC-B12)
+  # in addition to plain/dotted numerics (AC-1, AC-1.2).
+  ac_id="$(printf '%s' "$line" | sed -n 's/^AC:[[:space:]]*\(AC-[A-Za-z]*[0-9][0-9]*\(\.[0-9][0-9]*\)*\).*/\1/p')"
   [ -n "$ac_id" ] || continue
-  verify_cmd="$(printf '%s' "$line" | sed -n 's/.*verify:[[:space:]]*\(.*\)[[:space:]]*$/\1/p')"
+  # v6.12.1 (issue #11 A-2): anchor extraction to the FIRST separator + verify:
+  # marker. The old greedy `.*verify:` matched the LAST literal 'verify:' on
+  # the line, truncating any verify command that itself contains 'verify:'.
+  # Both separator spellings in the wild are accepted: '| verify:' (current)
+  # and the legacy arrow '-> verify:' (U+2192). ${var#*pat} strips the
+  # SHORTEST prefix, i.e. cuts at the first occurrence, byte-exact.
+  verify_rest=""
+  case "$line" in
+    *"| verify:"*)  verify_rest="${line#*"| verify:"}" ;;
+    *"|verify:"*)   verify_rest="${line#*"|verify:"}" ;;
+    *"→ verify:"*)  verify_rest="${line#*"→ verify:"}" ;;
+    *"→verify:"*)   verify_rest="${line#*"→verify:"}" ;;
+  esac
+  verify_cmd="$(printf '%s' "$verify_rest" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
   if [ -z "$verify_cmd" ]; then
     echo "SKIP  $ac_id (无 verify 命令)"
     skip_count=$((skip_count+1))
@@ -58,6 +79,13 @@ while IFS= read -r line; do
   fi
   echo "── $ac_id ──"
   echo "verify: $verify_cmd"
+  # v6.12.1 (issue #11 E-1): a verify command that checks this card's own
+  # evidence directory proves only that a file was written, not that behavior
+  # happened. Flag it; the architect decides.
+  case "$verify_cmd" in
+    *"engine/evidence/$task/"*)
+      echo "WARN suspicious verify (self-referential evidence path): $ac_id" ;;
+  esac
   tmp_out="$(mktemp)"
   rc=0
   # v6.9.0 (T-034): redirect stdin from /dev/null so verify commands that
@@ -73,6 +101,9 @@ while IFS= read -r line; do
   fp="$(sha256sum "$tmp_out" | cut -d' ' -f1)"
   if [ "$rc" -eq 0 ]; then
     status="pass"; pass_count=$((pass_count+1))
+    if [ "$fp" = "$empty_fp_hash" ]; then
+      empty_fp_pass=$((empty_fp_pass+1))
+    fi
     echo "PASS  (exit=0, fp=${fp:0:12})"
   else
     status="fail"; fail_count=$((fail_count+1))
@@ -308,4 +339,19 @@ detect_dead_code "$task" "$evidence_dir" "$task_file"
 echo ""
 echo "=========================================="
 echo "$task: $pass_count pass, $fail_count fail, $skip_count skip"
+# v6.12.1 (issue #11 A-1): all-SKIP is a parse failure, not a clean result.
+# The old behavior printed "0 pass, 0 fail, N skip" and exited 0, which reads
+# as "nothing to do" while the acceptance machinery is silently dead.
+total_acs=$((pass_count + fail_count + skip_count))
+if [ "$total_acs" -gt 0 ] && [ "$pass_count" -eq 0 ] && [ "$fail_count" -eq 0 ]; then
+  {
+    echo "ERROR: $total_acs ACs declared but no parseable verify command was found."
+    echo "The card likely uses a split/block format; engine-verify only reads single-line 'AC: AC-N ... | verify: <cmd>'."
+    echo "This is a parse failure, not a clean result."
+  } >&2
+  exit 3
+fi
+if [ "$pass_count" -gt 0 ] && [ "$empty_fp_pass" -eq "$pass_count" ]; then
+  echo "WARN all PASS fingerprints are the empty-string hash - verify commands may be tautologies"
+fi
 [ "$fail_count" -eq 0 ]

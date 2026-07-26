@@ -37,8 +37,18 @@ CONSTRAINTS: <约束文本> (source: <权威出处>)
 | GOAL | 是 | 一句话目标 |
 | WRITE-SET | 是 | 允许触碰的全部项目路径 glob（逗号分隔；也接受 `## WRITE-SET` bullet list） |
 | FORBIDDEN | 否 | 禁止触碰的路径 glob 列表 |
-| AC | 是 | 验收条件，每条可附 `verify:` 命令 |
+| AC | 是 | 验收条件，每条可附 `verify:` 命令。`AC: AC-N ... \| verify: <cmd>` 与遗留 `→ verify:` 两种分隔符均合法,AC 与 verify 必须同行(engine verify 只读单行形;全 SKIP 会以 exit 3 报 parse failure) |
 | CONSTRAINTS | 否 | 约束，须标出处 |
+
+## verify 命令反套套逻辑三问（v6.12.1 / issue #11 E-1）
+
+写每条 `verify:` 命令前自问三个问题,任何一问答错就换命令:
+
+1. **如果实现者根本没做这件事,这条命令会 FAIL 吗?** `test -f engine/evidence/T-NNN/AC-3.md`(检查"写了个 markdown")不会——它验收的是文书,不是行为。
+2. **它的输出指纹是不是空串哈希(`e3b0c44298fc…`)?** `grep -q` / `test -f` 静默成功产生空输出,指纹恒为空串——证据没有区分度。让命令产出可指纹的输出。
+3. **它在一个无关仓库里也会 PASS 吗?** `git diff --quiet HEAD -- <路径>`(想证明"没碰 FORBIDDEN")在任何干净树上必然 exit 0——恒真式不是证据。
+
+`engine verify` 会对可疑模式输出 WARN(命令自引用本卡 evidence 路径;全部 PASS 指纹皆空串哈希)。WARN 不拦,但架构师审阅时应视为红旗。
 
 ## 任务粒度软门禁（v6.9.0+ / D-028 §9 / T-034）
 

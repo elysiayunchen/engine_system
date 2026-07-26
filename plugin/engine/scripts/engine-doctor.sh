@@ -8,9 +8,17 @@ trap 'on_error ${LINENO}' ERR
 ROOT="$(pwd)"
 PACKAGE_MODE=false
 
+# v6.12.1 (issue #11 / T-048): unknown flags must fail loudly. The old
+# catch-all treated any argument as ROOT, so a typo like --quiet became
+# ROOT="--quiet" and doctor reported "ENGINE_MAP.md is missing" instead
+# of "no such flag".
 for arg in "$@"; do
   case "$arg" in
     --package-mode) PACKAGE_MODE=true ;;
+    --*)
+      echo "Error: unknown flag '$arg' (known: --package-mode; a path argument sets ROOT)" >&2
+      exit 2
+      ;;
     *) ROOT="$arg" ;;
   esac
 done
@@ -37,6 +45,62 @@ fail() {
 warn() {
   warn_count=$((warn_count + 1))
   printf 'WARN %s\n' "$1"
+}
+
+# v6.12.1 (issue #11 C-1): anchored card-status predicates. Unanchored
+# 'status:.*active' greps also match prose that merely QUOTES the pattern -
+# a card documenting the bug pins itself active (self-referential lock).
+card_status_active() {
+  grep -Eq '^[[:space:]]*(>[[:space:]]*)?status:[[:space:]]*active' "$1" 2>/dev/null
+}
+card_status_paused() {
+  grep -Eq '^[[:space:]]*(>[[:space:]]*)?status:[[:space:]]*paused' "$1" 2>/dev/null
+}
+card_status_done() {
+  grep -Eq '^[[:space:]]*(>[[:space:]]*)?status:[[:space:]]*done' "$1" 2>/dev/null
+}
+
+# v6.12.1 (issue #11 B-2): unified task-card field parser, same three formats
+# as the pre-commit hook (T-043): inline `FIELD: a,b`, markdown `## FIELD`
+# section list, YAML frontmatter multi-line list. The old inline-only grep
+# meant the code->INVENTORY check never evaluated a single section-list card.
+doctor_parse_task_patterns() {
+  local _field="$1" _file="$2" _inline
+  _inline="$(grep "^${_field}:" "$_file" 2>/dev/null | head -1 | sed "s/^${_field}:[[:space:]]*//;s/\r$//")"
+  if [ -n "$_inline" ]; then
+    printf '%s' "$_inline"
+    return 0
+  fi
+  awk -v field="$_field" '
+    BEGIN { in_section=0; in_frontmatter_block=0; in_frontmatter_field=0; out=""; field_lc=tolower(field) }
+    {
+      sub(/\r$/, "")
+      if ($0 ~ /^---[[:space:]]*$/) {
+        in_frontmatter_block = !in_frontmatter_block
+        in_frontmatter_field = 0
+        next
+      }
+      line_lc = tolower($0)
+      if (line_lc ~ "^##[[:space:]]+" field_lc "[[:space:]]*$") { in_section=1; in_frontmatter_field=0; next }
+      if (in_section && $0 ~ "^##[[:space:]]+") { exit }
+      if (in_frontmatter_block && line_lc ~ "^" field_lc ":$") {
+        in_frontmatter_field=1; in_section=0; next
+      }
+      if (in_frontmatter_field && $0 !~ /^[[:space:]]/ && $0 != "") { in_frontmatter_field=0 }
+      if (in_frontmatter_field && $0 ~ /^[[:space:]]+-[[:space:]]+/) {
+        sub(/^[[:space:]]+-[[:space:]]+/, "")
+        sub(/[[:space:]]+\(.*/, "")
+        if ($0 != "") out = (out == "" ? $0 : out "," $0)
+        next
+      }
+      if (in_section && $0 ~ "^-[[:space:]]+") {
+        sub(/^-[[:space:]]+/, "")
+        sub(/[[:space:]]+\(.*/, "")
+        if ($0 != "") out = (out == "" ? $0 : out "," $0)
+      }
+    }
+    END { print out }
+  ' "$_file" 2>/dev/null
 }
 
 pass() {
@@ -385,7 +449,7 @@ check_progress_md() {
     local tid; tid="$(basename "$f" .md)"
     local prog="$tasks_dir/$tid/progress.md"
     local archive="$ENGINE_DIR/archive/tasks/$tid-progress.md"
-    if grep -q 'status:.*active' "$f" 2>/dev/null; then
+    if card_status_active "$f"; then
       active_count=$((active_count + 1))
       if [ ! -f "$prog" ]; then
         active_missing=$((active_missing + 1))
@@ -397,7 +461,7 @@ check_progress_md() {
           echo "  human: Active task $tid has no progress.md. Migration grace period is active (contract-version $contract_version < 6.7.0); WARN only. To fix: cp engine/skeleton/progress.md engine/tasks/$tid/progress.md."
         fi
       fi
-    elif grep -q 'status:.*paused' "$f" 2>/dev/null; then
+    elif card_status_paused "$f"; then
       paused_count=$((paused_count + 1))
       if [ ! -f "$prog" ]; then
         paused_missing=$((paused_missing + 1))
@@ -408,7 +472,7 @@ check_progress_md() {
           warn "task $tid (paused) missing progress.md (grace period, contract-version $contract_version < 6.7.0)"
         fi
       fi
-    elif grep -q 'status:.*done' "$f" 2>/dev/null; then
+    elif card_status_done "$f"; then
       done_count=$((done_count + 1))
       # Done cards: live progress.md should be archived (mirror D-027 HANDOFF).
       if [ -f "$prog" ]; then
@@ -468,6 +532,9 @@ check_inventory_bidirectional() {
   done < <(find "$domains_dir" -maxdepth 2 -type f -name 'INVENTORY.md' 2>/dev/null)
 
   if [ "${#inventory_files[@]}" -eq 0 ]; then
+    # v6.12.1 (issue #11 D-2): "not initialized" must not be indistinguishable
+    # from "checked and clean". Say so explicitly instead of silent green.
+    pass "INVENTORY bidirectional: SKIP (not initialized - no engine/domains/*/INVENTORY.md yet)"
     return 0
   fi
 
@@ -520,10 +587,11 @@ check_inventory_bidirectional() {
     for task_file in "$tasks_dir"/T-*.md; do
       [ -f "$task_file" ] || continue
       [[ "$task_file" == *.spec.md ]] && continue
-      grep -q 'status:.*done' "$task_file" 2>/dev/null || continue
+      card_status_done "$task_file" || continue
       local tid; tid="$(basename "$task_file" .md)"
       local write_set
-      write_set="$(grep '^WRITE-SET:' "$task_file" 2>/dev/null | head -1 | sed 's/^WRITE-SET:[[:space:]]*//' | tr ',' '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' || true)"
+      # v6.12.1 (issue #11 B-2): unified parser (inline/section/frontmatter).
+      write_set="$(doctor_parse_task_patterns WRITE-SET "$task_file" | tr ',' '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' || true)"
       [ -z "$write_set" ] && continue
       local ws_path
       while IFS= read -r ws_path; do
@@ -586,6 +654,8 @@ check_inventory_api_uniqueness() {
   done < <(find "$domains_dir" -maxdepth 3 -type f \( -name 'INVENTORY.md' -o -path '*/INVENTORY/*.md' \) 2>/dev/null)
 
   if [ "${#inventory_files[@]}" -eq 0 ]; then
+    # v6.12.1 (issue #11 D-2): explicit SKIP instead of silent green.
+    pass "INVENTORY API uniqueness: SKIP (not initialized)"
     return 0
   fi
 
@@ -668,7 +738,7 @@ check_writeset_budget() {
   for f in "$tasks_dir"/T-*.md; do
     [ -f "$f" ] || continue
     [[ "$f" == *.spec.md ]] && continue
-    grep -q 'status:.*active' "$f" 2>/dev/null || continue
+    card_status_active "$f" || continue
     local tid; tid="$(basename "$f" .md)"
     # checkpoint_plan bypass: any non-empty value (incl. tryout) downgrades FAIL->WARN.
     local checkpoint_plan
@@ -742,7 +812,7 @@ check_task_granularity() {
   for f in "$tasks_dir"/T-*.md; do
     [ -f "$f" ] || continue
     [[ "$f" == *.spec.md ]] && continue
-    grep -q 'status:.*active' "$f" 2>/dev/null || continue
+    card_status_active "$f" || continue
     local tid; tid="$(basename "$f" .md)"
 
     # checkpoint_plan bypass: any non-empty value (incl. tryout) downgrades FAIL->WARN.
@@ -752,8 +822,12 @@ check_task_granularity() {
     if [ -n "$checkpoint_plan" ]; then has_bypass=1; fi
 
     # AC count: count lines starting with "AC:".
+    # v6.12.1 (issue #11 E-3): grep -c already prints 0 on no-match (exit 1),
+    # so `|| echo 0` appended a SECOND line ("0\n0") and every later integer
+    # comparison died with "integer expression expected".
     local ac_count
-    ac_count="$(grep -c '^AC:' "$f" 2>/dev/null || echo 0)"
+    ac_count="$(grep -c '^AC:' "$f" 2>/dev/null || true)"
+    case "$ac_count" in ''|*[!0-9]*) ac_count=0 ;; esac
 
     # WRITE-SET distinct paths: count comma-separated entries, de-dup mirror pairs
     # (engine/X and plugin/engine/X count as 1).
@@ -840,7 +914,7 @@ check_depends_on() {
   for f in "$tasks_dir"/T-*.md; do
     [ -f "$f" ] || continue
     [[ "$f" == *.spec.md ]] && continue
-    grep -q 'status:.*active' "$f" 2>/dev/null || continue
+    card_status_active "$f" || continue
     local tid; tid="$(basename "$f" .md)"
 
     # Parse depends-on field (comma-separated list of T-NNN).
@@ -870,7 +944,7 @@ check_depends_on() {
         fi
         continue
       fi
-      if ! grep -q 'status:.*done' "$upstream_file" 2>/dev/null; then
+      if ! card_status_done "$upstream_file"; then
         if [ "$violation_is_fail" -eq 1 ]; then
           fail "task $tid depends-on $upstream which is not done - block active"
           echo "  human: Active task $tid declares depends-on: $upstream, but $upstream is not done. Either complete $upstream first (run 'engine verify $upstream' and mark done), or remove the depends-on entry if the dependency no longer applies."
@@ -912,16 +986,21 @@ check_warn_done_gate() {
   fi
 
   local f
+  local dc_missing=0
   for f in "$tasks_dir"/T-*.md; do
     [ -f "$f" ] || continue
     [[ "$f" == *.spec.md ]] && continue
     # Gate applies only to `done` tasks — active/paused tasks may have
     # in-progress DEAD-CODE.json with warn_count > 0 (architect hasn't
     # reviewed yet). The done gate fires when architect marks done.
-    grep -q 'status:.*done' "$f" 2>/dev/null || continue
+    card_status_done "$f" || continue
     local tid; tid="$(basename "$f" .md)"
     local dc_file="$ENGINE_DIR/evidence/$tid/DEAD-CODE.json"
-    [ -f "$dc_file" ] || continue
+    # v6.12.1 (issue #11 D-2): count silent skips instead of hiding them.
+    if [ ! -f "$dc_file" ]; then
+      dc_missing=$((dc_missing + 1))
+      continue
+    fi
 
     # Top-level exempt_all: true → batch exemption (D-028 §9).
     if grep -Eq '"exempt_all"[[:space:]]*:[[:space:]]*true' "$dc_file" 2>/dev/null; then
@@ -972,6 +1051,31 @@ check_warn_done_gate() {
     else
       warn "task $tid DEAD-CODE.json has $unexempt unexempted warn entry/entries (grace period, cv=$contract_version < 6.10.0)"
       echo "  human: Task $tid has dead-code warnings ($warn_count warn, $unexempt not exempted). Migration grace period (cv=$contract_version < 6.10.0); WARN only. To fix: mark exemptions in evidence/$tid/DEAD-CODE.json."
+    fi
+  done
+  # v6.12.1 (issue #11 D-2): "no DEAD-CODE evidence" and "checked clean" must
+  # not collapse into the same silence. One summary line, no per-card spam
+  # (cards predating v6.10.0 legitimately have no DEAD-CODE.json).
+  if [ "$dc_missing" -gt 0 ]; then
+    pass "warn-done gate: $dc_missing done card(s) have no DEAD-CODE.json (not initialized - predates v6.10.0, skipped)"
+  fi
+}
+
+# v6.12.1 (issue #11 C-1): a single card must never satisfy both the active and
+# done predicates. When it does (frontmatter says done, a stray anchored line
+# says active), every downstream gate disagrees about reality - report the
+# contradiction itself instead of letting the diagnostics fight.
+check_status_conflict() {
+  local tasks_dir="$ENGINE_DIR/tasks"
+  [ -d "$tasks_dir" ] || return 0
+  local f tid
+  for f in "$tasks_dir"/T-*.md; do
+    [ -f "$f" ] || continue
+    [[ "$f" == *.spec.md ]] && continue
+    if card_status_active "$f" && card_status_done "$f"; then
+      tid="$(basename "$f" .md)"
+      fail "task $tid declares BOTH active and done status lines - card state is self-contradictory"
+      echo "  human: engine/tasks/$tid.md contains an anchored 'status: active' line AND an anchored 'status: done' line. Gates cannot agree which one governs. Remove the stale line so the card has exactly one status."
     fi
   done
 }
@@ -1142,7 +1246,7 @@ check_task_card_done_evidence() {
   for f in "$tasks_dir"/T-*.md; do
     [ -f "$f" ] || continue
     [[ "$f" == *.spec.md ]] && continue
-    grep -q 'status:.*done' "$f" 2>/dev/null || continue
+    card_status_done "$f" || continue
     done_count=$((done_count + 1))
     local tid; tid="$(basename "$f" .md)"
     local ev_dir="$ENGINE_DIR/evidence/$tid"
@@ -1278,7 +1382,7 @@ check_multi_session_isolation() {
   # 1. sessions dir exists
   if [ ! -d "$sessions_dir" ]; then
     # CI/非交互式环境 (T-045): SessionStart hook 不会运行, sessions dir 缺失是正常状态
-    if [ "$CI" = "true" ] || [ "$GITHUB_ACTIONS" = "true" ]; then
+    if [ "${CI:-}" = "true" ] || [ "${GITHUB_ACTIONS:-}" = "true" ]; then
       warn "multi-session isolation: .cache/sessions dir missing (CI environment, SessionStart hook not expected to run, cv=$contract_version)"
       return 0
     fi
@@ -1346,7 +1450,7 @@ check_multi_card_writeset_overlap() {
   for card in "$ENGINE_DIR"/tasks/T-*.md; do
     [ -f "$card" ] || continue
     case "$card" in *.spec.md) continue ;; esac
-    grep -q 'status:.*active' "$card" 2>/dev/null || continue
+    card_status_active "$card" || continue
     active_cards="${active_cards}${active_cards:+ }$card"
   done
   set -- $active_cards
@@ -1483,6 +1587,7 @@ check_engine_version
 check_legacy_data_format
 check_multi_session_isolation
 check_multi_card_writeset_overlap
+check_status_conflict
 check_workstream_orphan
 
 # ── Project-custom checks (engine/checks/) ──

@@ -1713,6 +1713,12 @@ progress.md 7 栏骨架不变（`engine/skeleton/progress.md` 单一来源,不�
 - 改骨架文件必须同步 engine/ + plugin/engine/ 双份,manifest SHA256 重算;
 - checkpoint.md 不替代 progress.md:checkpoint 是 AC 级客观完成状态,progress 是任务级主观进行中状态。
 
+**verify 命令反套套逻辑三问（v6.12.1 / issue #11 E-1,写 AC 时逐条自检）**：
+1. Would it fail if the subject had NOT done the thing? `test -f engine/evidence/T-NNN/AC-3.md` 验收的是"写了个文件",不是行为——不合格。
+2. Is its output fingerprint the empty-string hash (`e3b0c44298fc...`)? `grep -q`/`test -f` 静默成功,证据无区分度——让命令产出可指纹输出。
+3. Would it also pass in an unrelated repository? `git diff --quiet HEAD -- <路径>` 在任何干净树上恒 exit 0——恒真式不是证据。
+`engine verify` 对可疑模式输出 WARN(自引用本卡 evidence 路径 / 全部 PASS 指纹皆空串哈希);AC 与 verify 命令必须同行,分隔符 `| verify:` 或遗留 `→ verify:` 均合法,全 SKIP 时 verify 以 exit 3 报 parse failure。
+
 
 ---
 

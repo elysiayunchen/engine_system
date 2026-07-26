@@ -108,7 +108,10 @@ else
 fi
 
 step "Session injection budget (N1: <=400 lines)"
-injected="$(CLAUDE_PROJECT_DIR="$PWD" bash plugin/engine/scripts/engine-hook-session-start.sh 2>/dev/null | wc -l)"
+# ENGINE_DISABLE_MULTI_SESSION=1: this is a budget probe, not a session - it
+# must not claim the repo's coordinator lease with a throwaway fallback sid
+# (v6.12.1: heartbeat liveness would keep such debris "alive" for a full TTL).
+injected="$(ENGINE_DISABLE_MULTI_SESSION=1 CLAUDE_PROJECT_DIR="$PWD" bash plugin/engine/scripts/engine-hook-session-start.sh 2>/dev/null | wc -l)"
 if [ "$injected" -le 400 ]; then
   pass "session injection $injected lines <= 400 (N1)"
 else

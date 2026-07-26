@@ -4,6 +4,14 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+
+# v6.12.1 (issue #11 / T-048): unknown flags must fail loudly. PowerShell's
+# positional binding would otherwise swallow a bash-style flag (--quiet) into
+# $Root and report "ENGINE_MAP.md is missing" instead of "no such flag".
+if ($Root -like '--*') {
+  Write-Error "Error: unknown flag '$Root' (known: -PackageMode; a path argument sets -Root)"
+  exit 2
+}
 $engineDir = Join-Path $Root "engine"
 $map = Join-Path $engineDir "ENGINE_MAP.md"
 $failCount = 0
@@ -26,6 +34,47 @@ function Write-Pass([string]$Message) {
 function Trim-Cell([string]$Value) {
   if ($null -eq $Value) { return "" }
   return $Value.Replace('`', "").Trim()
+}
+
+# v6.12.1 (issue #11 C-1): anchored card-status predicate. Unanchored
+# 'status:.*active' matches also hit prose that merely QUOTES the pattern -
+# a card documenting the bug pins itself active (self-referential lock).
+function Test-CardStatus([string]$Content, [string]$Status) {
+  if (-not $Content) { return $false }
+  return [bool]($Content -match ('(?m)^\s*(>\s*)?status:\s*' + [regex]::Escape($Status)))
+}
+
+# v6.12.1 (issue #11 B-2): unified task-card field parser, same three formats
+# as the pre-commit hook (T-043): inline "FIELD: a,b", markdown "## FIELD"
+# section list, YAML frontmatter multi-line list. Returns comma-joined string.
+function Get-TaskPatterns([string]$Content, [string]$Field) {
+  if (-not $Content) { return "" }
+  $inlineMatch = [regex]::Match($Content, ('(?m)^' + [regex]::Escape($Field) + ':\s*(.+)$'))
+  if ($inlineMatch.Success) { return $inlineMatch.Groups[1].Value.TrimEnd() }
+  $out = @()
+  $inSection = $false
+  $inFmBlock = $false
+  $inFmField = $false
+  $fieldLc = $Field.ToLower()
+  foreach ($line in ($Content -split "`n")) {
+    $l = $line.TrimEnd("`r")
+    if ($l -match '^---\s*$') { $inFmBlock = -not $inFmBlock; $inFmField = $false; continue }
+    $lLc = $l.ToLower()
+    if ($lLc -match ('^##\s+' + [regex]::Escape($fieldLc) + '\s*$')) { $inSection = $true; $inFmField = $false; continue }
+    if ($inSection -and $l -match '^##\s+') { break }
+    if ($inFmBlock -and $lLc -match ('^' + [regex]::Escape($fieldLc) + ':$')) { $inFmField = $true; $inSection = $false; continue }
+    if ($inFmField -and $l -notmatch '^\s' -and $l -ne '') { $inFmField = $false }
+    if ($inFmField -and $l -match '^\s+-\s+(.+)$') {
+      $entry = $Matches[1] -replace '\s+\(.*$', ''
+      if ($entry) { $out += $entry.Trim() }
+      continue
+    }
+    if ($inSection -and $l -match '^-\s+(.+)$') {
+      $entry = $Matches[1] -replace '\s+\(.*$', ''
+      if ($entry) { $out += $entry.Trim() }
+    }
+  }
+  return ($out -join ',')
 }
 
 function Resolve-EnginePath([string]$File) {
@@ -426,7 +475,7 @@ function Test-ProgressMd {
     $content = Get-Content -Raw -Path $f.FullName -Encoding UTF8 -ErrorAction SilentlyContinue
     if (-not $content) { continue }
 
-    if ($content -match 'status:\s*active') {
+    if (Test-CardStatus $content 'active') {
       $activeCount++
       if (-not (Test-Path $prog)) {
         $activeMissing++
@@ -437,7 +486,7 @@ function Test-ProgressMd {
           Write-Warn "task $tid (active) missing progress.md (grace period, contract-version $contractVersion < 6.7.0)"
         }
       }
-    } elseif ($content -match 'status:\s*paused') {
+    } elseif (Test-CardStatus $content 'paused') {
       $pausedCount++
       if (-not (Test-Path $prog)) {
         $pausedMissing++
@@ -448,7 +497,7 @@ function Test-ProgressMd {
           Write-Warn "task $tid (paused) missing progress.md (grace period, contract-version $contractVersion < 6.7.0)"
         }
       }
-    } elseif ($content -match 'status:\s*done') {
+    } elseif (Test-CardStatus $content 'done') {
       $doneCount++
       # Done cards: live progress.md should be archived (mirror D-027 HANDOFF).
       if (Test-Path $prog) {
@@ -498,7 +547,12 @@ function Test-InventoryBidirectional {
 
   # Collect all top-level INVENTORY.md files (maxdepth 2: domains/<domain>/INVENTORY.md).
   $inventoryFiles = @(Get-ChildItem -Path $domainsDir -Recurse -Depth 1 -Filter 'INVENTORY.md' -File -ErrorAction SilentlyContinue)
-  if ($inventoryFiles.Count -eq 0) { return }
+  if ($inventoryFiles.Count -eq 0) {
+    # v6.12.1 (issue #11 D-2): "not initialized" must not be indistinguishable
+    # from "checked and clean". Say so explicitly instead of silent green.
+    Write-Pass "INVENTORY bidirectional: SKIP (not initialized - no engine/domains/*/INVENTORY.md yet)"
+    return
+  }
 
   # (a) INVENTORY->code: Entry file paths must exist.
   $invToCodeViolations = 0
@@ -543,11 +597,13 @@ function Test-InventoryBidirectional {
       if ($tf.Name -match '\.spec\.md$') { continue }
       $content = Get-Content -Raw -Path $tf.FullName -Encoding UTF8 -ErrorAction SilentlyContinue
       if (-not $content) { continue }
-      if (-not ($content -match 'status:\s*done')) { continue }
+      if (-not (Test-CardStatus $content 'done')) { continue }
       $tid = $tf.BaseName
-      $wsLine = ($content -split "`n" | Where-Object { $_ -match '^WRITE-SET:' } | Select-Object -First 1)
-      if (-not $wsLine) { continue }
-      $wsRaw = $wsLine -replace '^WRITE-SET:\s*', ''
+      # v6.12.1 (issue #11 B-2): unified parser (inline/section/frontmatter).
+      # The old inline-only ^WRITE-SET: grep meant this check never evaluated
+      # a single section-list card - the core v6.8.0 gate was a no-op.
+      $wsRaw = Get-TaskPatterns $content 'WRITE-SET'
+      if (-not $wsRaw) { continue }
       $wsPaths = $wsRaw -split ',' | ForEach-Object { $_.Trim() }
       foreach ($wsPath in $wsPaths) {
         if ([string]::IsNullOrEmpty($wsPath)) { continue }
@@ -606,7 +662,11 @@ function Test-InventoryApiUniqueness {
   $inventoryFiles += Get-ChildItem -Path $domainsDir -Recurse -Depth 1 -Filter 'INVENTORY.md' -File -ErrorAction SilentlyContinue
   $inventorySubFiles = Get-ChildItem -Path $domainsDir -Recurse -Depth 2 -Filter '*.md' -File -ErrorAction SilentlyContinue | Where-Object { $_.FullName -match '\\INVENTORY\\[^\\]+\.md$' }
   $inventoryFiles += $inventorySubFiles
-  if ($inventoryFiles.Count -eq 0) { return }
+  if ($inventoryFiles.Count -eq 0) {
+    # v6.12.1 (issue #11 D-2): explicit SKIP instead of silent green.
+    Write-Pass "INVENTORY API uniqueness: SKIP (not initialized)"
+    return
+  }
 
   # Extract Public API column (3rd column) from each table row.
   $apiEntries = @{}  # api -> list of file paths
@@ -678,7 +738,7 @@ function Test-WriteSetBudget {
   foreach ($f in $taskFiles) {
     if ($f.Name -like '*.spec.md') { continue }
     $content = Get-Content -Raw -Path $f.FullName -Encoding UTF8 -ErrorAction SilentlyContinue
-    if ($content -notmatch 'status:.*active') { continue }
+    if (-not (Test-CardStatus $content 'active')) { continue }
     $tid = $f.BaseName
     # checkpoint_plan bypass: any non-empty value (incl. tryout) downgrades FAIL->WARN.
     $checkpointPlan = ""
@@ -743,7 +803,7 @@ function Test-TaskGranularity {
   foreach ($f in $taskFiles) {
     if ($f.Name -like '*.spec.md') { continue }
     $content = Get-Content -Raw -Path $f.FullName -Encoding UTF8 -ErrorAction SilentlyContinue
-    if ($content -notmatch 'status:.*active') { continue }
+    if (-not (Test-CardStatus $content 'active')) { continue }
     $tid = $f.BaseName
 
     # checkpoint_plan bypass: any non-empty value (incl. tryout) downgrades FAIL->WARN.
@@ -823,7 +883,7 @@ function Test-DependsOn {
   foreach ($f in $taskFiles) {
     if ($f.Name -like '*.spec.md') { continue }
     $content = Get-Content -Raw -Path $f.FullName -Encoding UTF8 -ErrorAction SilentlyContinue
-    if ($content -notmatch 'status:.*active') { continue }
+    if (-not (Test-CardStatus $content 'active')) { continue }
     $tid = $f.BaseName
 
     # Parse depends-on field (comma-separated list of T-NNN). Also accept depends_on.
@@ -847,7 +907,7 @@ function Test-DependsOn {
         continue
       }
       $upstreamContent = Get-Content -Raw -Path $upstreamFile -Encoding UTF8 -ErrorAction SilentlyContinue
-      if ($upstreamContent -notmatch 'status:.*done') {
+      if (-not (Test-CardStatus $upstreamContent 'done')) {
         if ($violationIsFail) {
           Write-Fail "task $tid depends-on $upstream which is not done - block active"
           Write-Output "  human: Active task $tid declares depends-on: $upstream, but $upstream is not done. Either complete $upstream first (run 'engine verify $upstream' and mark done), or remove the depends-on entry if the dependency no longer applies."
@@ -886,6 +946,7 @@ function Test-WarnDoneGate {
   $violationIsFail = $false
   if ($cvInt -ge 61000) { $violationIsFail = $true }
 
+  $dcMissing = 0
   $taskFiles = Get-ChildItem -Path $tasksDir -Filter 'T-*.md' -File -ErrorAction SilentlyContinue
   foreach ($f in $taskFiles) {
     if ($f.Name -like '*.spec.md') { continue }
@@ -893,10 +954,11 @@ function Test-WarnDoneGate {
     # Gate applies only to `done` tasks — active/paused tasks may have
     # in-progress DEAD-CODE.json with warn_count > 0 (architect hasn't
     # reviewed yet). The done gate fires when architect marks done.
-    if ($content -notmatch 'status:.*done') { continue }
+    if (-not (Test-CardStatus $content 'done')) { continue }
     $tid = $f.BaseName
     $dcFile = Join-Path $engineDir "evidence\$tid\DEAD-CODE.json"
-    if (-not (Test-Path $dcFile)) { continue }
+    # v6.12.1 (issue #11 D-2): count silent skips instead of hiding them.
+    if (-not (Test-Path $dcFile)) { $dcMissing++; continue }
 
     $dcContent = Get-Content -Raw -Path $dcFile -Encoding UTF8 -ErrorAction SilentlyContinue
     if ([string]::IsNullOrEmpty($dcContent)) { continue }
@@ -942,6 +1004,28 @@ function Test-WarnDoneGate {
     } else {
       Write-Warn "task $tid DEAD-CODE.json has $unexempt unexempted warn entry/entries (grace period, cv=$contractVersion < 6.10.0)"
       Write-Output "  human: Task $tid has dead-code warnings ($warnCount warn, $unexempt not exempted). Migration grace period (cv=$contractVersion < 6.10.0); WARN only. To fix: mark exemptions in evidence/$tid/DEAD-CODE.json."
+    }
+  }
+  # v6.12.1 (issue #11 D-2): "no DEAD-CODE evidence" and "checked clean" must
+  # not collapse into the same silence. One summary line, no per-card spam.
+  if ($dcMissing -gt 0) {
+    Write-Pass "warn-done gate: $dcMissing done card(s) have no DEAD-CODE.json (not initialized - predates v6.10.0, skipped)"
+  }
+}
+
+# v6.12.1 (issue #11 C-1): a single card must never satisfy both the active and
+# done predicates. Report the contradiction itself instead of letting the
+# downstream diagnostics fight about which state governs.
+function Test-StatusConflict {
+  $tasksDir = Join-Path $engineDir "tasks"
+  if (-not (Test-Path $tasksDir)) { return }
+  foreach ($f in (Get-ChildItem -Path $tasksDir -Filter 'T-*.md' -File -ErrorAction SilentlyContinue)) {
+    if ($f.Name -match '\.spec\.md$') { continue }
+    $content = Get-Content -Raw -Path $f.FullName -Encoding UTF8 -ErrorAction SilentlyContinue
+    if ((Test-CardStatus $content 'active') -and (Test-CardStatus $content 'done')) {
+      $tid = $f.BaseName
+      Write-Fail "task $tid declares BOTH active and done status lines - card state is self-contradictory"
+      Write-Output "  human: engine/tasks/$tid.md contains an anchored 'status: active' line AND an anchored 'status: done' line. Gates cannot agree which one governs. Remove the stale line so the card has exactly one status."
     }
   }
 }
@@ -1157,7 +1241,7 @@ function Test-TaskCardDoneEvidence {
   foreach ($f in (Get-ChildItem -Path $tasksDir -File -Filter "T-*.md" -ErrorAction SilentlyContinue)) {
     if ($f.Name -match '\.spec\.md$') { continue }
     $content = Get-Content -Raw -Path $f.FullName -Encoding UTF8 -ErrorAction SilentlyContinue
-    if ($content -notmatch 'status:\s*done') { continue }
+    if (-not (Test-CardStatus $content 'done')) { continue }
     $doneCount++
     $tid = $f.BaseName
     $evDir = Join-Path $engineDir ("evidence\" + $tid)
@@ -1377,7 +1461,7 @@ function Test-MultiCardWritesetOverlap {
   Get-ChildItem -Path $tasksDir -Filter 'T-*.md' -File -ErrorAction SilentlyContinue |
     Where-Object { $_.Name -notmatch '\.spec\.md$' } | ForEach-Object {
       $c = Get-Content -Raw -Path $_.FullName -Encoding UTF8 -ErrorAction SilentlyContinue
-      if ($c -match 'status:\s*[^|]*active') { $activeCards += ,@($_.BaseName, $c) }
+      if (Test-CardStatus $c 'active') { $activeCards += ,@($_.BaseName, $c) }
     }
   if ($activeCards.Count -lt 2) { return }
   $seen = @{}
@@ -1543,6 +1627,7 @@ Test-EngineVersion
 Test-LegacyDataFormat
 Test-MultiSessionIsolation
 Test-MultiCardWritesetOverlap
+Test-StatusConflict
 Test-WorkstreamOrphan
 
 # ── Project-custom checks (engine/checks/) ──

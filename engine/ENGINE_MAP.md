@@ -1,6 +1,6 @@
 # ENGINE_MAP — 引擎索引
 
-> Engine System (engine_system) · Revision: 36 · Last updated: 2026-07-26
+> Engine System (engine_system) · Revision: 37 · Last updated: 2026-07-26
 > ⚠️ MVP dogfood 实例（精简版）。完整 v5.5 注册表（§1.1 / §1.2 / §2 / §3 / 预算）待 `/engine-reconcile` 或 `/engine-init` 补全。
 
 ## §0 Profile & Read-Gate
@@ -57,6 +57,7 @@ path-glob → domain 路由表。机读源:`engine/domains/federation.json`;Sess
 | v6.11.6 pre-commit fallback 移除 | ✅ | T-044 issue #10 P037 legacy fallback 移除(D-032 approved):删 L111-116(strict_task_mode=0 时 ls-1 T-*.md sort -r 扫 done 卡);strict_task_mode=0 无 active 卡 → fail-open(done 卡不再 govern);task-card gate C6/C7 更新;测试 test_precommit_no_legacy_fallback.sh 8/8 PASS |
 | v6.11.7 CI 红灯修复 | ✅ | T-045 修复 GitHub Actions 自 v6.11.0 起持续红灯:engine-doctor.sh/ps1 `check_multi_session_isolation` 在 cv>=6.11.0 时硬 FAIL "`.cache/sessions` dir missing",但 CI 环境 SessionStart hook 不运行、.cache 被 .gitignore 钉住,导致每次 CI 红。检测 `CI=true`/`GITHUB_ACTIONS=true` 时降 FAIL→WARN;交互式环境行为不变。测试 test_doctor_ci_sessions.sh 3 场景 3/3 PASS。T-046 (伴随修复): install.sh/ps1 FILES 数组与 manifest.json src 列表不一致(缺 4 条 skeleton 条目,自 v6.7.0 起预存 bug)+ case 语句 blanket 重映射 bug 修复。 |
 | v6.12.0 (D-035/T-048) 多卡并行 + 租约 | ✅ | 六项根因根治「激活一张卡拦死其他 agent」:三层门禁 union gating(∃active 卡覆盖即放行)+ 任务/决策卡 bootstrap 恒豁免 + protected 逐卡豁免 + lock 液性从瞬时 pid 改租约(lock/hb mtime TTL 120min,PreToolUse/guard 续租,写时验锁,stale 原子抢占 + 自愈升格)+ .role=worker 旗标全生命周期清理(7 天孤儿 GC)+ worker 面收窄(自己卡的 progress/checkpoint 直写;subagent 保持 v6.5)+ assume-coordinator stale 免 --force + 展示层多卡化 + doctor `check_multi_card_writeset_overlap` WARN。tests/multi-session 新套件 + 孤儿测试收编进 check.sh 链。契约 2896/2940(净减 14)。 |
+| v6.12.1 (T-049) issue #11 九项修复 | ✅ | 门禁静默失效家族根治,原则「无法判定必须显式说出」:verify 全 SKIP → exit 3 parse-failure + 首分隔符锚定(兼容 `\| verify:`/`→ verify:`)+ AC id 字母分组 + 可疑模式 WARN(自引用 evidence/空串指纹);hook+doctor 统一三格式 WRITE-SET 解析(frontmatter 卡不再锁仓);裸目录条目覆盖子文件;status 全站点行首锚定 + active/done 冲突 FAIL;migrator 版本源 engine/VERSION 优先;INVENTORY 未初始化显式 SKIP;doctor unbound/未知旗标/整数比较修复;仓外路径不受治理;AC 模板三问 |
 | N1-N5 | ✅ | 全部达成 |
 
 ### 运营工件层
@@ -65,8 +66,8 @@ path-glob → domain 路由表。机读源:`engine/domains/federation.json`;Sess
 
 ### 当前状态
 
-- 最近 change capsule：`engine/changes/CHANGE-2026-07-26-02.md`
-- 活跃任务卡：无。前序: T-048 done(v6.12.0 多卡并行 union gating + 租约液性修复) / T-047 done(Windows PS 5.1 compat) / T-046 done(install.sh/ps1 manifest src 列表同步修复) / T-045 done(CI 红灯修复) / T-044 done(issue #10 P037 legacy fallback 移除) / T-043 done(issue #10 P038 parser 修复) / T-042 done(issue #9 PS 5.1 LF fix + T-041 cleanup) / T-041 done(pre-commit 自身豁免) / T-040 done(v6.11.3) / T-039 done(v6.11.2) / T-038 done(v6.11.1) / T-036 done(v6.11.0 多会话锁)
+- 最近 change capsule：`engine/changes/CHANGE-2026-07-26-03.md`
+- 活跃任务卡：无。前序: T-049 done(v6.12.1 issue #11 九项门禁静默失效修复) / T-048 done(v6.12.0 多卡并行 union gating + 租约液性修复) / T-047 done(Windows PS 5.1 compat) / T-046 done(install.sh/ps1 manifest src 列表同步修复) / T-045 done(CI 红灯修复) / T-044 done(issue #10 P037 legacy fallback 移除) / T-043 done(issue #10 P038 parser 修复) / T-042 done(issue #9 PS 5.1 LF fix + T-041 cleanup) / T-041 done(pre-commit 自身豁免) / T-040 done(v6.11.3) / T-039 done(v6.11.2) / T-038 done(v6.11.1) / T-036 done(v6.11.0 多会话锁)
 - 待批决策：D-018(proposed); Q2 基准试点库待拍板
 - 已批准决策：D-001~D-015, D-017, D-024~D-027, D-029, D-030, D-031, D-032, D-033, D-034, D-035（详见 `engine/decisions/`）
 

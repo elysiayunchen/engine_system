@@ -26,10 +26,14 @@ $End = "<!-- ENGINE_SYSTEM_CONTRACT_MIGRATIONS_END -->"
 # Contract version: read from VERSION file (repo root, then engine/), fall back to 6.0.0.
 $repoVersionFile = Join-Path $Root "VERSION"
 $engineVersionFile = Join-Path $EngineDir "VERSION"
-if (Test-Path $repoVersionFile) {
-  $ContractVersion = (Get-Content $repoVersionFile -Raw -Encoding UTF8).Trim()
-} elseif (Test-Path $engineVersionFile) {
+# v6.12.1 (issue #11 D-1): engine/VERSION first - downstream product repos ship
+# their own root VERSION (the PRODUCT version); preferring it stamped e.g.
+# contract-version 3.0.0 into managed blocks and silently degraded every
+# versioned Doctor gate to the migration grace period.
+if (Test-Path $engineVersionFile) {
   $ContractVersion = (Get-Content $engineVersionFile -Raw -Encoding UTF8).Trim()
+} elseif (Test-Path $repoVersionFile) {
+  $ContractVersion = (Get-Content $repoVersionFile -Raw -Encoding UTF8).Trim()
 } else {
   $ContractVersion = "6.0.0"
 }

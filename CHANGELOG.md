@@ -1,5 +1,26 @@
 # Changelog
 
+## v6.12.1 (2026-07-26)
+
+Issue #11 门禁静默失效家族修复(T-049/D-035)。下游真实项目审计报告 9 项缺陷,共同失效模式:门禁看似在跑、报绿或报熟悉的红,实际检查的不是它声称的东西。修复原则:**门禁无法判定时显式说出来,不折叠进 PASS/SKIP**。
+
+- **A-1**:`engine verify` 声明了 AC 但全部无法解析出 verify 命令时,不再静默输出 `0 pass, 0 fail, N skip`——stderr 显式 parse-failure 说明 + exit 3(区别于 AC fail 的 exit 1)。下游曾因此 18 张 done 卡零机器证据跑了 5 天无人察觉。
+- **A-2**:verify 命令抽取锚定首个 `| verify:` / `→ verify:` 分隔符(两种野格式均收敛支持),命令体含字面 `verify:` 不再被贪婪截断。
+- **A-3**:AC id 放宽字母分组 `AC-A1`/`AC-B12`/`AC-1.2`(verify + doctor)。
+- **B-1**:engine-hook-stop parse_task_patterns 移植 T-043 三格式解析(inline / `## WRITE-SET` section / YAML frontmatter 多行)——只写 frontmatter(规范格式)的卡不再被 hook 误报 "no readable WRITE-SET" 而锁死全仓写入。sh+ps1。
+- **B-2**:doctor code→INVENTORY 检查换统一解析器——原先只认 inline 拼法,对全部用 section/frontmatter 的项目**从未评估过任何一张卡**(空转多版本)。
+- **B-3**:WRITE-SET 裸目录条目(`engine/evidence/T-049`)现匹配其子文件(hook + pre-commit + doctor)。
+- **C-1**:status 检测全部改行首锚定 `^(> )?status:` ——原无锚全文 grep 会把散文中引用该模式的 done 卡钉成 active 并锁死全仓(下游三次踩中;本仓 T-049 卡自身也复现了一次)。sh+ps1 全站点(hook/session-start/context/pre-commit/engine bin/doctor)。doctor 新增同卡 active+done 冲突检查。
+- **C-2**:done 卡治理新提交——上游 v6.11.6(T-044)已修,无需重复。
+- **D-1**:migrator contract-version 改读 `engine/VERSION` 优先——原先偏好仓根 `VERSION`,产品仓被盖上产品版本号(下游实测 3.0.0),五代门禁静默降级到迁移宽限期。
+- **D-2**:doctor INVENTORY 未初始化显式输出 SKIP (not initialized) 而非无声跳过;active 卡缺 DEAD-CODE.json 提示。
+- **E-1**:AC 模板加「反套套逻辑三问」(契约源 + engine/tasks/README.md);`engine verify` 对可疑模式 WARN(自引用本卡 evidence 路径 / 全部 PASS 指纹皆空串哈希)。下游曾有 37 条 `test -f evidence/*.md` 型恒真 AC 全绿。
+- **E-2**:doctor `${CI:-}`/`${GITHUB_ACTIONS:-}` 防 fresh worktree unbound 崩溃。
+- **E-3**:doctor grep -c 多行结果整数比较修复。
+- **附加**(本仓 T-048 撞到):doctor 未知 `--*` 参数显式报错退出,不再被静默当作 ROOT(`engine-doctor.sh --quiet` 曾因此报 ENGINE_MAP missing)。
+- 测试:tests/multi-session 增 frontmatter/glob 前缀/status 锚定 3 件;tests/update-flow 增版本源 1 件;tests/behavior-verify 增 all-SKIP loud/解析硬化/恒真 WARN/doctor loud-skip 4 件。
+- 详见 GitHub issue #11 + `engine/changes/CHANGE-2026-07-26-03.md`。
+
 ## v6.12.0 (2026-07-26)
 
 多任务卡并行(union gating)+ 会话租约液性修复(D-035/T-048)。根治「激活一张任务卡后其他 agent 被全面拦截」的多会话撞车:

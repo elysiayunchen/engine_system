@@ -67,7 +67,7 @@ if ($Mode -eq '--guard') {
     foreach ($tf in (Get-ChildItem -Path $tasksDirGuard -File -Filter "T-*.md" -ErrorAction SilentlyContinue | Sort-Object Name)) {
       if ($tf.Name -like '*.spec.md') { continue }
       $content = Get-Content -Raw -Path $tf.FullName -Encoding UTF8 -ErrorAction SilentlyContinue
-      if ($content -notmatch 'status:\s*active') { continue }
+      if ($content -notmatch '(?m)^\s*(>\s*)?status:\s*active') { continue }
       $guardIds += $tf.BaseName
       if ($guardIds.Count -le 3) {
         $lines = $content -split "`n"
@@ -160,7 +160,7 @@ if (Test-Path $tasksDir) {
   foreach ($tf in $taskFiles) {
     if ($tf.Name -like '*.spec.md') { continue }
     $content = Get-Content -Raw -Path $tf.FullName -Encoding UTF8 -ErrorAction SilentlyContinue
-    if ($content -notmatch 'status:\s*active') { continue }
+    if ($content -notmatch '(?m)^\s*(>\s*)?status:\s*active') { continue }
     $activeCount++
     $activeIds += $tf.BaseName
     if (-not $activeTask) {
@@ -322,7 +322,7 @@ if (Test-Path $tasksDir) {
   foreach ($cf in $cpTaskFiles) {
     if ($cf.Name -match '\.spec\.md$') { continue }
     $cc = Get-Content -Raw -Path $cf.FullName -Encoding UTF8 -ErrorAction SilentlyContinue
-    if ($cc -match 'status:\s*(active|paused)') {
+    if ($cc -match '(?m)^\s*(>\s*)?status:\s*(active|paused)') {
       $cpId = $cf.BaseName
       $cpFile = Join-Path $engineDir ("evidence\" + $cpId + "\checkpoint.md")
       if (Test-Path $cpFile) {
@@ -342,7 +342,7 @@ if (Test-Path $tasksDir) {
   foreach ($pf in $progressTaskFiles) {
     if ($pf.Name -match '\.spec\.md$') { continue }
     $pc = Get-Content -Raw -Path $pf.FullName -Encoding UTF8 -ErrorAction SilentlyContinue
-    if ($pc -match 'status:\s*(active|paused)') {
+    if ($pc -match '(?m)^\s*(>\s*)?status:\s*(active|paused)') {
       $progId = $pf.BaseName
       $progFile = Join-Path $tasksDir ("$progId\progress.md")
       if (Test-Path $progFile) {
@@ -390,7 +390,7 @@ if (Test-Path $decisionsDir) {
   $decFiles = Get-ChildItem -Path $decisionsDir -File -Filter "D-*.md" -ErrorAction SilentlyContinue | Sort-Object Name
   foreach ($df in $decFiles) {
     $content = Get-Content -Raw -Path $df.FullName -Encoding UTF8 -ErrorAction SilentlyContinue
-    if ($content -match 'status:\s*proposed') {
+    if ($content -match '(?m)^\s*(>\s*)?status:\s*proposed') {
       if (-not $proposedFound) {
         Write-Output "---- Pending your decision (proposed) ----"
         $proposedFound = $true

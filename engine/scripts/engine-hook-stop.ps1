@@ -1,4 +1,5 @@
 ﻿# Engine System - write/stop gate (PowerShell twin of engine-hook-stop.sh).
+# v6.12.0 (D-035): union gating across ALL active cards + heartbeat lease.
 param([string]$Mode = "stop")
 
 $ErrorActionPreference = "Continue"
@@ -55,27 +56,36 @@ function Test-TaskBootstrapPath([string]$Path) {
   return ($Path -like 'engine/tasks/T-*.md' -or $Path -like 'engine/decisions/D-*.md')
 }
 
-function Find-ActiveTask {
+# v6.12.0 (D-035) RC-1 fix: collect EVERY active card, not the lexicographically
+# first one. Multiple top-level sessions may each hold their own active card;
+# gating is per-path union across cards (see Get-ScopeViolation).
+function Find-ActiveTasks {
   $tasksDir = Join-Path $EngineDir "tasks"
-  if (-not (Test-Path $tasksDir)) { return $null }
+  $found = @()
+  if (-not (Test-Path $tasksDir)) { return $found }
   foreach ($tf in (Get-ChildItem -Path $tasksDir -File -Filter "T-*.md" -ErrorAction SilentlyContinue | Sort-Object Name)) {
+    if ($tf.Name -like '*.spec.md') { continue }
     $content = Get-Content -Raw -Path $tf.FullName -Encoding UTF8 -ErrorAction SilentlyContinue
-    if ($content -match 'status:\s*active') { return $tf }
+    if ($content -match 'status:\s*active') { $found += $tf }
   }
-  return $null
+  return $found
 }
 
-function Find-ClosingTask {
+# Once an active card is edited to done, it is no longer discoverable as active.
+# A dirty done card remains a governing boundary through Stop/commit.
+function Find-ClosingTasks {
   $tasksDir = Join-Path $EngineDir 'tasks'
-  if (-not (Test-Path $tasksDir)) { return $null }
+  $found = @()
+  if (-not (Test-Path $tasksDir)) { return $found }
   foreach ($tf in (Get-ChildItem -Path $tasksDir -File -Filter 'T-*.md' -ErrorAction SilentlyContinue | Sort-Object Name)) {
+    if ($tf.Name -like '*.spec.md') { continue }
     $content = Get-Content -Raw -Path $tf.FullName -Encoding UTF8 -ErrorAction SilentlyContinue
     if ($content -notmatch 'status:\s*done') { continue }
     $rel = 'engine/tasks/' + $tf.Name
     $dirty = git -C $Root status --porcelain -- $rel 2>$null
-    if ($dirty) { return $tf }
+    if ($dirty) { $found += $tf }
   }
-  return $null
+  return $found
 }
 
 function Get-TaskPatterns([string]$Field, [string]$TaskContent) {
@@ -116,7 +126,14 @@ function Is-RuntimeCache([string]$Path) {
   return ($Path -like 'engine/.cache/*' -or $Path -like '.engine/*')
 }
 
-function Is-SharedMemory([string]$Path) {
+# v6.12.0 (D-035) RC-4 fix: split the old Is-SharedMemory blanket.
+# - Shared singletons: one authoritative copy repo-wide; coordinator-only for
+#   every worker kind (top-level worker session or in-session subagent).
+# - Task-local files (per-task progress/checkpoint): governed by the owning
+#   card's WRITE-SET union instead, so a worker session driving its OWN card
+#   can still record progress. In-session subagents (agent_id set) keep the
+#   old blanket: they shard everything and the coordinator merges (v6.5).
+function Is-SharedSingleton([string]$Path) {
   $exact = @(
     'AGENTS.md', 'CLAUDE.md', 'engine/ENGINE_MAP.md', 'engine/SYSTEM.md',
     'engine/REPO_GUIDE.md', 'engine/CONTEXT.md', 'engine/HANDOFF.md',
@@ -127,12 +144,21 @@ function Is-SharedMemory([string]$Path) {
     $Path -like 'engine/domains/*/CONTEXT.md' -or
     $Path -like 'engine/domains/*/PITFALLS.md' -or
     $Path -like 'engine/domains/*/INVENTORY.md' -or
-    $Path -like 'engine/tasks/T-*/progress.md' -or
-    $Path -like 'engine/evidence/T-*/checkpoint.md' -or
     $Path -like 'engine/plans/*' -or
     $Path -like 'docs/*/specs/*' -or
     $Path -like 'docs/specs/*'
   )
+}
+
+function Is-TaskLocal([string]$Path) {
+  return (
+    $Path -like 'engine/tasks/T-*/progress.md' -or
+    $Path -like 'engine/evidence/T-*/checkpoint.md'
+  )
+}
+
+function Is-SharedMemory([string]$Path) {
+  return ((Is-SharedSingleton $Path) -or (Is-TaskLocal $Path))
 }
 
 function Write-Block([string]$Reason) {
@@ -141,37 +167,86 @@ function Write-Block([string]$Reason) {
   exit 0
 }
 
-$strictTaskMode = Test-StrictTaskProject
-$activeTaskFile = Find-ActiveTask
-if (-not $activeTaskFile -and $strictTaskMode) { $activeTaskFile = Find-ClosingTask }
-$activeTask = $null
-$activeTaskId = ""
-$writeSet = ""
-$forbidden = ""
-if ($activeTaskFile) {
-  $activeTask = Get-Content -Raw -Path $activeTaskFile.FullName -Encoding UTF8
-  $activeTaskId = $activeTaskFile.BaseName
-  $writeSet = Get-TaskPatterns 'WRITE-SET' $activeTask
-  $forbidden = Get-TaskPatterns 'FORBIDDEN' $activeTask
+function Touch-File([string]$Path) {
+  try {
+    if (Test-Path $Path) {
+      [System.IO.File]::SetLastWriteTimeUtc($Path, [DateTime]::UtcNow)
+    } else {
+      New-Item -ItemType File -Path $Path -Force -ErrorAction SilentlyContinue | Out-Null
+    }
+  } catch {}
 }
 
+$strictTaskMode = Test-StrictTaskProject
+
+# v6.12.0 (D-035): cache every governing card (all active, plus dirty-done
+# closing cards). Parallel arrays: file / id / content / WRITE-SET / FORBIDDEN.
+$cardFiles = @()
+$cardIds = @()
+$cardContents = @()
+$cardWs = @()
+$cardFb = @()
+foreach ($tf in (Find-ActiveTasks)) { $cardFiles += $tf }
+# Closing (dirty done) cards always co-govern: one session may be closing its
+# card while another session's card is still active (D-035).
+foreach ($tf in (Find-ClosingTasks)) { $cardFiles += $tf }
+foreach ($tf in $cardFiles) {
+  $content = Get-Content -Raw -Path $tf.FullName -Encoding UTF8 -ErrorAction SilentlyContinue
+  $cardIds += $tf.BaseName
+  $cardContents += [string]$content
+  $cardWs += (Get-TaskPatterns 'WRITE-SET' $content)
+  $cardFb += (Get-TaskPatterns 'FORBIDDEN' $content)
+}
+# Primary card = first found. Display/meta only; gating is per-path union.
+$activeTaskId = if ($cardIds.Count -gt 0) { $cardIds[0] } else { "" }
+$cardIdList = ($cardIds -join ', ')
+
+# True when the argument names any governing card (worker shard path check).
+function Test-GoverningTaskId([string]$Want) {
+  foreach ($id in $script:cardIds) {
+    if ($id -eq $Want) { return $true }
+  }
+  return $false
+}
+
+# Union gating (D-035 RC-1/RC-2): a path is allowed when at least one governing
+# card lists it in WRITE-SET and not in that same card's FORBIDDEN. One card's
+# FORBIDDEN no longer vetoes another card's WRITE-SET. Task/decision card files
+# are always writable (bootstrap channel): creating or updating a card must
+# never be blocked by someone else's card.
 function Get-ScopeViolation([string]$Path) {
-  if (-not $activeTaskFile) {
-    if ($strictTaskMode -and -not (Test-TaskBootstrapPath $Path)) {
+  if ($script:cardFiles.Count -eq 0) {
+    if ($script:strictTaskMode -and -not (Test-TaskBootstrapPath $Path)) {
       return "[Engine System] No active task card governs $Path. | developer: This project uses the v6.5 strict workflow. Create or activate engine/tasks/T-NNN.md before editing ordinary project files."
     }
     return $null
   }
-  if ($forbidden -and (Match-Glob $Path $forbidden)) {
-    return "[Engine System] Path $Path is in FORBIDDEN for $activeTaskId. | developer: This file is explicitly off-limits for the current task."
+  if (Test-TaskBootstrapPath $Path) { return $null }
+  $readable = $false
+  for ($i = 0; $i -lt $script:cardFiles.Count; $i++) {
+    $ws = $script:cardWs[$i]
+    $fb = $script:cardFb[$i]
+    if (-not $ws) { continue }
+    $readable = $true
+    if ($fb -and (Match-Glob $Path $fb)) { continue }
+    if (Match-Glob $Path $ws) { return $null }
   }
-  if (-not $writeSet) {
-    return "[Engine System] Active task $activeTaskId has no readable WRITE-SET. | developer: The task boundary is malformed, so writes are paused until the task card is fixed."
+  if (-not $readable) {
+    return "[Engine System] No governing task card has a readable WRITE-SET ($($script:cardIdList)). | developer: The task boundary is malformed, so writes are paused until a card is fixed."
   }
-  if (-not (Match-Glob $Path $writeSet)) {
-    return "[Engine System] Path $Path is outside the WRITE-SET of $activeTaskId. | developer: This file is outside the current task scope. Current WRITE-SET: $writeSet"
+  return "[Engine System] Path $Path is outside the WRITE-SET of every active card ($($script:cardIdList)). | developer: Add the path to YOUR card WRITE-SET, or create a task card for this goal."
+}
+
+# Which governing card covers this path? Returns the card index, -1 when none.
+function Get-CoveringCardIndex([string]$Path) {
+  for ($i = 0; $i -lt $script:cardFiles.Count; $i++) {
+    $ws = $script:cardWs[$i]
+    $fb = $script:cardFb[$i]
+    if ($ws -and (Match-Glob $Path $ws)) {
+      if ((-not $fb) -or (-not (Match-Glob $Path $fb))) { return $i }
+    }
   }
-  return $null
+  return -1
 }
 
 $sessionId = if ($event -and $event.session_id) { [string]$event.session_id } else { "" }
@@ -180,6 +255,38 @@ $toolName = if ($event -and $event.tool_name) { [string]$event.tool_name } else 
 $sessionKey = if ($sessionId) { Safe-Id ($sessionId + '-' + $(if ($agentId) { $agentId } else { 'main' })) } else { "" }
 $sessionsDir = Join-Path $EngineDir ".cache\sessions"
 
+# v6.12.0 (D-035) RC-3 fix: lease freshness by heartbeat mtime, not pid
+# liveness. The lock records the transient hook shell pid (always dead by the
+# next check), so instead each session renews .cache/sessions/<key>.hb on every
+# PreToolUse and the holder re-stamps the lock at UserPromptSubmit. Fresh =
+# newest of lock/.hb mtime within ENGINE_SESSION_TTL_MIN (default 120 minutes).
+function Test-LeaseFresh([string]$LockPath) {
+  if (-not (Test-Path $LockPath)) { return $false }
+  $ttlMin = 120
+  $ttlRaw = $env:ENGINE_SESSION_TTL_MIN
+  if ($ttlRaw -and ($ttlRaw -match '^[0-9]+$')) { $ttlMin = [int]$ttlRaw }
+  $newest = $null
+  try { $newest = (Get-Item -Path $LockPath -ErrorAction Stop).LastWriteTimeUtc } catch {}
+  $lockSid = ''
+  try {
+    $lockLine = (Get-Content -Path $LockPath -TotalCount 1 -ErrorAction Stop)
+    $parts = ([string]$lockLine) -split '\|'
+    if ($parts.Length -ge 2) { $lockSid = $parts[1] }
+  } catch {}
+  if ($lockSid) {
+    $hbPath = Join-Path $script:sessionsDir ((Safe-Id ($lockSid + '-main')) + '.hb')
+    if (Test-Path $hbPath) {
+      try {
+        $hbTime = (Get-Item -Path $hbPath -ErrorAction Stop).LastWriteTimeUtc
+        if ((-not $newest) -or ($hbTime -gt $newest)) { $newest = $hbTime }
+      } catch {}
+    }
+  }
+  if (-not $newest) { return $false }
+  $age = ([DateTime]::UtcNow - $newest).TotalSeconds
+  return ($age -le ($ttlMin * 60))
+}
+
 if ($Mode -eq '--pre-tool-use') {
   $filePath = ""
   if ($event -and $event.tool_input) {
@@ -187,9 +294,14 @@ if ($Mode -eq '--pre-tool-use') {
     elseif ($event.tool_input.path) { $filePath = [string]$event.tool_input.path }
   }
 
+  # v6.12.0 (D-035): every tool call renews this session's lease heartbeat.
+  if ($sessionKey) {
+    New-Item -ItemType Directory -Force -Path $sessionsDir | Out-Null
+    Touch-File (Join-Path $sessionsDir ($sessionKey + '.hb'))
+  }
+
   if ($toolName -in @('Bash', 'Shell')) {
     if ($sessionKey) {
-      New-Item -ItemType Directory -Force -Path $sessionsDir | Out-Null
       Set-Content -Path (Join-Path $sessionsDir ($sessionKey + '.global')) -Value '' -Encoding ASCII
     }
     exit 0
@@ -199,30 +311,96 @@ if ($Mode -eq '--pre-tool-use') {
   $path = Normalize-ProjectPath $filePath
   if (Is-RuntimeCache $path) { exit 0 }
 
-  # v6.11.0 (D-029/T-036) AC-4: PreToolUse 双信号扩展
-  # 信号 1: agentId 非空 (subagent 由 Claude Code 传入)
-  # 信号 2: .cache/sessions/<sessionKey>.role=worker 文件存在 (顶层会话降级为 worker)
-  # OR 关系: 任一信号触发即视为 worker, 拦截共享记忆写入 + 限定 workstream 路径
+  # v6.11.0 (D-029/T-036) AC-4 dual-signal, scope narrowed by v6.12.0 (D-035):
+  # signal 1: agentId set (in-session subagent, passed by Claude Code)
+  # signal 2: .cache/sessions/<sessionKey>.role=worker flag (demoted top-level session)
   $isWorker = $false
   if ($agentId) {
     $isWorker = $true
   } elseif ($sessionKey -and (Test-Path (Join-Path $sessionsDir ($sessionKey + '.role=worker')))) {
     $isWorker = $true
   }
-  # worker 标识: 优先 agentId, 否则用 sessionKey (顶层会话降级场景)
   $workerId = if ($agentId) { $agentId } else { $sessionKey }
+  $agentSafe = Safe-Id $workerId
 
-  if ($isWorker -and (Is-SharedMemory $path)) {
-    $agentSafe = Safe-Id $workerId
-    $taskLabel = if ($activeTaskId) { $activeTaskId } else { 'T-NNN' }
-    Write-Block "[Engine System] Worker $workerId cannot write shared memory $path. | developer: Parallel workers write engine/workstreams/$taskLabel/$agentSafe/; the coordinator merges shared CONTEXT/HANDOFF once."
+  # Shared singleton writes resolve against the coordinator lease (D-035):
+  # - in-session subagents never own the lease -> always shard
+  # - top-level sessions: holder writes; non-holder blocked while the lease is
+  #   fresh; a stale or free lease is claimed on the spot (self-healing, incl.
+  #   sessions stuck with an obsolete .role=worker flag from RC-3b)
+  if (Is-SharedSingleton $path) {
+    if ($agentId) {
+      Write-Block "[Engine System] Worker $workerId cannot write shared memory $path. | developer: Parallel workers write their own engine/workstreams/<task>/$agentSafe/ shard; the coordinator merges shared CONTEXT/HANDOFF once."
+    }
+    if ($sessionId) {
+      $lockFile = Join-Path $EngineDir '.cache\session.lock'
+      $nowIso = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
+      if (-not (Test-Path $lockFile)) {
+        New-Item -ItemType Directory -Force -Path (Join-Path $EngineDir '.cache') | Out-Null
+        # Atomic exclusive create (FileStream CreateNew, no TOCTOU window).
+        try {
+          $fs = New-Object System.IO.FileStream($lockFile, [System.IO.FileMode]::CreateNew, [System.IO.FileAccess]::Write, [System.IO.FileShare]::None)
+          $bytes = [System.Text.Encoding]::ASCII.GetBytes("$PID|$sessionId|coordinator|$nowIso|$activeTaskId`n")
+          $fs.Write($bytes, 0, $bytes.Length)
+          $fs.Close()
+        } catch {}
+      }
+      $lockSid = ''
+      try {
+        $lockLine = (Get-Content -Path $lockFile -TotalCount 1 -ErrorAction Stop)
+        $parts = ([string]$lockLine) -split '\|'
+        if ($parts.Length -ge 2) { $lockSid = $parts[1] }
+      } catch {}
+      if ($lockSid -and ($lockSid -ne $sessionId)) {
+        if (Test-LeaseFresh $lockFile) {
+          if ($isWorker) {
+            Write-Block "[Engine System] Worker $workerId cannot write shared memory $path. | developer: Parallel workers write their own engine/workstreams/<task>/$agentSafe/ shard; the coordinator merges shared CONTEXT/HANDOFF once."
+          } else {
+            Write-Block "[Engine System] Shared memory $path is leased by another live session. | developer: Run engine assume-coordinator to take over, or write your own workstreams shard and let the coordinator merge."
+          }
+        }
+        # Stale lease: take over and continue as coordinator.
+        try { Set-Content -Path $lockFile -Value "$PID|$sessionId|coordinator|$nowIso|$activeTaskId" -Encoding ASCII } catch {}
+        try { Set-Content -Path (Join-Path $EngineDir '.cache\session.tombstone') -Value "$nowIso|unknown|stale-recovered" -Encoding ASCII } catch {}
+      }
+      # Holding (or just claimed) the lease: coordinator from here on.
+      if ($sessionKey) {
+        Remove-Item -Path (Join-Path $sessionsDir ($sessionKey + '.role=worker')) -Force -ErrorAction SilentlyContinue
+      }
+      $isWorker = $false
+    } elseif ($isWorker) {
+      # No session identity (non-Claude harness): keep the flag-based block.
+      Write-Block "[Engine System] Worker $workerId cannot write shared memory $path. | developer: Parallel workers write their own engine/workstreams/<task>/$agentSafe/ shard; the coordinator merges shared CONTEXT/HANDOFF once."
+    }
+  }
+
+  # In-session subagents keep the v6.5 blanket: task-local progress/checkpoint
+  # files also go through their shard; the coordinator merges. Top-level worker
+  # sessions write task-local files of their OWN card via WRITE-SET union.
+  if ($agentId -and (Is-TaskLocal $path)) {
+    Write-Block "[Engine System] Subagent $agentId cannot write task file $path directly. | developer: Record it in your engine/workstreams/<task>/$agentSafe/ shard; the coordinator merges."
   }
 
   if ($isWorker -and $path -like 'engine/workstreams/*') {
-    $agentSafe = Safe-Id $workerId
-    $taskLabel = if ($activeTaskId) { $activeTaskId } else { 'T-NNN' }
-    if ($path -notlike "engine/workstreams/$taskLabel/$agentSafe/*") {
-      Write-Block "[Engine System] Worker $workerId may only write its own workstream shard: engine/workstreams/$taskLabel/$agentSafe/."
+    $shardTask = ($path.Substring('engine/workstreams/'.Length) -split '/')[0]
+    if ($path -like "engine/workstreams/$shardTask/$agentSafe/*") {
+      # v6.12.0 (D-035) RC-4 fix: a shard may live under ANY governing card,
+      # not only the lexicographically first one. A validated own shard is the
+      # sanctioned worker write channel: allow it directly instead of demanding
+      # every card list workstreams in WRITE-SET.
+      if (($cardIds.Count -gt 0) -and (-not (Test-GoverningTaskId $shardTask))) {
+        Write-Block "[Engine System] Workstream shard task $shardTask is not an active card ($cardIdList). | developer: Run engine workstream against your own active card."
+      }
+      if ($sessionKey) {
+        New-Item -ItemType Directory -Force -Path $sessionsDir | Out-Null
+        $ledger = Join-Path $sessionsDir ($sessionKey + '.paths')
+        $known = @()
+        if (Test-Path $ledger) { $known = @(Get-Content $ledger -ErrorAction SilentlyContinue) }
+        if ($known -notcontains $path) { Add-Content -Path $ledger -Value $path -Encoding UTF8 }
+      }
+      exit 0
+    } else {
+      Write-Block "[Engine System] Worker $workerId may only write its own workstream shard: engine/workstreams/<task>/$agentSafe/."
     }
   }
 
@@ -287,36 +465,45 @@ foreach ($rec in ($raw -split "`0")) {
   }
 }
 
-if ($activeTaskFile -or $strictTaskMode) {
+if (($cardFiles.Count -gt 0) -or $strictTaskMode) {
   foreach ($path in $governedPaths) {
     if ($agentId -and (Is-SharedMemory $path)) {
-      Write-Block "[Engine System] Worker agent $agentId changed shared memory $path. Use engine/workstreams/$activeTaskId/$(Safe-Id $agentId)/ and let the coordinator merge."
+      Write-Block "[Engine System] Worker agent $agentId changed shared memory $path. Use engine/workstreams/<task>/$(Safe-Id $agentId)/ and let the coordinator merge."
     }
+    # Workstream shards are the sanctioned worker channel; the conservative
+    # whole-worktree fallback may also see sibling sessions' shards - never block.
+    if ($path -like 'engine/workstreams/*/*/*') { continue }
     $violation = Get-ScopeViolation $path
     if ($violation) { Write-Block $violation }
   }
 }
 
 if ($codeChanged -and -not $engineWritten) {
-  Write-Block '[Engine System] Code changed but this session did not update project memory. | developer: Save what changed and what comes next before ending. Parallel workers write their own workstream shard; the coordinator updates shared CONTEXT/HANDOFF.'
+  Write-Block '[Engine System] Code changed but this session did not update project memory. | developer: Save what changed and what comes next before ending. Parallel workers must write their own workstream shard; the coordinator updates shared CONTEXT/HANDOFF.'
 }
 
-# Domain routing stays a code-path concern; engine-memory routing is governed by WRITE-SET.
-if ($activeTaskFile -and $codePaths.Count -gt 0) {
-  $taskDomains = ""
-  foreach ($line in ($activeTask -split "`n")) {
-    if (($line -match '^>') -and ($line -match 'domain:\s*([^|]+)')) {
-      $taskDomains = ($Matches[1] -replace ' ', '')
-      break
-    }
-  }
+# Domain routing remains a code-path concern. Engine-memory routing is governed
+# by WRITE-SET. v6.12.0 (D-035): each code path is judged against the domains of
+# the card that covers it, not against the first active card.
+if (($cardFiles.Count -gt 0) -and $codePaths.Count -gt 0) {
   $fedPath = Join-Path $EngineDir 'domains\federation.json'
-  if ((Test-Path $fedPath) -and $taskDomains) {
+  if (Test-Path $fedPath) {
     try { $fed = Get-Content -Raw -Path $fedPath -Encoding UTF8 | ConvertFrom-Json } catch { $fed = $null }
     if ($fed) {
       $defaultDom = if ($fed.default_domain) { $fed.default_domain } else { 'root' }
-      $taskDomainList = $taskDomains -split ','
       foreach ($path in $codePaths) {
+        $coverIdx = Get-CoveringCardIndex $path
+        if ($coverIdx -lt 0) { continue }
+        $coverId = $cardIds[$coverIdx]
+        $taskDomains = ""
+        foreach ($line in ($cardContents[$coverIdx] -split "`n")) {
+          if (($line -match '^>') -and ($line -match 'domain:\s*([^|]+)')) {
+            $taskDomains = ($Matches[1] -replace ' ', '')
+            break
+          }
+        }
+        if (-not $taskDomains) { continue }
+        $taskDomainList = $taskDomains -split ','
         $pathDom = $null
         foreach ($domName in $fed.domains.PSObject.Properties.Name) {
           foreach ($g in $fed.domains.$domName.paths) {
@@ -326,7 +513,7 @@ if ($activeTaskFile -and $codePaths.Count -gt 0) {
         }
         if (-not $pathDom) { $pathDom = $defaultDom }
         if ($taskDomainList -notcontains $pathDom) {
-          Write-Block "[Engine System] Path $path belongs to domain $pathDom, outside task $activeTaskId domains [$taskDomains]."
+          Write-Block "[Engine System] Path $path belongs to domain $pathDom, outside task $coverId domains [$taskDomains]."
         }
       }
     }

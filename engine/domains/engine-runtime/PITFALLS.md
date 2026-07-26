@@ -10,6 +10,8 @@
 - **P004 `git add -A` 会意外暂存受保护文件**:rules.json 本身受保护,`git add -A` 后提交被 pre-commit 拦;测试用指定文件 `git add`。来源:S1 task-card 测试。
 - **P005 中文路径击穿 porcelain**:`core.quotepath` 给非 ASCII 文件名加引号,`${line:3}` 子串逻辑破功;`-z` 终止符根治。来源:D1 诊断。
 - **P006 双引号里的 `<!--` 会被交互式 bash 历史展开**:`MARK="<!-- … -->"` 中 `!-` 触发 histexpand→赋值丢弃→`set -u` unbound(外部项目实测踩中)。脚本一律 `set +H` + MARK 单引号;回归:tests/update-flow U6。来源:D-015。
+- **P007 改 live hook 必须先改非 live 副本再原子换入**:settings.json 指向 plugin/ 副本;直接 Edit 该文件时,第一刀(如函数改名)落盘后 hook 立即以半改状态执行,可能自坏并拦截后续一切 Edit(自锁)。解法:改 root 副本,完工后 `cp` 整体换入;Bash 工具不受 PreToolUse 逐路径拦截,可作恢复通道。来源:T-048 实测自锁。
+- **P008 无 BOM .ps1 的中文注释在 GBK 机器上会吞括号**:PS 5.1 按系统码页读无 BOM 文件;GBK 双字节解码可把注释外的 `{`/`}` 吞进乱码对,且是否引爆取决于字节对齐——上游任何 ASCII 编辑都可能改变对齐引爆预存雷(CI Windows-1252 单字节不受影响,本地中文 Windows 才炸)。解法:含非 ASCII 的 .ps1 一律带 UTF-8 BOM(T-038 先例);新增字符串字面量 ASCII-only(T-047)。来源:T-048 engine.ps1 三副本实测。
 
 ## 检索配方
 

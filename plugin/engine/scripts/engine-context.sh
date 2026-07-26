@@ -72,24 +72,36 @@ if [ -f "$fed" ]; then
   echo ""
 fi
 
-# Active task card — core anti-drift anchor.
+# Active task cards — core anti-drift anchor.
+# v6.12.0 (D-035): multiple active cards may run in parallel (one per session);
+# show up to 3 in full, headers beyond.
 active_task=""
+active_count=0
+active_ids=""
 for f in "$ENGINE_DIR"/tasks/T-*.md; do
   [ -f "$f" ] || continue
-  if grep -q 'status:.*active' "$f" 2>/dev/null; then
-    active_task="$f"
-    break
+  case "$f" in *.spec.md) continue ;; esac
+  grep -q 'status:.*active' "$f" 2>/dev/null || continue
+  task_id="$(basename "$f" .md)"
+  active_count=$((active_count + 1))
+  active_ids="${active_ids:+$active_ids, }$task_id"
+  [ -n "$active_task" ] || active_task="$f"
+  if [ "$active_count" -le 3 ]; then
+    echo "──── 🎯 Active Task Card ($task_id) ────"
+    echo "Every project path, including engine/*, MUST be covered by some active card's WRITE-SET (union gating) and outside that card's FORBIDDEN."
+    cat "$f" 2>/dev/null || log_error "failed to read active task card: $f"
+    echo ""
+  else
+    echo "──── 🎯 Additional active card: $task_id (read engine/tasks/$task_id.md) ────"
+    echo ""
   fi
 done
-if [ -n "$active_task" ]; then
-  task_id="$(basename "$active_task" .md)"
-  echo "──── 🎯 Active Task Card ($task_id) ────"
-  echo "Every project path, including engine/*, MUST be within WRITE-SET and outside FORBIDDEN."
-  cat "$active_task" 2>/dev/null || log_error "failed to read active task card: $active_task"
-  echo ""
-else
+if [ "$active_count" -eq 0 ]; then
   echo "──── 🎯 Active Task Card: none ────"
   echo "contract-version 6.5+ blocks ordinary writes until engine/tasks/T-NNN.md is created or activated. Completion requires: engine verify T-NNN."
+  echo ""
+elif [ "$active_count" -gt 1 ]; then
+  echo "Multi-card parallel ($active_ids): work under ONE card; write only inside YOUR card's WRITE-SET."
   echo ""
 fi
 

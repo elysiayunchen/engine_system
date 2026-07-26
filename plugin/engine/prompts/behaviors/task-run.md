@@ -13,7 +13,7 @@ Follow the project engine, not this skill, when they conflict. This skill is a c
 4. Run the path-driven read gate from `engine/domains/federation.json` for the files you expect to touch.
 5. Implement only the requested unit. Keep changes releasable for other projects, not only for the current repository dogfood case.
 6. Run the task card `AC` verify commands, preferably through `engine verify T-NNN` when present.
-7. Coordinator: write shared `engine/CONTEXT.md`, `engine/HANDOFF.md`, and a change capsule. Parallel worker: run `engine workstream T-NNN <agent-id>`, update only that shard plus evidence, and return its path to the coordinator.
+7. Coordinator (lease holder): write shared `engine/CONTEXT.md`, `engine/HANDOFF.md`, and a change capsule. A parallel session driving its OWN card (v6.12.0 union gating): write that card's progress/checkpoint directly; shared singletons only while holding the lease. Same-task worker or subagent: run `engine workstream T-NNN <agent-id>`, update only that shard plus evidence, and return its path to the coordinator.
 
 Completion check: the task card AC commands pass or the remaining failure is explicitly recorded with the blocking cause and next owner.
 

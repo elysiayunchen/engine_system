@@ -1335,6 +1335,42 @@ check_multi_session_isolation() {
   fi
 }
 
+# v6.12.0 (D-035) multi-card WRITE-SET overlap check (WARN level).
+# Union gating allows several active cards in parallel; when two cards declare
+# the SAME WRITE-SET entry (string-equal), both sessions may write it and the
+# race falls back to git. Shared singletons (coordinator-lease-guarded) and the
+# cards' own engine/tasks/* files are expected overlaps and excluded.
+check_multi_card_writeset_overlap() {
+  local card entries all="" dups
+  local active_cards=""
+  for card in "$ENGINE_DIR"/tasks/T-*.md; do
+    [ -f "$card" ] || continue
+    case "$card" in *.spec.md) continue ;; esac
+    grep -q 'status:.*active' "$card" 2>/dev/null || continue
+    active_cards="${active_cards}${active_cards:+ }$card"
+  done
+  set -- $active_cards
+  [ "$#" -ge 2 ] || return 0
+  for card in "$@"; do
+    entries="$(grep '^WRITE-SET:' "$card" 2>/dev/null | head -1 | sed 's/^WRITE-SET:[[:space:]]*//' | tr ',' '\n')"
+    [ -n "$entries" ] || entries="$(awk '/^##[[:space:]]+WRITE-SET[[:space:]]*$/{on=1;next} on&&/^##[[:space:]]+/{exit} on&&/^-[[:space:]]+/{sub(/^-[[:space:]]+/,"");print}' "$card" 2>/dev/null)"
+    all="$all$(printf '%s\n' "$entries" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | grep -v '^$' | sed "s|$|\t$(basename "$card" .md)|")
+"
+  done
+  dups="$(printf '%s' "$all" | awk -F'\t' '
+    $1 == "" { next }
+    $1 ~ /^engine\/(CONTEXT|HANDOFF|ENGINE_MAP|SYSTEM|REPO_GUIDE|PITFALLS|SPRINT|ROADMAP)\.md$/ { next }
+    $1 ~ /^engine\/tasks\// { next }
+    { if (seen[$1] != "" && seen[$1] != $2) { pair[$1] = seen[$1] "+" $2 } else { seen[$1] = $2 } }
+    END { for (p in pair) printf "%s (%s)\n", p, pair[p] }
+  ')"
+  if [ -n "$dups" ]; then
+    warn "multi-card WRITE-SET overlap: $(printf '%s' "$dups" | tr '\n' ';' | sed 's/;$//')"
+    echo "  human: two active task cards declare the same WRITE-SET entry. Union gating lets both sessions write it, so concurrent edits race at the git layer. Narrow one card's WRITE-SET, or accept the risk knowingly."
+  fi
+  return 0
+}
+
 # v6.11.0 (D-029/T-036) AC-7: workstream orphan check (WARN level).
 # For each engine/workstreams/<task>/<worker>/ shard, check if a matching
 # .cache/sessions/<worker_key>.meta file exists. If not, WARN (worker may
@@ -1446,6 +1482,7 @@ check_task_card_done_evidence
 check_engine_version
 check_legacy_data_format
 check_multi_session_isolation
+check_multi_card_writeset_overlap
 check_workstream_orphan
 
 # ── Project-custom checks (engine/checks/) ──

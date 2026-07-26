@@ -208,21 +208,50 @@ assume_coordinator() {
     fi
   done
 
-  # Check existing lock
+  # Check existing lock. v6.12.0 (D-035): liveness = lease freshness (lock mtime
+  # or holder heartbeat within ENGINE_SESSION_TTL_MIN, default 120min), NOT pid -
+  # the recorded pid is the transient hook shell and is always dead by now.
+  # Stale lease: take over without --force (crash recovery is the no-force case).
+  # Fresh lease: refuse unless --force.
   if [ -f "$lock_file" ]; then
-    local lock_content lock_pid lock_sid
+    local lock_content lock_pid lock_sid lock_fresh ttl_min newest hb_file m now age
     lock_content="$(cat "$lock_file" 2>/dev/null || true)"
     lock_pid="$(printf '%s' "$lock_content" | cut -d'|' -f1)"
     lock_sid="$(printf '%s' "$lock_content" | cut -d'|' -f2)"
-    if [ -z "$force" ]; then
-      echo "Error: lock held by pid=$lock_pid sid=$lock_sid" >&2
+    ttl_min="${ENGINE_SESSION_TTL_MIN:-120}"
+    case "$ttl_min" in ''|*[!0-9]*) ttl_min=120 ;; esac
+    newest="$(stat -c %Y "$lock_file" 2>/dev/null || stat -f %m "$lock_file" 2>/dev/null || printf '')"
+    if [ -n "$lock_sid" ]; then
+      hb_file="$cache_dir/sessions/$(printf '%s-%s' "$lock_sid" "main" | tr -c 'A-Za-z0-9._-' '_' | cut -c1-64).hb"
+      m="$(stat -c %Y "$hb_file" 2>/dev/null || stat -f %m "$hb_file" 2>/dev/null || printf '')"
+      if [ -n "$m" ]; then
+        if [ -z "$newest" ] || [ "$m" -gt "$newest" ] 2>/dev/null; then newest="$m"; fi
+      fi
+    fi
+    lock_fresh=0
+    if [ -n "$newest" ]; then
+      now="$(date +%s 2>/dev/null || printf '')"
+      if [ -n "$now" ]; then
+        age=$((now - newest))
+        [ "$age" -le $((ttl_min * 60)) ] && lock_fresh=1
+      else
+        lock_fresh=1
+      fi
+    fi
+    if [ "$lock_fresh" -eq 1 ] && [ -z "$force" ]; then
+      echo "Error: lock held by pid=$lock_pid sid=$lock_sid (lease still fresh, TTL=${ttl_min}min)" >&2
       echo "Use 'engine assume-coordinator --force' to override (writes tombstone for old holder)." >&2
       return 2
     fi
-    # Force-override: write tombstone for the old coordinator, then take the lock
+    # Take over: write tombstone for the old coordinator, then take the lock
     rm -f "$lock_file" 2>/dev/null || true
-    printf '%s|%s|forced-replaced\n' "$started_at" "${lock_pid:-unknown}" > "$tombstone_file" 2>/dev/null || true
-    echo "Previous coordinator (pid=$lock_pid sid=$lock_sid) force-replaced."
+    if [ "$lock_fresh" -eq 1 ]; then
+      printf '%s|%s|forced-replaced\n' "$started_at" "${lock_pid:-unknown}" > "$tombstone_file" 2>/dev/null || true
+      echo "Previous coordinator (pid=$lock_pid sid=$lock_sid) force-replaced."
+    else
+      printf '%s|%s|stale-recovered\n' "$started_at" "${lock_pid:-unknown}" > "$tombstone_file" 2>/dev/null || true
+      echo "Previous coordinator (pid=$lock_pid sid=$lock_sid) lease was stale; recovered."
+    fi
     echo "Tombstone written: engine/.cache/session.tombstone"
   else
     # Fresh coordinator: clear any stale tombstone from a prior crash

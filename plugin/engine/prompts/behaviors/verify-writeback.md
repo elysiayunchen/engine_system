@@ -11,7 +11,7 @@ Use this before calling work done.
 2. Run `engine verify T-NNN` when available; otherwise run each verify command directly and record exact pass/fail status.
 3. For release-facing changes, also verify package distribution: `plugin/manifest.json`, `install.sh`, `install.ps1`, and any generated `plugin/` mirrors.
 4. Create or update `engine/changes/CHANGE-*.md` with Goal, Actual Changes, Impact Scope, Risk & Watchpoints, Verification, Rollback, Next Step, and Responsibility Boundary.
-5. Coordinator updates shared CONTEXT/HANDOFF after re-reading pending workstream shards. A worker updates only its own shard and marks `merge: ready`; it never edits shared memory.
+5. The lease-holding coordinator updates shared CONTEXT/HANDOFF after re-reading pending workstream shards. A same-task worker updates only its own shard and marks `merge: ready`; it never edits shared memory. A parallel session on its OWN card (v6.12.0) updates that card's progress/checkpoint directly and takes the lease (or leaves a shard) for shared memory.
 6. If the task is complete, mark the task card `done` only after every declared AC has PASS evidence or an approved exemption is referenced; v6.5+ pre-commit enforces this transition.
 7. INVENTORY sync check (v6.8.0 / D-028/T-033): when the task card `domain:` field is non-empty, run `bash engine/scripts/engine-doctor.sh` (or `.ps1`) and inspect the `check_inventory_bidirectional` and `check_inventory_api_uniqueness` outputs. Any FAIL must be resolved before `done`:
    - INVENTORY→code FAIL: an Entry file path in some `engine/domains/<domain>/INVENTORY.md` row does not exist → fix the path or remove the row.

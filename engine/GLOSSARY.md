@@ -26,6 +26,9 @@
 | reconcile | Comparing engine memory against actual code and fixing any drift | Like proofreading a document against the source |
 | Irreducible | Knowledge that can't be regenerated from code — must be preserved | Decisions, rationale, lessons learned |
 | Derivable | Knowledge that can be regenerated from code on demand | File listings, module maps |
+| Union gating (v6.12.0) | A file write is allowed when ANY active task card covers it (in that card's WRITE-SET, outside that card's FORBIDDEN) | Like several room keys — any one that fits opens the door |
+| Coordinator lease (v6.12.0) | The right to write shared memory, held via `engine/.cache/session.lock` and kept alive by heartbeat; expires after ENGINE_SESSION_TTL_MIN (default 120min) of silence | Like a library study-room booking that lapses if you leave |
+| Heartbeat (.hb) | A timestamp file each session refreshes on every tool call, proving it is still alive | Like tapping your badge so the lights stay on |
 
 ## Project Terms (developer-managed)
 

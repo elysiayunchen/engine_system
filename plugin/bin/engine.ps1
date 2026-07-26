@@ -1,4 +1,4 @@
-# Engine System user-level CLI shim for Windows PowerShell.
+﻿# Engine System user-level CLI shim for Windows PowerShell.
 
 param(
   [Parameter(Position=0)][string]$Command = "help",
@@ -408,21 +408,45 @@ function Assume-Coordinator {
     }
   }
 
-  # Check existing lock
+  # Check existing lock. v6.12.0 (D-035): liveness = lease freshness (lock mtime
+  # or holder heartbeat within ENGINE_SESSION_TTL_MIN, default 120min), NOT pid -
+  # the recorded pid is the transient hook shell and is always dead by now.
+  # Stale lease: take over without -Force (crash recovery is the no-force case).
+  # Fresh lease: refuse unless -Force.
   if (Test-Path $lockFile) {
     $lockContent = (Get-Content -Raw -Path $lockFile -Encoding UTF8 -ErrorAction SilentlyContinue).Trim()
     $parts = $lockContent -split '\|'
     $lockPid = if ($parts.Count -ge 1) { $parts[0] } else { "" }
     $lockSid = if ($parts.Count -ge 2) { $parts[1] } else { "" }
-    if (-not $Force) {
-      Write-Error "Error: lock held by pid=$lockPid sid=$lockSid. Use 'engine assume-coordinator --force' to override (writes tombstone for old holder)."
+    $ttlMin = 120
+    if ($env:ENGINE_SESSION_TTL_MIN -match '^[0-9]+$') { $ttlMin = [int]$env:ENGINE_SESSION_TTL_MIN }
+    $newest = (Get-Item -Path $lockFile -ErrorAction SilentlyContinue).LastWriteTimeUtc
+    if ($lockSid) {
+      $safeKey = (("$lockSid-main" -replace '[^A-Za-z0-9._-]', '_'))
+      if ($safeKey.Length -gt 64) { $safeKey = $safeKey.Substring(0, 64) }
+      $hbFile = Join-Path $cacheDir ("sessions\" + $safeKey + ".hb")
+      $hbItem = Get-Item -Path $hbFile -ErrorAction SilentlyContinue
+      if ($hbItem -and (-not $newest -or $hbItem.LastWriteTimeUtc -gt $newest)) { $newest = $hbItem.LastWriteTimeUtc }
+    }
+    $lockFresh = $false
+    if ($newest) {
+      $ageMin = ((Get-Date).ToUniversalTime() - $newest).TotalMinutes
+      if ($ageMin -le $ttlMin) { $lockFresh = $true }
+    }
+    if ($lockFresh -and (-not $Force)) {
+      Write-Error "Error: lock held by pid=$lockPid sid=$lockSid (lease still fresh, TTL=${ttlMin}min). Use 'engine assume-coordinator --force' to override (writes tombstone for old holder)."
       exit 2
     }
-    # Force-override: write tombstone for the old coordinator, then take the lock
+    # Take over: write tombstone for the old coordinator, then take the lock
     Remove-Item -Force -ErrorAction SilentlyContinue -Path $lockFile
-    $tombstoneContent = "$startedAt|$(if ($lockPid) { $lockPid } else { 'unknown' })|forced-replaced`n"
+    $tombstoneReason = if ($lockFresh) { "forced-replaced" } else { "stale-recovered" }
+    $tombstoneContent = "$startedAt|$(if ($lockPid) { $lockPid } else { 'unknown' })|$tombstoneReason`n"
     [System.IO.File]::WriteAllText($tombstoneFile, $tombstoneContent, (New-Object System.Text.UTF8Encoding $false))
-    Write-Host "Previous coordinator (pid=$lockPid sid=$lockSid) force-replaced."
+    if ($lockFresh) {
+      Write-Host "Previous coordinator (pid=$lockPid sid=$lockSid) force-replaced."
+    } else {
+      Write-Host "Previous coordinator (pid=$lockPid sid=$lockSid) lease was stale; recovered."
+    }
     Write-Host "Tombstone written: engine/.cache/session.tombstone"
   } else {
     # Fresh coordinator: clear any stale tombstone from a prior crash

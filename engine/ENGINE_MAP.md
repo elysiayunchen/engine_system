@@ -1,6 +1,6 @@
 # ENGINE_MAP — 引擎索引
 
-> Engine System (engine_system) · Revision: 35 · Last updated: 2026-07-23
+> Engine System (engine_system) · Revision: 36 · Last updated: 2026-07-26
 > ⚠️ MVP dogfood 实例（精简版）。完整 v5.5 注册表（§1.1 / §1.2 / §2 / §3 / 预算）待 `/engine-reconcile` 或 `/engine-init` 补全。
 
 ## §0 Profile & Read-Gate
@@ -56,6 +56,7 @@ path-glob → domain 路由表。机读源:`engine/domains/federation.json`;Sess
 | v6.11.5 pre-commit parser 鲁棒性 | ✅ | T-043 issue #10 P038 parse_task_patterns 支持 YAML frontmatter 多行 write-set:awk 分支扩展 in_frontmatter_block 边界 + tolower case 不敏感 + frontmatter 字段头匹配 |
 | v6.11.6 pre-commit fallback 移除 | ✅ | T-044 issue #10 P037 legacy fallback 移除(D-032 approved):删 L111-116(strict_task_mode=0 时 ls-1 T-*.md sort -r 扫 done 卡);strict_task_mode=0 无 active 卡 → fail-open(done 卡不再 govern);task-card gate C6/C7 更新;测试 test_precommit_no_legacy_fallback.sh 8/8 PASS |
 | v6.11.7 CI 红灯修复 | ✅ | T-045 修复 GitHub Actions 自 v6.11.0 起持续红灯:engine-doctor.sh/ps1 `check_multi_session_isolation` 在 cv>=6.11.0 时硬 FAIL "`.cache/sessions` dir missing",但 CI 环境 SessionStart hook 不运行、.cache 被 .gitignore 钉住,导致每次 CI 红。检测 `CI=true`/`GITHUB_ACTIONS=true` 时降 FAIL→WARN;交互式环境行为不变。测试 test_doctor_ci_sessions.sh 3 场景 3/3 PASS。T-046 (伴随修复): install.sh/ps1 FILES 数组与 manifest.json src 列表不一致(缺 4 条 skeleton 条目,自 v6.7.0 起预存 bug)+ case 语句 blanket 重映射 bug 修复。 |
+| v6.12.0 (D-035/T-048) 多卡并行 + 租约 | ✅ | 六项根因根治「激活一张卡拦死其他 agent」:三层门禁 union gating(∃active 卡覆盖即放行)+ 任务/决策卡 bootstrap 恒豁免 + protected 逐卡豁免 + lock 液性从瞬时 pid 改租约(lock/hb mtime TTL 120min,PreToolUse/guard 续租,写时验锁,stale 原子抢占 + 自愈升格)+ .role=worker 旗标全生命周期清理(7 天孤儿 GC)+ worker 面收窄(自己卡的 progress/checkpoint 直写;subagent 保持 v6.5)+ assume-coordinator stale 免 --force + 展示层多卡化 + doctor `check_multi_card_writeset_overlap` WARN。tests/multi-session 新套件 + 孤儿测试收编进 check.sh 链。契约 2896/2940(净减 14)。 |
 | N1-N5 | ✅ | 全部达成 |
 
 ### 运营工件层
@@ -64,15 +65,15 @@ path-glob → domain 路由表。机读源:`engine/domains/federation.json`;Sess
 
 ### 当前状态
 
-- 最近 change capsule：`engine/changes/CHANGE-2026-07-23-07.md`
-- 活跃任务卡：无。前序: T-047 done(Windows PS 5.1 compat: non-ASCII in string literals) / T-046 done(install.sh/ps1 manifest src 列表同步修复) / T-045 done(CI 红灯修复 — doctor multi-session isolation CI 环境降 WARN) / T-044 done(issue #10 P037 legacy fallback 移除) / T-043 done(issue #10 P038 parser 修复) / T-042 done(issue #9 PS 5.1 LF fix + T-041 cleanup) / T-041 done(pre-commit 自身豁免) / T-040 done(v6.11.3) / T-039 done(v6.11.2) / T-038 done(v6.11.1) / T-036 done(v6.11.0 多会话锁)
+- 最近 change capsule：`engine/changes/CHANGE-2026-07-26-02.md`
+- 活跃任务卡：无。前序: T-048 done(v6.12.0 多卡并行 union gating + 租约液性修复) / T-047 done(Windows PS 5.1 compat) / T-046 done(install.sh/ps1 manifest src 列表同步修复) / T-045 done(CI 红灯修复) / T-044 done(issue #10 P037 legacy fallback 移除) / T-043 done(issue #10 P038 parser 修复) / T-042 done(issue #9 PS 5.1 LF fix + T-041 cleanup) / T-041 done(pre-commit 自身豁免) / T-040 done(v6.11.3) / T-039 done(v6.11.2) / T-038 done(v6.11.1) / T-036 done(v6.11.0 多会话锁)
 - 待批决策：D-018(proposed); Q2 基准试点库待拍板
-- 已批准决策：D-001~D-015, D-017, D-024~D-027, D-029, D-030, D-031, D-032, D-033, D-034（详见 `engine/decisions/`）
+- 已批准决策：D-001~D-015, D-017, D-024~D-027, D-029, D-030, D-031, D-032, D-033, D-034, D-035（详见 `engine/decisions/`）
 
 ### 已知缺口
 
 - SYSTEM.md、ARCHITECTURE.md 尚未生成（S2 验收后半句/D6 缺口）
 - 契约债：§5.2「HANDOFF 行须含任务卡 ID」与 §5.6「回写定义进 rules.json」（parity fixtures 兜底）
-- 契约预算已满（2910/2940 行, 13/13 规则）——新特性须先做减法
-- workstreams 并行路径：实现完整 + 测试全绿，尚无真实并行场景验证
+- 契约预算余量 44 行（2896/2940, 13/13 规则）——新特性仍应先做减法
+- 多卡并行(v6.12.0)：实现完整 + 测试全绿，尚无真实双会话试用(待验证:TTL 手感 / overlap WARN 噪声 / 方案 B 必要性)
 - Q2「真实大库试点」已完成（诺识 18 天试点, 2026-07-04~07-22）

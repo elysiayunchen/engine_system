@@ -26,46 +26,36 @@
 
 ---
 
-## C 档扩展:多会话锁使用约束(v6.11.0+, D-029/T-036)
+## C 档扩展:多会话租约使用约束(v6.11.0+ D-029/T-036,v6.12.0 D-035/T-048 租约化)
 
-> 多会话锁机制让多个 Claude Code 实例并行运行时不再抢写共享引擎记忆。以下规则适用于所有支持 C 档 hook 的 agent。
+> 多会话机制让多个 Claude Code 实例并行运行:共享单例记忆由「协调者租约」独占,任务门禁按 union gating 逐卡判定——**每个会话各持一张任务卡即可并行,不再互相拦截**。以下规则适用于所有支持 C 档 hook 的 agent。
 
-### 多会话锁基础
+### 租约基础(v6.12.0)
 
-- **协调者/worker 角色**: 第一个 SessionStart 获得协调者(写共享 CONTEXT/HANDOFF/ENGINE_MAP),后续会话自动降级为 worker(只写 `engine/workstreams/<task>/<session-id>/` 隔离分片)。
-- **lock file**: `engine/.cache/session.lock` 5 字段 `pid|session_id|role|started_at|task_id`。
-- **tombstone**: `engine/.cache/session.tombstone` 通知其他会话旧协调者已退出(正常退出写 `coordinator-exited`,强制替换写 `forced-replaced`)。
-- **双信号 PreToolUse 拦截**: worker 身份由 OR 关系判定 — `agent_id` 非空 **或** `.cache/sessions/<key>.role=worker` 标记文件存在(任一即拦截共享记忆写入)。
+- **主用法**: 每个并行会话激活/新建**自己的**任务卡直接干活。三层门禁按「路径 ∈ 任一 active 卡 WRITE-SET 且 ∉ 该卡 FORBIDDEN」放行;建卡/改卡(bootstrap)永不被别人的卡拦。
+- **协调者/worker 角色**: 持有租约的会话可写共享单例(CONTEXT/HANDOFF/ENGINE_MAP 等);其他会话降级 worker——照常干自己的卡(含自己任务的 progress/checkpoint),只是不写共享单例。
+- **lock file**: `engine/.cache/session.lock` 5 字段 `pid|session_id|role|started_at|task_id`。**pid 仅诊断**——活性 = 租约新鲜度:lock mtime 或持锁会话 `.hb` 心跳在 `ENGINE_SESSION_TTL_MIN`(默认 120 分钟)内。心跳由 PreToolUse(每次工具调用)与 guard(每轮)自动续租。
+- **写时验租约**: 写共享单例逐次验锁——持锁放行;他人租约 fresh 拦截;free/stale 当场原子抢占(含残留 worker 旗标的自愈升格)。
+- **tombstone**: `engine/.cache/session.tombstone`(`coordinator-exited` / `stale-recovered` / `forced-replaced`)。
+- **双信号 PreToolUse 拦截**: worker 身份 = `agent_id` 非空 **或** `.cache/sessions/<key>.role=worker` 旗标存在。旗标由 coordinator 上位路径自动清理 + 7 天孤儿 GC(不会把 resume 会话钉死为 worker)。
 
-### `engine assume-coordinator [--force]` 使用频率警示
+### `engine assume-coordinator [--force]` 使用约束
 
-- **--force 是逃生通道,不是常规操作**。滥用 `--force` 会绕过协调者排他性,导致并发写竞争回潮,抵消 v6.11.0 的核心收益。
-- **合法使用场景**(频率应 ≤ 每周 1 次):
-  1. 旧协调者崩溃后留下 stale lock(已超过 24h tombstone 过期阈值)。
-  2. 协调者会话意外关闭但 lock 未释放(进程未正常退出)。
-  3. 架构师明确要切换协调者到另一会话(罕见,需先确认旧协调者已停止工作)。
-- **非法使用场景**:
-  1. 为了"绕过 PreToolUse 拦截"而频繁 --force(应改用 `engine workstream --kind=session` 显式降级)。
-  2. 在 worker 想直接改共享记忆时 --force(应改用 `engine merge-workstream <session-id>` 由协调者合并)。
-  3. 多个 worker 同时 --force 抢协调者(必然产生 tombstone 风暴,失去锁的意义)。
-- Doctor 通过 `check_multi_session_isolation` 检查 tombstone 文件数量与时间分布,异常高频会触发 WARN。
+- **租约 stale 时免 --force**:崩溃恢复是无参主场景,stale 租约直接接管并写 `stale-recovered` tombstone。
+- **--force 仅用于抢占 fresh 租约**(架构师明确要切换协调者且确认旧会话已停工)。滥用 --force 会绕过排他性,导致并发写竞争回潮。
+- **非法使用**: worker 想改共享记忆时 --force(应由协调者 `engine merge-workstream <session-id>` 合并);多会话互相 --force 抢锁(tombstone 风暴)。
+- Doctor 通过 `check_multi_session_isolation` 检查 tombstone 数量与时间分布,异常高频触发 WARN。
 
-### 同一任务卡不同 AC 的并行约束
+### 并行模式选择
 
-- **同一任务卡的不同 AC 不应同时由多个 worker 并行实现**,原因:
-  1. **WRITE-SET 重叠**: 同一任务卡的 AC 共享同一 WRITE-SET 路径集合,多 worker 同时改同文件会产生 git 冲突。
-  2. **evidence 顺序**: `engine-verify` 按 AC 编号顺序写 evidence,并行写会产生交错覆盖。
-  3. **checkpoint.md 串行性**: AC-级 checkpoint 是单链表结构(每个 AC 完成后追加),并行写会破坏链表完整性。
-- **合法并行模式**:
-  - 同一任务卡的不同 AC 由**单一协调者串行推进**(默认)。
-  - 不同任务卡可由不同 worker 并行(各自写自己的 workstreams/<task>/<worker>/ 分片)。
-  - 同一任务卡需要并行时,先在决策卡(D-NNN)中拆分为多个子任务卡(T-NNN-a, T-NNN-b),每个 worker 认领一张独立卡。
-- **PreToolUse 拦截兜底**: worker 写入非自己分片的路径时,Stop hook 会 block,但不会预先阻止"两个 worker 同时认领同一 AC" — 这是架构师的责任,通过任务卡分配避免。
+- **默认**: 不同任务卡由不同会话并行(v6.12.0 union gating 直接支持,无需分片)。卡作者应收窄 WRITE-SET——两张卡声明交集路径时 union 放行两边,交集竞态回到 git 层。
+- **同一任务卡多 worker**: 仍走分片协议(`engine workstream T-NNN <id> --kind=session` 写 `engine/workstreams/<task>/<id>/`,协调者 merge)。原因:同卡共享 WRITE-SET/evidence/checkpoint,直接并行写必冲突。
+- **同会话 subagent**(agent_id 非空): 保持 v6.5 一揽子语义——共享单例与任务局部文件都走分片。
 
 ### kill switch
 
-- 环境变量 `ENGINE_DISABLE_MULTI_SESSION=1` 或 `engine/.cache/multi-session.disabled` 标志文件存在时,SessionStart hook 跳过 lock 检测,所有会话降级为单会话模式(等同 v6.10.0 行为,fail-open)。
-- 仅用于 v6.11.0 升级期间发现兼容性问题时的紧急回退。长期开启 kill switch 等于放弃多会话锁保护,应尽快定位问题并重新启用。
+- 环境变量 `ENGINE_DISABLE_MULTI_SESSION=1` 或 `engine/.cache/multi-session.disabled` 标志文件存在时,SessionStart hook 跳过租约检测,所有会话降级单会话模式(fail-open)。
+- 仅用于机制故障时的紧急回退。长期开启等于放弃多会话保护,应尽快定位问题并重新启用。
 
 ### Worker 写分片目录约定(v6.11.1+, D-029/T-038)
 

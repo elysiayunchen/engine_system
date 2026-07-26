@@ -1,5 +1,23 @@
 # Changelog
 
+## v6.12.0 (2026-07-26)
+
+多任务卡并行(union gating)+ 会话租约液性修复(D-035/T-048)。根治「激活一张任务卡后其他 agent 被全面拦截」的多会话撞车:
+
+- **Union gating(RC-1)**:三层门禁(PreToolUse / Stop / pre-commit)从「字典序第一张 active 卡治理一切」改为收集全部 active 卡(+dirty done 收尾卡),路径 ∈ 任一卡 WRITE-SET 且 ∉ 该卡自身 FORBIDDEN 即放行;某卡的 FORBIDDEN 不再否决另一张卡的 WRITE-SET;拦截消息列出全部卡 id。
+- **Bootstrap 恒豁免(RC-2)**:`engine/tasks/T-*.md` / `engine/decisions/D-*.md` 写入与提交不再被别人的 active 卡拦截——第二个会话可随时建/改自己的卡。
+- **Protected 逐卡豁免(RC-5)**:pre-commit protected 检查从单一 exempt_id 改为「每张卡豁免自己」(active 或 staged-done);决策卡恒豁免;其余 protected 路径用覆盖它的卡的 decision 校验。
+- **租约液性修复(RC-3)**:v6.11.0 lock 记录的是 hook shell 瞬时 pid(写完即死),`kill -0` 恒判 stale → 每个新会话都自封 coordinator,共享三件套保护实际空转(实证:本仓 tombstone 全是 stale-recovered)。活性改为租约:lock mtime 或持锁会话 `.hb` 心跳 mtime 在 `ENGINE_SESSION_TTL_MIN`(默认 120 分钟)内;PreToolUse 每次工具调用续租,guard 每轮续租,持锁会话顺手 touch lock。
+- **写时验租约**:写共享单例(CONTEXT/HANDOFF/ENGINE_MAP 等)逐次验锁——持锁放行;他人租约 fresh 拦截(提示 `engine assume-coordinator`);free/stale 当场原子抢占(含残留 worker 旗标的自愈升格)。失联 coordinator 回来乱写的窗口关闭。
+- **role 旗标生命周期(RC-3b)**:coordinator 上位(初次/同 sid 重入/stale 接管)一律删除自身 `.role=worker` 旗标;SessionStart GC 超 7 天孤儿 session 文件。修复 resume 会话被残留旗标永久钉死为 worker 的死锁。
+- **worker 拦截面收窄(RC-4)**:一揽子 `is_shared_memory` 拆为共享单例 + 任务局部;干自己卡的顶层 worker 可直接写自己任务的 progress.md/checkpoint.md;worker 分片可挂在任一 active 卡下且校验后直接放行;同会话 subagent(agent_id)保持 v6.5 一揽子语义。
+- **`engine assume-coordinator` 租约化**:stale 租约免 `--force` 直接接管(崩溃恢复主场景),fresh 才需 `--force`;tombstone 区分 stale-recovered / forced-replaced。
+- **展示层多卡化**:guard 列全部 active 卡(id + GOAL);SessionStart 注入 ≤3 张全文(超出仅 header)+ 多卡提示。
+- **测试**:新增 `tests/multi-session/` 套件(union/液性/旗标/写时验锁/worker 收窄/多卡展示,sh 48 例)+ `tests/task-card/test_multi_active_union.sh`(pre-commit 9 例);收编 v6.11.x 孤儿测试(double_signal/lock_recovery 等 5 份,原先不在 check.sh 链上)进新 runner;旧测试断言更新到租约语义(sh+ps1)。
+- **契约**:`contract/src/30-operational.md` 多会话段净零改写(编译后 2910→2896 行,预算 2940 不动,13 规则不变);migrator AGENTS.md managed block 3 处 bullet 更新 + ENGINE_DOCTOR item 17 租约化;contract-version 升 6.12.0(< 6.12.0 老项目 fail-open 不变)。
+- 固有边界:两张卡 WRITE-SET 交集路径的并发写不做机器仲裁(union 放行,git 层兜底);TTL 窗口内失联 coordinator 挡共享单例写,`--force` 兜底。
+- 详见 `engine/decisions/D-035.md` + `engine/changes/CHANGE-2026-07-26-01.md`。
+
 ## v6.11.8 (2026-07-23)
 
 - 修复 GitHub Actions CI Windows job 持续红灯 — `check.ps1` "Windows PowerShell compatibility" 步骤用 PS 5.1 `Parser.ParseFile()` 解析所有 .ps1 文件,PS 5.1 对无 BOM 文件按 Windows-1252 codepage 读取(非 UTF-8)。两个文件的**字符串字面量**含非 ASCII 字符,其 UTF-8 字节序列含 0x94(Windows-1252 左弯引号 `"`),被 PS 5.1 误认为字符串终止符,导致 parse 失败(T-047 patch)。

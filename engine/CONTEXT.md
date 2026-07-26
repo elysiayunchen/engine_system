@@ -1,19 +1,20 @@
 # CONTEXT — 当前状态
 
-> Engine System (engine_system) · Last updated: 2026-07-23 · Profile: CLI-LEAN
+> Engine System (engine_system) · Last updated: 2026-07-26 · Profile: CLI-LEAN
 
 ## 状态面板
 
 | 维度 | 状态 |
 |------|------|
 | 构建 | ✅ 正常（纯 markdown + shell 脚本，无构建步骤） |
-| 上次完成 | **v6.11.8 patch(T-047 Windows PS 5.1 compat: non-ASCII in string literals)**:4/4 AC PASS。修复 GitHub Actions CI Windows job 持续红灯——`check.ps1` "Windows PowerShell compatibility" 步骤用 PS 5.1 `Parser.ParseFile()` 解析 .ps1 文件,PS 5.1 对无 BOM 文件按 Windows-1252 codepage 读取。engine/bin/engine.ps1 L537 em-dash `—` (UTF-8 `E2 80 94`,byte 0x94=Win-1252 `"`) + engine/scripts/engine-verify.ps1 L117 Chinese `锚` (UTF-8 `E9 94 9A`) + L122 em-dash 在字符串字面量中提前终止 string → 替换为 ASCII 等价物。plugin 镜像 byte-identical。check.sh 全绿。 |
-| 进行中 | 无 active 任务卡。CI 已全绿(commit 99f7abd, run 30027319419 三 job 全 success)。D-034 修正 contract debt_baseline 47→54(T-040 历史计量设错,非新债务),Doctor 0 WARN。下一步:可选 `git tag v6.11.8 && git push --tags` 触发 GitHub Release;或关闭 issues #9 #10。 |
+| 上次完成 | **v6.12.0(T-048 多任务卡并行 union gating + 会话租约液性修复,D-035)**:根治「激活一张任务卡后其他 agent 被全面拦截」。六项根因:三层门禁单卡假设(lex-first 卡治理一切)/ bootstrap 豁免仅零卡分支 / protected 单 exempt_id / lock 记 hook shell 瞬时 pid(kill -0 恒判死 → 人人自封 coordinator,v6.11.0 保护实证空转)/ .role=worker 旗标无清理(resume 永久 worker 死锁)/ worker 分片钉死 lex-first 卡。修复:union gating(路径 ∈ 任一 active 卡 WRITE-SET 且 ∉ 该卡 FORBIDDEN)+ 任务/决策卡 bootstrap 恒豁免 + protected 逐卡豁免 + 租约液性(lock/hb mtime TTL 默认 120min,PreToolUse/guard 续租)+ 写时验租约(free/stale 原子抢占含自愈升格)+ 旗标全生命周期清理 + worker 面收窄(自己卡的 progress/checkpoint 直写)+ assume-coordinator stale 免 --force + 展示层多卡化 + doctor 交集 WARN。契约净减 14 行(2896/2940);migrator → 6.12.0。 |
+| 进行中 | T-048 收尾(verify + 提交)。下一步:真实双会话并行试用(两实例各持一张卡),观察 TTL 手感与 overlap WARN 噪声;可选 tag v6.12.0。 |
 | 阻塞 | 无。 |
 
 ## 当前假设 / 决策（本轮拍板）
 
-- **并行记忆 = 分片写、单点汇总（D-025）**：worker 只写 `engine/workstreams/<task>/<agent>/`，共享 CONTEXT/HANDOFF 等由协调者在 merge point 汇总；子 agent 直接抢写共享记忆由写前 hook 拦截。
+- **多会话并行 = 任务卡即租约 + union gating（D-035, v6.12.0）**：每个并行会话各持一张 active 卡,门禁按「路径 ∈ 任一卡 WRITE-SET 且 ∉ 该卡 FORBIDDEN」放行;共享单例由协调者租约独占(lock/heartbeat mtime TTL 120min,写时验锁,stale 原子抢占);建卡/改卡 bootstrap 恒豁免。固有边界:两卡 WRITE-SET 交集竞态落 git 层(Doctor WARN 提示收窄)。
+- **并行记忆 = 分片写、单点汇总（D-025,同卡协作场景）**：同一张卡的多 worker 只写 `engine/workstreams/<task>/<agent>/`，共享 CONTEXT/HANDOFF 等由协调者在 merge point 汇总；子 agent(agent_id)直接抢写共享记忆或任务局部文件由写前 hook 拦截。干自己卡的顶层会话直写自己任务的 progress/checkpoint(v6.12.0 收窄)。
 - **长会话约束 = 写前硬检查 + 短版周期重锚（D-025）**：任务范围覆盖 engine 文件；每次写入不依赖模型记忆，UserPromptSubmit 只补短锚，Stop/pre-commit 收尾。
 - **任务卡粒度 = 一项可独立验收的目标一卡**：多轮消息、多个 AC 与并行 worker 共用任务 ID；只读调查免卡；done 卡不注入上下文，Doctor 成功历史聚合输出，避免任务数线性消耗 token。
 - **发布门 = main CI 全绿后才推 tag（D-026）**：workflow 必须走正式 `--local`；Windows 镜像行尾由 `.gitattributes` 对称固定；失败日志通过公开 annotation 暴露，不绕过门禁。
@@ -33,5 +34,6 @@
 
 - 待验证：Copilot CLI / Codex CLI 原生 hook 的 block 决策支持。
 - 待验证：真实下游项目从旧 contract-version 迁移到 6.6 后的首次任务采用与并行 workstream 手感,以及 HANDOFF 历史归档触发是否如期在首次写入时执行。
-- 已验证：T-036 v6.11.0 done(18/18 AC PASS)——D-029 多 Claude Code 实例并行抢写引擎记忆三件套的隔离机制已落地:多会话锁 + worker 自动降级 + PreToolUse 双信号 + Active Sessions 面板 + workstream 命令。expiry 2026-11-30,早期预警 2026-09-15。
+- 待验证：v6.12.0 真实双会话并行试用——两个 Claude Code 实例各持一张卡,观察租约续期手感、TTL 默认 120min 是否合适、Doctor multi-card overlap WARN 噪声;方案 B(会话-任务强绑定)是否需要(D-035 Open Questions)。
+- 已验证：T-048 v6.12.0 done——D-029/T-036 多会话锁的液性缺陷实证(lock 记 hook shell 瞬时 pid,每次会话启动都 stale-recovered 自封 coordinator,v6.11.0 共享三件套保护空转)已由租约机制修复;多卡 union gating 六项根因全闭环。D-035 expiry 2026-11-30。
 - 已验证：T-037(done 2026-07-20)engine/SYSTEM.md「项目开发准则」段加 `### Trae agent 工具对话延续准则` 子段——运行在 Trae 相关开发 agent 工具(TRAE IDE/Work/CLI/Plugin)时 NEVER 主动中止对话,用 AskUserQuestion 延续,避免浪费用户发起对话额度。AC-1 PASS(fp=e3b0c44298fc)。与 user_profile.md Trae agent tool continuity 准则双轨(机器自动注入 + 项目级 system 显式声明)。

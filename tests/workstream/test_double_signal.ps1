@@ -63,9 +63,12 @@ AC: AC-1 test | verify: true
 
   Write-Output "=== PreToolUse dual-signal (ps1) ==="
 
-  # D1: Top-level session (no agent_id) + .role=worker marker exists -> MUST block shared write.
+  # D1: Top-level session (no agent_id) + .role=worker marker + a FRESH lease held
+  # by another session -> MUST block shared write. (v6.12.0 D-035: a worker flag
+  # with no live lease self-heals into coordinator instead.)
   $r = New-Fixture
   New-Item -ItemType File -Force -Path (Join-Path $r "engine\.cache\sessions\s-top-main.role=worker") | Out-Null
+  Set-Content -Path (Join-Path $r "engine\.cache\session.lock") -Value "111|other-session|coordinator|2026-01-01T00:00:00Z|T-001" -NoNewline
   $payload = '{"session_id":"s-top","tool_name":"Edit","tool_input":{"file_path":"engine/CONTEXT.md"}}'
   $env:CLAUDE_PROJECT_DIR = $r
   $out = $payload | & pwsh -NoProfile -File $StopPS1 -Mode --pre-tool-use 2>$null

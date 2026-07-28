@@ -214,6 +214,9 @@ if [ -z "$ms_disabled" ]; then
   # atomic 独占创建+写入 lock(POSIX noclobber,无 TOCTOU;创建+写入一次完成,无空文件窗口)
   if ( set -C; printf '%s|%s|%s|%s|%s\n' "$ms_pid" "$ms_sid" "coordinator" "$ms_started" "$ms_task" > "$LOCK" ) 2>/dev/null; then
     rm -f "$ENGINE_DIR/.cache/sessions/${ms_key}.role=worker" 2>/dev/null || true
+    # T-050 (v6.12.2): 新 coordinator 上任 → 旧 tombstone(上一任 transition 记录)已无意义,清理。
+    # 对称 Stop hook 写 tombstone 的逻辑;tombstone 是历史事件,不是 active 状态(lock + lease mtime 才是)。
+    rm -f "$ENGINE_DIR/.cache/session.tombstone" 2>/dev/null || true
     echo "──── 👑 Coordinator (multi-session lease acquired) ────"
     echo "本会话为协调者:可写共享三件套(CONTEXT/HANDOFF/ENGINE_MAP)。并行会话请各持一张任务卡。"
   else
@@ -222,6 +225,8 @@ if [ -z "$ms_disabled" ]; then
       # 同一会话 resume/clear/compact 重入:重盖自己的租约,清掉残留 worker 旗标(RC-3b)。
       printf '%s|%s|%s|%s|%s\n' "$ms_pid" "$ms_sid" "coordinator" "$ms_started" "$ms_task" > "$LOCK" 2>/dev/null || true
       rm -f "$ENGINE_DIR/.cache/sessions/${ms_key}.role=worker" 2>/dev/null || true
+      # T-050 (v6.12.2): resume 也清理 tombstone(同 session 上次 crash 后留下的 stale transition 记录)。
+      rm -f "$ENGINE_DIR/.cache/session.tombstone" 2>/dev/null || true
       echo "──── 👑 Coordinator (own lease re-acquired) ────"
       echo "本会话恢复协调者租约(resume/compact 重入)。"
     elif ms_lease_fresh; then

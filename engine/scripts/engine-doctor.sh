@@ -1357,9 +1357,14 @@ check_legacy_data_format() {
 
 # v6.11.0 (D-029/T-036) AC-6: multi-session isolation health check.
 # cv >= 6.11.0 -> fail-closed (FAIL); cv < 6.11.0 -> fail-open (WARN, grace period).
+# v6.12.2 (T-050): tombstone check downgraded FAIL->WARN. Tombstone is a historical
+#   transition record (coordinator-exited / stale-recovered / forced-replaced), not
+#   an active-state signal — lock file + lease mtime is the source of truth. A stale
+#   tombstone just means the repo has been quiet; it auto-cleans on the next
+#   coordinator start (SessionStart hook). cv < 6.12.2 keeps prior FAIL for migration.
 # Checks: (1) .cache/sessions dir exists (SessionStart hook should create);
 #         (2) session.lock format validity (>= 5 fields);
-#         (3) tombstone file staleness (>24h = previous coordinator exited abnormally).
+#         (3) tombstone file staleness (>24h): cv>=6.12.2 WARN, 6.11.0<=cv<6.12.2 FAIL, cv<6.11.0 WARN.
 check_multi_session_isolation() {
   local doctor_path="$ENGINE_DIR/ENGINE_DOCTOR.md"
   local contract_version=""
@@ -1373,6 +1378,13 @@ check_multi_session_isolation() {
   local violation_is_fail=0
   if [ "$cv_int" -ge 61100 ] 2>/dev/null; then
     violation_is_fail=1
+  fi
+  # T-050 (v6.12.2): tombstone staleness FAIL only on old contract versions
+  # (6.11.0 <= cv < 6.12.2). cv >= 6.12.2 downgrades to WARN (tombstone is
+  # historical, not active state; auto-cleans on next coordinator start).
+  local tombstone_is_fail=0
+  if [ "$cv_int" -ge 61100 ] 2>/dev/null && [ "$cv_int" -lt 61202 ] 2>/dev/null; then
+    tombstone_is_fail=1
   fi
 
   local sessions_dir="$ENGINE_DIR/.cache/sessions"
@@ -1413,10 +1425,15 @@ check_multi_session_isolation() {
   fi
 
   # 3. tombstone staleness (>24h)
+  # T-050 (v6.12.2): tombstone is a historical transition record, not active state.
+  # lock file + lease mtime is the source of truth for active-state problems.
+  # cv>=6.12.2 downgrades FAIL->WARN (tombstone auto-cleans on next coordinator start).
   if [ -f "$tombstone_file" ]; then
-    local tombstone_line tombstone_ts ts_norm ts_sec now_sec age_sec
+    local tombstone_line tombstone_ts ts_norm ts_sec now_sec age_sec tombstone_type
     tombstone_line="$(cat "$tombstone_file" 2>/dev/null || true)"
     tombstone_ts="$(printf '%s' "$tombstone_line" | cut -d'|' -f1)"
+    tombstone_type="$(printf '%s' "$tombstone_line" | cut -d'|' -f3)"
+    [ -n "$tombstone_type" ] || tombstone_type="unknown"
     if [ -n "$tombstone_ts" ]; then
       # Parse ISO 8601 timestamp (UTC). Try GNU date first, BSD date as fallback.
       ts_norm="$(printf '%s' "$tombstone_ts" | sed 's/T/ /;s/Z$//;s/\..*$//')"
@@ -1426,11 +1443,11 @@ check_multi_session_isolation() {
         if [ "$now_sec" -gt 0 ]; then
           age_sec=$((now_sec - ts_sec))
           if [ "$age_sec" -gt 86400 ]; then
-            if [ "$violation_is_fail" -eq 1 ]; then
-              fail "multi-session isolation: tombstone file is stale (${age_sec}s old, >24h) - run 'engine assume-coordinator --force' to clean up"
-              echo "  human: engine/.cache/session.tombstone is $((age_sec / 3600))h old. The previous coordinator exited abnormally. Run 'engine assume-coordinator --force' to take over."
+            if [ "$tombstone_is_fail" -eq 1 ]; then
+              fail "multi-session isolation: tombstone file is stale (${age_sec}s old, type=$tombstone_type, >24h) - run 'engine assume-coordinator --force' to clean up"
+              echo "  human: engine/.cache/session.tombstone is $((age_sec / 3600))h old (type=$tombstone_type). Run 'engine assume-coordinator --force' to take over."
             else
-              warn "multi-session isolation: tombstone file stale (${age_sec}s old, grace period)"
+              warn "multi-session isolation: tombstone is a historical transition record (type=$tombstone_type, ${age_sec}s old, >24h); not an active failure — lock file + lease mtime is the source of truth; auto-cleans on next coordinator start (cv=$contract_version)"
             fi
           fi
         fi

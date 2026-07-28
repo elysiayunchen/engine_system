@@ -36,7 +36,7 @@
 - **协调者/worker 角色**: 持有租约的会话可写共享单例(CONTEXT/HANDOFF/ENGINE_MAP 等);其他会话降级 worker——照常干自己的卡(含自己任务的 progress/checkpoint),只是不写共享单例。
 - **lock file**: `engine/.cache/session.lock` 5 字段 `pid|session_id|role|started_at|task_id`。**pid 仅诊断**——活性 = 租约新鲜度:lock mtime 或持锁会话 `.hb` 心跳在 `ENGINE_SESSION_TTL_MIN`(默认 120 分钟)内。心跳由 PreToolUse(每次工具调用)与 guard(每轮)自动续租。
 - **写时验租约**: 写共享单例逐次验锁——持锁放行;他人租约 fresh 拦截;free/stale 当场原子抢占(含残留 worker 旗标的自愈升格)。
-- **tombstone**: `engine/.cache/session.tombstone`(`coordinator-exited` / `stale-recovered` / `forced-replaced`)。
+- **tombstone**: `engine/.cache/session.tombstone` 是**历史 transition 记录**(`coordinator-exited` / `stale-recovered` / `forced-replaced`),非 active 状态信号——lock + lease mtime 才是状态源。新 coordinator 上任(fresh / same-sid resume)时由 SessionStart hook 自动清理;stale-recovery 路径覆盖写入。Doctor 对 >24h tombstone 报 WARN(cv>=6.12.2),不再 FAIL。
 - **双信号 PreToolUse 拦截**: worker 身份 = `agent_id` 非空 **或** `.cache/sessions/<key>.role=worker` 旗标存在。旗标由 coordinator 上位路径自动清理 + 7 天孤儿 GC(不会把 resume 会话钉死为 worker)。
 
 ### `engine assume-coordinator [--force]` 使用约束

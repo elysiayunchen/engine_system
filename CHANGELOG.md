@@ -1,5 +1,19 @@
 # Changelog
 
+## v6.12.2 (2026-07-28)
+
+Tombstone 生命周期双重 bug 修复(T-050/D-035)。共同根因:把「历史 transition 记录」当成「active 状态信号」治理。
+
+- **A-1**:SessionStart hook 获取 fresh coordinator 锁时清理已存在的 tombstone(`coordinator-exited` / `stale-recovered` / `forced-replaced` 任一)——对称 Stop hook 写 tombstone 的逻辑。原先只有 `engine assume-coordinator` 命令清理,任何安静 24h+ 的仓库 Doctor 必 FAIL(本仓实证 36h 后触发)。sh+ps1。
+- **A-2**:SessionStart hook 同 sid resume 路径也清理 tombstone。stale-recovery 路径保持原行为(覆盖写 `stale-recovered`)。
+- **B-1**:Doctor `check_multi_session_isolation` 对 >24h tombstone 输出 WARN 而非 FAIL(cv ≥ 6.12.2)。tombstone 是历史 transition 记录,不是 active 状态信号——lock file + lease mtime 才是状态源。
+- **B-2**:Doctor 消息删除 "exited abnormally" 误导措辞;新消息明确 tombstone 是 historical transition record、lock 是状态源、下次 coordinator 启动自动清理。
+- **B-3**:迁移宽限:cv ∈ [6.11.0, 6.12.2) 保持旧 FAIL;cv < 6.11.0 保持 advisory WARN(fail-open)。
+- **C-1**:契约 #17 同步重写:tombstone 是 historical transition records(NOT active-state signals);24h+ tombstone triggers WARN(auto-cleans on next coordinator start);SessionStart hook MUST 在 fresh coordinator acquisition 路径清理 tombstone。
+- **C-2**:contract-version 升 6.12.2(engine/ENGINE_DOCTOR.md + plugin/engine/ENGINE_DOCTOR.md + migrator sh/ps1 ×2 镜像)。
+- **D-1**:ENGINE_FILE_SYSTEM_v5.md + AGENT_ADAPTERS.md 文档同步 tombstone 生命周期说明。
+- **测试**:`tests/multi-session/test_tombstone_lifecycle.sh` 19 例(AC-1~AC-5 覆盖):sh 6 + ps1 3(WSLENV 转发 CLAUDE_PROJECT_DIR)+ Doctor 10。
+
 ## v6.12.1 (2026-07-26)
 
 Issue #11 门禁静默失效家族修复(T-049/D-035)。下游真实项目审计报告 9 项缺陷,共同失效模式:门禁看似在跑、报绿或报熟悉的红,实际检查的不是它声称的东西。修复原则:**门禁无法判定时显式说出来,不折叠进 PASS/SKIP**。

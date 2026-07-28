@@ -1,0 +1,1 @@
+{"ac":"AC-5","verify":"grep -q 'historical' engine/scripts/engine-doctor.sh && ! grep -q 'exited abnormally' engine/scripts/engine-doctor.sh","status":"pass","exit":0,"fingerprint":"sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855","timestamp":"2026-07-28T13:21:53Z"}

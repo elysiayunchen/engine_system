@@ -70,3 +70,5 @@
 | hook frontmatter 解析测试 (v6.12.1) | tests/multi-session/test_hook_frontmatter_writeset.sh | test_hook_frontmatter_writeset() | stable | 2026-07-26 |
 | migrator 版本源测试 (v6.12.1) | tests/update-flow/test_migrator_version_source.sh | test_migrator_version_source() | stable | 2026-07-26 |
 | tombstone 生命周期测试 (v6.12.2) | tests/multi-session/test_tombstone_lifecycle.sh | test_tombstone_lifecycle() | stable | 2026-07-28 |
+| pre-commit dist-stale 门禁 (v6.12.3) | engine/scripts/githooks/pre-commit | check_dist_stale() | stable | 2026-07-28 |
+| dist-stale 门禁测试 (v6.12.3) | tests/workstream/test_precommit_dist_stale.sh | test_precommit_dist_stale() | stable | 2026-07-28 |

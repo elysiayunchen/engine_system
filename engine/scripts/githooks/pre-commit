@@ -350,4 +350,40 @@ for anchor in AGENTS.md CLAUDE.md; do
   fi
 done
 
+# T-051 (v6.12.3): dist-stale gate - if contract source or dist files are staged,
+# verify working-tree dist == compile(src). Catches:
+# (a) direct dist edits without source update
+# (b) source changes without running bash contract/compile.sh
+if [ -f "$ROOT/contract/compile.sh" ]; then
+  _contract_touch="$(printf '%s\n' "$staged" | grep -E '^contract/src/|^(ENGINE_FILE_SYSTEM_v5\.md|runtime-law\.md|rules\.json|plugin/\.claude/commands/engine-init\.md|engine/prompts/init\.md|plugin/engine/prompts/init\.md)$' | head -1)"
+  if [ -n "$_contract_touch" ]; then
+    _tmpcompile="$(mktemp -d 2>/dev/null || mktemp -d -t engcompile)"
+    if ENGINE_COMPILE_OUT="$_tmpcompile" bash "$ROOT/contract/compile.sh" >/dev/null 2>&1; then
+      _stale=""
+      for _df in \
+        ENGINE_FILE_SYSTEM_v5.md \
+        runtime-law.md \
+        rules.json \
+        plugin/.claude/commands/engine-init.md \
+        engine/prompts/init.md \
+        plugin/engine/prompts/init.md
+      do
+        if [ -f "$_tmpcompile/$_df" ] && [ -f "$ROOT/$_df" ]; then
+          if ! diff -q "$_tmpcompile/$_df" "$ROOT/$_df" >/dev/null 2>&1; then
+            _stale="${_stale}${_stale:+, }$_df"
+          fi
+        fi
+      done
+      if [ -n "$_stale" ]; then
+        printf '\n[Engine System] Contract dist is stale: %s\n' "$_stale" >&2
+        printf 'dist != compile(src). Run "bash contract/compile.sh" and stage the result.\n\n' >&2
+        exit 1
+      fi
+    else
+      printf '\n[Engine System] WARN: contract/compile.sh failed; dist-stale check skipped.\n\n' >&2
+    fi
+    rm -rf "$_tmpcompile"
+  fi
+fi
+
 exit 0

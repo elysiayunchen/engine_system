@@ -1,0 +1,1 @@
+{"ac":"AC-2","verify":"bash tests/multi-session/test_tombstone_lifecycle.sh","status":"pass","exit":0,"fingerprint":"sha256:521ecc183fdff5076fed93185146ad3f32b4cfd3a141551d1da91ffbc36b29f2","timestamp":"2026-07-28T13:20:42Z"}

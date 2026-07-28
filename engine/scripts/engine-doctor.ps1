@@ -1370,9 +1370,14 @@ function Test-LegacyDataFormat {
 
 # v6.11.0 (D-029/T-036) AC-6: multi-session isolation health check.
 # cv >= 6.11.0 -> fail-closed (FAIL); cv < 6.11.0 -> fail-open (WARN, grace period).
+# v6.12.2 (T-050): tombstone check downgraded FAIL->WARN. Tombstone is a historical
+#   transition record (coordinator-exited / stale-recovered / forced-replaced), not
+#   an active-state signal — lock file + lease mtime is the source of truth. A stale
+#   tombstone just means the repo has been quiet; it auto-cleans on the next
+#   coordinator start (SessionStart hook). cv < 6.12.2 keeps prior FAIL for migration.
 # Checks: (1) .cache/sessions dir exists (SessionStart hook should create);
 #         (2) session.lock format validity (>= 5 fields);
-#         (3) tombstone file staleness (>24h = previous coordinator exited abnormally).
+#         (3) tombstone file staleness (>24h): cv>=6.12.2 WARN, 6.11.0<=cv<6.12.2 FAIL, cv<6.11.0 WARN.
 function Test-MultiSessionIsolation {
   $doctorPath = Join-Path $engineDir "ENGINE_DOCTOR.md"
   $contractVersion = ""
@@ -1386,6 +1391,11 @@ function Test-MultiSessionIsolation {
   }
   $violationIsFail = $false
   if ($cvInt -ge 61100) { $violationIsFail = $true }
+  # T-050 (v6.12.2): tombstone staleness FAIL only on old contract versions
+  # (6.11.0 <= cv < 6.12.2). cv >= 6.12.2 downgrades to WARN (tombstone is
+  # historical, not active state; auto-cleans on next coordinator start).
+  $tombstoneIsFail = $false
+  if (($cvInt -ge 61100) -and ($cvInt -lt 61202)) { $tombstoneIsFail = $true }
 
   $sessionsDir = Join-Path $engineDir '.cache\sessions'
   $lockFile = Join-Path $engineDir '.cache\session.lock'
@@ -1426,21 +1436,26 @@ function Test-MultiSessionIsolation {
   }
 
   # 3. tombstone staleness (>24h)
+  # T-050 (v6.12.2): tombstone is a historical transition record, not active state.
+  # lock file + lease mtime is the source of truth for active-state problems.
+  # cv>=6.12.2 downgrades FAIL->WARN (tombstone auto-cleans on next coordinator start).
   if (Test-Path $tombstoneFile) {
     try {
       $tombstoneLine = (Get-Content -Raw -Path $tombstoneFile -Encoding UTF8 -ErrorAction Stop).Trim()
       $tombstoneParts = $tombstoneLine -split '\|'
+      $tombstoneType = if ($tombstoneParts.Length -ge 3) { $tombstoneParts[2] } else { "unknown" }
+      if (-not $tombstoneType) { $tombstoneType = "unknown" }
       if ($tombstoneParts.Length -ge 1) {
         $tombstoneTs = $tombstoneParts[0]
         if ($tombstoneTs) {
           $ts = [datetime]::SpecifyKind([datetime]::Parse($tombstoneTs), [System.DateTimeKind]::Utc)
           $ageSec = ([datetime]::UtcNow - $ts).TotalSeconds
           if ($ageSec -gt 86400) {
-            if ($violationIsFail) {
-              Write-Fail "multi-session isolation: tombstone file is stale ($([int]$ageSec)s old, >24h) - run 'engine assume-coordinator --force' to clean up"
-              Write-Output "  human: engine/.cache/session.tombstone is $([int]($ageSec / 3600))h old. The previous coordinator exited abnormally. Run 'engine assume-coordinator --force' to take over."
+            if ($tombstoneIsFail) {
+              Write-Fail "multi-session isolation: tombstone file is stale ($([int]$ageSec)s old, type=$tombstoneType, >24h) - run 'engine assume-coordinator --force' to clean up"
+              Write-Output "  human: engine/.cache/session.tombstone is $([int]($ageSec / 3600))h old (type=$tombstoneType). Run 'engine assume-coordinator --force' to take over."
             } else {
-              Write-Warn "multi-session isolation: tombstone file stale ($([int]$ageSec)s old, grace period)"
+              Write-Warn "multi-session isolation: tombstone is a historical transition record (type=$tombstoneType, $([int]$ageSec)s old, >24h); not an active failure - lock file + lease mtime is the source of truth; auto-cleans on next coordinator start (cv=$contractVersion)"
             }
           }
         }

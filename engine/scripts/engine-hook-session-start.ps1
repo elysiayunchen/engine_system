@@ -1,4 +1,4 @@
-﻿# Engine System - SessionStart hook (PowerShell)
+# Engine System - SessionStart hook (PowerShell)
 #
 # PowerShell twin of engine-hook-session-start.sh.
 # v6 S1: always inject active task card to combat drift (especially after compact/resume).
@@ -275,6 +275,9 @@ if (-not $msDisabled) {
 
   if ($lockAcquired) {
     Remove-Item -Path $msRoleFile -Force -ErrorAction SilentlyContinue
+    # T-050 (v6.12.2): new coordinator -> old tombstone (previous transition record) is meaningless, clean it.
+    # Symmetric to Stop hook writing tombstone; tombstone is historical event, not active state (lock + lease mtime is).
+    Remove-Item -Path (Join-Path $EngineDir ".cache\session.tombstone") -Force -ErrorAction SilentlyContinue
     Write-Output "---- Coordinator (multi-session lease acquired) ----"
     Write-Output "This session is the coordinator: it may write shared memory (CONTEXT/HANDOFF/ENGINE_MAP). Parallel sessions should each drive their own task card."
   } else {
@@ -288,6 +291,8 @@ if (-not $msDisabled) {
       # 同一会话 resume/clear/compact 重入:重盖自己的租约,清掉残留 worker 旗标(RC-3b)。
       try { Set-Content -Path $LockFile -Value "$msPid|$msSid|coordinator|$msStarted|$msTask" -Encoding ASCII -NoNewline } catch {}
       Remove-Item -Path $msRoleFile -Force -ErrorAction SilentlyContinue
+      # T-050 (v6.12.2): resume also cleans tombstone (stale transition record from prior crash of same session).
+      Remove-Item -Path (Join-Path $EngineDir ".cache\session.tombstone") -Force -ErrorAction SilentlyContinue
       Write-Output "---- Coordinator (own lease re-acquired) ----"
       Write-Output "This session restored its coordinator lease (resume/compact re-entry)."
     } elseif (Test-MsLeaseFresh) {

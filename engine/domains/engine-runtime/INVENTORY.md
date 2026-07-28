@@ -1,5 +1,5 @@
 # INVENTORY — engine-runtime
-> Last updated: 2026-07-26 | 域级功能索引 | 5 列 ≤120 行,见 contract/src/20-file-templates.md FILE 14
+> Last updated: 2026-07-28 | 域级功能索引 | 5 列 ≤120 行,见 contract/src/20-file-templates.md FILE 14
 
 | Feature | Entry file | Public API | Status | Last verified |
 |---------|-----------|------------|--------|---------------|
@@ -69,3 +69,4 @@
 | verify 解析硬化测试组 (v6.12.1) | tests/behavior-verify/test_verify_allskip_loud.sh | test_verify_allskip_loud() | stable | 2026-07-26 |
 | hook frontmatter 解析测试 (v6.12.1) | tests/multi-session/test_hook_frontmatter_writeset.sh | test_hook_frontmatter_writeset() | stable | 2026-07-26 |
 | migrator 版本源测试 (v6.12.1) | tests/update-flow/test_migrator_version_source.sh | test_migrator_version_source() | stable | 2026-07-26 |
+| tombstone 生命周期测试 (v6.12.2) | tests/multi-session/test_tombstone_lifecycle.sh | test_tombstone_lifecycle() | stable | 2026-07-28 |

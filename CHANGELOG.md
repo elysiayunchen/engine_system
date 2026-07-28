@@ -1,5 +1,12 @@
 # Changelog
 
+## v6.12.3 (2026-07-28)
+
+Pre-commit dist-stale 门禁(T-051)。v6.12.2 发版时直接编辑编译产物 `ENGINE_FILE_SYSTEM_v5.md` 未跑 `compile.sh` 导致 CI/Release 双红 + re-tag,本版在 pre-commit hook 加前置防线防止再次发生。
+
+- **dist-stale gate**:pre-commit hook 检测 staged 含 `contract/src/**` 或 6 个 dist 文件之一时,运行 `ENGINE_COMPILE_OUT=/tmp/xxx bash contract/compile.sh` 编译到临时目录,diff 6 个 dist 文件的工作树版本与编译输出。任一不匹配 → FAIL,消息提示 `bash contract/compile.sh`。无契约文件 staged → 跳过(零开销)。compile.sh 自身失败 → WARN(fail-open)。
+- **测试**:`tests/workstream/test_precommit_dist_stale.sh` 5 场景:源改未编译 FAIL / 直编 dist FAIL / 源改+编译 PASS / 无契约文件 skip / compile.sh 失败 fail-open WARN。
+
 ## v6.12.2 (2026-07-28)
 
 Tombstone 生命周期双重 bug 修复(T-050/D-035)。共同根因:把「历史 transition 记录」当成「active 状态信号」治理。

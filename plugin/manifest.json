@@ -1,6 +1,6 @@
 {
   "files": [
-    { "src": ".claude/commands/engine-init.md", "sha256": "78538e57c29fc6e2d955a5fceea88594a4e0d57e75a00ce5758cd07d2b551069", "dest": ".claude/commands/engine-init.md", "protect": true },
+    { "src": ".claude/commands/engine-init.md", "sha256": "a4d98143e18929c26f45db8927a065ddec9849a20b5c4dafbd1e5f3c92b97c4d", "dest": ".claude/commands/engine-init.md", "protect": true },
     { "src": ".claude/commands/engine-update.md", "sha256": "f2bc3337a994820994ee3b84e75c98be2494da763e9f5f482dd5d12ca6d0dbbe", "dest": ".claude/commands/engine-update.md", "protect": true },
     { "src": ".claude/commands/engine-status.md", "sha256": "9ebc6669ce797727954eb346c3f0ffedd8791450af862d91dd6f0a7028f2f97e", "dest": ".claude/commands/engine-status.md", "protect": true },
     { "src": ".claude/commands/add-pitfall.md", "sha256": "2f132540d7e1c2f2fc5489af8a2250ca0d967d31820b396bdd61ecdbea4f3ac7", "dest": ".claude/commands/add-pitfall.md", "protect": true },
@@ -14,7 +14,7 @@
     { "src": "engine/README.md", "sha256": "184730129b4aa9b273a0e07f5a4adced7b7593e36639600f5c34a58fcd424d87", "dest": "engine/README.md", "protect": false },
     { "src": "engine/README.zh.md", "sha256": "be5e05d80ef3a3eaf045ccbb7c30f05a510a80a141fcddd774a17479cc79a16a", "dest": "engine/README.zh.md", "protect": false },
     { "src": "engine/ENGINE_DOCTOR.md", "sha256": "75e3a6ffb52438cc6f2d7413505bc767b89e6a2a484da146a46635d1c5a3085f", "dest": "engine/ENGINE_DOCTOR.md", "protect": false },
-    { "src": "engine/prompts/init.md", "sha256": "f6aab052ac631909e58fd6e4f7c2232a6f6a120d578e70a76563bb50b3671f27", "dest": "engine/prompts/init.md", "protect": true },
+    { "src": "engine/prompts/init.md", "sha256": "57488f74cb6d5150662737ac2730ddad8089c84c6f45d2df424609b9c500c21f", "dest": "engine/prompts/init.md", "protect": true },
     { "src": "engine/prompts/behaviors/decision-draft.md", "sha256": "6b090469784ef09703dde12d679a3e2a980f11e00cfe88bcb14a188cf238c002", "dest": "engine/prompts/behaviors/decision-draft.md", "protect": true },
     { "src": "engine/prompts/behaviors/handoff.md", "sha256": "d725fc91d500e26cd8733aa5a60864af815b55bbd66ddc95195f0d4a91ca699b", "dest": "engine/prompts/behaviors/handoff.md", "protect": true },
     { "src": "engine/prompts/behaviors/scout.md", "sha256": "814ffe3bcf9a91906b3fd91d56cc8e44633759867fd666b03bcd35580dcf4e2f", "dest": "engine/prompts/behaviors/scout.md", "protect": true },

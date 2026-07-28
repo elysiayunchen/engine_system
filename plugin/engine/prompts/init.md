@@ -2867,6 +2867,14 @@ lock 路径 `engine/.cache/session.lock`(.gitignore 覆盖,不进 git),单行 `<
 
 活性 = 租约新鲜度:`session.lock` mtime 或持锁会话 `.cache/sessions/<sid>-main.hb` 心跳 mtime 在 `ENGINE_SESSION_TTL_MIN`(默认 120 分钟)内。心跳续租点:PreToolUse 每次工具调用 touch 本会话 `.hb`;UserPromptSubmit guard 每轮 touch `.hb`,持锁会话顺手 touch lock,无锁时原子抢锁。超 TTL → stale → 接管(覆盖 lock + tombstone `engine/.cache/session.tombstone`)。`engine assume-coordinator`:租约 stale 免 `--force` 直接接管(崩溃恢复主场景);租约 fresh 须 `--force`。
 
+### Tombstone 生命周期(v6.12.2 T-050)
+
+`tombstone` 是**历史 transition 记录**(已发生的协调者交接事件),NOT active 状态信号——active 状态由 lock file + lease mtime 决定(见上)。三种 type:`coordinator-exited`(Stop hook 写,正常退出)/ `stale-recovered`(租约超时被接管)/ `forced-replaced`(`--force` 强占)。
+
+- **写入**:Stop hook 退出时写 `coordinator-exited`;stale 接管写 `stale-recovered` 覆盖旧值;`assume-coordinator --force` 写 `forced-replaced`。
+- **清理**(v6.12.2 修复):SessionStart hook 在 fresh coordinator acquisition + same-sid resume 两条路径 `rm -f .cache/session.tombstone`——新协调者上任 → 旧 transition 已无意义,对称 Stop hook 写入。stale-recovery 路径不动(本就覆盖写)。`engine assume-coordinator` 命令也清理。
+- **Doctor 检查**:`tombstone` 文件存在且 >24h 时触发 WARN(cv ≥ 6.12.2,fail-open for cv < 6.11.0,旧 FAIL for cv ∈ [6.11.0, 6.12.2) 迁移宽限)。消息明确 tombstone 是 historical transition record、lock 是状态源、下次 coordinator 启动自动清理。不报 "exited abnormally"(coordinator-exited 是正常退出)。
+
 ### 角色分配与 role 旗标生命周期(D-035 RC-3b)
 
 - **协调者**:持有租约的会话,可写共享单例。SessionStart 原子建锁成功 / 同 sid 重入(resume/compact)/ stale 接管三条路径上位,上位时 MUST 删除自身 `.role=worker` 旗标。

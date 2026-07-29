@@ -951,7 +951,7 @@ function Test-WarnDoneGate {
   foreach ($f in $taskFiles) {
     if ($f.Name -like '*.spec.md') { continue }
     $content = Get-Content -Raw -Path $f.FullName -Encoding UTF8 -ErrorAction SilentlyContinue
-    # Gate applies only to `done` tasks — active/paused tasks may have
+    # Gate applies only to `done` tasks - active/paused tasks may have
     # in-progress DEAD-CODE.json with warn_count > 0 (architect hasn't
     # reviewed yet). The done gate fires when architect marks done.
     if (-not (Test-CardStatus $content 'done')) { continue }
@@ -981,7 +981,7 @@ function Test-WarnDoneGate {
 
     # Count per-entry exempt fields. Pattern `"exempt":` is specific to
     # per-entry (top-level is `"exempt_all":`, reason is `"exempt_reason":`,
-    # count is `"exempt_count":` — none collide with `"exempt":`).
+    # count is `"exempt_count":` - none collide with `"exempt":`).
     $totalEntries = ([regex]::Matches($dcContent, '"exempt"\s*:\s*')).Count
     $exemptEntries = ([regex]::Matches($dcContent, '"exempt"\s*:\s*true')).Count
 
@@ -1286,7 +1286,7 @@ function Test-EngineVersion {
   # Only compare engine/VERSION with repo root VERSION when this IS the
   # engine_system source repo (contract/src/ exists). In user projects,
   # $Root/VERSION is the product's own version (e.g. 1.0.0) with different
-  # semantics — comparing it against the engine tooling version (e.g. 6.0.1)
+  # semantics - comparing it against the engine tooling version (e.g. 6.0.1)
   # is always a false positive. See P014 + CHANGE-2026-07-06-08.
   $contractSrc = Join-Path $Root "contract/src"
   $repoVer = Join-Path $Root "VERSION"
@@ -1315,7 +1315,7 @@ function Test-Engineignore {
       $trimmed = $line.Trim()
       if ($trimmed -eq '' -or $trimmed.StartsWith('#')) { continue }
       if ($trimmed -eq $p -or $trimmed -eq $bare -or $trimmed.StartsWith("$p ") -or $trimmed.StartsWith("$bare ") -or $trimmed.StartsWith("$bare/")) {
-        Write-Warn ".engineignore lists product path '$p' — .engineignore is for non-product paths only (cross-agent anchors, engine tooling, project config). Product paths in .engineignore undermine task-card discipline."
+        Write-Warn ".engineignore lists product path '$p' - .engineignore is for non-product paths only (cross-agent anchors, engine tooling, project config). Product paths in .engineignore undermine task-card discipline."
         Write-Output "  human: The file .engineignore contains '$p' which is a product code path. .engineignore should only exempt non-product paths (anchors, tooling, config) from task-card union gating. Remove product paths from .engineignore."
         break
       }
@@ -1392,7 +1392,7 @@ function Test-LegacyDataFormat {
 # cv >= 6.11.0 -> fail-closed (FAIL); cv < 6.11.0 -> fail-open (WARN, grace period).
 # v6.12.2 (T-050): tombstone check downgraded FAIL->WARN. Tombstone is a historical
 #   transition record (coordinator-exited / stale-recovered / forced-replaced), not
-#   an active-state signal — lock file + lease mtime is the source of truth. A stale
+#   an active-state signal - lock file + lease mtime is the source of truth. A stale
 #   tombstone just means the repo has been quiet; it auto-cleans on the next
 #   coordinator start (SessionStart hook). cv < 6.12.2 keeps prior FAIL for migration.
 # Checks: (1) .cache/sessions dir exists (SessionStart hook should create);

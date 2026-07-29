@@ -3,7 +3,7 @@
 # Validates the fix replacing `Remove-Item Env:VAR` with .NET
 # `[Environment]::SetEnvironmentVariable(VAR, $null, 'Process')`:
 #   (1) AC-3: .NET method clears the env var (no leftover).
-#   (2) AC-4: recursion guard still works — when GUARD matches the task,
+#   (2) AC-4: recursion guard still works - when GUARD matches the task,
 #       engine-verify.ps1 exits 0 immediately without running ACs.
 #
 # Compatible with Windows PowerShell 5.1 (no pwsh-only syntax).
@@ -26,7 +26,7 @@ function Pass($name) {
   $script:passCount++
 }
 function Fail($name, $detail) {
-  Write-Output "FAIL  $name — $detail"
+  Write-Output "FAIL  $name - $detail"
   $script:failCount++
 }
 
@@ -49,7 +49,7 @@ try {
   [Environment]::SetEnvironmentVariable('ENGINE_VERIFY_RECURSE_GUARD', $null, 'Process')
 }
 
-# --- AC-4: recursion guard — same task exits 0 immediately ---
+# --- AC-4: recursion guard - same task exits 0 immediately ---
 # Set GUARD to T-052, then run engine-verify.ps1 -Task T-052.
 # The script should hit line 32-34 and exit 0 without running any ACs.
 try {
@@ -58,7 +58,7 @@ try {
   $rc = $LASTEXITCODE
   # When recursion guard triggers, output should NOT contain AC verify lines.
   # It may contain the header "[Engine System behavior verify] T-052" (line 51
-  # runs before the guard check at line 32? No — guard check is at line 32-34,
+  # runs before the guard check at line 32? No - guard check is at line 32-34,
   # BEFORE the header at line 51. So output should be empty.
   if ($rc -ne 0) {
     Fail "AC-4 recursion-exit0" "expected exit 0, got $rc; output: $output"

@@ -1,4 +1,4 @@
-# v6.0 migration step - delegates to engine-migrate-contract.ps1
+﻿# v6.0 migration step - delegates to engine-migrate-contract.ps1
 #
 # v6.0 introduced:
 #   - v6 data-layer dirs (tasks/decisions/domains/changes/evidence/.cache)

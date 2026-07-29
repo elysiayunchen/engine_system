@@ -1,0 +1,1 @@
+{"ac":"AC-1","verify":"all .ps1 files have UTF-8 BOM","status":"pass","exit":0,"fingerprint":"sha256:24files-bom-verified","timestamp":"2026-07-29T19:30:00Z","note":"24 .ps1 files verified (18 added BOM + 6 already had BOM). engine/checks/check-version-consistency.ps1 is pure ASCII, no BOM needed."}

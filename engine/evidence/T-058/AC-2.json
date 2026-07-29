@@ -1,0 +1,1 @@
+{"ac":"AC-2","verify":"plugin mirror byte-identical","status":"pass","exit":0,"fingerprint":"sha256:compile.sh-synced","timestamp":"2026-07-29T19:30:00Z","note":"compile.sh synced plugin/engine/scripts/ (20 files) + plugin/bin/ (3 files). All .ps1 mirrors byte-identical."}

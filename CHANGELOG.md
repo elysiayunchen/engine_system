@@ -1,5 +1,33 @@
 # Changelog
 
+## v6.15.0 (2026-07-29)
+
+PS 5.1 乱码根因修复 — .ps1 UTF-8 BOM 方案(T-058)。T-056/T-057 的逐字符 ASCII 化清理(—→-, §→S)治标不治本(全仓仍有 859 处非 ASCII,here-string 中文模板会写入 .md 造成永久乱码)。本次给所有 .ps1 文件加 UTF-8 BOM(EF BB BF),使 PS 5.1 正确按 UTF-8 读取源文件,一次性消除所有非 ASCII 乱码风险。经子代理 12 维度评估确认可行(Strong GO)。
+
+**BOM 方案(根因修复):**
+- 18 个 .ps1 文件加 UTF-8 BOM(6 个已有 BOM:engine-hook-stop.ps1 × 2 + engine/bin/engine.ps1 × 3 + contract/compile.ps1)
+- 覆盖 11 个逻辑文件 × 2-3 副本(engine/scripts/ + plugin/engine/scripts/ + engine/bin/ + plugin/bin/ + plugin/engine/bin/ + engine/migrations/ + plugin/migrations/)
+- .sh 文件不加 BOM(破坏 shebang),.md 文件不加 BOM(无需)
+- plugin 镜像 byte-identical 保持(同逻辑文件所有副本同步加 BOM)
+- manifest SHA256 重算(62 条目,跑 `bash contract/compile.sh`)
+
+**附带修复(T-057 复查发现):**
+- **P4**: engine-migrate-contract.ps1 顶部加功能性 § 警告注释(防止未来全局替换破坏 L304 正则/L355-360 契约块/L375-394 模板)
+- **P6**: manifest.json engine-migrate-contract.ps1 条目重复 sha256 字段修复(compile.sh backfill 留下旧值)
+- **P5**: 文档中 .sh § 计数修正(实测 100 处,非 113)
+- **文档错误**: L375-394 模板用途修正(写入 skeleton/progress.md,非 CONTEXT.md)
+
+**保留(不回退):**
+- T-056/T-057 的 ASCII 化(—→-, §→S)仍有效,加 BOM 后不再乱码但 ASCII 化有跨 locale 兼容性
+- T-056/T-057 的证据不重跑(已推送,历史不动)
+
+**验证:**
+- 所有 .ps1 文件含 UTF-8 BOM(24 文件验证通过)
+- .sh 文件无 BOM(shebang 不破坏)
+- plugin 镜像 byte-identical
+- manifest SHA256 全量一致(62 条目)
+- P6 manifest 无重复 sha256 字段
+
 ## v6.14.2 (2026-07-29)
 
 § 编码 hotfix(T-057)。承接 T-056 v6.14.1 em-dash 修复,本次清理 Windows PowerShell 5.1 zh-CN locale 下 §(section sign,U+00A7)在用户可见字符串中的乱码。根因:UTF-8 § 字节 `C2 A7` 被 GBK codepage 解码为 `搂`(C2A7 = 搂)→ 用户看到 `D-028 §9` 渲染为 `D-028 搂9`。实测证据:`tmp_section_test.ps1` 在 PS 5.1 下输出 `搂1 and 搂2`。

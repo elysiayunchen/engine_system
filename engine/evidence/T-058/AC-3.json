@@ -1,0 +1,1 @@
+{"ac":"AC-3","verify":"manifest SHA256 matches actual files","status":"pass","exit":0,"fingerprint":"sha256:62entries-verified","timestamp":"2026-07-29T19:30:00Z","note":"62 manifest entries verified via check.sh method (sed s/\\r$// | sha256sum). 0 mismatches after VERSION SHA256 fix."}

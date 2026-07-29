@@ -1,4 +1,4 @@
-# Engine System - SessionEnd health hook (PowerShell)
+﻿# Engine System - SessionEnd health hook (PowerShell)
 #
 # Runs Engine Doctor at the end of an agent turn/session and stores a short pending note
 # for the next SessionStart hook. This hook never blocks; engine-hook-stop.ps1 is the

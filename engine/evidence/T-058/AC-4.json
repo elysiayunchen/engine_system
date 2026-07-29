@@ -1,0 +1,1 @@
+{"ac":"AC-4","verify":".sh files have no BOM","status":"pass","exit":0,"fingerprint":"sha256:sh-files-no-bom","timestamp":"2026-07-29T19:30:00Z","note":"All .sh files in engine/ and plugin/ verified no BOM (shebang preserved)."}

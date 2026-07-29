@@ -1,4 +1,4 @@
-# Engine System - Behavior verifier (v6 S4)
+﻿# Engine System - Behavior verifier (v6 S4)
 #
 # Executes task card AC verify commands, writes PASS/FAIL + output fingerprint
 # to engine/evidence/T-NNN/AC-N.json. Machine-enforces N3 (done has evidence).

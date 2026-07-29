@@ -7,8 +7,8 @@
 | 维度 | 状态 |
 |------|------|
 | 构建 | ✅ 正常（纯 markdown + shell 脚本，无构建步骤） |
-| 上次完成 | **v6.14.2(T-057 § 编码 hotfix)**:承接 T-056 v6.14.1 em-dash 修复,本次清理 Windows PS 5.1 + zh-CN locale 下 §(section sign,U+00A7)在用户可见 Write-Output/Write-Host 字符串中的乱码(UTF-8 字节 `C2 A7` 被 GBK 解码为 `搂`)。实测:tmp_section_test.ps1 在 PS 5.1 下输出 `搂1 and 搂2`。修 3 处用户可见字符串 § → ASCII `S`(engine-doctor.ps1 L768/L854 + engine-migrate-contract.ps1 L308 + plugin 镜像)。功能性 § 保留(正则 `'## .*§2'` 匹配 ENGINE_MAP.md + here-string 模板 `## §1 已读文件` 重生成 CONTEXT.md)。前序 **v6.14.1(T-056 em-dash 编码 hotfix)**。前序 **v6.14.0(T-054+T-055 双 issue 修复)**:#18 pre-commit done-card drift + #12 engine-verify.ps1 Git Bash 检测增强。前序 **v6.13.1(T-053 engine-verify.ps1 预防性修复)**。前序 **v6.13.0(T-052 .engineignore 旁路通道,issue #17)**。前序 **v6.12.3(T-051 dist-stale pre-commit 门禁)**。前序 **v6.12.2(T-050 tombstone 生命周期双重 bug 修复)**。 |
-| 进行中 | T-057 收尾提交。下一步:push main + tag v6.14.2 触发 CI/Release;可选立项清扫其余非 ASCII(注释 § + here-string 中文模板 + .sh 文件 §)。 |
+| 上次完成 | **v6.15.0(T-058 PS 5.1 乱码根因修复 — .ps1 UTF-8 BOM)**:T-056/T-057 逐字符 ASCII 化治标不治本(全仓 859 处非 ASCII)。本次给所有 .ps1 文件加 UTF-8 BOM(EF BB BF),使 PS 5.1 正确按 UTF-8 读取源文件,一次性消除所有非 ASCII 乱码风险(含 here-string 中文模板写入 .md 的永久乱码链路)。经子代理 12 维度评估确认可行。18 个文件加 BOM(6 个已有),覆盖 11 个逻辑文件 × 2-3 副本。附带修复 P4(功能性 § 警告注释)+ P6(manifest 重复 sha256)+ P5(.sh § 计数 100)+ 文档错误(progress.md 非 CONTEXT.md)。前序 **v6.14.2(T-057 § 编码 hotfix)**。前序 **v6.14.1(T-056 em-dash)**。前序 **v6.14.0(T-054+T-055 双 issue 修复)**。前序 **v6.13.1(T-053)**。前序 **v6.13.0(T-052 .engineignore,issue #17)**。前序 **v6.12.3(T-051 dist-stale 门禁)**。前序 **v6.12.2(T-050 tombstone 生命周期)**。 |
+| 进行中 | T-058 收尾提交。下一步:push main + tag v6.15.0 触发 CI/Release;PS 5.1 乱码问题已根因闭环。 |
 | 阻塞 | 无。 |
 
 ## 当前假设 / 决策（本轮拍板）

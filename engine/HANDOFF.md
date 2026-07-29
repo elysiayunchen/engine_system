@@ -4,8 +4,8 @@
 
 ## 立即恢复点
 
-v6.15.1(T-059 T-058 证据 + 文档完整性修复)done。子代理 5 维度复查(用户要求"派子代理查,不要只看测试")发现功能层全 PASS,但证据层 + 文档层有 3 CRITICAL + 3 MAJOR + 6 MINOR。本次仅修证据 + 文档,不动功能代码。C1:7/7 T-058 AC 证据 fingerprint 从描述性字符串重写为真实 64-hex SHA256(engine-migrate-contract.ps1 61559a1e、engine-doctor.ps1 676a1506、manifest.json d4935e5d、compile.sh d3431608、VERSION 74894f40)。C2:AC-6 verify 命令从 'FUNCTIONAL.*§.*MUST NOT'(无匹配)改为 'FUNCTIONAL section signs' = 1。C3:.sh § 计数口径明确(113 字符出现 / 101 行,非笼统"100 或 113")。M1:check-version-consistency.ps1 BOM 文档修正(实测含 BOM)。M2:.ps1 计数 24→25。M3:行号漂移 +8 修正(L304→L312 等)。manifest hash 修正(153a74b7→61559a1e)随本任务提交。前序 v6.15.0(T-058 PS 5.1 乱码根因修复 — .ps1 UTF-8 BOM)+ v6.14.2(T-057 § 编码 hotfix)+ v6.14.1(T-056 em-dash)+ v6.14.0(T-054+T-055 双 issue 修复)+ v6.13.1(T-053)+ v6.13.0(T-052)+ v6.12.3(T-051)+ v6.12.2(T-050)。
-下一步: push main + tag v6.15.1 触发 CI/Release;T-058 证据 + 文档完整性已闭环
+v6.16.0(T-060 doctor 一致性对齐 #20 + #19)done。修复两个 doctor 行为一致性缺陷:#20 migrator 模板 item 17 单行 2473 字符违反 doctor 自己的 check_long_line(永久 1 WARN),拆分为 1 主行 + 6 子项(每行 ≤800 字符);#19 doctor 对 HEAD 已有 done 卡误报 FAIL(hook v6.14.0 已跳过),加 HEAD 检查降级 FAIL→WARN(保留对新 done 卡强约束)。4 个脚本文件 × 2(engine+plugin)同步,manifest SHA256 重算,AGENTS/SYSTEM/ENGINE_DOCTOR managed block 更新到 contract-version 6.16.0。check.sh CHECK PASSED,verify 7/7。前序 v6.15.1(T-059 证据+文档修复)+ v6.15.0(T-058 BOM)+ v6.14.2(T-057 §)+ v6.14.1(T-056 em-dash)。
+下一步: push main + tag v6.16.0 触发 CI/Release;回复关闭 issue #20 #19
 
 > Phase 1 = 通用化核心(prompt 抽离 / CLI 扩展 / 快速安装 / agent 检测——D-017 原文口径;实施细化与「薄壳」口径修正见 D-018)。v6.2 = 多 agent 通信层(engine context + DevComm Rule 扩展)。
 

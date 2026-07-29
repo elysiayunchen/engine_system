@@ -52,14 +52,47 @@ Write-Output "[Engine System behavior verify] $Task"
 Write-Output ""
 
 # Prefer real Git Bash; exclude WSL stub in System32 which emits garbled output.
+# v6.14.0 (T-055, issue #12): expanded detection. Previous version only checked
+# C:\Program Files\Git\bin\bash.exe + Get-Command bash (excluding WSL stub).
+# Missed: 32-bit Program Files path, custom installs (Scoop/Chocolatey), and
+# environments where `bash` on PATH is the WSL stub but Git Bash exists in the
+# git install dir. New: also check Program Files (x86) + derive bash location
+# from `git --exec-path` (git is on PATH in virtually every Windows Git install).
 $bashExe = ""
+# 1. Standard 64-bit Git for Windows path
 $gitBash = "C:\Program Files\Git\bin\bash.exe"
 if (Test-Path $gitBash) {
   $bashExe = $gitBash
-} else {
+}
+# 2. 32-bit Program Files variant (T-055, issue #12)
+if (-not $bashExe) {
+  $gitBash86 = "${env:ProgramFiles(x86)}\Git\bin\bash.exe"
+  if (-not $gitBash86 -or -not (Test-Path $gitBash86)) {
+    $gitBash86 = "C:\Program Files (x86)\Git\bin\bash.exe"
+  }
+  if (Test-Path $gitBash86) { $bashExe = $gitBash86 }
+}
+# 3. Get-Command bash (exclude WSL stub in System32)
+if (-not $bashExe) {
   $cmd = Get-Command bash -ErrorAction SilentlyContinue
   if ($cmd -and $cmd.Source -notlike "*\System32\bash.exe") {
     $bashExe = $cmd.Source
+  }
+}
+# 4. Derive from git --exec-path (T-055, issue #12): git is virtually always on
+# PATH if Git for Windows is installed. exec-path is like
+# C:\Program Files\Git\mingw64\libexec\git-core; bash is 3 levels up + bin\.
+if (-not $bashExe) {
+  $gitCmd = Get-Command git -ErrorAction SilentlyContinue
+  if ($gitCmd) {
+    try {
+      $execPath = & git --exec-path 2>$null
+      if ($execPath) {
+        $gitRoot = Split-Path (Split-Path (Split-Path $execPath))
+        $derivedBash = Join-Path $gitRoot "bin\bash.exe"
+        if (Test-Path $derivedBash) { $bashExe = $derivedBash }
+      }
+    } catch { }
   }
 }
 

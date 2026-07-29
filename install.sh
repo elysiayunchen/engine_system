@@ -263,6 +263,7 @@ FILES=(
   "engine/skeleton/progress.md:engine/skeleton/progress.md:false"
   "engine/skeleton/domains/INVENTORY.md:engine/skeleton/domains/INVENTORY.md:false"
   "engine/skeleton/tasks/README.md:engine/skeleton/tasks/README.md:false"
+  "engine/skeleton/.engineignore:engine/skeleton/.engineignore:false"
   "engine/checks/README.md:engine/checks/README.md:false"
   ".claude/settings.json:.claude/settings.json:false"
 )

@@ -1,5 +1,15 @@
 # Changelog
 
+## v6.14.1 (2026-07-29)
+
+em-dash 编码 hotfix(T-056)。Windows PowerShell 5.1 在 zh-CN locale 下按 GBK codepage 读取无 BOM 的 .ps1 源文件,UTF-8 编码的 em-dash(`—`,字节 `E2 80 94`)被 GBK 解码为 `鈥` + 残字节 `?` → 控制台输出乱码。本次扫描发现 7 个 .ps1 含非 ASCII,但只有 3 处出现在用户可见的 `Write-Warn`/`Write-Output`/`Fail` 字符串字面量(其余在注释或 .md 模板,影响小)。其余 `§` / here-string 中文模板问题留独立任务卡。
+
+- **修复**:3 处 em-dash `—` → ASCII `-`:
+  - `engine/scripts/engine-doctor.ps1` L1318 `check_engineignore` 的 Write-Warn 文案(engine + plugin 镜像)。
+  - `tests/workstream/test_engine_verify_env_cleanup.ps1` `Fail` 函数输出前缀。
+- **验证**:实测 `鈥?` 乱码已消失;`test_engine_verify_env_cleanup.ps1` 2/2 PASS;`check.sh` CHECK PASSED。
+- **未覆盖**(留独立任务):`engine-doctor.ps1` L768/L854 `§9`、`engine-migrate-contract.ps1` L308 `§2`、`engine-sync-agent-anchors.ps1` here-string `✓`/`—`/中文、`engine-migrate-contract.ps1` markdown 模板中文。
+
 ## v6.14.0 (2026-07-29)
 
 双 issue 修复:T-054 (#18 pre-commit done-card drift)+ T-055 (#12 engine-verify.ps1 Windows bash 检测)。

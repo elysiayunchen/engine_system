@@ -7,8 +7,8 @@
 | 维度 | 状态 |
 |------|------|
 | 构建 | ✅ 正常（纯 markdown + shell 脚本，无构建步骤） |
-| 上次完成 | **v6.13.1(T-053 engine-verify.ps1 预防性修复)**:T-051 CHANGE 记录的 `Remove-Item Env:` 在 TRAE `safe_rm_alias.ps1` 包装下失效的 bug,当前环境虽不复现,作防御性修复——改用 .NET 原生方法 `[Environment]::SetEnvironmentVariable('ENGINE_VERIFY_RECURSE_GUARD', $null, 'Process')`,完全绕过 PowerShell provider 机制,不被任何 alias 包装影响。2 场景测试 PASS。前序 **v6.13.0(T-052 .engineignore 旁路通道,issue #17)**:非产品路径被 task-card union gating 拦截,加 `.engineignore` 旁路(跳 WRITE-SET 不跳 FORBIDDEN)。前序 **v6.12.3(T-051 dist-stale pre-commit 门禁)**。前序 **v6.12.2(T-050 tombstone 生命周期双重 bug 修复)**。前序 **v6.12.1(T-049 issue #11 门禁静默失效家族九项修复)**。前序 **v6.12.0(T-048 多任务卡并行 union gating + 会话租约液性修复,D-035)**。 |
-| 进行中 | T-053 收尾提交。下一步:push main 验证 CI → tag v6.13.1;或规划 Q2 真实大库试点 / D-018 批量处理。 |
+| 上次完成 | **v6.14.1(T-056 em-dash 编码 hotfix)**:Windows PS 5.1 + zh-CN locale 下 .ps1 文件中 em-dash(`—`)控制台输出乱码(`鈥?`)。根因:UTF-8 无 BOM 的 .ps1 被 PS 5.1 按 GBK 读取,em-dash 字节 `E2 80 94` 被 GBK 解码为 `鈥`+`?`。修 3 处用户可见 Write-Warn/Fail 字符串字面量(engine-doctor.ps1 engine+plugin + test_engine_verify_env_cleanup.ps1)。其余 `§`/here-string 中文模板留独立任务。前序 **v6.14.0(T-054+T-055 双 issue 修复)**:#18 pre-commit done-card drift + #12 engine-verify.ps1 Git Bash 检测增强。前序 **v6.13.1(T-053 engine-verify.ps1 预防性修复)**。前序 **v6.13.0(T-052 .engineignore 旁路通道,issue #17)**。前序 **v6.12.3(T-051 dist-stale pre-commit 门禁)**。前序 **v6.12.2(T-050 tombstone 生命周期双重 bug 修复)**。 |
+| 进行中 | T-056 收尾提交。下一步:push main + tag v6.14.1 触发 CI/Release;可选立项清扫其余非 ASCII(§ + here-string 中文模板)。 |
 | 阻塞 | 无。 |
 
 ## 当前假设 / 决策（本轮拍板）
@@ -35,6 +35,7 @@
 - 待验证：Copilot CLI / Codex CLI 原生 hook 的 block 决策支持。
 - 待验证：真实下游项目从旧 contract-version 迁移到 6.6 后的首次任务采用与并行 workstream 手感,以及 HANDOFF 历史归档触发是否如期在首次写入时执行。
 - 待验证：v6.12.0 真实双会话并行试用——两个 Claude Code 实例各持一张卡,观察租约续期手感、TTL 默认 120min 是否合适、Doctor multi-card overlap WARN 噪声;方案 B(会话-任务强绑定)是否需要(D-035 Open Questions)。
+- 已验证：T-056 v6.14.1 done——em-dash 编码 hotfix。Windows PS 5.1 + zh-CN locale 下 .ps1 文件中 em-dash(`—`)渲染为 `鈥?` 乱码(UTF-8 字节 `E2 80 94` 被 GBK 解码)。修 3 处用户可见 Write-Warn/Fail 字符串(engine-doctor.ps1 engine+plugin + test_engine_verify_env_cleanup.ps1)。test 2/2 PASS,check.sh CHECK PASSED。其余 `§`/here-string 中文模板留独立任务。
 - 已验证：T-053 v6.13.1 done——engine-verify.ps1 预防性修复。`Remove-Item Env:ENGINE_VERIFY_RECURSE_GUARD` → `[Environment]::SetEnvironmentVariable(..., $null, 'Process')` .NET 原生方法,绕过 TRAE safe_rm_alias.ps1 包装风险。bug 当前不复现(疑似 TRAE 已修),作防御性修复。2 场景测试 PASS(env var 清除 + 递归守卫),verify 7/7。
 - 已验证：T-052 v6.13.0 done——.engineignore 旁路通道(issue #17)。pre-commit 加 `is_engineignored()` + `union_not_all_forbidden()`,命中 .engineignore 的路径跳 WRITE-SET 检查但不跳 FORBIDDEN(纠正 issue #17 提案设计错误)。旁路范围仅 no-card + union WRITE-SET 两块;protected-path/dist-stale 独立路径不受影响。`.engineignore` 入 protected_paths(需 covering decision D-036);Doctor `check_engineignore` 对 product 路径 WARN。7 场景 10 断言测试 PASS,verify 9/9。
 - 已验证：T-051 v6.12.3 done——pre-commit dist-stale 门禁(staged 含 contract/src/** 或 6 个 dist 文件之一时编译到临时目录 diff 工作树,任一不匹配 FAIL;无契约文件 staged 跳过;compile.sh 失败 WARN)。前序 v6.12.2 T-050 发版时直编 ENGINE_FILE_SYSTEM_v5.md 未跑 compile.sh → CI Doctor `contract dist is not compile(src)` FAIL → re-tag,本版加前置防线。5 场景测试 PASS,verify 7/7。

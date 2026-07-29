@@ -228,6 +228,7 @@ $FILES = @(
   @{ src = "engine/skeleton/progress.md";           dest = "engine\skeleton\progress.md";           protect = $false }
   @{ src = "engine/skeleton/domains/INVENTORY.md";  dest = "engine\skeleton\domains\INVENTORY.md";  protect = $false }
   @{ src = "engine/skeleton/tasks/README.md";       dest = "engine\skeleton\tasks\README.md";       protect = $false }
+  @{ src = "engine/skeleton/.engineignore";          dest = "engine\skeleton\.engineignore";          protect = $false }
   @{ src = "engine/checks/README.md";                 dest = "engine\checks\README.md";                 protect = $false }
   @{ src = ".claude/settings.json";                dest = ".claude\settings.json";                protect = $false }
 )

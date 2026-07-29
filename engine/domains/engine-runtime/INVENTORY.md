@@ -72,3 +72,7 @@
 | tombstone 生命周期测试 (v6.12.2) | tests/multi-session/test_tombstone_lifecycle.sh | test_tombstone_lifecycle() | stable | 2026-07-28 |
 | pre-commit dist-stale 门禁 (v6.12.3) | engine/scripts/githooks/pre-commit | check_dist_stale() | stable | 2026-07-28 |
 | dist-stale 门禁测试 (v6.12.3) | tests/workstream/test_precommit_dist_stale.sh | test_precommit_dist_stale() | stable | 2026-07-28 |
+| .engineignore 旁路通道 (v6.13.0) | engine/scripts/githooks/pre-commit | is_engineignored() | stable | 2026-07-29 |
+| .engineignore 旁路测试 (v6.13.0) | tests/workstream/test_precommit_engineignore.sh | test_precommit_engineignore() | stable | 2026-07-29 |
+| Doctor .engineignore 告警 (v6.13.0) | engine/scripts/engine-doctor.sh | check_engineignore() | stable | 2026-07-29 |
+| .engineignore 配置 | .engineignore | engineignore_config() | stable | 2026-07-29 |

@@ -10,6 +10,7 @@
     "plugin/manifest.json",
     ".gitattributes",
     "contract/src/**",
-    "runtime-law.md"
+    "runtime-law.md",
+    ".engineignore"
   ]
 }

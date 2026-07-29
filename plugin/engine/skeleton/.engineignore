@@ -1,0 +1,27 @@
+# .engineignore — paths exempt from task-card union gating (gitignore-style globs)
+#
+# v6.13.0 (T-052/D-036, issue #17): Paths matching this file bypass the
+# "no active card" block and the union_allows WRITE-SET check in pre-commit,
+# but STILL face FORBIDDEN, protected-path, and dist-stale gates.
+#
+# DO NOT list product paths here (src/**, runtime/**, contract/**) —
+# doctor will WARN on misuse. This file is for non-product paths only.
+#
+# Uncomment lines as needed for your project:
+
+# Cross-agent anchors synced by engine-sync-agent-anchors.*
+# .github/copilot-instructions.md
+# .cursor/rules/engine.md
+# GEMINI.md
+# .clinerules
+# .roorules
+
+# Engine tooling auto-updated by `engine update` (non-product)
+# engine/scripts/**
+# engine/prompts/**
+# engine/bin/**
+
+# Project-level config
+# .claude/settings.json
+# .gitignore
+# CHANGELOG.md

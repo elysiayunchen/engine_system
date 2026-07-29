@@ -1,0 +1,20 @@
+# .engineignore — paths exempt from task-card union gating
+# v6.13.0 (T-052/D-036, issue #17): bypass no-card block + union_allows WRITE-SET
+# check. Still subject to FORBIDDEN, protected-path, and dist-stale gates.
+
+# Cross-agent anchors synced by engine-sync-agent-anchors.*
+.github/copilot-instructions.md
+.cursor/rules/engine.md
+GEMINI.md
+.clinerules
+.roorules
+
+# Engine tooling auto-updated by `engine update` (non-product)
+engine/scripts/**
+engine/prompts/**
+engine/bin/**
+
+# Project-level config
+.claude/settings.json
+.gitignore
+CHANGELOG.md

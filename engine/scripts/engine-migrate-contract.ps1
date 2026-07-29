@@ -305,7 +305,7 @@ function Reconcile-Schema {
       if ($inPlanSection -and $line -match '^\| [A-Z]') {
         $cols = ($line -split '\|').Count - 2
         if ($cols -lt 6) {
-          Write-Host "WARN: ENGINE_MAP §2 plan registry has $cols columns (v6 expects 6-7). Manual reconcile recommended."
+          Write-Host "WARN: ENGINE_MAP S2 plan registry has $cols columns (v6 expects 6-7). Manual reconcile recommended."
         }
         break
       }

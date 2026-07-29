@@ -7,8 +7,8 @@
 | 维度 | 状态 |
 |------|------|
 | 构建 | ✅ 正常（纯 markdown + shell 脚本，无构建步骤） |
-| 上次完成 | **v6.14.1(T-056 em-dash 编码 hotfix)**:Windows PS 5.1 + zh-CN locale 下 .ps1 文件中 em-dash(`—`)控制台输出乱码(`鈥?`)。根因:UTF-8 无 BOM 的 .ps1 被 PS 5.1 按 GBK 读取,em-dash 字节 `E2 80 94` 被 GBK 解码为 `鈥`+`?`。修 3 处用户可见 Write-Warn/Fail 字符串字面量(engine-doctor.ps1 engine+plugin + test_engine_verify_env_cleanup.ps1)。其余 `§`/here-string 中文模板留独立任务。前序 **v6.14.0(T-054+T-055 双 issue 修复)**:#18 pre-commit done-card drift + #12 engine-verify.ps1 Git Bash 检测增强。前序 **v6.13.1(T-053 engine-verify.ps1 预防性修复)**。前序 **v6.13.0(T-052 .engineignore 旁路通道,issue #17)**。前序 **v6.12.3(T-051 dist-stale pre-commit 门禁)**。前序 **v6.12.2(T-050 tombstone 生命周期双重 bug 修复)**。 |
-| 进行中 | T-056 收尾提交。下一步:push main + tag v6.14.1 触发 CI/Release;可选立项清扫其余非 ASCII(§ + here-string 中文模板)。 |
+| 上次完成 | **v6.14.2(T-057 § 编码 hotfix)**:承接 T-056 v6.14.1 em-dash 修复,本次清理 Windows PS 5.1 + zh-CN locale 下 §(section sign,U+00A7)在用户可见 Write-Output/Write-Host 字符串中的乱码(UTF-8 字节 `C2 A7` 被 GBK 解码为 `搂`)。实测:tmp_section_test.ps1 在 PS 5.1 下输出 `搂1 and 搂2`。修 3 处用户可见字符串 § → ASCII `S`(engine-doctor.ps1 L768/L854 + engine-migrate-contract.ps1 L308 + plugin 镜像)。功能性 § 保留(正则 `'## .*§2'` 匹配 ENGINE_MAP.md + here-string 模板 `## §1 已读文件` 重生成 CONTEXT.md)。前序 **v6.14.1(T-056 em-dash 编码 hotfix)**。前序 **v6.14.0(T-054+T-055 双 issue 修复)**:#18 pre-commit done-card drift + #12 engine-verify.ps1 Git Bash 检测增强。前序 **v6.13.1(T-053 engine-verify.ps1 预防性修复)**。前序 **v6.13.0(T-052 .engineignore 旁路通道,issue #17)**。前序 **v6.12.3(T-051 dist-stale pre-commit 门禁)**。前序 **v6.12.2(T-050 tombstone 生命周期双重 bug 修复)**。 |
+| 进行中 | T-057 收尾提交。下一步:push main + tag v6.14.2 触发 CI/Release;可选立项清扫其余非 ASCII(注释 § + here-string 中文模板 + .sh 文件 §)。 |
 | 阻塞 | 无。 |
 
 ## 当前假设 / 决策（本轮拍板）
@@ -35,6 +35,7 @@
 - 待验证：Copilot CLI / Codex CLI 原生 hook 的 block 决策支持。
 - 待验证：真实下游项目从旧 contract-version 迁移到 6.6 后的首次任务采用与并行 workstream 手感,以及 HANDOFF 历史归档触发是否如期在首次写入时执行。
 - 待验证：v6.12.0 真实双会话并行试用——两个 Claude Code 实例各持一张卡,观察租约续期手感、TTL 默认 120min 是否合适、Doctor multi-card overlap WARN 噪声;方案 B(会话-任务强绑定)是否需要(D-035 Open Questions)。
+- 已验证：T-057 v6.14.2 done——§ 编码 hotfix。承接 T-056 v6.14.1 em-dash 修复,本次清理 Windows PS 5.1 + zh-CN locale 下 §(section sign,U+00A7)在用户可见 Write-Output/Write-Host 字符串中的乱码(UTF-8 字节 `C2 A7` 被 GBK 解码为 `搂`)。实测证据:tmp_section_test.ps1 在 PS 5.1 下输出 `搂1 and 搂2`。修 3 处用户可见字符串 § → ASCII `S`(engine-doctor.ps1 L768/L854 `Write-Output "(D-028 §9)"` → `(D-028 S9)` + engine-migrate-contract.ps1 L308 `Write-Host "ENGINE_MAP §2 plan registry"` → `ENGINE_MAP S2 plan registry` + plugin 镜像)。功能性 § 保留:L304 正则 `'## .*§2'`(匹配 ENGINE_MAP.md)+ L375-394 here-string 模板 `## §1 已读文件`(重生成 CONTEXT.md)。注释和 .sh 文件中的 § 留独立任务。plugin 镜像 SHA256 byte-identical,check.sh CHECK PASSED,verify 6/6。
 - 已验证：T-056 v6.14.1 done——em-dash 编码 hotfix。Windows PS 5.1 + zh-CN locale 下 .ps1 文件中 em-dash(`—`)渲染为 `鈥?` 乱码(UTF-8 字节 `E2 80 94` 被 GBK 解码)。修 3 处用户可见 Write-Warn/Fail 字符串(engine-doctor.ps1 engine+plugin + test_engine_verify_env_cleanup.ps1)。test 2/2 PASS,check.sh CHECK PASSED。其余 `§`/here-string 中文模板留独立任务。
 - 已验证：T-053 v6.13.1 done——engine-verify.ps1 预防性修复。`Remove-Item Env:ENGINE_VERIFY_RECURSE_GUARD` → `[Environment]::SetEnvironmentVariable(..., $null, 'Process')` .NET 原生方法,绕过 TRAE safe_rm_alias.ps1 包装风险。bug 当前不复现(疑似 TRAE 已修),作防御性修复。2 场景测试 PASS(env var 清除 + 递归守卫),verify 7/7。
 - 已验证：T-052 v6.13.0 done——.engineignore 旁路通道(issue #17)。pre-commit 加 `is_engineignored()` + `union_not_all_forbidden()`,命中 .engineignore 的路径跳 WRITE-SET 检查但不跳 FORBIDDEN(纠正 issue #17 提案设计错误)。旁路范围仅 no-card + union WRITE-SET 两块;protected-path/dist-stale 独立路径不受影响。`.engineignore` 入 protected_paths(需 covering decision D-036);Doctor `check_engineignore` 对 product 路径 WARN。7 场景 10 断言测试 PASS,verify 9/9。

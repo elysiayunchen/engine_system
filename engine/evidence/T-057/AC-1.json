@@ -1,0 +1,1 @@
+{"ac":"AC-1","verify":"(Select-String -Path engine/scripts/engine-doctor.ps1 -Pattern 'Write-(Output|Host|Warn|Error).*§' -AllMatches).Count -eq 0","status":"pass","exit":0,"fingerprint":"sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855","timestamp":"2026-07-29T18:55:00Z"}

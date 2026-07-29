@@ -1,5 +1,29 @@
 # Changelog
 
+## v6.15.1 (2026-07-29)
+
+T-058 证据 + 文档完整性修复(T-059)。子代理 5 维度复查发现功能层全 PASS,但证据层和文档层有 3 个 CRITICAL + 3 个 MAJOR + 6 个 MINOR 问题。本次仅修证据 + 文档,不动功能代码。
+
+**CRITICAL 修复:**
+- **C1 (P-CRIT-2)**: 7/7 AC 证据文件 fingerprint 从描述性字符串(`sha256:24files-bom-verified` 等)重写为真实 64-hex SHA256(engine-migrate-contract.ps1 hash 61559a1e...、engine-doctor.ps1 hash 676a1506...、manifest.json hash d4935e5d...、compile.sh hash d3431608...、VERSION hash 74894f40...)
+- **C2 (AC-6 verify 无法匹配)**: `Select-String -Pattern 'FUNCTIONAL.*§.*MUST NOT'` 在文件中无任何匹配(L9 有 FUNCTIONAL+MUST NOT 但无 §,L10/L15 有 § 但无 MUST NOT),改为 `grep -c 'FUNCTIONAL section signs'` = 1
+- **C3 (.sh § 计数口径错误)**: T-058 的 P5 "修正"把 113 改成 100,但 113 是字符出现数(grep -o|wc -l),100 是行数(grep -c,且漏算 compile.sh)。改为同时记录两个口径:113 字符出现 / 101 行
+
+**MAJOR 修复:**
+- **M1**: check-version-consistency.ps1 实测含 BOM(EF BB BF),修正 progress.md/CHANGE/evidence 中"纯 ASCII 无 BOM"的错误声明
+- **M2**: .ps1 文件计数 24 → 25(WRITE-SET 24 + check-version-consistency.ps1)
+- **M3**: 行号漂移 +8 修正(P4 在文件顶部加 7 行注释导致):L304→L312, L355-360→L362-368, L375-394→L379-402
+
+**MINOR 修复:**
+- P4 注释行数 10 → 7(L9-15)
+- L375-394 模板范围 → L379-402
+- CHANGELOG v6.14.2 条目"重生成 CONTEXT.md" → "重生成 skeleton/progress.md"
+- manifest HEAD 版本 hash stale 修正(153a74b7... → 61559a1e...,工作树已修随本任务提交)
+- checkpoint.md 计数 24 → 25
+- AC-1 note 关于 check-version-consistency.ps1 的描述修正
+
+**验证:** 7 个 AC 证据 fingerprint 全部为合法 64-hex SHA256;7 个 AC verify 全部为可执行命令;AC-6 verify 实际可匹配;check-version-consistency.ps1 BOM 实测确认;.sh § 计数 113 字符出现 / 101 行;check.sh CHECK PASSED。
+
 ## v6.15.0 (2026-07-29)
 
 PS 5.1 乱码根因修复 — .ps1 UTF-8 BOM 方案(T-058)。T-056/T-057 的逐字符 ASCII 化清理(—→-, §→S)治标不治本(全仓仍有 859 处非 ASCII,here-string 中文模板会写入 .md 造成永久乱码)。本次给所有 .ps1 文件加 UTF-8 BOM(EF BB BF),使 PS 5.1 正确按 UTF-8 读取源文件,一次性消除所有非 ASCII 乱码风险。经子代理 12 维度评估确认可行(Strong GO)。
@@ -12,17 +36,17 @@ PS 5.1 乱码根因修复 — .ps1 UTF-8 BOM 方案(T-058)。T-056/T-057 的逐�
 - manifest SHA256 重算(62 条目,跑 `bash contract/compile.sh`)
 
 **附带修复(T-057 复查发现):**
-- **P4**: engine-migrate-contract.ps1 顶部加功能性 § 警告注释(防止未来全局替换破坏 L304 正则/L355-360 契约块/L375-394 模板)
+- **P4**: engine-migrate-contract.ps1 顶部加功能性 § 警告注释(7 行 L9-15,防止未来全局替换破坏 L312 正则/L362-368 契约块/L379-402 模板)
 - **P6**: manifest.json engine-migrate-contract.ps1 条目重复 sha256 字段修复(compile.sh backfill 留下旧值)
-- **P5**: 文档中 .sh § 计数修正(实测 100 处,非 113)
-- **文档错误**: L375-394 模板用途修正(写入 skeleton/progress.md,非 CONTEXT.md)
+- **P5**: 文档中 .sh § 计数口径明确:113 字符出现(grep -o|wc -l)/ 101 行(grep -c),非笼统"100 或 113"
+- **文档错误**: L379-402 模板用途修正(写入 skeleton/progress.md,非 CONTEXT.md)
 
 **保留(不回退):**
 - T-056/T-057 的 ASCII 化(—→-, §→S)仍有效,加 BOM 后不再乱码但 ASCII 化有跨 locale 兼容性
 - T-056/T-057 的证据不重跑(已推送,历史不动)
 
 **验证:**
-- 所有 .ps1 文件含 UTF-8 BOM(24 文件验证通过)
+- 所有 .ps1 文件含 UTF-8 BOM(25 文件验证通过,含 check-version-consistency.ps1)
 - .sh 文件无 BOM(shebang 不破坏)
 - plugin 镜像 byte-identical
 - manifest SHA256 全量一致(62 条目)
@@ -37,7 +61,7 @@ PS 5.1 乱码根因修复 — .ps1 UTF-8 BOM 方案(T-058)。T-056/T-057 的逐�
   - `engine/scripts/engine-migrate-contract.ps1` L308 `Write-Host` 警告 `ENGINE_MAP §2 plan registry` → `ENGINE_MAP S2 plan registry`(engine + plugin 镜像)。
 - **保留**(功能性 § 不动):
   - `engine-migrate-contract.ps1` L304 正则 `'## .*§2'`(匹配 ENGINE_MAP.md 章节标题)。
-  - `engine-migrate-contract.ps1` L375-394 here-string 模板 `## §1 已读文件` 等(重生成 CONTEXT.md 用)。
+  - `engine-migrate-contract.ps1` L379-402 here-string 模板 `## §1 已读文件` 等(重生成 skeleton/progress.md 用,非 CONTEXT.md,T-058 修正)。
   - 注释里的 §(非用户可见,留独立任务)。
   - `.sh` 文件中的 §(bash 处理 UTF-8 无乱码问题)。
 - **验证**:`Select-String` 确认 3 处用户可见字符串无 §;plugin 镜像 SHA256 byte-identical;`check.sh` CHECK PASSED。

@@ -1,4 +1,4 @@
-# Project-custom Doctor check: all VERSION files must agree.
+﻿# Project-custom Doctor check: all VERSION files must agree.
 # Called by engine-doctor.ps1 after built-in checks.
 # Exit 0 = PASS, non-zero = FAIL (stdout becomes the message).
 

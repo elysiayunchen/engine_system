@@ -1,6 +1,6 @@
 ﻿# Engine System - Contract compiler (v6 S3 + S3-b + review fix + D-015)
 #
-# NOTE: this file is saved with a UTF-8 BOM (unlike other *.ps1 in this repo).
+# NOTE: this file (like all *.ps1 in this repo) is saved with a UTF-8 BOM.
 # It embeds a Chinese string literal (rules.json _comment, matched to compile.sh
 # for sh/ps1 byte parity). Windows PowerShell 5.1 (powershell.exe) decodes
 # BOM-less .ps1 source using the system codepage, which mangles non-ASCII

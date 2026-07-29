@@ -4,8 +4,8 @@
 
 ## 立即恢复点
 
-v6.15.0(T-058 PS 5.1 乱码根因修复 — .ps1 UTF-8 BOM 方案)done。T-056/T-057 逐字符 ASCII 化治标不治本(全仓 859 处非 ASCII,here-string 中文模板会写入 .md 造成永久乱码)。本次给所有 .ps1 文件加 UTF-8 BOM(EF BB BF),使 PS 5.1 正确按 UTF-8 读取源文件,一次性消除所有非 ASCII 乱码风险。经子代理 12 维度评估确认可行(Strong GO)。18 个文件加 BOM(6 个已有),覆盖 11 个逻辑文件 × 2-3 副本。.sh 不加 BOM(破坏 shebang),.md 不加(无需)。附带修复 T-057 复查发现的 P4(功能性 § 警告注释)+ P6(manifest 重复 sha256 字段)+ P5(.sh § 计数 100 非 113)+ 文档错误(L375-394 模板写入 progress.md 非 CONTEXT.md)。manifest SHA256 重算(62 条目)。T-056/T-057 的 ASCII 化不回退(仍有跨 locale 兼容性)。前序 v6.14.2(T-057 § 编码 hotfix)+ v6.14.1(T-056 em-dash)+ v6.14.0(T-054+T-055 双 issue 修复)+ v6.13.1(T-053)+ v6.13.0(T-052)+ v6.12.3(T-051)+ v6.12.2(T-050)。
-下一步: push main + tag v6.15.0 触发 CI/Release;PS 5.1 乱码问题已根因闭环
+v6.15.1(T-059 T-058 证据 + 文档完整性修复)done。子代理 5 维度复查(用户要求"派子代理查,不要只看测试")发现功能层全 PASS,但证据层 + 文档层有 3 CRITICAL + 3 MAJOR + 6 MINOR。本次仅修证据 + 文档,不动功能代码。C1:7/7 T-058 AC 证据 fingerprint 从描述性字符串重写为真实 64-hex SHA256(engine-migrate-contract.ps1 61559a1e、engine-doctor.ps1 676a1506、manifest.json d4935e5d、compile.sh d3431608、VERSION 74894f40)。C2:AC-6 verify 命令从 'FUNCTIONAL.*§.*MUST NOT'(无匹配)改为 'FUNCTIONAL section signs' = 1。C3:.sh § 计数口径明确(113 字符出现 / 101 行,非笼统"100 或 113")。M1:check-version-consistency.ps1 BOM 文档修正(实测含 BOM)。M2:.ps1 计数 24→25。M3:行号漂移 +8 修正(L304→L312 等)。manifest hash 修正(153a74b7→61559a1e)随本任务提交。前序 v6.15.0(T-058 PS 5.1 乱码根因修复 — .ps1 UTF-8 BOM)+ v6.14.2(T-057 § 编码 hotfix)+ v6.14.1(T-056 em-dash)+ v6.14.0(T-054+T-055 双 issue 修复)+ v6.13.1(T-053)+ v6.13.0(T-052)+ v6.12.3(T-051)+ v6.12.2(T-050)。
+下一步: push main + tag v6.15.1 触发 CI/Release;T-058 证据 + 文档完整性已闭环
 
 > Phase 1 = 通用化核心(prompt 抽离 / CLI 扩展 / 快速安装 / agent 检测——D-017 原文口径;实施细化与「薄壳」口径修正见 D-018)。v6.2 = 多 agent 通信层(engine context + DevComm Rule 扩展)。
 

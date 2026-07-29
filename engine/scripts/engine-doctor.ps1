@@ -765,7 +765,7 @@ function Test-WriteSetBudget {
         Write-Warn "task $tid WRITE-SET budget ${kb}KB > 30KB but checkpoint_plan declared (bypass, cv=$contractVersion)"
       } elseif ($violationIsFail) {
         Write-Fail "task $tid WRITE-SET budget ${kb}KB > 30KB - split card or declare checkpoint_plan"
-        Write-Output "  human: Active task $tid has WRITE-SET totaling ${kb}KB across listed files (threshold 30KB ~ 8000 tokens). Either split into smaller cards, or add a 'checkpoint_plan: <text or tryout>' field to the task card header to declare a bypass (D-028 §9)."
+        Write-Output "  human: Active task $tid has WRITE-SET totaling ${kb}KB across listed files (threshold 30KB ~ 8000 tokens). Either split into smaller cards, or add a 'checkpoint_plan: <text or tryout>' field to the task card header to declare a bypass (D-028 S9)."
       } else {
         Write-Warn "task $tid WRITE-SET budget ${kb}KB > 30KB (grace period, cv=$contractVersion < 6.9.0)"
       }
@@ -851,7 +851,7 @@ function Test-TaskGranularity {
         Write-Warn "task $tid granularity soft gate hit ($hitMsg) but checkpoint_plan declared (bypass, cv=$contractVersion)"
       } elseif ($violationIsFail) {
         Write-Fail "task $tid granularity soft gate hit ($hitMsg) - split card or declare checkpoint_plan"
-        Write-Output "  human: Active task $tid exceeds granularity thresholds ($hitMsg). Either split into smaller cards, or add a 'checkpoint_plan: <text or tryout>' field to the task card header to declare a bypass (D-028 §9)."
+        Write-Output "  human: Active task $tid exceeds granularity thresholds ($hitMsg). Either split into smaller cards, or add a 'checkpoint_plan: <text or tryout>' field to the task card header to declare a bypass (D-028 S9)."
       } else {
         Write-Warn "task $tid granularity soft gate hit ($hitMsg) (grace period, cv=$contractVersion < 6.9.0)"
       }

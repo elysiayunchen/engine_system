@@ -1,5 +1,20 @@
 # Changelog
 
+## v6.14.2 (2026-07-29)
+
+§ 编码 hotfix(T-057)。承接 T-056 v6.14.1 em-dash 修复,本次清理 Windows PowerShell 5.1 zh-CN locale 下 §(section sign,U+00A7)在用户可见字符串中的乱码。根因:UTF-8 § 字节 `C2 A7` 被 GBK codepage 解码为 `搂`(C2A7 = 搂)→ 用户看到 `D-028 §9` 渲染为 `D-028 搂9`。实测证据:`tmp_section_test.ps1` 在 PS 5.1 下输出 `搂1 and 搂2`。
+
+- **修复**:3 处用户可见 `§` → ASCII `S`:
+  - `engine/scripts/engine-doctor.ps1` L768、L854 `Write-Output` 字符串 `(D-028 §9)` → `(D-028 S9)`(engine + plugin 镜像)。
+  - `engine/scripts/engine-migrate-contract.ps1` L308 `Write-Host` 警告 `ENGINE_MAP §2 plan registry` → `ENGINE_MAP S2 plan registry`(engine + plugin 镜像)。
+- **保留**(功能性 § 不动):
+  - `engine-migrate-contract.ps1` L304 正则 `'## .*§2'`(匹配 ENGINE_MAP.md 章节标题)。
+  - `engine-migrate-contract.ps1` L375-394 here-string 模板 `## §1 已读文件` 等(重生成 CONTEXT.md 用)。
+  - 注释里的 §(非用户可见,留独立任务)。
+  - `.sh` 文件中的 §(bash 处理 UTF-8 无乱码问题)。
+- **验证**:`Select-String` 确认 3 处用户可见字符串无 §;plugin 镜像 SHA256 byte-identical;`check.sh` CHECK PASSED。
+- **未覆盖**(留独立任务):注释里的 §、`.sh` 文件中的 §、here-string 中文模板、`engine-sync-agent-anchors.ps1`、`engine-verify.ps1` 中其他非 ASCII 字符。
+
 ## v6.14.1 (2026-07-29)
 
 em-dash 编码 hotfix(T-056)。Windows PowerShell 5.1 在 zh-CN locale 下按 GBK codepage 读取无 BOM 的 .ps1 源文件,UTF-8 编码的 em-dash(`—`,字节 `E2 80 94`)被 GBK 解码为 `鈥` + 残字节 `?` → 控制台输出乱码。本次扫描发现 7 个 .ps1 含非 ASCII,但只有 3 处出现在用户可见的 `Write-Warn`/`Write-Output`/`Fail` 字符串字面量(其余在注释或 .md 模板,影响小)。其余 `§` / here-string 中文模板问题留独立任务卡。

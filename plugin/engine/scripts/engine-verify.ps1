@@ -104,7 +104,10 @@ foreach ($line in (Get-Content $taskFile -Encoding UTF8)) {
   }
   $rc = $LASTEXITCODE
   # Clear guard after each AC verify so subsequent code paths are unaffected.
-  Remove-Item Env:ENGINE_VERIFY_RECURSE_GUARD -ErrorAction SilentlyContinue
+  # v6.13.1 (T-053): use .NET SetEnvironmentVariable instead of Remove-Item Env:
+  # to avoid TRAE safe_rm_alias.ps1 wrapping that doesn't recognize the Env:
+  # drive prefix under $ErrorActionPreference="Stop" (would trigger trap → exit 1).
+  [Environment]::SetEnvironmentVariable('ENGINE_VERIFY_RECURSE_GUARD', $null, 'Process')
   Pop-Location
   $bytes = [System.Text.Encoding]::UTF8.GetBytes($output)
   $sha = [System.Security.Cryptography.SHA256]::Create()

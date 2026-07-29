@@ -1,5 +1,13 @@
 # Changelog
 
+## v6.13.1 (2026-07-29)
+
+engine-verify.ps1 预防性修复(T-053)。T-051 CHANGE 记录的 `Remove-Item Env:` 在 TRAE `safe_rm_alias.ps1` 包装下失效的 bug,当前环境虽不复现,作防御性修复。
+
+- **修复**:`engine-verify.ps1` 行 107 `Remove-Item Env:ENGINE_VERIFY_RECURSE_GUARD -ErrorAction SilentlyContinue` → `[Environment]::SetEnvironmentVariable('ENGINE_VERIFY_RECURSE_GUARD', $null, 'Process')`。.NET 原生方法完全绕过 PowerShell provider 机制,不被任何 alias 包装影响,在 PS 5.1/7+ 行为一致。
+- **背景**:TRAE IDE 的 `safe_rm_alias.ps1` 包装 `Remove-Item`,不识别 `Env:` drive prefix,在 `$ErrorActionPreference = "Stop"` 下抛 terminating error 被 trap 捕获 → exit 1 → 任何 task verify 报错。当前 TRAE 环境疑似已修 `safe_rm_alias.ps1`,bug 不复现,但改用 .NET 原生方法作永久防御。
+- **测试**:`tests/workstream/test_engine_verify_env_cleanup.ps1` 2 场景:env var 清除 + 递归守卫仍工作。
+
 ## v6.13.0 (2026-07-29)
 
 `.engineignore` 项目级任务卡门禁旁路通道(T-052/D-036,issue #17)。非产品路径(跨 agent anchor、`engine update` 工具维护、项目级配置)免于任务卡 union 门禁,无需一次性任务卡或 `--no-verify`。

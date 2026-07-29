@@ -76,3 +76,5 @@
 | .engineignore 旁路测试 (v6.13.0) | tests/workstream/test_precommit_engineignore.sh | test_precommit_engineignore() | stable | 2026-07-29 |
 | Doctor .engineignore 告警 (v6.13.0) | engine/scripts/engine-doctor.sh | check_engineignore() | stable | 2026-07-29 |
 | .engineignore 配置 | .engineignore | engineignore_config() | stable | 2026-07-29 |
+| engine-verify env cleanup 测试 (v6.13.1) | tests/workstream/test_engine_verify_env_cleanup.ps1 | test_engine_verify_env_cleanup() | stable | 2026-07-29 |
+| engine-verify env cleanup 测试 runner (v6.13.1) | tests/workstream/test_engine_verify_env_cleanup.sh | test_engine_verify_env_cleanup_sh() | stable | 2026-07-29 |

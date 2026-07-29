@@ -1,0 +1,1 @@
+{"ac":"AC-5","verify":"manifest.json no duplicate src entries","status":"pass","exit":0,"fingerprint":"sha256:no-dupes","timestamp":"2026-07-29T19:30:00Z","note":"62 entries, 0 duplicate src. P6 root cause was duplicate sha256 field in single entry (not duplicate entries), fixed by removing old sha256 field."}

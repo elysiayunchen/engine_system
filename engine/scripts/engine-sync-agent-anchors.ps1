@@ -1,4 +1,4 @@
-# Engine System - sync cross-agent bootloader anchors (PowerShell)
+﻿# Engine System - sync cross-agent bootloader anchors (PowerShell)
 #
 # Creates or updates thin Engine System pointers for agent tools that do not read
 # AGENTS.md directly. Existing user content is preserved outside the managed block.

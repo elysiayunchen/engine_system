@@ -1,4 +1,4 @@
-# Engine System - SessionStart hook (PowerShell)
+﻿# Engine System - SessionStart hook (PowerShell)
 #
 # PowerShell twin of engine-hook-session-start.sh.
 # v6 S1: always inject active task card to combat drift (especially after compact/resume).

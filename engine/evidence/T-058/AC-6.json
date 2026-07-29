@@ -1,0 +1,1 @@
+{"ac":"AC-6","verify":"engine-migrate-contract.ps1 has functional section sign warning comment","status":"pass","exit":0,"fingerprint":"sha256:warning-comment-added","timestamp":"2026-07-29T19:30:00Z","note":"10-line warning comment added at file header (L9-15). Warns about L304 regex, L355-360 contract block, L375-394 templates."}

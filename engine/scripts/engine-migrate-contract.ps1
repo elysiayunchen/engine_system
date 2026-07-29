@@ -1,10 +1,18 @@
-# Engine System - migrate existing engine files to the current contract (PowerShell)
+﻿# Engine System - migrate existing engine files to the current contract (PowerShell)
 #
 # Idempotently upserts managed migration blocks into old projects without overwriting
 # project-specific engine memory. Also ensures the v6 data-layer structure (tasks/
 # decisions/domains/changes/evidence directories, federation table, decision rules
 # baseline, local VERSION stamp) exists so an old project can fully operate the
 # current v6 mechanisms.
+#
+# WARNING: This file contains FUNCTIONAL section signs (U+00A7) that MUST NOT be
+# globally replaced with ASCII. Functional locations:
+#   - L304 regex '## .*§2'  (matches ENGINE_MAP.md headings where § is in the source)
+#   - L355-360 contract block 'D-028 §9/§10'  (written to ENGINE_DOCTOR.md)
+#   - L375-394 here-string templates '## §1..§7'  (regenerates skeleton/progress.md)
+# Only user-visible Write-Output/Host/Warn/Error § was cleaned to ASCII 'S' in T-057.
+# Changing functional § breaks contract migration + SessionStart injection.
 
 param(
   [string]$Root = $(if ($env:CLAUDE_PROJECT_DIR) { $env:CLAUDE_PROJECT_DIR } else { (Get-Location).Path })

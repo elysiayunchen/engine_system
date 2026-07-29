@@ -1,4 +1,4 @@
-# Engine System — engine-context (PowerShell)
+﻿# Engine System — engine-context (PowerShell)
 #
 # PowerShell twin of engine-context.sh. Agent-agnostic session context dump.
 # Any AI agent can run this to get the full project memory snapshot.

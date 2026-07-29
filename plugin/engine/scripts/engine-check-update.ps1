@@ -1,4 +1,4 @@
-# Engine System - check for remote updates (PowerShell twin)
+﻿# Engine System - check for remote updates (PowerShell twin)
 #
 # Compares local engine/VERSION against the remote repository VERSION.
 # Exit codes: 0 = up to date | 7 = update available | 8 = network error

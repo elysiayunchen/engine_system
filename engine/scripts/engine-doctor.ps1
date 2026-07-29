@@ -1,4 +1,4 @@
-param(
+﻿param(
   [string]$Root = (Get-Location).Path,
   [switch]$PackageMode
 )

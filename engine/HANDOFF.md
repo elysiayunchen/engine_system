@@ -4,8 +4,8 @@
 
 ## 立即恢复点
 
-v6.14.2(T-057 § 编码 hotfix)done,verify 6/6 AC PASS。承接 T-056 v6.14.1 em-dash 修复,本次清理 Windows PS 5.1 + zh-CN locale 下 §(section sign,U+00A7)在用户可见 Write-Output/Write-Host 字符串中的乱码(UTF-8 字节 `C2 A7` 被 GBK 解码为 `搂`)。实测证据:tmp_section_test.ps1 在 PS 5.1 下输出 `搂1 and 搂2`。修 3 处用户可见字符串(engine-doctor.ps1 L768/L854 + engine-migrate-contract.ps1 L308 + plugin 镜像)。功能性 § 保留(正则 `'## .*§2'` 匹配 ENGINE_MAP.md + here-string 模板 `## §1 已读文件` 重生成 CONTEXT.md)。注释和 .sh 文件中的 § 留独立任务。前序 v6.14.1(T-056 em-dash)+ v6.14.0(T-054+T-055 双 issue 修复)+ v6.13.1(T-053 engine-verify.ps1 预防性修复)+ v6.13.0(T-052 .engineignore 旁路通道,issue #17)+ v6.12.3(T-051 dist-stale 门禁)+ v6.12.2(T-050 tombstone 生命周期修复)。doctor 0 failure / 0 warning。
-下一步: push main + tag v6.14.2 触发 CI/Release;或立项清扫其余非 ASCII(注释 § + here-string 中文模板 + .sh 文件 §)
+v6.15.0(T-058 PS 5.1 乱码根因修复 — .ps1 UTF-8 BOM 方案)done。T-056/T-057 逐字符 ASCII 化治标不治本(全仓 859 处非 ASCII,here-string 中文模板会写入 .md 造成永久乱码)。本次给所有 .ps1 文件加 UTF-8 BOM(EF BB BF),使 PS 5.1 正确按 UTF-8 读取源文件,一次性消除所有非 ASCII 乱码风险。经子代理 12 维度评估确认可行(Strong GO)。18 个文件加 BOM(6 个已有),覆盖 11 个逻辑文件 × 2-3 副本。.sh 不加 BOM(破坏 shebang),.md 不加(无需)。附带修复 T-057 复查发现的 P4(功能性 § 警告注释)+ P6(manifest 重复 sha256 字段)+ P5(.sh § 计数 100 非 113)+ 文档错误(L375-394 模板写入 progress.md 非 CONTEXT.md)。manifest SHA256 重算(62 条目)。T-056/T-057 的 ASCII 化不回退(仍有跨 locale 兼容性)。前序 v6.14.2(T-057 § 编码 hotfix)+ v6.14.1(T-056 em-dash)+ v6.14.0(T-054+T-055 双 issue 修复)+ v6.13.1(T-053)+ v6.13.0(T-052)+ v6.12.3(T-051)+ v6.12.2(T-050)。
+下一步: push main + tag v6.15.0 触发 CI/Release;PS 5.1 乱码问题已根因闭环
 
 > Phase 1 = 通用化核心(prompt 抽离 / CLI 扩展 / 快速安装 / agent 检测——D-017 原文口径;实施细化与「薄壳」口径修正见 D-018)。v6.2 = 多 agent 通信层(engine context + DevComm Rule 扩展)。
 

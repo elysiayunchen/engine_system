@@ -1,0 +1,1 @@
+{"ac":"AC-7","verify":"version 6.15.0 + CHANGELOG","status":"pass","exit":0,"fingerprint":"sha256:v6.15.0","timestamp":"2026-07-29T19:30:00Z","note":"VERSION=6.15.0, engine/VERSION=6.15.0, plugin/VERSION=6.15.0, CHANGELOG has v6.15.0 section."}

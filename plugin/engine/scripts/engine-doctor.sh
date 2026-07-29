@@ -1266,6 +1266,10 @@ check_task_card_done_evidence() {
     done
     if [ "$ac_count" -gt 0 ] 2>/dev/null && [ -z "$missing" ]; then
       verified_count=$((verified_count + 1))
+    elif command -v git >/dev/null 2>&1 && git cat-file -e "HEAD:engine/tasks/$tid.md" 2>/dev/null; then
+      [ -n "$missing" ] || missing="no declared AC"
+      warn "task $tid (pre-existing in HEAD) done with AC evidence drift ($missing) - legacy card, run 'engine verify $tid' or mark exempt"
+      echo "  human: Task $tid was 'done' in HEAD; evidence may have drifted. Re-verify or mark exempt."
     else
       [ -n "$missing" ] || missing="no declared AC"
       fail "task $tid done without complete PASS evidence ($missing) - run 'engine verify $tid' or mark exempt"

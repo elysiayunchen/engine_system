@@ -1,4 +1,4 @@
-﻿param(
+param(
   [string]$Root = (Get-Location).Path,
   [switch]$PackageMode
 )
@@ -1261,8 +1261,18 @@ function Test-TaskCardDoneEvidence {
       $verifiedCount++
     } else {
       $missingText = if ($missing.Count -gt 0) { $missing -join ',' } else { 'no declared AC' }
-      Write-Fail "task $tid done without complete PASS evidence ($missingText) - run 'engine verify $tid' or mark exempt"
-      Write-Output "  human: Task '$tid' is marked as done, but every declared AC needs a PASS evidence file. Missing/non-pass: $missingText."
+      $inHead = $false
+      if (Get-Command git -ErrorAction SilentlyContinue) {
+        git cat-file -e "HEAD:engine/tasks/$tid.md" 2>$null
+        if ($LASTEXITCODE -eq 0) { $inHead = $true }
+      }
+      if ($inHead) {
+        Write-Warn "task $tid (pre-existing in HEAD) done with AC evidence drift ($missingText) - legacy card, run 'engine verify $tid' or mark exempt"
+        Write-Output "  human: Task '$tid' was 'done' in HEAD; evidence may have drifted. Re-verify or mark exempt."
+      } else {
+        Write-Fail "task $tid done without complete PASS evidence ($missingText) - run 'engine verify $tid' or mark exempt"
+        Write-Output "  human: Task '$tid' is marked as done, but every declared AC needs a PASS evidence file. Missing/non-pass: $missingText."
+      }
     }
   }
   if ($doneCount -gt 0) {

@@ -1,5 +1,24 @@
 # Changelog
 
+## v6.14.0 (2026-07-29)
+
+双 issue 修复:T-054 (#18 pre-commit done-card drift)+ T-055 (#12 engine-verify.ps1 Windows bash 检测)。
+
+### T-054: pre-commit AC PASS 只检查 active→done 转换(issue #18)
+
+pre-commit hook L260-287 对所有 staged done 卡检查 AC PASS evidence,不区分「active→done 转换」与「已 done 卡修改」。bookkeeping 任务修改已 done 卡的 verify 命令后 re-verify 产生 content-drift FAIL,锁死提交,被迫 `--no-verify` 绕过(连带丢失 WRITE-SET/FORBIDDEN/protected/dist-stale 门禁)。
+
+- **修复**:AC PASS 检查前加 HEAD status 比较。`git show HEAD:$task_path` 取 HEAD 快照,若 HEAD 已是 `status: done` 则 `continue` 跳过(已 done 卡修改,非转换)。HEAD 缺失(新卡)→ 不匹配 done → 检查 AC PASS(正确)。HEAD=active → 不匹配 done → 检查 AC PASS(正确)。
+- **不影响**:exempt marker 仍被尊重;WRITE-SET/FORBIDDEN/protected/dist-stale 门禁是独立代码路径,不受影响。
+- **测试**:`tests/workstream/test_precommit_done_card_drift.sh` 5 场景:active→done 检查 / 新卡首次 done 检查 / 已 done 修改跳过 / exempt 跳过 / 非 done 跳过。
+
+### T-055: engine-verify.ps1 Git Bash 检测增强(issue #12)
+
+engine-verify.ps1 L54-64 Git Bash 检测仅查 `C:\Program Files\Git\bin\bash.exe` + Get-Command bash(排除 WSL stub)。漏检 32-bit Program Files 路径、自定义安装路径、bash on PATH 是 WSL stub 但 Git Bash 存在于 git install dir 的场景。检测失败 → fallback `cmd /c` → 无 grep → AC verify 全 FAIL。
+
+- **修复**:检测链从 2 步扩展到 4 步:(1) 标准 64-bit 路径(回归);(2) 32-bit `C:\Program Files (x86)\Git\bin\bash.exe`(`${env:ProgramFiles(x86)}` 优先,硬编码兜底);(3) Get-Command bash 排除 WSL stub(回归);(4) `git --exec-path` 反推 git install root → `bin\bash.exe`(git 几乎总在 PATH,exec-path 如 `...\Git\mingw64\libexec\git-core`,3 层 up 到 Git root)。每步失败静默继续,try/catch 包裹。
+- **测试**:`tests/workstream/test_engine_verify_bash_detection.{sh,ps1}` 11 断言:标准路径回归 / (x86) 路径 / git --exec-path 反推 / try-catch 包裹 / Get-Command 回归 / WSL 排除回归 / 检测顺序。
+
 ## v6.13.1 (2026-07-29)
 
 engine-verify.ps1 预防性修复(T-053)。T-051 CHANGE 记录的 `Remove-Item Env:` 在 TRAE `safe_rm_alias.ps1` 包装下失效的 bug,当前环境虽不复现,作防御性修复。

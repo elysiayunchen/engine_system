@@ -78,3 +78,6 @@
 | .engineignore 配置 | .engineignore | engineignore_config() | stable | 2026-07-29 |
 | engine-verify env cleanup 测试 (v6.13.1) | tests/workstream/test_engine_verify_env_cleanup.ps1 | test_engine_verify_env_cleanup() | stable | 2026-07-29 |
 | engine-verify env cleanup 测试 runner (v6.13.1) | tests/workstream/test_engine_verify_env_cleanup.sh | test_engine_verify_env_cleanup_sh() | stable | 2026-07-29 |
+| done-card drift AC PASS 测试 (v6.14.0) | tests/workstream/test_precommit_done_card_drift.sh | test_precommit_done_card_drift() | stable | 2026-07-29 |
+| engine-verify bash 检测测试 (v6.14.0) | tests/workstream/test_engine_verify_bash_detection.ps1 | test_engine_verify_bash_detection() | stable | 2026-07-29 |
+| engine-verify bash 检测测试 runner (v6.14.0) | tests/workstream/test_engine_verify_bash_detection.sh | test_engine_verify_bash_detection_sh() | stable | 2026-07-29 |

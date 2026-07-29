@@ -1306,6 +1306,20 @@ check_engine_version() {
   fi
 }
 
+check_engineignore() {
+  # v6.13.0 (T-052/D-036, issue #17): WARN if .engineignore lists product paths.
+  local ei="$ROOT/.engineignore"
+  [ -f "$ei" ] || return 0
+  local product_patterns='src/** runtime/** contract/**'
+  local p
+  for p in $product_patterns; do
+    if grep -qE "^[[:space:]]*(${p}|${p%%/\*\*})" "$ei" 2>/dev/null; then
+      warn ".engineignore lists product path '$p' — .engineignore is for non-product paths only (cross-agent anchors, engine tooling, project config). Product paths in .engineignore undermine task-card discipline."
+      echo "  human: The file .engineignore contains '$p' which is a product code path. .engineignore should only exempt non-product paths (anchors, tooling, config) from task-card union gating. Remove product paths from .engineignore."
+    fi
+  done
+}
+
 check_legacy_data_format() {
   # Version-agnostic detection of legacy (pre-v6) data residue.
   # Detects format features (not version numbers) so any old-format data
@@ -1601,6 +1615,7 @@ check_contract_compile
 check_contract_debt
 check_task_card_done_evidence
 check_engine_version
+check_engineignore
 check_legacy_data_format
 check_multi_session_isolation
 check_multi_card_writeset_overlap

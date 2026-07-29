@@ -32,6 +32,22 @@ is_task_bootstrap_path() {
   case "$1" in engine/tasks/T-*.md|engine/decisions/D-*.md) return 0 ;; *) return 1 ;; esac
 }
 
+# v6.13.0 (T-052/D-036, issue #17): .engineignore bypass for non-product paths.
+# Reads $ROOT/.engineignore (gitignore-style globs), strips comments/empty lines,
+# strips trailing /** (so bare dir matches via match_any_glob's $p|$p/*), converts
+# to CSV. Reuses match_any_glob — pure shell, zero subprocess spawns per file.
+# Bypass scope: only 179-192 (no-card block) and 194-213 (union WRITE-SET).
+# Does NOT bypass FORBIDDEN (union_not_all_forbidden), protected-path, or dist-stale.
+engineignore_csv=""
+if [ -f "$ROOT/.engineignore" ]; then
+  engineignore_csv="$(grep -vE '^[[:space:]]*(#|$)' "$ROOT/.engineignore" 2>/dev/null | \
+    sed 's|/\*\*[[:space:]]*$||' | tr '\n' ',' | sed 's/,$//')"
+fi
+is_engineignored() {
+  [ -n "$engineignore_csv" ] || return 1
+  match_any_glob "$1" "$engineignore_csv"
+}
+
 strict_task_mode=0
 is_strict_task_project && strict_task_mode=1
 
@@ -158,6 +174,23 @@ UNION_EOF
   return 1
 }
 
+# v6.13.0 (T-052/D-036): .engineignore paths skip WRITE-SET but not FORBIDDEN.
+# Returns 0 iff at least one card does NOT forbid the path (i.e., not ALL forbid).
+# This is the bypass-aware companion to union_allows: when a path is engineignored,
+# we don't require it in any WRITE-SET, but we still honor unanimous FORBIDDEN.
+union_not_all_forbidden() {
+  _naf_path="$1"
+  [ -n "$card_meta" ] || return 0
+  while IFS="$TAB" read -r _cf _cid _cws _cfb; do
+    [ -n "$_cid" ] || continue
+    if [ -z "$_cfb" ]; then return 0; fi
+    match_any_glob "$_naf_path" "$_cfb" || return 0
+  done <<NAF_EOF
+$card_meta
+NAF_EOF
+  return 1
+}
+
 # Print the decision id of the first card covering the path (for protected paths).
 covering_decision() {
   _dpath="$1"
@@ -183,6 +216,7 @@ if [ -z "$card_meta" ] && [ "$strict_task_mode" -eq 1 ]; then
     [ -n "$file" ] || continue
     case "$file" in engine/.cache/*|.engine/*) continue ;; esac
     is_task_bootstrap_path "$file" && continue
+    is_engineignored "$file" && continue
     printf '\n[Engine System] No active task card governs %s; commit blocked.\n' "$file" >&2
     printf 'Create or activate engine/tasks/T-NNN.md before staging ordinary project changes.\n\n' >&2
     IFS="$old_ifs"
@@ -202,7 +236,15 @@ if [ -n "$card_meta" ]; then
     is_task_bootstrap_path "$file" && continue
     # Workstream shards are the sanctioned worker write channel.
     case "$file" in engine/workstreams/*/*/*) continue ;; esac
-    if ! union_allows "$file"; then
+    # v6.13.0 (T-052): .engineignore paths skip WRITE-SET but not FORBIDDEN.
+    if is_engineignored "$file"; then
+      if ! union_not_all_forbidden "$file"; then
+        printf '\n[Engine System] %s is engineignored but FORBIDDEN by every governing card (%s); commit blocked.\n' "$file" "$card_id_list" >&2
+        printf 'Remove the path from .engineignore or from the FORBIDDEN lists of your card(s).\n\n' >&2
+        IFS="$old_ifs"
+        exit 1
+      fi
+    elif ! union_allows "$file"; then
       printf '\n[Engine System] %s is outside the WRITE-SET of every governing card (%s); commit blocked.\n' "$file" "$card_id_list" >&2
       printf 'Add the path to YOUR card WRITE-SET (outside its FORBIDDEN), or split the commit per card.\n\n' >&2
       IFS="$old_ifs"

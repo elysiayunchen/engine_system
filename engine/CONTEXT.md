@@ -1,14 +1,14 @@
 # CONTEXT — 当前状态
 
-> Engine System (engine_system) · Last updated: 2026-07-28 · Profile: CLI-LEAN
+> Engine System (engine_system) · Last updated: 2026-07-29 · Profile: CLI-LEAN
 
 ## 状态面板
 
 | 维度 | 状态 |
 |------|------|
 | 构建 | ✅ 正常（纯 markdown + shell 脚本，无构建步骤） |
-| 上次完成 | **v6.12.3(T-051 dist-stale pre-commit 门禁)**:v6.12.2 发版时直接编辑编译产物 `ENGINE_FILE_SYSTEM_v5.md` 未跑 `compile.sh` 导致 CI/Release 双红 + re-tag,本版在 pre-commit hook 加前置防线:staged 含 `contract/src/**` 或 6 个 dist 文件之一时,运行 `ENGINE_COMPILE_OUT=/tmp/xxx bash contract/compile.sh` 编译到临时目录,diff 6 个 dist 文件的工作树版本与编译输出。任一不匹配 → FAIL,消息提示 `bash contract/compile.sh`。无契约文件 staged → 跳过(零开销)。compile.sh 自身失败 → WARN(fail-open)。测试 5 场景 PASS。前序 **v6.12.2(T-050 tombstone 生命周期双重 bug 修复)**:共同根因——把「历史 transition 记录」当成「active 状态信号」治理。Bug A:SessionStart hook 获取 fresh/same-sid coordinator 锁时不清理旧 tombstone → 安静 24h+ 仓库 doctor 必 FAIL(本仓 36h 后触发实证);修复:fresh + same-sid resume 两条路径加 `rm -f .cache/session.tombstone`。Bug B:Doctor 把 >24h tombstone 报 "abnormal exit" 并 FAIL(契约 #17 原文说 WARN 代码却 FAIL);修复:`tombstone_is_fail` 变量(cv ≥ 6.12.2 WARN)+ 消息删 "exited abnormally" 改 "historical transition record"。契约 #17 重写;contract-version 升 6.12.2。verify 9/9 PASS。前序 **v6.12.1(T-049 issue #11 门禁静默失效家族九项修复)**。前序 **v6.12.0(T-048 多任务卡并行 union gating + 会话租约液性修复,D-035)**。 |
-| 进行中 | T-051 收尾提交。下一步:push main 验证 CI → tag v6.12.3 触发 Release;真实双会话并行试用采集 TTL/overlap WARN 手感;或规划 Q2 真实大库试点 / D-018 批量处理。 |
+| 上次完成 | **v6.13.0(T-052 .engineignore 旁路通道,issue #17)**:非产品路径(跨 agent 锚点 GEMINI.md/AGENTS.md、engine 工具自身、项目 config)被 task-card union gating 拦截,要么建 throwaway 卡,要么 `--no-verify` 绕过(破坏门禁纪律)。本版加 `.engineignore`(gitignore 风格)旁路:pre-commit hook 加 `is_engineignored()`(读 `$ROOT/.engineignore`,复用 `match_any_glob`,shell `case` 的 `*` 跨 `/`,strip trailing `/**`,纯 shell 零子进程)+ `union_not_all_forbidden()`(.engineignore 命中跳 WRITE-SET 检查,但不跳 FORBIDDEN——纠正 issue #17 提案会同时 bypass FORBIDDEN 的设计错误)。旁路范围仅 no-card 块(L218-219)和 union WRITE-SET(L239-252);protected-path 和 dist-stale 门禁是独立代码路径不受影响。`.engineignore` 加入 rules.json protected_paths(需 covering decision);Doctor `check_engineignore` 对 product 路径(src/runtime/contract)输出 WARN。`engine/skeleton/.engineignore` 模板供 engine-init。D-036 决策卡(scope 覆盖全部 WRITE-SET)。7 场景 10 断言测试 PASS。前序 **v6.12.3(T-051 dist-stale pre-commit 门禁)**:v6.12.2 发版时直编 `ENGINE_FILE_SYSTEM_v5.md` 未跑 compile.sh 导致 CI/Release 双红 + re-tag,本版在 pre-commit hook 加前置防线(staged 含 `contract/src/**` 或 6 dist 之一时编译到临时目录 diff 工作树,不匹配 FAIL)。前序 **v6.12.2(T-050 tombstone 生命周期双重 bug 修复)**。前序 **v6.12.1(T-049 issue #11 门禁静默失效家族九项修复)**。前序 **v6.12.0(T-048 多任务卡并行 union gating + 会话租约液性修复,D-035)**。 |
+| 进行中 | T-052 收尾提交。下一步:push main 验证 CI → tag v6.13.0 触发 Release;真实双会话并行试用采集 TTL/overlap WARN 手感;或规划 Q2 真实大库试点 / D-018 批量处理。 |
 | 阻塞 | 无。 |
 
 ## 当前假设 / 决策（本轮拍板）
@@ -35,6 +35,7 @@
 - 待验证：Copilot CLI / Codex CLI 原生 hook 的 block 决策支持。
 - 待验证：真实下游项目从旧 contract-version 迁移到 6.6 后的首次任务采用与并行 workstream 手感,以及 HANDOFF 历史归档触发是否如期在首次写入时执行。
 - 待验证：v6.12.0 真实双会话并行试用——两个 Claude Code 实例各持一张卡,观察租约续期手感、TTL 默认 120min 是否合适、Doctor multi-card overlap WARN 噪声;方案 B(会话-任务强绑定)是否需要(D-035 Open Questions)。
+- 已验证：T-052 v6.13.0 done——.engineignore 旁路通道(issue #17)。pre-commit 加 `is_engineignored()` + `union_not_all_forbidden()`,命中 .engineignore 的路径跳 WRITE-SET 检查但不跳 FORBIDDEN(纠正 issue #17 提案设计错误)。旁路范围仅 no-card + union WRITE-SET 两块;protected-path/dist-stale 独立路径不受影响。`.engineignore` 入 protected_paths(需 covering decision D-036);Doctor `check_engineignore` 对 product 路径 WARN。7 场景 10 断言测试 PASS,verify 9/9。
 - 已验证：T-051 v6.12.3 done——pre-commit dist-stale 门禁(staged 含 contract/src/** 或 6 个 dist 文件之一时编译到临时目录 diff 工作树,任一不匹配 FAIL;无契约文件 staged 跳过;compile.sh 失败 WARN)。前序 v6.12.2 T-050 发版时直编 ENGINE_FILE_SYSTEM_v5.md 未跑 compile.sh → CI Doctor `contract dist is not compile(src)` FAIL → re-tag,本版加前置防线。5 场景测试 PASS,verify 7/7。
 - 已验证：T-050 v6.12.2 done——tombstone 生命周期双重 bug 修复(Bug A: SessionStart hook 不清理旧 tombstone + Bug B: Doctor 误报 abnormal exit 并 FAIL)。共同根因:把「历史 transition 记录」当成「active 状态信号」治理。修复后:tombstone 是 historical transition record,lock file + lease mtime 才是状态源;cv ≥ 6.12.2 时 >24h tombstone 降 FAIL→WARN,SessionStart hook 自动清理。19 例测试 PASS,verify 9/9。
 - 已验证：T-048 v6.12.0 done——D-029/T-036 多会话锁的液性缺陷实证(lock 记 hook shell 瞬时 pid,每次会话启动都 stale-recovered 自封 coordinator,v6.11.0 共享三件套保护空转)已由租约机制修复;多卡 union gating 六项根因全闭环。D-035 expiry 2026-11-30。

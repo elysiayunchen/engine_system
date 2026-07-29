@@ -1,5 +1,16 @@
 # Changelog
 
+## v6.13.0 (2026-07-29)
+
+`.engineignore` 项目级任务卡门禁旁路通道(T-052/D-036,issue #17)。非产品路径(跨 agent anchor、`engine update` 工具维护、项目级配置)免于任务卡 union 门禁,无需一次性任务卡或 `--no-verify`。
+
+- **`.engineignore` 旁路**:repo 根新增 gitignore 语法文件,匹配路径旁路 pre-commit hook 的「无卡 block」(L179-192)和「union_allows WRITE-SET 检查」(L194-213)。匹配引擎复用既有 `match_any_glob`(shell `case` 的 `*` 跨 `/`),纯 shell 零子进程(issue 提案的 `git check-ignore --exclude-from` 不可行——该选项不存在)。
+- **跳 WRITE-SET 不跳 FORBIDDEN**(修正 issue 提案漏点):新增 `union_not_all_forbidden` 函数。`.engineignore` 路径只跳 WRITE-SET 归属,仍受 FORBIDDEN 约束(全部卡都禁才拦)。issue 原案在 union 循环也 `continue` 会绕过 FORBIDDEN,违反自身声明的不绕过保护路径原则。
+- **自身防护**:`.engineignore` 加入 `rules.json` protected_paths(改它需覆盖决策 D-036)+ doctor 内容告警(发现 `src/**`/`runtime/**`/`contract/**` 产品路径即 WARN)。
+- **不绕过独立门禁**:protected-path 检查(L289-343)和 dist-stale 契约门禁(L353-387)是独立代码路径,`.engineignore` 不影响它们。
+- **engine-init 模板**:`engine/skeleton/.engineignore` 注释模板(跨 agent anchor + engine 工具路径 + 项目配置),用户取消注释即用。
+- **测试**:`tests/workstream/test_precommit_engineignore.sh` 7 场景 10 断言:无文件不旁路 / GEMINI.md 旁路 / 全卡禁仍拦 / 单卡禁放行 / protected 不绕过 / dist-stale 不绕过 / `**` 深层匹配。
+
 ## v6.12.3 (2026-07-28)
 
 Pre-commit dist-stale 门禁(T-051)。v6.12.2 发版时直接编辑编译产物 `ENGINE_FILE_SYSTEM_v5.md` 未跑 `compile.sh` 导致 CI/Release 双红 + re-tag,本版在 pre-commit hook 加前置防线防止再次发生。

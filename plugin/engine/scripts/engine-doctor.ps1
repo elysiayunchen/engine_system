@@ -1303,6 +1303,26 @@ function Test-EngineVersion {
   }
 }
 
+function Test-Engineignore {
+  # v6.13.0 (T-052/D-036, issue #17): WARN if .engineignore lists product paths.
+  $ei = Join-Path $Root ".engineignore"
+  if (-not (Test-Path $ei)) { return }
+  $productPatterns = @('src/**', 'runtime/**', 'contract/**')
+  $lines = Get-Content -Path $ei -Encoding UTF8 -ErrorAction SilentlyContinue
+  foreach ($p in $productPatterns) {
+    $bare = $p -replace '/\*\*$', ''
+    foreach ($line in $lines) {
+      $trimmed = $line.Trim()
+      if ($trimmed -eq '' -or $trimmed.StartsWith('#')) { continue }
+      if ($trimmed -eq $p -or $trimmed -eq $bare -or $trimmed.StartsWith("$p ") -or $trimmed.StartsWith("$bare ") -or $trimmed.StartsWith("$bare/")) {
+        Write-Warn ".engineignore lists product path '$p' — .engineignore is for non-product paths only (cross-agent anchors, engine tooling, project config). Product paths in .engineignore undermine task-card discipline."
+        Write-Output "  human: The file .engineignore contains '$p' which is a product code path. .engineignore should only exempt non-product paths (anchors, tooling, config) from task-card union gating. Remove product paths from .engineignore."
+        break
+      }
+    }
+  }
+}
+
 function Test-PlanAcceptanceEvidence {
   foreach ($row in $planRows) {
     $cells = Split-Row $row
@@ -1639,6 +1659,7 @@ Test-ContractCompile
 Test-ContractDebt
 Test-TaskCardDoneEvidence
 Test-EngineVersion
+Test-Engineignore
 Test-LegacyDataFormat
 Test-MultiSessionIsolation
 Test-MultiCardWritesetOverlap

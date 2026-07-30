@@ -7,7 +7,7 @@ description: Verify Engine System work and write back project memory. Use after 
 
 Use this before calling work done.
 
-1. Re-read the active task card and collect every `AC: ... verify:` command.
+1. Re-read the active task card and collect every declared AC and its verify command (4 accepted spellings, see 20-file-templates).
 2. Run `engine verify T-NNN` when available; otherwise run each verify command directly and record exact pass/fail status.
 3. For release-facing changes, also verify package distribution: `plugin/manifest.json`, `install.sh`, `install.ps1`, and any generated `plugin/` mirrors.
 4. Create or update `engine/changes/CHANGE-*.md` with Goal, Actual Changes, Impact Scope, Risk & Watchpoints, Verification, Rollback, Next Step, and Responsibility Boundary.

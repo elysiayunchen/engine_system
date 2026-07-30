@@ -1,4 +1,4 @@
-﻿# Engine System - Behavior verifier (v6 S4)
+# Engine System - Behavior verifier (v6 S4)
 #
 # Executes task card AC verify commands, writes PASS/FAIL + output fingerprint
 # to engine/evidence/T-NNN/AC-N.json. Machine-enforces N3 (done has evidence).
@@ -96,22 +96,89 @@ if (-not $bashExe) {
   }
 }
 
-foreach ($line in (Get-Content $taskFile -Encoding UTF8)) {
-  if ($line -notmatch '^AC:') { continue }
-  $acId = ""
-  # v6.12.1 (issue #11 A-3): AC ids may carry a letter group (AC-A1, AC-B12)
-  # in addition to plain/dotted numerics (AC-1, AC-1.2).
-  if ($line -match '^AC:\s*(AC-[A-Za-z]*\d+(?:\.\d+)*)') { $acId = $Matches[1] }
-  if (-not $acId) { continue }
-  $verifyCmd = ""
-  # v6.12.1 (issue #11 A-2): anchor extraction to the FIRST separator (pipe or
-  # legacy U+2192 arrow) followed by 'verify:'. The old bare 'verify:' match
-  # latched onto the last literal occurrence, truncating any verify command
-  # that itself contains the string 'verify:'. The arrow is built from its
-  # code point so this file stays ASCII-only (P008/T-047).
+# Parse-AcDeclarations: Extract (ac_id, verify_cmd) pairs from a task card.
+# Supports 4 AC declaration formats (D-037 / v6.17.0):
+#   1. Single-line:  AC: AC-N <desc> | verify: <cmd>
+#   2. Section:      ### AC-N: <title> + body's first verify: line
+#   3. List item:    - AC-N: <desc> | verify: <cmd>  (or next line verify:)
+#   4. Table row:    | AC-N | <desc> | verify: <cmd> |
+# Returns: array of objects with AcId and VerifyCmd properties (VerifyCmd may be empty for SKIP).
+# AC id regex: AC-[A-Za-z]*[0-9]+(\.[0-9]+)* (v6.12.1 A-3).
+# Separators: | verify: / |verify: / -> verify: / ->verify: / line-start verify:
+function Parse-AcDeclarations {
+  param([string]$Path)
+  $results = @()
+  if (-not (Test-Path $Path)) { return $results }
   $sepArrow = [string][char]0x2192
-  $sepClass = "[|$sepArrow]"
-  if ($line -match "^AC:[^|$sepArrow]*$sepClass\s*verify:\s*(.+?)\s*$") { $verifyCmd = $Matches[1] }
+  $acIdPattern = 'AC-[A-Za-z]*\d+(?:\.\d+)*'
+  $sectionAc = ""
+  $pendingAc = ""
+  foreach ($line in (Get-Content $Path -Encoding UTF8)) {
+    # Format 2: section heading "### AC-N: <title>"
+    if ($line -match "^###\s+($acIdPattern)") {
+      $sectionAc = $Matches[1]
+      $pendingAc = ""
+      continue
+    }
+    # Any other ### heading ends the current section
+    if ($line -match '^###') { $sectionAc = "" }
+    # In section: look for first verify: line
+    if ($sectionAc) {
+      if ($line -match '^\s*verify:\s*(.+?)\s*$') {
+        $results += [PSCustomObject]@{ AcId = $sectionAc; VerifyCmd = $Matches[1] }
+        $sectionAc = ""
+        continue
+      }
+      continue
+    }
+    # Format 1: "AC: AC-N <desc> | verify: <cmd>"
+    if ($line -match "^AC:\s*($acIdPattern)") {
+      $acId = $Matches[1]
+      $verifyCmd = ""
+      if ($line -match "[|$sepArrow]\s*verify:\s*(.+?)\s*$") { $verifyCmd = $Matches[1] }
+      $results += [PSCustomObject]@{ AcId = $acId; VerifyCmd = $verifyCmd }
+      $pendingAc = ""
+      continue
+    }
+    # Format 3: "- AC-N: <desc>" with same-line or next-line verify:
+    if ($line -match "^-\s+($acIdPattern)") {
+      $acId = $Matches[1]
+      $verifyCmd = ""
+      if ($line -match '\|\s*verify:\s*(.+?)\s*$') { $verifyCmd = $Matches[1] }
+      if ($verifyCmd) {
+        $results += [PSCustomObject]@{ AcId = $acId; VerifyCmd = $verifyCmd }
+      } else {
+        $pendingAc = $acId
+      }
+      continue
+    }
+    # Pending Format 3: next line "  verify: <cmd>"
+    if ($pendingAc) {
+      if ($line -match '^\s*verify:\s*(.+?)\s*$') {
+        $results += [PSCustomObject]@{ AcId = $pendingAc; VerifyCmd = $Matches[1] }
+        $pendingAc = ""
+        continue
+      }
+      $results += [PSCustomObject]@{ AcId = $pendingAc; VerifyCmd = "" }
+      $pendingAc = ""
+    }
+    # Format 4: "| AC-N | <desc> | verify: <cmd> |"
+    if ($line -match "^\|\s*($acIdPattern)") {
+      $acId = $Matches[1]
+      $verifyCmd = ""
+      if ($line -match 'verify:\s*([^|]+)') { $verifyCmd = $Matches[1].Trim() }
+      $results += [PSCustomObject]@{ AcId = $acId; VerifyCmd = $verifyCmd }
+      continue
+    }
+  }
+  if ($pendingAc) { $results += [PSCustomObject]@{ AcId = $pendingAc; VerifyCmd = "" } }
+  if ($sectionAc) { $results += [PSCustomObject]@{ AcId = $sectionAc; VerifyCmd = "" } }
+  return $results
+}
+
+foreach ($ac in (Parse-AcDeclarations -Path $taskFile)) {
+  $acId = $ac.AcId
+  $verifyCmd = $ac.VerifyCmd
   if (-not $verifyCmd) {
     Write-Output "SKIP  $acId (no verify command)"
     $skipCount++; continue
@@ -387,7 +454,7 @@ Write-Output "$Task`: $passCount pass, $failCount fail, $skipCount skip"
 $totalAcs = $passCount + $failCount + $skipCount
 if ($totalAcs -gt 0 -and $passCount -eq 0 -and $failCount -eq 0) {
   [Console]::Error.WriteLine("ERROR: $totalAcs ACs declared but no parseable verify command was found.")
-  [Console]::Error.WriteLine("The card likely uses a split/block format; engine-verify only reads single-line 'AC: AC-N ... | verify: <cmd>'.")
+  [Console]::Error.WriteLine("4 accepted AC spellings; see contract/src/20-file-templates.md FILE 15")
   [Console]::Error.WriteLine("This is a parse failure, not a clean result.")
   exit 3
 }

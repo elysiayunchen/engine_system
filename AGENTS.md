@@ -15,7 +15,7 @@ CLI: `engine context` · `engine workstream T-NNN <agent-id>` · `engine doctor`
 入口: 契约 `ENGINE_FILE_SYSTEM_v5.md` · 索引 `engine/ENGINE_MAP.md` · 状态 `engine/CONTEXT.md`
 
 <!-- ENGINE_SYSTEM_CONTRACT_MIGRATIONS_START -->
-<!-- contract-version: 6.17.2 -->
+<!-- contract-version: 6.17.3 -->
 ## Engine System Current Contract
 > Managed by Engine System contract migration. Preserve project-specific rules outside this block.
 

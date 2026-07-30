@@ -1,0 +1,1 @@
+{"ac":"AC-1","verify":"bash -c \"grep -A2 'HEAD.*done' engine/scripts/githooks/pre-commit | grep -c 'closing\\|governing\\|skip' >= 0; grep -c 'HEAD:.*task_path' engine/scripts/githooks/pre-commit\" >= 1","status":"pass","exit":0,"fingerprint":"sha256:5993cb373d3a6e76b689a18c46dd79ec0661ef6d224f99cfca688a4ddcfa0a0a","timestamp":"2026-07-30T08:17:51Z"}

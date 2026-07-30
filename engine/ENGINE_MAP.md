@@ -69,8 +69,8 @@ path-glob → domain 路由表。机读源:`engine/domains/federation.json`;Sess
 
 ### 当前状态
 
-- 最近 change capsule：`engine/changes/CHANGE-2026-07-29-01.md`
-- 活跃任务卡：无。前序: T-052 done(v6.13.0 .engineignore 旁路通道, issue #17) / T-051 done(v6.12.3 dist-stale pre-commit 门禁) / T-050 done(v6.12.2 tombstone 生命周期修复) / T-049 done(v6.12.1 issue #11 九项门禁静默失效修复) / T-048 done(v6.12.0 多卡并行 union gating + 租约液性修复) / T-047 done(Windows PS 5.1 compat) / T-046 done(install.sh/ps1 manifest src 列表同步修复) / T-045 done(CI 红灯修复) / T-044 done(issue #10 P037 legacy fallback 移除) / T-043 done(issue #10 P038 parser 修复) / T-042 done(issue #9 PS 5.1 LF fix + T-041 cleanup) / T-041 done(pre-commit 自身豁免) / T-040 done(v6.11.3) / T-039 done(v6.11.2) / T-038 done(v6.11.1) / T-036 done(v6.11.0 多会话锁)
+- 最近 change capsule：`engine/changes/CHANGE-2026-07-30-02.md`
+- 活跃任务卡：无。前序: T-065 done(v6.17.4 pre-commit governing #21) / T-064 done(v6.17.3 CI/Doctor 三修复) / T-063 done(v6.17.2 migrator bump 提示 #15) / T-060 done(v6.16.0 doctor 一致性 #19+#20) / T-059 done(v6.15.1 evidence+文档完整性) / T-058 done(v6.15.0 PS 5.1 BOM 根因修复) / T-057 done(v6.14.2 § 编码 hotfix) / T-056 done(v6.14.1 em-dash 编码 hotfix) / T-054 done(v6.14.0 pre-commit AC PASS #18) / T-052 done(v6.13.0 .engineignore 旁路通道, issue #17) / T-051 done(v6.12.3 dist-stale pre-commit 门禁) / T-050 done(v6.12.2 tombstone 生命周期修复) / T-049 done(v6.12.1 issue #11 九项门禁静默失效修复) / T-048 done(v6.12.0 多卡并行 union gating + 租约液性修复)
 - 待批决策：D-018(proposed); Q2 基准试点库待拍板
 - 已批准决策：D-001~D-015, D-017, D-024~D-027, D-029, D-030, D-031, D-032, D-033, D-034, D-035, D-036（详见 `engine/decisions/`）
 

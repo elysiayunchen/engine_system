@@ -148,8 +148,110 @@ parse_ac_declarations() {
   return 0
 }
 
+# v6.18.0 (D-038/T-066): 防漂移 — 证据多锚辅助函数
+# is_engine_metadata: 判断路径是否 engine 元数据(排除出 code_fingerprint)
+is_engine_metadata() {
+  case "$1" in
+    engine/tasks/*|engine/decisions/*|engine/changes/*|engine/evidence/*|engine/domains/*|engine/archive/*) return 0 ;;
+    engine/CONTEXT.md|engine/HANDOFF.md|engine/ENGINE_MAP.md|engine/handoff-archive-*) return 0 ;;
+    VERSION|engine/VERSION|plugin/VERSION|plugin/manifest.json|CHANGELOG.md) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# collect_code_fingerprint: 解析任务卡 WRITE-SET,收集代码文件 git ls-files -s blob sha
+# 前置检查:文件须 git add 进 index(未 add 则 FAIL 退出)
+declare -A code_fingerprint=()
+declare -A code_fp_files=()
+ws_snapshot=()
+collect_code_fingerprint() {
+  local file="$1" in_ws=0 line path blob_sha
+  while IFS= read -r line || [ -n "$line" ]; do
+    case "$line" in
+      "## WRITE-SET") in_ws=1; continue ;;
+      "## "*) [ "$in_ws" = "1" ] && break ;;
+    esac
+    [ "$in_ws" = "1" ] || continue
+    [[ "$line" =~ ^-[[:space:]]+([^[:space:]].+) ]] || continue
+    path="${BASH_REMATCH[1]}"
+    is_engine_metadata "$path" && continue
+    [ -f "$ROOT/$path" ] || continue
+    code_fp_files["$path"]=1
+    ws_snapshot+=("$path")
+  done < "$file"
+  local missing=()
+  for path in "${!code_fp_files[@]}"; do
+    blob_sha="$(cd "$ROOT" && git ls-files -s "$path" 2>/dev/null | awk '{print $2}')"
+    if [ -z "$blob_sha" ]; then
+      missing+=("$path")
+    else
+      code_fingerprint["$path"]="$blob_sha"
+    fi
+  done
+  if [ ${#missing[@]} -gt 0 ]; then
+    echo "[engine-verify] FAIL: WRITE-SET 代码文件未 git add 进 index,无法计算 code_fingerprint:" >&2
+    printf '  %s\n' "${missing[@]}" >&2
+    echo "请先 git add 这些文件再跑 verify(D-038a 前置要求)" >&2
+    exit 1
+  fi
+}
+
+build_code_fingerprint_json() {
+  local path first=1 json="{"
+  for path in $(printf '%s\n' "${!code_fingerprint[@]}" | LC_ALL=C sort); do
+    [ "$first" = "1" ] || json+=","
+    local esc_path="$(printf '%s' "$path" | sed 's/\\/\\\\/g; s/"/\\"/g')"
+    json+="\"$esc_path\":\"${code_fingerprint[$path]}\""
+    first=0
+  done
+  json+="}"
+  printf '%s' "$json"
+}
+
+build_ws_snapshot_json() {
+  local path first=1 json="["
+  for path in $(printf '%s\n' "${ws_snapshot[@]}" | LC_ALL=C sort); do
+    [ "$first" = "1" ] || json+=","
+    local esc_path="$(printf '%s' "$path" | sed 's/\\/\\\\/g; s/"/\\"/g')"
+    json+="\"$esc_path\""
+    first=0
+  done
+  json+="]"
+  printf '%s' "$json"
+}
+
+# write_evidence_manifest: 循环结束后写 MANIFEST.json
+# 聚合 evidence 目录所有 .json + checkpoint.md,排除 MANIFEST.json 自身
+write_evidence_manifest() {
+  local ev_dir="$1" commit="$2"
+  local manifest_content="" fname fhash
+  for fname in $(cd "$ev_dir" && find . -maxdepth 1 -type f \( -name '*.json' -o -name 'checkpoint.md' \) ! -name 'MANIFEST.json' 2>/dev/null | sed 's|^\./||' | LC_ALL=C sort); do
+    fhash="$(sha256sum "$ev_dir/$fname" | cut -d' ' -f1)"
+    manifest_content+="${fname}:${fhash}"$'\n'
+  done
+  local manifest_hash="$(printf '%s' "$manifest_content" | sha256sum | cut -d' ' -f1)"
+  local manifest_ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  local files_json="{" first=1
+  while IFS=: read -r fname fhash; do
+    [ -n "$fname" ] || continue
+    [ "$first" = "1" ] || files_json+=","
+    files_json+="\"$fname\":\"$fhash\""
+    first=0
+  done <<< "$manifest_content"
+  files_json+="}"
+  printf '{"evidence_manifest_sha256":"sha256:%s","generated":"%s","writer":"engine-verify","commit":"%s","files":%s}\n' \
+    "$manifest_hash" "$manifest_ts" "$commit" "$files_json" \
+    > "$ev_dir/MANIFEST.json"
+}
+
 echo "【Engine System · 行为化验收】$task"
 echo ""
+
+# v6.18.0 (D-038/T-066): 收集 code_fingerprint + 前置 git add 检查
+verified_commit="$(cd "$ROOT" && git rev-parse HEAD 2>/dev/null || echo "unknown")"
+collect_code_fingerprint "$task_file"
+code_fp_json="$(build_code_fingerprint_json)"
+ws_snap_json="$(build_ws_snapshot_json)"
 
 while IFS=$'\t' read -r ac_id verify_cmd; do
   [ -n "$ac_id" ] || continue
@@ -193,8 +295,8 @@ while IFS=$'\t' read -r ac_id verify_cmd; do
   fi
   verify_escaped="$(printf '%s' "$verify_cmd" | sed 's/\\/\\\\/g; s/"/\\"/g')"
   ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  printf '{"ac":"%s","verify":"%s","status":"%s","exit":%d,"fingerprint":"sha256:%s","timestamp":"%s"}\n' \
-    "$ac_id" "$verify_escaped" "$status" "$rc" "$fp" "$ts" \
+  printf '{"ac":"%s","verify":"%s","status":"%s","exit":%d,"output_fingerprint":"sha256:%s","code_fingerprint":%s,"write_set_snapshot":%s,"verified_against_commit":"%s","write_provenance":{"writer":"engine-verify","commit":"%s","timestamp":"%s","argv":"engine verify %s"},"timestamp":"%s"}\n' \
+    "$ac_id" "$verify_escaped" "$status" "$rc" "$fp" "$code_fp_json" "$ws_snap_json" "$verified_commit" "$verified_commit" "$ts" "$task" "$ts" \
     > "$evidence_dir/$ac_id.json"
 
   # v6.9.0 (D-028/T-034): on AC PASS, write a line to checkpoint.md so
@@ -229,6 +331,9 @@ CPHD
   fi
   rm -f "$tmp_out"
 done < <(parse_ac_declarations "$task_file")
+
+# v6.18.0 (D-038/T-066): 写 MANIFEST.json(evidence 完整性自证)
+write_evidence_manifest "$evidence_dir" "$verified_commit"
 
 # v6.10.0 (D-028/T-035): Dead code detection — runs AFTER all AC verify commands.
 # Self-checks linter availability (shellcheck for .sh; PSScriptAnalyzer twin is

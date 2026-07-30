@@ -11,6 +11,11 @@
     ".gitattributes",
     "contract/src/**",
     "runtime-law.md",
-    ".engineignore"
+    ".engineignore",
+    "engine/evidence/**",
+    "engine/scripts/engine-drift-check.sh",
+    "engine/scripts/engine-drift-check.ps1",
+    "plugin/engine/scripts/engine-drift-check.sh",
+    "plugin/engine/scripts/engine-drift-check.ps1"
   ]
 }

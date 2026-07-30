@@ -1,5 +1,31 @@
 # Changelog
 
+## v6.18.0 (2026-07-30)
+
+T-066 防漂移 P1 — 证据多锚 + drift-check(D-038a/b)。堵 6 类漂移:时间漂移、锚点漂移、状态漂移、evidence 篡改、WRITE-SET 二阶漂移、EOL 假 DRIFT。
+
+**T-066 (D-038a/b):**
+- evidence schema 升级为多锚:`output_fingerprint`(原 `fingerprint` 改名)+ 新增 `code_fingerprint`(`git ls-files -s` 取 index blob sha,已 EOL 归一化)+ `write_set_snapshot` + `verified_against_commit` + `write_provenance`(writer/commit/timestamp/argv)+ `MANIFEST.json` 聚合 hash(目录所有 .json + checkpoint.md,排除自身)
+- 新增 `engine/scripts/engine-drift-check.{sh,ps1}` + plugin 镜像:三步顺序校验(完整性自证 → WRITE-SET 二阶检测 → 代码指纹比对),任一 FAIL 仍输出后续摘要标 unverified,避免 manifest 失败掩盖更深漂移
+- `engine-verify.{sh,ps1}` + plugin 镜像:收集 code_fingerprint 时前置 `git add` 检查(未 add 则 FAIL);循环结束写 MANIFEST.json
+- `githooks/pre-commit` + plugin 镜像:AC PASS 检查后追加 evidence provenance gate。双路径:(a) 机器写入 → writer=engine-verify + commit=HEAD + argv='engine verify <task>';(b) 手工编辑 → evidence JSON 须带 `evidence-manual-edit` 标注。任一不匹配 → exit 1
+- `engine-doctor.{sh,ps1}` + plugin 镜像:新增 `check_drift`/`Test-Drift` 函数,调用 drift-check 脚本,根据 exit code 输出 PASS/FAIL
+- `rules.json`:`engine/evidence/**` + `engine/scripts/engine-drift-check.*` 纳入 protected_paths
+- pre-commit protected-path gate 加 `engine/evidence/T-NNN/**` self_exempt(任务卡自己的 evidence 目录豁免,跨任务篡改由 provenance gate + drift-check 拦截)
+- D-038d 迁移期策略:legacy evidence(无 MANIFEST + 无 write_provenance)→ WARN 跳过,信任级 T2;有 write_provenance 但 MANIFEST 缺失 → FAIL tamper
+
+**修复:**
+- `engine-drift-check.sh` step3 解析 bug:`cut`+`sed` 在单条目 JSON 上留末尾 `}` 导致 stored_sha vs current_sha 假 DRIFT,改用 `awk -F'"'` 取字段
+- `engine-drift-check.ps1` PowerShell `$path:` scope 解析 bug:字符串内 `$path:` 被当成 scope 引用,改用 `${path}:`
+
+**测试:**
+- `tests/workstream/test_drift_check.sh`:5 场景端到端(clean PASS / MANIFEST 篡改 FAIL / 代码改 DRIFT / MANIFEST 缺失 tamper FAIL / provenance.commit 不匹配 FAIL)
+- `tests/workstream/test_evidence_provenance.sh`:6 场景 black-box(clean PASS / 缺 provenance FAIL / writer=manual FAIL / commit!=HEAD FAIL / manual-edit 标注 PASS / argv 不匹配 FAIL)
+- `tests/task-card/run-task-tests.sh` C4 fixture:evidence JSON 加 `evidence-manual-edit` 标注(手工构造)
+- `tests/behavior-verify/run-verify-tests.sh` B1:`"fingerprint"` → `"output_fingerprint"`
+
+**验证:** drift-check 5/5 PASS;provenance 6/6 PASS;plugin 镜像 7 文件 byte-identical;check.sh CHECK PASSED。
+
 ## v6.17.4 (2026-07-30)
 
 T-065 pre-commit governing 不把已 done 卡误当 closing(issue #21)。

@@ -141,7 +141,8 @@ echo ""
 echo "=== B. evidence JSON 格式 ==="
 
 f="$r/engine/evidence/T-TEST/AC-1.json"
-if grep -q '"fingerprint":"sha256:[0-9a-f]\{64\}"' "$f"; then
+# v6.18.0 (D-038/T-066): "fingerprint" renamed to "output_fingerprint".
+if grep -q '"output_fingerprint":"sha256:[0-9a-f]\{64\}"' "$f"; then
   echo "PASS  B1 fingerprint-format (sha256:64hex)"; pass=$((pass+1))
 else
   echo "FAIL  B1 fingerprint-format"; fail=$((fail+1))
@@ -159,7 +160,7 @@ fi
 
 if [ -n "$PS_BIN" ]; then
   f_ps1="$r_ps1/engine/evidence/T-TEST/AC-1.json"
-  if grep -q '"fingerprint":"sha256:[0-9a-f]\{64\}"' "$f_ps1"; then
+  if grep -q '"output_fingerprint":"sha256:[0-9a-f]\{64\}"' "$f_ps1"; then
     echo "PASS  B1-ps1 fingerprint-format"; pass=$((pass+1))
   else
     echo "FAIL  B1-ps1 fingerprint-format"; fail=$((fail+1))

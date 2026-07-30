@@ -1385,6 +1385,31 @@ check_task_card_done_evidence() {
   [ "$done_count" -eq 0 ] || pass "done task evidence summary: $done_count checked ($verified_count verified, $exempt_count exempt)"
 }
 
+# v6.18.0 (D-038/T-066 AC-8): drift-check integration. Defers to the
+# standalone engine-drift-check.sh script (cheap fingerprint comparison,
+# no verify re-run). Tamper/drift = FAIL; warn-only issues stay WARN.
+check_drift() {
+  local script="$ENGINE_DIR/scripts/engine-drift-check.sh"
+  if [ ! -f "$script" ]; then
+    warn "drift-check script missing: $script"
+    return 0
+  fi
+  if ! command -v git >/dev/null 2>&1; then
+    warn "git not on PATH - drift-check skipped"
+    return 0
+  fi
+  local out rc
+  out="$(bash "$script" 2>&1)" || true
+  rc=$?
+  echo "$out" | sed 's/^/  /'
+  if [ "$rc" -ne 0 ]; then
+    fail "drift-check detected tamper or drift (see above)"
+    echo "  human: Evidence integrity or code fingerprint mismatch. Re-run 'engine verify <T-NNN>' against current HEAD, or mark evidence-manual-edit with a covering approved decision."
+  else
+    pass "drift-check passed (no tamper, no drift)"
+  fi
+}
+
 check_engine_version() {
   local ev="$ENGINE_DIR/VERSION"
   if [ ! -f "$ev" ]; then
@@ -1724,6 +1749,7 @@ check_plan_acceptance_evidence
 check_contract_compile
 check_contract_debt
 check_task_card_done_evidence
+check_drift
 check_engine_version
 check_engineignore
 check_legacy_data_format

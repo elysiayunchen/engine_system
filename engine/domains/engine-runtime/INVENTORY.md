@@ -1,5 +1,5 @@
 # INVENTORY — engine-runtime
-> Last updated: 2026-07-28 | 域级功能索引 | 5 列 ≤120 行,见 contract/src/20-file-templates.md FILE 14
+> Last updated: 2026-07-30 | 域级功能索引 | 5 列 ≤120 行,见 contract/src/20-file-templates.md FILE 14
 
 | Feature | Entry file | Public API | Status | Last verified |
 |---------|-----------|------------|--------|---------------|
@@ -83,3 +83,8 @@
 | engine-verify bash 检测测试 runner (v6.14.0) | tests/workstream/test_engine_verify_bash_detection.sh | test_engine_verify_bash_detection_sh() | stable | 2026-07-29 |
 | closing_paths HEAD 已 done 跳过 (v6.17.4) | engine/scripts/githooks/pre-commit | closing_paths() | stable | 2026-07-30 |
 | done-card governing closing_paths 测试 (v6.17.4) | tests/workstream/test_precommit_done_card_governing.sh | test_precommit_done_card_governing() | stable | 2026-07-30 |
+| drift-check 三步校验 (v6.18.0) | engine/scripts/engine-drift-check.sh | run_drift_check() | stable | 2026-07-30 |
+| drift-check 三步校验 ps1 (v6.18.0) | engine/scripts/engine-drift-check.ps1 | Run-DriftCheck() | stable | 2026-07-30 |
+| drift-check 测试套件 (v6.18.0) | tests/workstream/test_drift_check.sh | test_drift_check() | stable | 2026-07-30 |
+| evidence provenance 测试套件 (v6.18.0) | tests/workstream/test_evidence_provenance.sh | test_evidence_provenance() | stable | 2026-07-30 |
+| behavior verify 测试 runner (v6.18.0) | tests/behavior-verify/run-verify-tests.sh | run_verify_tests() | stable | 2026-07-30 |

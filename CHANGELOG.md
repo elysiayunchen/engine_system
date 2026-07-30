@@ -1,5 +1,19 @@
 # Changelog
 
+## v6.17.2 (2026-07-29)
+
+T-063 migrator contract-version bump 提示(issue #15)+ doctor latent set -e bug 修复。
+
+**T-063 (#15 D-13):**
+- `engine-migrate-contract.sh`/`.ps1` + plugin 镜像:upsert managed block 前捕获 OLD contract-version 戳,upsert 后若 `新戳 != 旧戳` 打印 "contract-version bumped: $OLD -> $NEW" + 列出 active/paused 任务卡提示审查
+- 新增 `tests/update-flow/test_migrator_bump_prompt.{sh,ps1}`:S1 bump+active 卡 / S2 idempotent repair / S3 bump 无 active 卡 / S4 fresh install 无 prior 戳(回归)
+- 修复 fresh-install 崩溃:migrator `OLD_CONTRACT_VERSION` 捕获循环的 `grep -oE` 无匹配返回 1,`set -euo pipefail` 触发 `on_error` 退出,导致 install.sh I6 测试 FAIL(AGENTS.md 无 contract-version 戳)。加 `|| true` 对齐既有 `plan_section`/`sample_row` 模式
+
+**Doctor latent bug 修复(T-063 验证发现):**
+- `engine-doctor.sh`/`plugin` 镜像 line 1494:`check_multi_card_writeset_overlap` 的 `entries="$(grep '^WRITE-SET:' ... | tr ',' '\n')"` — 当 active 卡用 `## WRITE-SET` bullet 格式(T-061)而非 `WRITE-SET:` 单行格式时,grep 无匹配返回 1,pipefail 触发 `set -e` 静默退出(exit 1,无 FAIL/WARN 输出)。加 `|| true` 对齐 migrator 修复模式
+
+**验证:** bump prompt 9/9 PASS(sh+ps1);install flow 6/6 PASS(I6 contract-version: 6.17.2);doctor exit 0(1 WARN: T-061/T-063 WRITE-SET overlap 预期);manifest 62/62 sha256 verified;check.sh 仅余 pre-existing session injection 436>400(project_memory 明确留待面板溢出时手动裁剪)。
+
 ## v6.15.1 (2026-07-29)
 
 T-058 证据 + 文档完整性修复(T-059)。子代理 5 维度复查发现功能层全 PASS,但证据层和文档层有 3 个 CRITICAL + 3 个 MAJOR + 6 个 MINOR 问题。本次仅修证据 + 文档,不动功能代码。

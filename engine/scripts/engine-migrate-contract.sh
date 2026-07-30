@@ -533,6 +533,19 @@ INVSTUB
   done
 fi
 
+# v6.17.2 (T-063/issue #15): capture pre-migration contract-version stamp for
+# bump detection. Read existing managed-block stamp from any of the 3 files
+# BEFORE upsert could change it. Empty if no prior managed block existed.
+OLD_CONTRACT_VERSION=""
+for _stamp_file in "$ROOT/AGENTS.md" "$ENGINE_DIR/SYSTEM.md" "$ENGINE_DIR/ENGINE_DOCTOR.md"; do
+  [ -f "$_stamp_file" ] || continue
+  _existing="$(grep -oE '<!-- contract-version: [0-9][0-9.]* -->' "$_stamp_file" 2>/dev/null | head -1 | sed -E 's/.*contract-version: ([0-9][0-9.]*) .*/\1/' || true)"
+  if [ -n "$_existing" ]; then
+    OLD_CONTRACT_VERSION="$_existing"
+    break
+  fi
+done
+
 if upsert_block "$ROOT/AGENTS.md" "Engine System Current Contract" "$session_tmp"; then TOUCHED+=("AGENTS.md"); fi
 if upsert_block "$ENGINE_DIR/SYSTEM.md" "Engine System Current Contract" "$session_tmp"; then TOUCHED+=("engine/SYSTEM.md"); fi
 if upsert_block "$ENGINE_DIR/ENGINE_DOCTOR.md" "Current Contract Checks" "$doctor_tmp"; then TOUCHED+=("engine/ENGINE_DOCTOR.md"); fi
@@ -540,6 +553,40 @@ if upsert_block "$ENGINE_DIR/ENGINE_DOCTOR.md" "Current Contract Checks" "$docto
 if [ "${#TOUCHED[@]}" -eq 0 ]; then
   echo "Engine contract migration already current. Next: run /engine-doctor if you need verification."
   exit 0
+fi
+
+# v6.17.2 (T-063/issue #15): if contract-version stamp changed, prompt user to
+# review active/paused task cards that may reference the old version. Cards may
+# carry assumptions tied to the old stamp (migration grace thresholds, version-
+# gated behavior). Only fires when a real bump occurred (TOUCHED non-empty AND
+# OLD != NEW); idempotent repair with no version change stays silent.
+if [ -n "$OLD_CONTRACT_VERSION" ] && [ "$OLD_CONTRACT_VERSION" != "$CONTRACT_VERSION" ]; then
+  echo ""
+  echo "═══════════════════════════════════════"
+  echo " contract-version bumped: $OLD_CONTRACT_VERSION -> $CONTRACT_VERSION"
+  echo "═══════════════════════════════════════"
+  echo ""
+  echo "Please review active/paused task cards that reference contract-version."
+  echo "Cards may carry assumptions tied to the old stamp (migration grace"
+  echo "period thresholds, version-gated behavior). Re-verify or mark exempt."
+  echo ""
+  if [ -d "$ENGINE_DIR/tasks" ]; then
+    _active_cards=""
+    while IFS= read -r _card; do
+      [ -f "$_card" ] || continue
+      if grep -Eq '^[[:space:]]*(>[[:space:]]*)?status:[[:space:]]*(active|paused)' "$_card" 2>/dev/null; then
+        _active_cards="${_active_cards:+$_active_cards
+}$(basename "$_card")"
+      fi
+    done < <(find "$ENGINE_DIR/tasks" -maxdepth 1 -name 'T-*.md' -type f 2>/dev/null | sort)
+    if [ -n "$_active_cards" ]; then
+      echo "Active/paused cards:"
+      echo "$_active_cards" | sed 's/^/  - /'
+    else
+      echo "No active/paused task cards found."
+    fi
+  fi
+  echo "═══════════════════════════════════════"
 fi
 
 next=1

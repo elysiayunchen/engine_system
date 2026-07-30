@@ -1,5 +1,5 @@
 # INVENTORY — project-meta
-> Last updated: 2026-07-19 | 域级功能索引 | 5 列 ≤120 行,见 contract/src/20-file-templates.md FILE 14
+> Last updated: 2026-07-29 | 域级功能索引 | 5 列 ≤120 行,见 contract/src/20-file-templates.md FILE 14
 
 | Feature | Entry file | Public API | Status | Last verified |
 |---------|-----------|------------|--------|---------------|
@@ -18,3 +18,5 @@
 | HANDOFF 历史归档 | engine/handoff-archive-2026-07.md | search_archive(date) | stable | 2026-07-19 |
 | 引擎根引导器 | AGENTS.md | read_session_protocol() | stable | 2026-07-19 |
 | Claude 引导器 | CLAUDE.md | read_quick_start() | stable | 2026-07-19 |
+| migrator bump 提示测试(sh) | tests/update-flow/test_migrator_bump_prompt.sh | test_migrator_bump_prompt_sh() | stable | 2026-07-29 |
+| migrator bump 提示测试(ps1) | tests/update-flow/test_migrator_bump_prompt.ps1 | test_migrator_bump_prompt_ps1() | stable | 2026-07-29 |

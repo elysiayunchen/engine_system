@@ -1,0 +1,1 @@
+{"ac":"AC-1","verify":"bash -c \"grep -c 'old_contract_version\\|OLD_CONTRACT_VERSION\\|existing stamp' engine/scripts/engine-migrate-contract.sh engine/scripts/engine-migrate-contract.ps1\" = 2","status":"pass","exit":0,"fingerprint":"sha256:436baea57dac8578e6a4321c39fc14379de24830f3be3fdece73a784248f7a7e","timestamp":"2026-07-30T00:01:20Z"}

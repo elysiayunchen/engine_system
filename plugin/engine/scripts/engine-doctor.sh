@@ -1491,7 +1491,7 @@ check_multi_card_writeset_overlap() {
   set -- $active_cards
   [ "$#" -ge 2 ] || return 0
   for card in "$@"; do
-    entries="$(grep '^WRITE-SET:' "$card" 2>/dev/null | head -1 | sed 's/^WRITE-SET:[[:space:]]*//' | tr ',' '\n')"
+    entries="$(grep '^WRITE-SET:' "$card" 2>/dev/null | head -1 | sed 's/^WRITE-SET:[[:space:]]*//' | tr ',' '\n')" || true
     [ -n "$entries" ] || entries="$(awk '/^##[[:space:]]+WRITE-SET[[:space:]]*$/{on=1;next} on&&/^##[[:space:]]+/{exit} on&&/^-[[:space:]]+/{sub(/^-[[:space:]]+/,"");print}' "$card" 2>/dev/null)"
     all="$all$(printf '%s\n' "$entries" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | grep -v '^$' | sed "s|$|\t$(basename "$card" .md)|")
 "

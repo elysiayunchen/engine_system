@@ -1,4 +1,4 @@
-﻿# Engine System — engine-context (PowerShell)
+# Engine System — engine-context (PowerShell)
 #
 # PowerShell twin of engine-context.sh. Agent-agnostic session context dump.
 # Any AI agent can run this to get the full project memory snapshot.
@@ -26,6 +26,113 @@ if (-not (Test-Path $EngineDir)) {
   exit 0
 }
 
+# v6.19.0 (D-038c): Derived Status — real-time computed from git tag + engine/VERSION
+# + latest done task evidence. Replaces static declaration with machine-verified view.
+# v6.19.0 (D-038d): Trust-level classification (T1/T2/T3) based on evidence multi-anchor fields.
+function Render-DerivedStatus {
+  $latestTag = "none"
+  try {
+    $latestTag = (git -C $Root describe --tags --abbrev=0 2>$null) -join ''
+    if (-not $latestTag) { $latestTag = "none" }
+  } catch { $latestTag = "none" }
+
+  $engineVer = "unknown"
+  $verFile = Join-Path $EngineDir "VERSION"
+  if (Test-Path $verFile) {
+    $engineVer = (Get-Content $verFile -Encoding UTF8 -ErrorAction SilentlyContinue | Select-Object -First 1).Trim()
+  }
+
+  $latestVer = $latestTag -replace '^v', ''
+  $tagVerMatch = if ($latestVer -eq $engineVer) { "yes" } else { "no" }
+
+  $headCommit = "unknown"
+  try {
+    $headCommit = (git -C $Root rev-parse HEAD 2>$null) -join ''
+    if (-not $headCommit) { $headCommit = "unknown" }
+  } catch {}
+
+  # Find latest done task (highest T-NNN with status:done).
+  $latestTask = ""
+  $tasksDir = Join-Path $EngineDir "tasks"
+  if (Test-Path $tasksDir) {
+    $taskFiles = Get-ChildItem -Path $tasksDir -File -Filter "T-*.md" -ErrorAction SilentlyContinue |
+      Where-Object { $_.Name -notmatch '\.spec\.md$' } | Sort-Object Name -Descending
+    foreach ($tf in $taskFiles) {
+      $content = Get-Content -Raw -Path $tf.FullName -Encoding UTF8 -ErrorAction SilentlyContinue
+      if ($content -match '(?m)^\s*(>\s*)?status:\s*done') {
+        $latestTask = $tf.BaseName
+        break
+      }
+    }
+  }
+
+  # Evidence trust classification for latest done task.
+  $hasCodeFp = "?"
+  $vacMatch = "?"
+  $vac = ""
+  if ($latestTask) {
+    $evDir = Join-Path $EngineDir ("evidence\" + $latestTask)
+    if (Test-Path $evDir) {
+      $acFiles = @(Get-ChildItem -Path $evDir -Filter "AC-*.json" -File -ErrorAction SilentlyContinue | Sort-Object Name)
+      if ($acFiles.Count -gt 0) {
+        $firstAc = Get-Content -Raw -Path $acFiles[0].FullName -Encoding UTF8 -ErrorAction SilentlyContinue
+        if ($firstAc -match '"code_fingerprint"') {
+          $hasCodeFp = "yes"
+          if ($firstAc -match '"verified_against_commit":"([^"]*)"') {
+            $vac = $Matches[1]
+          }
+          if ($vac -and $headCommit -ne "unknown") {
+            if ($vac -eq $headCommit) {
+              $vacMatch = "yes (==HEAD)"
+            } else {
+              $isAncestor = $false
+              try {
+                git -C $Root merge-base --is-ancestor $vac $headCommit 2>$null
+                if ($LASTEXITCODE -eq 0) { $isAncestor = $true }
+              } catch {}
+              if ($isAncestor) {
+                $vacMatch = "yes (ancestor of HEAD)"
+              } else {
+                $vacMatch = "no (not ancestor)"
+              }
+            }
+          } else {
+            $vacMatch = "no (missing vac or HEAD)"
+          }
+        } else {
+          $hasCodeFp = "no"
+        }
+      }
+    }
+  }
+
+  # Determine trust level (D-038d).
+  $trust = "T3"
+  $vacOk = ($vacMatch -like "yes*")
+  $vacNo = ($vacMatch -like "no*")
+  if ($tagVerMatch -eq "yes" -and $hasCodeFp -eq "yes" -and $vacOk) {
+    $trust = "T1 (structural; run drift-check to confirm)"
+  } elseif ($hasCodeFp -eq "no") {
+    $trust = "T2 (legacy-evidence: no code_fingerprint)"
+  } elseif ($vacNo) {
+    $trust = "T2 (stale: verified_against_commit not ancestor of HEAD)"
+  } elseif ($tagVerMatch -eq "no") {
+    $trust = "T3 (tag/VERSION mismatch)"
+  }
+
+  Write-Output "---- [T1] Derived Status (machine-verified, D-038c) ----"
+  Write-Output ("Latest git tag: " + $latestTag)
+  Write-Output ("engine/VERSION: " + $engineVer)
+  Write-Output ("Tag/VERSION match: " + $tagVerMatch)
+  Write-Output ("Latest done task: " + $(if ($latestTask) { $latestTask } else { "none" }))
+  if ($latestTask) {
+    Write-Output ("Evidence code_fingerprint: " + $hasCodeFp)
+    Write-Output ("verified_against_commit == HEAD: " + $vacMatch)
+  }
+  Write-Output ("Overall trust: [" + $trust + "]")
+  Write-Output ""
+}
+
 Write-Output "==================================================="
 Write-Output " Engine System - Session Context"
 Write-Output " Agent: read the sections below to understand"
@@ -50,13 +157,29 @@ if (Test-Path $GlossaryFile) {
   Write-Output ""
 }
 
-# CONTEXT.md.
+# CONTEXT.md — current project status dashboard with trust-level labels (D-038d).
 $ContextFile = Join-Path $EngineDir "CONTEXT.md"
 if (Test-Path $ContextFile) {
   Write-Output "---- Current State (engine/CONTEXT.md, first 50 lines) ----"
-  Get-Content $ContextFile -TotalCount 50 | ForEach-Object { Write-Output $_ }
+  Write-Output "Trust levels: [T1]=machine-verified | [T2]=declared-only/legacy | [T3]=unverified"
+  Write-Output ""
+  # Inject trust labels per section header (D-038d).
+  $ctxLines = Get-Content $ContextFile -TotalCount 50 -Encoding UTF8 -ErrorAction SilentlyContinue
+  foreach ($cline in $ctxLines) {
+    Write-Output $cline
+    if ($cline -like "## 状态面板*") {
+      Write-Output "> [T2 legacy] 静态声明 (double-write transition). 见下方 Derived Status 段获取 [T1] 机器校验值."
+    } elseif ($cline -like "## 当前假设*") {
+      Write-Output "> [T2 declared-only] 人工决策声明,未经机器校验."
+    } elseif ($cline -like "## 待验证*") {
+      Write-Output "> [T3 unverified] 待验证项,agent 须先跑校验或显式声明'未验证'."
+    }
+  }
   Write-Output ""
 }
+
+# Derived Status segment (D-038c) — machine-verified, real-time computed.
+Render-DerivedStatus
 
 # HANDOFF.md.
 $HandoffFile = Join-Path $EngineDir "HANDOFF.md"

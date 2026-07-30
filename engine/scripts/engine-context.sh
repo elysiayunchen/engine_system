@@ -24,6 +24,93 @@ if [ ! -d "$ENGINE_DIR" ]; then
   exit 0
 fi
 
+# v6.19.0 (D-038c): Derived Status — real-time computed from git tag + engine/VERSION
+# + latest done task evidence. Replaces static "上次完成" declaration with machine-verified view.
+# v6.19.0 (D-038d): Trust-level classification (T1/T2/T3) based on evidence multi-anchor fields.
+render_derived_status() {
+  local latest_tag engine_ver latest_ver head_commit
+  local latest_task="" ev_dir first_ac vac=""
+  local tag_ver_match="?" has_code_fp="?" vac_match="?" trust="T3"
+
+  latest_tag="$(cd "$ROOT" && git describe --tags --abbrev=0 2>/dev/null || echo 'none')"
+  engine_ver="$(cat "$ENGINE_DIR/VERSION" 2>/dev/null | tr -d '[:space:]' || echo 'unknown')"
+  latest_ver="${latest_tag#v}"
+  head_commit="$(cd "$ROOT" && git rev-parse HEAD 2>/dev/null || echo 'unknown')"
+
+  # Find latest done task (highest T-NNN with status:done, lexicographic for same digit count).
+  for f in "$ENGINE_DIR"/tasks/T-*.md; do
+    [ -f "$f" ] || continue
+    case "$f" in *.spec.md) continue ;; esac
+    if grep -Eq '^[[:space:]]*(>[[:space:]]*)?status:[[:space:]]*done' "$f" 2>/dev/null; then
+      tid="$(basename "$f" .md)"
+      if [ -z "$latest_task" ] || [ "$tid" \> "$latest_task" ]; then
+        latest_task="$tid"
+      fi
+    fi
+  done
+
+  # Tag/VERSION consistency.
+  if [ "$latest_ver" = "$engine_ver" ]; then
+    tag_ver_match="yes"
+  else
+    tag_ver_match="no"
+  fi
+
+  # Evidence trust classification for latest done task.
+  if [ -n "$latest_task" ]; then
+    ev_dir="$ENGINE_DIR/evidence/$latest_task"
+    if [ -d "$ev_dir" ]; then
+      first_ac="$(ls "$ev_dir"/AC-*.json 2>/dev/null | LC_ALL=C sort | head -1)"
+      if [ -n "$first_ac" ] && [ -f "$first_ac" ]; then
+        if grep -q '"code_fingerprint"' "$first_ac" 2>/dev/null; then
+          has_code_fp="yes"
+          vac="$(printf '%s' "$(grep -oE '"verified_against_commit":"[^"]*"' "$first_ac" 2>/dev/null | head -1)" | sed 's/.*"verified_against_commit":"//;s/"//')"
+          # Check if verified_against_commit is HEAD or an ancestor of HEAD (evidence
+          # is written before the task's own commit, so vac is typically HEAD~1).
+          if [ -n "$vac" ] && [ "$head_commit" != "unknown" ]; then
+            if [ "$vac" = "$head_commit" ]; then
+              vac_match="yes (==HEAD)"
+            elif (cd "$ROOT" && git merge-base --is-ancestor "$vac" "$head_commit" 2>/dev/null); then
+              vac_match="yes (ancestor of HEAD)"
+            else
+              vac_match="no (not ancestor)"
+            fi
+          else
+            vac_match="no (missing vac or HEAD)"
+          fi
+        else
+          has_code_fp="no"
+        fi
+      fi
+    fi
+  fi
+
+  # Determine trust level (D-038d).
+  # T1 (structural) = code_fingerprint exists + vac is HEAD/ancestor + tag/VERSION match.
+  # Full T1 (drift-check green) is only confirmed by Doctor/engine drift-check.
+  if [ "$tag_ver_match" = "yes" ] && [ "$has_code_fp" = "yes" ] && case "$vac_match" in yes*) true;; *) false;; esac; then
+    trust="T1 (structural; run drift-check to confirm)"
+  elif [ "$has_code_fp" = "no" ]; then
+    trust="T2 (legacy-evidence: no code_fingerprint)"
+  elif case "$vac_match" in no*) true;; *) false;; esac; then
+    trust="T2 (stale: verified_against_commit not ancestor of HEAD)"
+  elif [ "$tag_ver_match" = "no" ]; then
+    trust="T3 (tag/VERSION mismatch)"
+  fi
+
+  echo "──── [T1] Derived Status (machine-verified, D-038c) ────"
+  echo "Latest git tag: $latest_tag"
+  echo "engine/VERSION: $engine_ver"
+  echo "Tag/VERSION match: $tag_ver_match"
+  echo "Latest done task: ${latest_task:-none}"
+  if [ -n "$latest_task" ]; then
+    echo "Evidence code_fingerprint: $has_code_fp"
+    echo "verified_against_commit == HEAD: $vac_match"
+  fi
+  echo "Overall trust: [$trust]"
+  echo ""
+}
+
 echo "═══════════════════════════════════════════════════"
 echo " Engine System — Session Context"
 echo " Agent: read the sections below to understand"
@@ -47,12 +134,28 @@ if [ -f "$glossary" ]; then
   echo ""
 fi
 
-# CONTEXT.md — current project status dashboard.
+# CONTEXT.md — current project status dashboard with trust-level labels (D-038d).
 if [ -f "$ENGINE_DIR/CONTEXT.md" ]; then
   echo "──── 📊 Current State (engine/CONTEXT.md, first 50 lines) ────"
-  sed -n '1,50p' "$ENGINE_DIR/CONTEXT.md" 2>/dev/null
+  echo "Trust levels: [T1]=machine-verified | [T2]=declared-only/legacy | [T3]=unverified"
+  echo ""
+  # Inject trust labels per section header (D-038d).
+  sed -n '1,50p' "$ENGINE_DIR/CONTEXT.md" 2>/dev/null | while IFS= read -r line; do
+    printf '%s\n' "$line"
+    case "$line" in
+      "## 状态面板"*)
+        printf '> [T2 legacy] 静态声明 (double-write transition). 见下方 Derived Status 段获取 [T1] 机器校验值.\n' ;;
+      "## 当前假设"*)
+        printf '> [T2 declared-only] 人工决策声明,未经机器校验.\n' ;;
+      "## 待验证"*)
+        printf '> [T3 unverified] 待验证项,agent 须先跑校验或显式声明"未验证".\n' ;;
+    esac
+  done
   echo ""
 fi
+
+# Derived Status segment (D-038c) — machine-verified, real-time computed.
+render_derived_status
 
 # HANDOFF.md — latest session handoff records.
 if [ -f "$ENGINE_DIR/HANDOFF.md" ]; then

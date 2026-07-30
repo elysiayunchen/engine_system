@@ -1389,6 +1389,60 @@ function Test-Drift {
   }
 }
 
+# v6.19.0 (D-038c/T-067): derived status panel check. Double-write transition:
+# CONTEXT.md static panel is labeled "legacy" while engine context outputs a
+# real-time "Derived Status" segment. Doctor verifies (1) the legacy annotation
+# exists and (2) derived values (git tag vs engine/VERSION) match the static
+# declaration. Mismatches are WARN only during the double-write transition.
+function Test-DerivedStatus {
+  $ctx = Join-Path $EngineDir "CONTEXT.md"
+  if (-not (Test-Path $ctx)) { return }
+  $gitExe = Get-Command git -ErrorAction SilentlyContinue
+  if (-not $gitExe) {
+    Write-Warn "git not on PATH - derived status check skipped"
+    return
+  }
+
+  # (1) Legacy annotation check.
+  $ctxContent = Get-Content -Raw -Path $ctx -Encoding UTF8 -ErrorAction SilentlyContinue
+  if ($ctxContent -match '<!-- legacy: status-panel') {
+    Write-Pass "CONTEXT.md status-panel has legacy annotation (double-write transition)"
+  } else {
+    Write-Warn "CONTEXT.md status-panel missing <!-- legacy: status-panel --> annotation"
+    Write-Output "  human: Add <!-- legacy: status-panel (double-write transition, v6.19.0~v6.20.0) --> after the status panel header. See D-038c."
+    return
+  }
+
+  # (2) Derived value consistency: latest git tag vs engine/VERSION.
+  $latestTag = "none"
+  try {
+    $latestTag = (git -C $Root describe --tags --abbrev=0 2>$null) -join ''
+    if (-not $latestTag) { $latestTag = "none" }
+  } catch { $latestTag = "none" }
+
+  $engineVer = "unknown"
+  $evFile = Join-Path $EngineDir "VERSION"
+  if (Test-Path $evFile) {
+    $engineVer = (Get-Content $evFile -Raw -Encoding UTF8 -ErrorAction SilentlyContinue).Trim()
+  }
+  $latestVer = $latestTag -replace '^v', ''
+
+  if ($latestVer -eq $engineVer) {
+    Write-Pass "derived tag/VERSION consistent ($latestTag = $engineVer)"
+  } else {
+    Write-Warn "derived tag/VERSION mismatch: git tag=$latestTag, engine/VERSION=$engineVer"
+    Write-Output "  human: The latest git tag does not match engine/VERSION. Run 'engine update' or create a matching tag."
+  }
+
+  # (3) Check static panel mentions the latest tag (stale panel detection).
+  if ($ctxContent -match [regex]::Escape($latestVer)) {
+    Write-Pass "static panel references current version ($latestVer)"
+  } else {
+    Write-Warn "static panel does not reference current version ($latestVer) - panel may be stale"
+    Write-Output "  human: Update the status panel in CONTEXT.md to mention v$engineVer, or rely on the Derived Status segment."
+  }
+}
+
 function Test-EngineVersion {
   $ev = Join-Path $EngineDir "VERSION"
   if (-not (Test-Path $ev)) {
@@ -1778,6 +1832,7 @@ Test-ContractCompile
 Test-ContractDebt
 Test-TaskCardDoneEvidence
 Test-Drift
+Test-DerivedStatus
 Test-EngineVersion
 Test-Engineignore
 Test-LegacyDataFormat

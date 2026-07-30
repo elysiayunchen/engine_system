@@ -88,3 +88,9 @@
 | drift-check 测试套件 (v6.18.0) | tests/workstream/test_drift_check.sh | test_drift_check() | stable | 2026-07-30 |
 | evidence provenance 测试套件 (v6.18.0) | tests/workstream/test_evidence_provenance.sh | test_evidence_provenance() | stable | 2026-07-30 |
 | behavior verify 测试 runner (v6.18.0) | tests/behavior-verify/run-verify-tests.sh | run_verify_tests() | stable | 2026-07-30 |
+| 派生状态视图 + 信任标签 (v6.19.0) | engine/scripts/engine-context.sh | render_derived_status() | stable | 2026-07-30 |
+| 派生状态视图 + 信任标签 ps1 (v6.19.0) | engine/scripts/engine-context.ps1 | Render-DerivedStatus() | stable | 2026-07-30 |
+| Doctor derived status 校验 (v6.19.0) | engine/scripts/engine-doctor.sh | check_derived_status() | stable | 2026-07-30 |
+| Doctor derived status 校验 ps1 (v6.19.0) | engine/scripts/engine-doctor.ps1 | Test-DerivedStatus() | stable | 2026-07-30 |
+| derived status 测试套件 (v6.19.0) | tests/workstream/test_derived_status.sh | test_derived_status() | stable | 2026-07-30 |
+| workstream CLI 测试 runner (v6.19.0 补注册) | tests/workstream/run-workstream-tests.sh | run_workstream_tests() | stable | 2026-07-30 |

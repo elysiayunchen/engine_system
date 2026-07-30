@@ -1,14 +1,14 @@
 # CONTEXT — 当前状态
 
-> Engine System (engine_system) · Last updated: 2026-07-29 · Profile: CLI-LEAN
+> Engine System (engine_system) · Last updated: 2026-07-30 · Profile: CLI-LEAN
 
 ## 状态面板
 
 | 维度 | 状态 |
 |------|------|
 | 构建 | ✅ 正常（纯 markdown + shell 脚本，无构建步骤） |
-| 上次完成 | **v6.17.2(T-063 migrator bump 提示,#15)**:migrator 在 upsert managed block 前捕获旧 contract-version 戳,bump 时打印提示 + 列 active/paused 卡。附带修复 fresh-install crash(grep no-match + set -euo pipefail)和 doctor bullet WRITE-SET 静默退出。前序 **v6.16.0(T-060 doctor 一致性,#19+#20)**。前序 **v6.15.1(T-059 evidence+文档完整性)**。前序 **v6.15.0(T-058 PS 5.1 BOM 根因修复)**。 |
-| 进行中 | T-063 提交 + push + tag v6.17.2。下一步:T-061(#13 AC 4 格式)+ T-062(#14 evidence schema)。 |
+| 上次完成 | **v6.17.4(T-065 pre-commit governing #21)**:修 pre-commit hook L234-245 closing_paths 收集逻辑——所有 staged + status:done 卡被当 "closing" 加入 governing,不区分「新 close」与「修改已 done 卡」。加 HEAD 检查:HEAD 已 done 则跳过。与 issue #18 AC PASS 检查修复(L375-381)模式一致。前序 **v6.17.3(T-064 CI/Doctor 三修复)**。前序 **v6.17.2(T-063 migrator bump 提示,#15)**。前序 **v6.16.0(T-060 doctor 一致性,#19+#20)**。 |
+| 进行中 | 无。下一步:T-061(#13 AC 4 格式)+ T-062(#14 evidence schema)+ #15(D-13 contract-version)。 |
 | 阻塞 | 无。 |
 
 ## 当前假设 / 决策（本轮拍板）

@@ -81,3 +81,5 @@
 | done-card drift AC PASS 测试 (v6.14.0) | tests/workstream/test_precommit_done_card_drift.sh | test_precommit_done_card_drift() | stable | 2026-07-29 |
 | engine-verify bash 检测测试 (v6.14.0) | tests/workstream/test_engine_verify_bash_detection.ps1 | test_engine_verify_bash_detection() | stable | 2026-07-29 |
 | engine-verify bash 检测测试 runner (v6.14.0) | tests/workstream/test_engine_verify_bash_detection.sh | test_engine_verify_bash_detection_sh() | stable | 2026-07-29 |
+| closing_paths HEAD 已 done 跳过 (v6.17.4) | engine/scripts/githooks/pre-commit | closing_paths() | stable | 2026-07-30 |
+| done-card governing closing_paths 测试 (v6.17.4) | tests/workstream/test_precommit_done_card_governing.sh | test_precommit_done_card_governing() | stable | 2026-07-30 |

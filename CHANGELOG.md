@@ -1,5 +1,16 @@
 # Changelog
 
+## v6.17.4 (2026-07-30)
+
+T-065 pre-commit governing 不把已 done 卡误当 closing(issue #21)。
+
+**T-065 (#21):**
+- `engine/scripts/githooks/pre-commit` + plugin 镜像 L234-245:closing_paths 收集逻辑增加 HEAD 检查。staged 卡 status:done 后,额外检查 HEAD 是否已 done;HEAD 已 done 则跳过(不是 closing,不加入 governing)。与 issue #18 的 AC PASS 检查修复(L375-381)模式一致
+- 新增 `tests/workstream/test_precommit_done_card_governing.sh`:5 场景:active→done closing / 新卡首次 done closing / 已 done 修改跳过 / staging active 跳过 / 新 active 卡跳过
+- 修复:修改已 done 卡时该卡被误加入 governing,其 WRITE-SET 不覆盖的文件被 union check 拦截,只能 --no-verify 绕过
+
+**验证:** governing test 5/5 PASS;done-card drift 回归 5/5 PASS;plugin 镜像 byte-identical;check.sh CHECK PASSED。
+
 ## v6.17.2 (2026-07-29)
 
 T-063 migrator contract-version bump 提示(issue #15)+ doctor latent set -e bug 修复。

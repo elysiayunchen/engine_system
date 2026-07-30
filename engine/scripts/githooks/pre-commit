@@ -232,9 +232,16 @@ for _f in "$ENGINE_DIR"/tasks/T-*.md; do
 }$_f"
 done
 closing_paths="$(printf '%s\n' "$staged" | grep -E '^engine/tasks/T-[0-9]+\.md$' | while IFS= read -r _task_path; do
-  if git -C "$ROOT" show ":$_task_path" 2>/dev/null | grep -Eq '^[[:space:]]*(>[[:space:]]*)?status:[[:space:]]*done'; then
-    printf '%s\n' "$ROOT/$_task_path"
+  # index 中 staged 卡 status: done
+  if ! git -C "$ROOT" show ":$_task_path" 2>/dev/null | grep -Eq '^[[:space:]]*(>[[:space:]]*)?status:[[:space:]]*done'; then
+    continue
   fi
+  # v6.17.4 (T-065, issue #21): HEAD 已 done 的卡是"修改已 done 卡",不是 closing,
+  # 不应加入 governing。与 issue #18 AC PASS 检查(L375-381)的修复模式一致。
+  if git -C "$ROOT" show "HEAD:$_task_path" 2>/dev/null | grep -Eq '^[[:space:]]*(>[[:space:]]*)?status:[[:space:]]*done'; then
+    continue
+  fi
+  printf '%s\n' "$ROOT/$_task_path"
 done)"
 if [ -n "$closing_paths" ]; then
   governing_files="${governing_files}${governing_files:+

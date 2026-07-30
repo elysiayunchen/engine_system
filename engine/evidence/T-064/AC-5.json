@@ -1,0 +1,1 @@
+{"ac":"AC-5","verify":"bash -c \"diff engine/scripts/engine-doctor.sh plugin/engine/scripts/engine-doctor.sh | wc -l\" = 0","status":"pass","exit":0,"fingerprint":"sha256:9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa","timestamp":"2026-07-30T01:42:01Z"}

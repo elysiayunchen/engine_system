@@ -50,28 +50,109 @@ skip_count=0
 empty_fp_hash="e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
 empty_fp_pass=0
 
+# parse_ac_declarations: Extract (ac_id, verify_cmd) pairs from a task card.
+# Supports 4 AC declaration formats (D-037 / v6.17.0):
+#   1. Single-line:  AC: AC-N <desc> | verify: <cmd>
+#   2. Section:      ### AC-N: <title> + body's first verify: line
+#   3. List item:    - AC-N: <desc> | verify: <cmd>  (or next line verify:)
+#   4. Table row:    | AC-N | <desc> | verify: <cmd> |
+# Output: <ac_id>\t<verify_cmd> per line (verify_cmd may be empty for SKIP).
+# AC id regex: AC-[A-Za-z]*[0-9]+(\.[0-9]+)* (v6.12.1 A-3).
+# Separators: | verify: / |verify: / → verify: / →verify: / line-start verify:
+parse_ac_declarations() {
+  local file="$1"
+  local line ac_id verify_cmd verify_rest
+  local section_ac="" pending_ac=""
+  while IFS= read -r line || [ -n "$line" ]; do
+    # Format 2: section heading "### AC-N: <title>"
+    if [[ "$line" =~ ^###[[:space:]]+(AC-[A-Za-z]*[0-9]+(\.[0-9]+)*) ]]; then
+      section_ac="${BASH_REMATCH[1]}"
+      pending_ac=""
+      continue
+    fi
+    # Any other ### heading ends the current section
+    if [[ "$line" =~ ^### ]]; then section_ac=""; fi
+    # In section: look for first verify: line
+    if [ -n "$section_ac" ]; then
+      if [[ "$line" =~ ^[[:space:]]*verify:[[:space:]]*(.+) ]]; then
+        verify_cmd="${BASH_REMATCH[1]}"
+        verify_cmd="${verify_cmd%"${verify_cmd##*[![:space:]]}"}"
+        printf '%s\t%s\n' "$section_ac" "$verify_cmd"
+        section_ac=""
+        continue
+      fi
+      continue
+    fi
+    # Format 1: "AC: AC-N <desc> | verify: <cmd>"
+    if [[ "$line" =~ ^AC:[[:space:]]*(AC-[A-Za-z]*[0-9]+(\.[0-9]+)*) ]]; then
+      ac_id="${BASH_REMATCH[1]}"
+      verify_cmd=""
+      case "$line" in
+        *"| verify:"*)  verify_rest="${line#*"| verify:"}" ;;
+        *"|verify:"*)   verify_rest="${line#*"|verify:"}" ;;
+        *"→ verify:"*)  verify_rest="${line#*"→ verify:"}" ;;
+        *"→verify:"*)   verify_rest="${line#*"→verify:"}" ;;
+        *)              verify_rest="" ;;
+      esac
+      verify_cmd="${verify_rest#"${verify_rest%%[![:space:]]*}"}"
+      verify_cmd="${verify_cmd%"${verify_cmd##*[![:space:]]}"}"
+      printf '%s\t%s\n' "$ac_id" "$verify_cmd"
+      pending_ac=""
+      continue
+    fi
+    # Format 3: "- AC-N: <desc>" with same-line or next-line verify:
+    if [[ "$line" =~ ^-[[:space:]]+(AC-[A-Za-z]*[0-9]+(\.[0-9]+)*) ]]; then
+      ac_id="${BASH_REMATCH[1]}"
+      verify_cmd=""
+      case "$line" in
+        *"| verify:"*)  verify_rest="${line#*"| verify:"}" ;;
+        *"|verify:"*)   verify_rest="${line#*"|verify:"}" ;;
+        *)              verify_rest="" ;;
+      esac
+      verify_cmd="${verify_rest#"${verify_rest%%[![:space:]]*}"}"
+      verify_cmd="${verify_cmd%"${verify_cmd##*[![:space:]]}"}"
+      if [ -n "$verify_cmd" ]; then
+        printf '%s\t%s\n' "$ac_id" "$verify_cmd"
+      else
+        pending_ac="$ac_id"
+      fi
+      continue
+    fi
+    # Pending Format 3: next line "  verify: <cmd>"
+    if [ -n "$pending_ac" ]; then
+      if [[ "$line" =~ ^[[:space:]]*verify:[[:space:]]*(.+) ]]; then
+        verify_cmd="${BASH_REMATCH[1]}"
+        verify_cmd="${verify_cmd%"${verify_cmd##*[![:space:]]}"}"
+        printf '%s\t%s\n' "$pending_ac" "$verify_cmd"
+        pending_ac=""
+        continue
+      fi
+      printf '%s\t\n' "$pending_ac"
+      pending_ac=""
+    fi
+    # Format 4: "| AC-N | <desc> | verify: <cmd> |"
+    if [[ "$line" =~ ^\|[[:space:]]*(AC-[A-Za-z]*[0-9]+(\.[0-9]+)*) ]]; then
+      ac_id="${BASH_REMATCH[1]}"
+      verify_cmd=""
+      if [[ "$line" =~ verify:[[:space:]]*([^|]+) ]]; then
+        verify_cmd="${BASH_REMATCH[1]}"
+        verify_cmd="${verify_cmd#"${verify_cmd%%[![:space:]]*}"}"
+        verify_cmd="${verify_cmd%"${verify_cmd##*[![:space:]]}"}"
+      fi
+      printf '%s\t%s\n' "$ac_id" "$verify_cmd"
+      continue
+    fi
+  done < "$file"
+  [ -n "$pending_ac" ] && printf '%s\t\n' "$pending_ac"
+  [ -n "$section_ac" ] && printf '%s\t\n' "$section_ac"
+  return 0
+}
+
 echo "【Engine System · 行为化验收】$task"
 echo ""
 
-while IFS= read -r line; do
-  # v6.12.1 (issue #11 A-3): AC ids may carry a letter group (AC-A1, AC-B12)
-  # in addition to plain/dotted numerics (AC-1, AC-1.2).
-  ac_id="$(printf '%s' "$line" | sed -n 's/^AC:[[:space:]]*\(AC-[A-Za-z]*[0-9][0-9]*\(\.[0-9][0-9]*\)*\).*/\1/p')"
+while IFS=$'\t' read -r ac_id verify_cmd; do
   [ -n "$ac_id" ] || continue
-  # v6.12.1 (issue #11 A-2): anchor extraction to the FIRST separator + verify:
-  # marker. The old greedy `.*verify:` matched the LAST literal 'verify:' on
-  # the line, truncating any verify command that itself contains 'verify:'.
-  # Both separator spellings in the wild are accepted: '| verify:' (current)
-  # and the legacy arrow '-> verify:' (U+2192). ${var#*pat} strips the
-  # SHORTEST prefix, i.e. cuts at the first occurrence, byte-exact.
-  verify_rest=""
-  case "$line" in
-    *"| verify:"*)  verify_rest="${line#*"| verify:"}" ;;
-    *"|verify:"*)   verify_rest="${line#*"|verify:"}" ;;
-    *"→ verify:"*)  verify_rest="${line#*"→ verify:"}" ;;
-    *"→verify:"*)   verify_rest="${line#*"→verify:"}" ;;
-  esac
-  verify_cmd="$(printf '%s' "$verify_rest" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
   if [ -z "$verify_cmd" ]; then
     echo "SKIP  $ac_id (无 verify 命令)"
     skip_count=$((skip_count+1))
@@ -147,7 +228,7 @@ CPHD
     printf -- '%s\n' "$new_line" >> "$checkpoint"
   fi
   rm -f "$tmp_out"
-done < <(grep '^AC:' "$task_file")
+done < <(parse_ac_declarations "$task_file")
 
 # v6.10.0 (D-028/T-035): Dead code detection — runs AFTER all AC verify commands.
 # Self-checks linter availability (shellcheck for .sh; PSScriptAnalyzer twin is
@@ -346,7 +427,7 @@ total_acs=$((pass_count + fail_count + skip_count))
 if [ "$total_acs" -gt 0 ] && [ "$pass_count" -eq 0 ] && [ "$fail_count" -eq 0 ]; then
   {
     echo "ERROR: $total_acs ACs declared but no parseable verify command was found."
-    echo "The card likely uses a split/block format; engine-verify only reads single-line 'AC: AC-N ... | verify: <cmd>'."
+    echo "The card uses none of the 4 accepted AC spellings; see contract/src/20-file-templates.md FILE 15."
     echo "This is a parse failure, not a clean result."
   } >&2
   exit 3

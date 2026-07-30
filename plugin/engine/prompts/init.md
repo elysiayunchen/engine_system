@@ -97,7 +97,7 @@ Lifecycle routing:
 
 **Fractal Memory Rule (v6 S2):** The engine memory is spatially partitioned into domains. `engine/domains/federation.json` is the routing table: path-glob → domain. Each domain holds its own `CONTEXT.md` (first line = budgeted summary, lifted to the SessionStart domain dashboard) and `PITFALLS.md` (per-domain budget + archive + rg recipe; no global 500-line ceiling). The SessionStart hook assembles L2: for each domain in the active task card's `domain:` field (comma-separated), it injects that domain's CONTEXT + PITFALLS (budget-bounded). The Stop hook enforces route consistency: every code path touched must resolve (via federation.json) to a domain in the task card's `domain:` set—out-of-domain → `decision:block`. Paths matching no domain glob fall to `default_domain`. Projects without `federation.json` or a task card `domain:` field fall back to S1 behavior (backward compatible). The federation table is registered in ENGINE_MAP; domain files are operational artifacts, not authority files.
 
-**Behavior Verification Rule (v6 S4):** A task card's `AC` entries carry `verify:` commands. `engine verify T-NNN` executes each, writing PASS/FAIL + output fingerprint (sha256) to `engine/evidence/T-NNN/AC-N.json`. A task card may be marked `done` only when every AC has either a passing verify result in evidence or an architect exemption (the exemption is itself a decision). Evidence files are generated-cache; do not register them in ENGINE_MAP §1. This machine-enforces N3 (completion has evidence)—the architect judges behavior, not code.
+**Behavior Verification Rule (v6 S4):** A task card's `AC` entries carry `verify:` commands. There are 4 accepted spellings (single-line, section heading, list item, table row — see 20-file-templates FILE 15); `engine verify T-NNN` executes each, writing PASS/FAIL + output fingerprint (sha256) to `engine/evidence/T-NNN/AC-N.json`. A task card may be marked `done` only when every AC has either a passing verify result in evidence or an architect exemption (the exemption is itself a decision). Evidence files are generated-cache; do not register them in ENGINE_MAP §1. This machine-enforces N3 (completion has evidence)—the architect judges behavior, not code.
 
 **Developer Communication Rule (v6.2):** The developer (architect) may not know engine-specific terminology. When interacting with the developer, the agent MUST:
 1. **Detect the developer's language** from their messages at session start, and use that language for all explanations and summaries throughout the session. Never hardcode a specific language — if the developer writes in English, respond in English; if in Chinese, respond in Chinese; if they switch, follow.
@@ -2425,7 +2425,33 @@ progress.md 7 栏骨架不变（`engine/skeleton/progress.md` 单一来源,不�
 1. Would it fail if the subject had NOT done the thing? `test -f engine/evidence/T-NNN/AC-3.md` 验收的是"写了个文件",不是行为——不合格。
 2. Is its output fingerprint the empty-string hash (`e3b0c44298fc...`)? `grep -q`/`test -f` 静默成功,证据无区分度——让命令产出可指纹输出。
 3. Would it also pass in an unrelated repository? `git diff --quiet HEAD -- <路径>` 在任何干净树上恒 exit 0——恒真式不是证据。
-`engine verify` 对可疑模式输出 WARN(自引用本卡 evidence 路径 / 全部 PASS 指纹皆空串哈希);AC 与 verify 命令必须同行,分隔符 `| verify:` 或遗留 `→ verify:` 均合法,全 SKIP 时 verify 以 exit 3 报 parse failure。
+**AC 声明格式(D-037 / v6.17.0,4 accepted spellings)**：
+
+任务卡中 AC 声明支持以下 4 种格式,解析器(`parse_ac_declarations`)全格式读兼容,写入器只写第 1 种规范格式:
+
+| # | 名称 | 语法样例 | verify 抽取 |
+|---|------|---------|------------|
+| 1 | 单行(规范) | `AC: AC-N <描述> \| verify: <cmd>` | 同行 `verify:` 后到行尾 |
+| 2 | 章节标题 | `### AC-N: <title>` + 体内首条 `verify: <cmd>` | 章节体内首个 `verify:` 行 |
+| 3 | 列表项 | `- AC-N: <描述> \| verify: <cmd>` 或下一行 `  verify: <cmd>` | 同行优先,否则下一行 |
+| 4 | 表格行 | `\| AC-N \| <描述> \| verify: <cmd> \|` | 第 3 列 `verify:` 后到 `\|` 前 |
+
+最小示例(4 种格式各一条,可混用):
+
+```
+AC: AC-N 单行格式 | verify: bash -c "echo ok"
+
+### AC-N: 章节标题格式
+verify: bash -c "echo ok"
+
+- AC-N: 列表项格式 | verify: bash -c "echo ok"
+
+| AC-N | 表格行格式 | verify: bash -c "echo ok" |
+```
+
+AC id 正则 `AC-[A-Za-z]*\d+(?:\.\d+)*`;分隔符 `| verify:` / `→ verify:` / 行首 `verify:` 均合法;同一卡可混用 4 种格式;一条 AC 只声明一次(重复以首次为准)。
+
+`engine verify` 对可疑模式输出 WARN(自引用本卡 evidence 路径 / 全部 PASS 指纹皆空串哈希);全 SKIP 时 verify 以 exit 3 报 parse failure。
 
 
 ---

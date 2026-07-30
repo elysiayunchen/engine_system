@@ -1717,7 +1717,33 @@ progress.md 7 栏骨架不变（`engine/skeleton/progress.md` 单一来源,不�
 1. Would it fail if the subject had NOT done the thing? `test -f engine/evidence/T-NNN/AC-3.md` 验收的是"写了个文件",不是行为——不合格。
 2. Is its output fingerprint the empty-string hash (`e3b0c44298fc...`)? `grep -q`/`test -f` 静默成功,证据无区分度——让命令产出可指纹输出。
 3. Would it also pass in an unrelated repository? `git diff --quiet HEAD -- <路径>` 在任何干净树上恒 exit 0——恒真式不是证据。
-`engine verify` 对可疑模式输出 WARN(自引用本卡 evidence 路径 / 全部 PASS 指纹皆空串哈希);AC 与 verify 命令必须同行,分隔符 `| verify:` 或遗留 `→ verify:` 均合法,全 SKIP 时 verify 以 exit 3 报 parse failure。
+**AC 声明格式(D-037 / v6.17.0,4 accepted spellings)**：
+
+任务卡中 AC 声明支持以下 4 种格式,解析器(`parse_ac_declarations`)全格式读兼容,写入器只写第 1 种规范格式:
+
+| # | 名称 | 语法样例 | verify 抽取 |
+|---|------|---------|------------|
+| 1 | 单行(规范) | `AC: AC-N <描述> \| verify: <cmd>` | 同行 `verify:` 后到行尾 |
+| 2 | 章节标题 | `### AC-N: <title>` + 体内首条 `verify: <cmd>` | 章节体内首个 `verify:` 行 |
+| 3 | 列表项 | `- AC-N: <描述> \| verify: <cmd>` 或下一行 `  verify: <cmd>` | 同行优先,否则下一行 |
+| 4 | 表格行 | `\| AC-N \| <描述> \| verify: <cmd> \|` | 第 3 列 `verify:` 后到 `\|` 前 |
+
+最小示例(4 种格式各一条,可混用):
+
+```
+AC: AC-N 单行格式 | verify: bash -c "echo ok"
+
+### AC-N: 章节标题格式
+verify: bash -c "echo ok"
+
+- AC-N: 列表项格式 | verify: bash -c "echo ok"
+
+| AC-N | 表格行格式 | verify: bash -c "echo ok" |
+```
+
+AC id 正则 `AC-[A-Za-z]*\d+(?:\.\d+)*`;分隔符 `| verify:` / `→ verify:` / 行首 `verify:` 均合法;同一卡可混用 4 种格式;一条 AC 只声明一次(重复以首次为准)。
+
+`engine verify` 对可疑模式输出 WARN(自引用本卡 evidence 路径 / 全部 PASS 指纹皆空串哈希);全 SKIP 时 verify 以 exit 3 报 parse failure。
 
 
 ---

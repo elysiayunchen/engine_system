@@ -29,6 +29,104 @@ MAP="$ENGINE_DIR/ENGINE_MAP.md"
 fail_count=0
 warn_count=0
 
+# parse_ac_declarations: Extract (ac_id, verify_cmd) pairs from a task card.
+# Supports 4 AC declaration formats (D-037 / v6.17.0):
+#   1. Single-line:  AC: AC-N <desc> | verify: <cmd>
+#   2. Section:      ### AC-N: <title> + body's first verify: line
+#   3. List item:    - AC-N: <desc> | verify: <cmd>  (or next line verify:)
+#   4. Table row:    | AC-N | <desc> | verify: <cmd> |
+# Output: <ac_id>\t<verify_cmd> per line (verify_cmd may be empty for SKIP).
+# AC id regex: AC-[A-Za-z]*[0-9]+(\.[0-9]+)* (v6.12.1 A-3).
+# Separators: | verify: / |verify: / → verify: / →verify: / line-start verify:
+parse_ac_declarations() {
+  local file="$1"
+  local line ac_id verify_cmd verify_rest
+  local section_ac="" pending_ac=""
+  while IFS= read -r line || [ -n "$line" ]; do
+    # Format 2: section heading "### AC-N: <title>"
+    if [[ "$line" =~ ^###[[:space:]]+(AC-[A-Za-z]*[0-9]+(\.[0-9]+)*) ]]; then
+      section_ac="${BASH_REMATCH[1]}"
+      pending_ac=""
+      continue
+    fi
+    # Any other ### heading ends the current section
+    if [[ "$line" =~ ^### ]]; then section_ac=""; fi
+    # In section: look for first verify: line
+    if [ -n "$section_ac" ]; then
+      if [[ "$line" =~ ^[[:space:]]*verify:[[:space:]]*(.+) ]]; then
+        verify_cmd="${BASH_REMATCH[1]}"
+        verify_cmd="${verify_cmd%"${verify_cmd##*[![:space:]]}"}"
+        printf '%s\t%s\n' "$section_ac" "$verify_cmd"
+        section_ac=""
+        continue
+      fi
+      continue
+    fi
+    # Format 1: "AC: AC-N <desc> | verify: <cmd>"
+    if [[ "$line" =~ ^AC:[[:space:]]*(AC-[A-Za-z]*[0-9]+(\.[0-9]+)*) ]]; then
+      ac_id="${BASH_REMATCH[1]}"
+      verify_cmd=""
+      case "$line" in
+        *"| verify:"*)  verify_rest="${line#*"| verify:"}" ;;
+        *"|verify:"*)   verify_rest="${line#*"|verify:"}" ;;
+        *"→ verify:"*)  verify_rest="${line#*"→ verify:"}" ;;
+        *"→verify:"*)   verify_rest="${line#*"→verify:"}" ;;
+        *)              verify_rest="" ;;
+      esac
+      verify_cmd="${verify_rest#"${verify_rest%%[![:space:]]*}"}"
+      verify_cmd="${verify_cmd%"${verify_cmd##*[![:space:]]}"}"
+      printf '%s\t%s\n' "$ac_id" "$verify_cmd"
+      pending_ac=""
+      continue
+    fi
+    # Format 3: "- AC-N: <desc>" with same-line or next-line verify:
+    if [[ "$line" =~ ^-[[:space:]]+(AC-[A-Za-z]*[0-9]+(\.[0-9]+)*) ]]; then
+      ac_id="${BASH_REMATCH[1]}"
+      verify_cmd=""
+      case "$line" in
+        *"| verify:"*)  verify_rest="${line#*"| verify:"}" ;;
+        *"|verify:"*)   verify_rest="${line#*"|verify:"}" ;;
+        *)              verify_rest="" ;;
+      esac
+      verify_cmd="${verify_rest#"${verify_rest%%[![:space:]]*}"}"
+      verify_cmd="${verify_cmd%"${verify_cmd##*[![:space:]]}"}"
+      if [ -n "$verify_cmd" ]; then
+        printf '%s\t%s\n' "$ac_id" "$verify_cmd"
+      else
+        pending_ac="$ac_id"
+      fi
+      continue
+    fi
+    # Pending Format 3: next line "  verify: <cmd>"
+    if [ -n "$pending_ac" ]; then
+      if [[ "$line" =~ ^[[:space:]]*verify:[[:space:]]*(.+) ]]; then
+        verify_cmd="${BASH_REMATCH[1]}"
+        verify_cmd="${verify_cmd%"${verify_cmd##*[![:space:]]}"}"
+        printf '%s\t%s\n' "$pending_ac" "$verify_cmd"
+        pending_ac=""
+        continue
+      fi
+      printf '%s\t\n' "$pending_ac"
+      pending_ac=""
+    fi
+    # Format 4: "| AC-N | <desc> | verify: <cmd> |"
+    if [[ "$line" =~ ^\|[[:space:]]*(AC-[A-Za-z]*[0-9]+(\.[0-9]+)*) ]]; then
+      ac_id="${BASH_REMATCH[1]}"
+      verify_cmd=""
+      if [[ "$line" =~ verify:[[:space:]]*([^|]+) ]]; then
+        verify_cmd="${BASH_REMATCH[1]}"
+        verify_cmd="${verify_cmd#"${verify_cmd%%[![:space:]]*}"}"
+        verify_cmd="${verify_cmd%"${verify_cmd##*[![:space:]]}"}"
+      fi
+      printf '%s\t%s\n' "$ac_id" "$verify_cmd"
+      continue
+    fi
+  done < "$file"
+  [ -n "$pending_ac" ] && printf '%s\t\n' "$pending_ac"
+  [ -n "$section_ac" ] && printf '%s\t\n' "$section_ac"
+  return 0
+}
+
 trim() {
   local value="$1"
   value="${value//\`/}"
@@ -310,7 +408,15 @@ while IFS='|' read -r _ file class priority revision verified _; do
     fi
     # Line width: 2000 chars max. Normal markdown tables/paragraphs rarely exceed 1200;
     # 2000 gives headroom. Catches table cells padded to tens of thousands of chars.
-    longest="$(awk '{ if (length > max) max = length } END { print max+0 }' "$path")"
+    # v6.17.3 (T-064): use perl -CSD for UTF-8 character counting. awk length()
+    # returns byte count in C/POSIX locale (Windows Git Bash default), causing
+    # false positives on lines with multi-byte chars (e.g. Chinese = 3 bytes/char).
+    # perl -CSD decodes UTF-8 correctly. awk is fallback when perl unavailable.
+    if command -v perl >/dev/null 2>&1; then
+      longest="$(perl -CSD -ne 'chomp; $max = length($_) if length($_) > $max; END { print $max+0 }' "$path")"
+    else
+      longest="$(awk '{ if (length > max) max = length } END { print max+0 }' "$path")"
+    fi
     if [[ "$longest" -gt 2000 ]]; then
       warn "$file has very long line ($longest > 2000 chars)"
       echo "  human: The file '$file' has a line $longest characters long (max 2000). This is likely a padded table row or separator. Remove the excessive padding."
@@ -1255,7 +1361,7 @@ check_task_card_done_evidence() {
       continue
     fi
     local ac_ids ac_count missing ac ev
-    ac_ids="$(sed -n 's/^AC:[[:space:]]*\(AC-[0-9][0-9]*\(\.[0-9][0-9]*\)*\).*/\1/p' "$f")"
+    ac_ids="$(parse_ac_declarations "$f" | cut -f1)"
     ac_count="$(printf '%s\n' "$ac_ids" | sed '/^$/d' | wc -l | tr -d ' ')"
     missing=""
     for ac in $ac_ids; do

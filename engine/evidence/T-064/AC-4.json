@@ -1,0 +1,1 @@
+{"ac":"AC-4","verify":"bash -c \"grep -c 'Active profile' plugin/engine/skeleton/ENGINE_MAP.md\" = 1","status":"pass","exit":0,"fingerprint":"sha256:4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865","timestamp":"2026-07-30T01:42:00Z"}

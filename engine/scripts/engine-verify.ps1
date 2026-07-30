@@ -176,6 +176,104 @@ function Parse-AcDeclarations {
   return $results
 }
 
+# v6.18.0 (D-038/T-066): 防漂移 — 证据多锚辅助函数
+function Test-EngineMetadata {
+  param([string]$Path)
+  $metaPatterns = @(
+    'engine/tasks/', 'engine/decisions/', 'engine/changes/', 'engine/evidence/',
+    'engine/domains/', 'engine/archive/', 'engine/CONTEXT.md', 'engine/HANDOFF.md',
+    'engine/ENGINE_MAP.md', 'engine/handoff-archive-', 'VERSION', 'engine/VERSION',
+    'plugin/VERSION', 'plugin/manifest.json', 'CHANGELOG.md'
+  )
+  foreach ($p in $metaPatterns) {
+    if ($Path -like "$p*" -or $Path -eq $p) { return $true }
+  }
+  return $false
+}
+
+function Collect-CodeFingerprint {
+  param([string]$TaskFile, [string]$Root)
+  $codeFingerprint = @{}
+  $wsSnapshot = @()
+  $content = Get-Content -Path $TaskFile -Encoding UTF8
+  $inWs = $false
+  foreach ($line in $content) {
+    if ($line -match '^## WRITE-SET') { $inWs = $true; continue }
+    if ($line -match '^## ') { if ($inWs) { break } else { continue } }
+    if (-not $inWs) { continue }
+    if ($line -match '^-\s+(.+)') {
+      $path = $Matches[1].Trim()
+      if (Test-EngineMetadata -Path $path) { continue }
+      $fullPath = Join-Path $Root $path
+      if (-not (Test-Path $fullPath -PathType Leaf)) { continue }
+      $wsSnapshot += $path
+    }
+  }
+  $missing = @()
+  foreach ($path in $wsSnapshot) {
+    $blob = & git -C $Root ls-files -s $path 2>$null
+    if ($blob -match '\s([0-9a-f]{40})\s') {
+      $codeFingerprint[$path] = $Matches[1]
+    } else {
+      $missing += $path
+    }
+  }
+  if ($missing.Count -gt 0) {
+    Write-Error "[engine-verify] FAIL: WRITE-SET 代码文件未 git add 进 index,无法计算 code_fingerprint:`n  $($missing -join "`n  ")`n请先 git add 这些文件再跑 verify(D-038a 前置要求)"
+    exit 1
+  }
+  return @{ CodeFingerprint = $codeFingerprint; WsSnapshot = $wsSnapshot }
+}
+
+function Build-CodeFingerprintJson {
+  param([hashtable]$Hash)
+  $keys = $Hash.Keys | Sort-Object
+  $parts = @()
+  foreach ($k in $keys) {
+    $escK = $k -replace '\\', '\\' -replace '"', '\"'
+    $parts += "`"$escK`":`"$($Hash[$k])`""
+  }
+  return '{' + ($parts -join ',') + '}'
+}
+
+function Build-WsSnapshotJson {
+  param([array]$Arr)
+  $sorted = $Arr | Sort-Object
+  $parts = @()
+  foreach ($p in $sorted) {
+    $esc = $p -replace '\\', '\\' -replace '"', '\"'
+    $parts += "`"$esc`""
+  }
+  return '[' + ($parts -join ',') + ']'
+}
+
+function Write-EvidenceManifest {
+  param([string]$EvDir, [string]$Commit)
+  $files = Get-ChildItem -Path $EvDir -File | Where-Object { $_.Name -ne 'MANIFEST.json' -and ($_.Name -like '*.json' -or $_.Name -eq 'checkpoint.md') } | Sort-Object Name
+  $manifestContent = ""
+  $filesDict = @{}
+  foreach ($f in $files) {
+    $h = (Get-FileHash -Path $f.FullName -Algorithm SHA256).Hash.ToLower()
+    $manifestContent += "$($f.Name):$h`n"
+    $filesDict[$f.Name] = $h
+  }
+  $manifestBytes = [System.Text.Encoding]::UTF8.GetBytes($manifestContent)
+  $sha = [System.Security.Cryptography.SHA256]::Create()
+  $manifestHash = ([System.BitConverter]::ToString($sha.ComputeHash($manifestBytes)) -replace '-', '').ToLower()
+  $sha.Dispose()
+  $ts = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+  $filesJson = Build-CodeFingerprintJson -Hash $filesDict
+  $json = '{"evidence_manifest_sha256":"sha256:' + $manifestHash + '","generated":"' + $ts + '","writer":"engine-verify","commit":"' + $Commit + '","files":' + $filesJson + '}'
+  $json | Set-Content -Path (Join-Path $EvDir "MANIFEST.json") -Encoding UTF8
+}
+
+# v6.18.0 (D-038/T-066): 收集 code_fingerprint + 前置 git add 检查
+$verifiedCommit = & git -C $Root rev-parse HEAD 2>$null
+if (-not $verifiedCommit) { $verifiedCommit = "unknown" }
+$cfResult = Collect-CodeFingerprint -TaskFile $taskFile -Root $Root
+$codeFpJson = Build-CodeFingerprintJson -Hash $cfResult.CodeFingerprint
+$wsSnapJson = Build-WsSnapshotJson -Arr $cfResult.WsSnapshot
+
 foreach ($ac in (Parse-AcDeclarations -Path $taskFile)) {
   $acId = $ac.AcId
   $verifyCmd = $ac.VerifyCmd
@@ -225,7 +323,7 @@ foreach ($ac in (Parse-AcDeclarations -Path $taskFile)) {
   }
   $verifyEscaped = $verifyCmd -replace '\\', '\\' -replace '"', '\"'
   $ts = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
-  $json = '{"ac":"' + $acId + '","verify":"' + $verifyEscaped + '","status":"' + $status + '","exit":' + $rc + ',"fingerprint":"sha256:' + $fp + '","timestamp":"' + $ts + '"}'
+  $json = '{"ac":"' + $acId + '","verify":"' + $verifyEscaped + '","status":"' + $status + '","exit":' + $rc + ',"output_fingerprint":"sha256:' + $fp + '","code_fingerprint":' + $codeFpJson + ',"write_set_snapshot":' + $wsSnapJson + ',"verified_against_commit":"' + $verifiedCommit + '","write_provenance":{"writer":"engine-verify","commit":"' + $verifiedCommit + '","timestamp":"' + $ts + '","argv":"engine verify ' + $Task + '"},"timestamp":"' + $ts + '"}'
   $json | Set-Content -Path (Join-Path $evidenceDir ($acId + ".json")) -Encoding UTF8
 
   # v6.9.0 (D-028/T-034): on AC PASS, write a line to checkpoint.md so
@@ -250,6 +348,9 @@ foreach ($ac in (Parse-AcDeclarations -Path $taskFile)) {
     Add-Content -Path $checkpoint -Value $line -Encoding UTF8
   }
 }
+
+# v6.18.0 (D-038/T-066): 写 MANIFEST.json(evidence 完整性自证)
+Write-EvidenceManifest -EvDir $evidenceDir -Commit $verifiedCommit
 
 # v6.10.0 (D-028/T-035): Dead code detection - runs AFTER all AC verify commands.
 # Self-checks linter availability (PSScriptAnalyzer for .ps1; shellcheck twin

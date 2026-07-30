@@ -1360,6 +1360,35 @@ function Test-TaskCardDoneEvidence {
   }
 }
 
+# v6.18.0 (D-038/T-066 AC-8): drift-check integration. Defers to the
+# standalone engine-drift-check.ps1 script (cheap fingerprint comparison,
+# no verify re-run). Tamper/drift = FAIL; warn-only issues stay WARN.
+function Test-Drift {
+  $script = Join-Path $EngineDir "scripts\engine-drift-check.ps1"
+  if (-not (Test-Path $script)) {
+    Write-Warn "drift-check script missing: $script"
+    return
+  }
+  $gitCmd = Get-Command git -ErrorAction SilentlyContinue
+  if (-not $gitCmd) {
+    Write-Warn "git not on PATH - drift-check skipped"
+    return
+  }
+  $out = & pwsh -NoProfile -File $script 2>&1 | Out-String
+  $rc = $LASTEXITCODE
+  if ($out) {
+    foreach ($line in ($out -split "`r?`n")) {
+      if ($line) { Write-Output "  $line" }
+    }
+  }
+  if ($rc -ne 0) {
+    Write-Fail "drift-check detected tamper or drift (see above)"
+    Write-Output "  human: Evidence integrity or code fingerprint mismatch. Re-run 'engine verify <T-NNN>' against current HEAD, or mark evidence-manual-edit with a covering approved decision."
+  } else {
+    Write-Pass "drift-check passed (no tamper, no drift)"
+  }
+}
+
 function Test-EngineVersion {
   $ev = Join-Path $EngineDir "VERSION"
   if (-not (Test-Path $ev)) {
@@ -1748,6 +1777,7 @@ Test-PlanAcceptanceEvidence
 Test-ContractCompile
 Test-ContractDebt
 Test-TaskCardDoneEvidence
+Test-Drift
 Test-EngineVersion
 Test-Engineignore
 Test-LegacyDataFormat

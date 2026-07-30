@@ -301,7 +301,11 @@ sed -i 's/status: active/status: done/' "$r/engine/tasks/T-001.md"
 git -C "$r" add src/app.js engine/CONTEXT.md engine/tasks/T-001.md
 run_pc "strict-done-without-evidence-block" "$r" 1
 mkdir -p "$r/engine/evidence/T-001"
-printf '{"ac":"AC-1","status":"pass"}\n' > "$r/engine/evidence/T-001/AC-1.json"
+# v6.18.0 (D-038/T-066): evidence now requires either write_provenance
+# (machine-written) or evidence-manual-edit marker (manual edit). Test
+# fixture uses manual-edit path since it's constructed by hand, not by
+# engine-verify.
+printf '{"ac":"AC-1","status":"pass","evidence-manual-edit":true}\n' > "$r/engine/evidence/T-001/AC-1.json"
 git -C "$r" add engine/evidence/T-001/AC-1.json
 run_pc "strict-done-all-pass-evidence" "$r" 0
 

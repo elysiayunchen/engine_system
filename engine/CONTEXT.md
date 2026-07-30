@@ -1,14 +1,17 @@
 # CONTEXT — 当前状态
 
-> Engine System (engine_system) · Last updated: 2026-07-30 · Profile: CLI-LEAN
+> Engine System (engine_system) · Last updated: 2026-07-30 (v6.19.0) · Profile: CLI-LEAN
 
 ## 状态面板
+
+<!-- legacy: status-panel (double-write transition, v6.19.0~v6.20.0) -->
+<!-- engine context 输出时实时重算 "Derived Status" 段(machine-verified),本静态段保留并标 legacy -->
 
 | 维度 | 状态 |
 |------|------|
 | 构建 | ✅ 正常（纯 markdown + shell 脚本，无构建步骤） |
-| 上次完成 | **v6.17.4(T-065 pre-commit governing #21)**:修 pre-commit hook L234-245 closing_paths 收集逻辑——所有 staged + status:done 卡被当 "closing" 加入 governing,不区分「新 close」与「修改已 done 卡」。加 HEAD 检查:HEAD 已 done 则跳过。与 issue #18 AC PASS 检查修复(L375-381)模式一致。前序 **v6.17.3(T-064 CI/Doctor 三修复)**。前序 **v6.17.2(T-063 migrator bump 提示,#15)**。前序 **v6.16.0(T-060 doctor 一致性,#19+#20)**。 |
-| 进行中 | 无。下一步:T-061(#13 AC 4 格式)+ T-062(#14 evidence schema)+ #15(D-13 contract-version)。 |
+| 上次完成 | **v6.19.0(T-067 防漂移 P2 — 状态面板视图化 + 信任分级注入 D-038c/d)**:CONTEXT.md 状态面板降级为派生视图(engine context 输出 "Derived Status" 段实时重算 git tag + engine/VERSION + 最近 done 卡 evidence 信任级)+ engine context 输出按段注入 T1/T2/T3 信任标签 + Doctor `check_derived_status` 校验 legacy 标注与 tag/VERSION 一致性。前序 **v6.18.0(T-066 防漂移 P1 — 证据多锚 + drift-check)**。 |
+| 进行中 | 无。下一里程碑:T-068 批量补 code_fingerprint(14+ 张 done 卡)提升 T1 信任级占比。 |
 | 阻塞 | 无。 |
 
 ## 当前假设 / 决策（本轮拍板）

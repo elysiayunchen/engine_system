@@ -1,5 +1,27 @@
 # Changelog
 
+## v6.19.0 (2026-07-30)
+
+T-067 防漂移 P2 — 状态面板视图化 + 信任分级注入(D-038c/d)。堵声明漂移 + 决策漂移 + agent 误判:CONTEXT.md 状态面板从「权威声明」降级为「派生视图」(双写过渡期 v6.19.0~v6.20.0,旧静态段保留并标 legacy,新 Derived Status 段实时重算 git tag + engine/VERSION + 最近 done 卡 evidence 信任级),`engine context` 输出对每段声明打 T1/T2/T3 信任标签(T1=机器校验通过;T2=legacy-evidence/declared-only;T3=待验证),Doctor 校验 derived/legacy 标注与一致性。批量补 code_fingerprint 独立到 T-068。
+
+**T-067 (D-038c/d):**
+- `engine-context.{sh,ps1}` + plugin 镜像:新增 `render_derived_status()`/`Render-DerivedStatus` 函数,实时计算最近 git tag、engine/VERSION 一致性、最近 done 卡 evidence 信任级(code_fingerprint 存在 + verified_against_commit=HEAD/ancestor → T1 structural;无 code_fingerprint → T2 legacy-evidence;vac not ancestor → T2 stale;tag/VERSION mismatch → T3),输出 "Derived Status" 段(machine-verified);CONTEXT.md 输出时按段注入 [T1]/[T2 legacy]/[T2 declared-only]/[T3 unverified] 信任标签
+- `engine-doctor.{sh,ps1}` + plugin 镜像:新增 `check_derived_status()`/`Test-DerivedStatus` 函数,校验 (1) CONTEXT.md `<!-- legacy: status-panel -->` 标注存在(缺失→WARN);(2) 派生值(最近 git tag vs engine/VERSION)与静态声明一致(不匹配→WARN);(3) 静态面板是否引用当前版本(stale panel detection)。双写过渡期 WARN 不 FAIL
+- `engine/CONTEXT.md`:"状态面板" 段加 `<!-- legacy: status-panel (double-write transition, v6.19.0~v6.20.0) -->` 标注 + 说明注释(engine context 输出时实时重算 "Derived Status" 段,本静态段保留并标 legacy)
+
+**设计要点:**
+- 信任标签注入 `engine context` **输出**(不写入 CONTEXT.md 文件),agent 读取时即看到分级
+- T1 判定=evidence 有 code_fingerprint + verified_against_commit=HEAD/ancestor + git tag 与 engine/VERSION 一致(T1 structural;full T1 由 Doctor/engine drift-check 确认)
+- T2 分档:legacy-evidence(无 code_fingerprint)/ declared-only(人工决策声明)/ stale(vac not ancestor of HEAD)
+- T3=待验证项(agent 须先跑校验或显式声明"未验证")
+- 双写过渡期 2 版本(v6.19.0~v6.20.0):旧静态状态面板保留并标 legacy,新 Derived Status 段并行;Doctor 对 derived 不一致只 WARN 不 FAIL(容忍迁移期)
+- verified_against_commit 校验:HEAD 直接匹配 OR ancestor of HEAD(evidence 在任务提交前写入,vac 通常是 HEAD~1)
+
+**测试:**
+- `tests/workstream/test_derived_status.sh`:6 场景端到端(S1 derived 段渲染 + T1 / S2 信任标签 [T2 legacy]/[T2 declared-only]/[T3 unverified] 注入 / S3 doctor PASS on legacy annotation / S4 doctor WARN on missing legacy / S5 doctor WARN on tag/VERSION mismatch / S6 T2 legacy-evidence when no code_fingerprint)
+
+**验证:** derived_status 9/9 PASS(含 S1 双断言);plugin 镜像 4 脚本 byte-identical;check.sh CHECK PASSED。
+
 ## v6.18.0 (2026-07-30)
 
 T-066 防漂移 P1 — 证据多锚 + drift-check(D-038a/b)。堵 6 类漂移:时间漂移、锚点漂移、状态漂移、evidence 篡改、WRITE-SET 二阶漂移、EOL 假 DRIFT。

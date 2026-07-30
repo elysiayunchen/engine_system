@@ -1410,6 +1410,50 @@ check_drift() {
   fi
 }
 
+# v6.19.0 (D-038c/T-067): derived status panel check. Double-write transition:
+# CONTEXT.md static panel is labeled "legacy" while engine context outputs a
+# real-time "Derived Status" segment. Doctor verifies (1) the legacy annotation
+# exists and (2) derived values (git tag vs engine/VERSION) match the static
+# declaration. Mismatches are WARN only during the double-write transition.
+check_derived_status() {
+  local ctx="$ENGINE_DIR/CONTEXT.md"
+  [ -f "$ctx" ] || return 0
+  if ! command -v git >/dev/null 2>&1; then
+    warn "git not on PATH - derived status check skipped"
+    return 0
+  fi
+
+  # (1) Legacy annotation check.
+  if grep -q '<!-- legacy: status-panel' "$ctx" 2>/dev/null; then
+    pass "CONTEXT.md status-panel has legacy annotation (double-write transition)"
+  else
+    warn "CONTEXT.md status-panel missing <!-- legacy: status-panel --> annotation"
+    echo "  human: Add <!-- legacy: status-panel (double-write transition, v6.19.0~v6.20.0) --> after the '## 状态面板' header. See D-038c."
+    return 0
+  fi
+
+  # (2) Derived value consistency: latest git tag vs engine/VERSION.
+  local latest_tag engine_ver latest_ver
+  latest_tag="$(cd "$ROOT" && git describe --tags --abbrev=0 2>/dev/null || echo 'none')"
+  engine_ver="$(tr -d '[:space:]' < "$ENGINE_DIR/VERSION" 2>/dev/null || echo 'unknown')"
+  latest_ver="${latest_tag#v}"
+
+  if [ "$latest_ver" = "$engine_ver" ]; then
+    pass "derived tag/VERSION consistent ($latest_tag = $engine_ver)"
+  else
+    warn "derived tag/VERSION mismatch: git tag=$latest_tag, engine/VERSION=$engine_ver"
+    echo "  human: The latest git tag does not match engine/VERSION. Run 'engine update' or create a matching tag."
+  fi
+
+  # (3) Check static panel "上次完成" mentions the latest tag (stale panel detection).
+  if grep -q "$latest_ver" "$ctx" 2>/dev/null; then
+    pass "static panel references current version ($latest_ver)"
+  else
+    warn "static panel does not reference current version ($latest_ver) - panel may be stale"
+    echo "  human: Update the '上次完成' row in CONTEXT.md to mention v$engine_ver, or rely on the Derived Status segment."
+  fi
+}
+
 check_engine_version() {
   local ev="$ENGINE_DIR/VERSION"
   if [ ! -f "$ev" ]; then
@@ -1750,6 +1794,7 @@ check_contract_compile
 check_contract_debt
 check_task_card_done_evidence
 check_drift
+check_derived_status
 check_engine_version
 check_engineignore
 check_legacy_data_format

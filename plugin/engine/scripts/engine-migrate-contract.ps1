@@ -501,6 +501,21 @@ if (Test-Path $domainsRoot) {
 $agentPath = Join-Path $Root "AGENTS.md"
 $systemPath = Join-Path $EngineDir "SYSTEM.md"
 $doctorPath = Join-Path $EngineDir "ENGINE_DOCTOR.md"
+
+# v6.17.2 (T-063/issue #15): capture pre-migration contract-version stamp for
+# bump detection. Read existing managed-block stamp from any of the 3 files
+# BEFORE upsert could change it. Empty if no prior managed block existed.
+# Bash counterpart variable: OLD_CONTRACT_VERSION (engine-migrate-contract.sh).
+$OldContractVersion = ""
+foreach ($stampFile in @($agentPath, $systemPath, $doctorPath)) {
+  if (-not (Test-Path $stampFile)) { continue }
+  $stampContent = Get-Content -Path $stampFile -Raw -Encoding UTF8 -ErrorAction SilentlyContinue
+  if ($stampContent -match '<!--\s*contract-version:\s*([0-9][0-9.]*)\s*-->') {
+    $OldContractVersion = $Matches[1]
+    break
+  }
+}
+
 if (Upsert-Block $agentPath "Engine System Current Contract" $sessionProtocol) { $Touched.Add((Get-Relative $agentPath)) }
 if (Upsert-Block $systemPath "Engine System Current Contract" $sessionProtocol) { $Touched.Add((Get-Relative $systemPath)) }
 if (Upsert-Block $doctorPath "Current Contract Checks" $doctorContract) { $Touched.Add((Get-Relative $doctorPath)) }
@@ -508,6 +523,40 @@ if (Upsert-Block $doctorPath "Current Contract Checks" $doctorContract) { $Touch
 if ($Touched.Count -eq 0) {
   Write-Host "Engine contract migration already current. Next: run /engine-doctor if you need verification."
   exit 0
+}
+
+# v6.17.2 (T-063/issue #15): if contract-version stamp changed, prompt user to
+# review active/paused task cards that may reference the old version. Cards may
+# carry assumptions tied to the old stamp (migration grace thresholds, version-
+# gated behavior). Only fires when a real bump occurred (Touched non-empty AND
+# Old != New); idempotent repair with no version change stays silent.
+if ($OldContractVersion -and $OldContractVersion -ne $ContractVersion) {
+  Write-Host ""
+  Write-Host "======================================="
+  Write-Host " contract-version bumped: $OldContractVersion -> $ContractVersion"
+  Write-Host "======================================="
+  Write-Host ""
+  Write-Host "Please review active/paused task cards that reference contract-version."
+  Write-Host "Cards may carry assumptions tied to the old stamp (migration grace"
+  Write-Host "period thresholds, version-gated behavior). Re-verify or mark exempt."
+  Write-Host ""
+  $tasksDir = Join-Path $EngineDir "tasks"
+  if (Test-Path $tasksDir) {
+    $activeCards = @()
+    Get-ChildItem -Path $tasksDir -Filter "T-*.md" -File -ErrorAction SilentlyContinue | Sort-Object Name | ForEach-Object {
+      $cardContent = Get-Content -Path $_.FullName -Raw -Encoding UTF8 -ErrorAction SilentlyContinue
+      if ($cardContent -match '(?m)^\s*(>\s*)?status:\s*(active|paused)') {
+        $activeCards += $_.Name
+      }
+    }
+    if ($activeCards.Count -gt 0) {
+      Write-Host "Active/paused cards:"
+      $activeCards | ForEach-Object { Write-Host "  - $_" }
+    } else {
+      Write-Host "No active/paused task cards found."
+    }
+  }
+  Write-Host "======================================="
 }
 
 $changesDir = Join-Path $EngineDir "changes"

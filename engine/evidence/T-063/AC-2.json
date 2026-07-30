@@ -1,0 +1,1 @@
+{"ac":"AC-2","verify":"bash -c \"grep -c 'contract-version bumped\\|review active.*paused' engine/scripts/engine-migrate-contract.sh engine/scripts/engine-migrate-contract.ps1\" = 2","status":"pass","exit":0,"fingerprint":"sha256:a4cce33e843e67c4cf19525c1c228e319ba8a3f19e737f59af04dd46fbcfc390","timestamp":"2026-07-30T00:01:20Z"}

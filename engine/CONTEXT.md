@@ -7,8 +7,8 @@
 | 维度 | 状态 |
 |------|------|
 | 构建 | ✅ 正常（纯 markdown + shell 脚本，无构建步骤） |
-| 上次完成 | **v6.15.0(T-058 PS 5.1 乱码根因修复 — .ps1 UTF-8 BOM)**:T-056/T-057 逐字符 ASCII 化治标不治本(全仓 859 处非 ASCII)。本次给所有 .ps1 文件加 UTF-8 BOM(EF BB BF),使 PS 5.1 正确按 UTF-8 读取源文件,一次性消除所有非 ASCII 乱码风险(含 here-string 中文模板写入 .md 的永久乱码链路)。经子代理 12 维度评估确认可行。18 个文件加 BOM(6 个已有),覆盖 11 个逻辑文件 × 2-3 副本。附带修复 P4(功能性 § 警告注释)+ P6(manifest 重复 sha256)+ P5(.sh § 计数 100)+ 文档错误(progress.md 非 CONTEXT.md)。前序 **v6.14.2(T-057 § 编码 hotfix)**。前序 **v6.14.1(T-056 em-dash)**。前序 **v6.14.0(T-054+T-055 双 issue 修复)**。前序 **v6.13.1(T-053)**。前序 **v6.13.0(T-052 .engineignore,issue #17)**。前序 **v6.12.3(T-051 dist-stale 门禁)**。前序 **v6.12.2(T-050 tombstone 生命周期)**。 |
-| 进行中 | T-058 收尾提交。下一步:push main + tag v6.15.0 触发 CI/Release;PS 5.1 乱码问题已根因闭环。 |
+| 上次完成 | **v6.17.2(T-063 migrator bump 提示,#15)**:migrator 在 upsert managed block 前捕获旧 contract-version 戳,bump 时打印提示 + 列 active/paused 卡。附带修复 fresh-install crash(grep no-match + set -euo pipefail)和 doctor bullet WRITE-SET 静默退出。前序 **v6.16.0(T-060 doctor 一致性,#19+#20)**。前序 **v6.15.1(T-059 evidence+文档完整性)**。前序 **v6.15.0(T-058 PS 5.1 BOM 根因修复)**。 |
+| 进行中 | T-063 提交 + push + tag v6.17.2。下一步:T-061(#13 AC 4 格式)+ T-062(#14 evidence schema)。 |
 | 阻塞 | 无。 |
 
 ## 当前假设 / 决策（本轮拍板）

@@ -489,19 +489,24 @@ card_owns_itself() {
   return 1
 }
 
-# === Review Evidence Provenance Check (v6.20.0, T-070) ===
+# === Review Evidence Provenance Check (v6.20.0, T-070; v6.21.0 T-072 agent-reviewer) ===
 # 独立块,在 card_owns_itself 函数定义(约 L484-490)之后,protected-path gate 之前。
 # review evidence 形状与 AC evidence 不同(per-task 非 per-AC,writer 不同,argv 不同),
 # 硬复用会降低可读性。独立块更清晰。
+# v6.21.0: 扩展支持 AGENT-REVIEW.json (writer=agent-reviewer, 无 argv, 有 package_sha256)。
 if [ "$strict_task_mode" -eq 1 ]; then
   old_ifs="$IFS"; IFS='
 '
   for file in $staged; do
     [ -n "$file" ] || continue
-    # Only REVIEW.json carries write_provenance (writer/commit/argv). Satellite
-    # files (QUALITY.json/SECURITY.json) are per-dimension detail records with
-    # no provenance block; validating them would always fail (no writer field).
-    case "$file" in engine/review/evidence/*/REVIEW.json) ;; *) continue ;; esac
+    # Route: REVIEW.json (v1 engine-review) or AGENT-REVIEW.json (v2 agent-reviewer).
+    # Satellite files (QUALITY.json/SECURITY.json) have no provenance block; skip.
+    _is_agent_review=false
+    case "$file" in
+      engine/review/evidence/*/REVIEW.json) ;;
+      engine/review/evidence/*/AGENT-REVIEW.json) _is_agent_review=true ;;
+      *) continue ;;
+    esac
     # 路径中提取 task id,只校验任务自身的 review evidence(card_owns_itself 模式)
     _base="${file#engine/review/evidence/}"
     _tid="${_base%%/*}"
@@ -511,21 +516,56 @@ if [ "$strict_task_mode" -eq 1 ]; then
     # 用 grep + sed 提取(与 L420-422 风格一致,不引入 jq)
     _prov_writer="$(printf '%s\n' "$_content" | grep -oE '"writer":"[^"]*"' | head -1 | sed 's/"writer":"//;s/"//')"
     _prov_commit="$(printf '%s\n' "$_content" | grep -oE '"commit":"[^"]*"' | head -1 | sed 's/"commit":"//;s/"//')"
-    _prov_argv="$(printf '%s\n' "$_content" | grep -oE '"argv":"[^"]*"' | head -1 | sed 's/"argv":"//;s/"//')"
     _head_commit="$(git -C "$ROOT" rev-parse HEAD 2>/dev/null || echo unknown)"
-    if [ "$_prov_writer" != "engine-review" ]; then
-      printf '\n[Engine System] review evidence %s invalid writer: %s\n' "$file" "$_prov_writer" >&2
-      IFS="$old_ifs"; exit 1
+
+    if [ "$_is_agent_review" = true ]; then
+      # --- AGENT-REVIEW.json (v6.21.0, T-072) ---
+      if [ "$_prov_writer" != "agent-reviewer" ]; then
+        printf '\n[Engine System] agent review evidence %s invalid writer: %s (expected agent-reviewer)\n' "$file" "$_prov_writer" >&2
+        IFS="$old_ifs"; exit 1
+      fi
+      if [ "$_prov_commit" != "$_head_commit" ]; then
+        printf '\n[Engine System] agent review evidence %s stale: commit=%s HEAD=%s\n' "$file" "$_prov_commit" "$_head_commit" >&2
+        IFS="$old_ifs"; exit 1
+      fi
+      # package_sha256 validation (COMPUTE normalization)
+      _prov_sha="$(printf '%s\n' "$_content" | grep -oE '"package_sha256":"[^"]*"' | head -1 | sed 's/"package_sha256":"//;s/"//')"
+      _pkg_file="engine/review/evidence/$_tid/review-package.md"
+      if [ -n "$_prov_sha" ] && [ -f "$ROOT/$_pkg_file" ]; then
+        _py_cmd=""
+        if command -v python3 >/dev/null 2>&1; then _py_cmd=python3
+        elif command -v python >/dev/null 2>&1; then _py_cmd=python; fi
+        if [ -n "$_py_cmd" ]; then
+          _actual_sha="$("$_py_cmd" -c "
+import hashlib, re, sys
+with open(sys.argv[1], encoding='utf-8') as f:
+    content = f.read()
+normalized = re.sub(r'(> package_sha256: ).*', r'\1COMPUTE', content)
+print(hashlib.sha256(normalized.encode('utf-8')).hexdigest())
+" "$ROOT/$_pkg_file" 2>/dev/null || echo "")"
+          if [ -n "$_actual_sha" ] && [ "$_prov_sha" != "$_actual_sha" ]; then
+            printf '\n[Engine System] agent review evidence %s package_sha256 mismatch (tampered or stale package)\n' "$file" >&2
+            IFS="$old_ifs"; exit 1
+          fi
+        fi
+      fi
+    else
+      # --- REVIEW.json (v6.20.0, T-070) ---
+      _prov_argv="$(printf '%s\n' "$_content" | grep -oE '"argv":"[^"]*"' | head -1 | sed 's/"argv":"//;s/"//')"
+      if [ "$_prov_writer" != "engine-review" ]; then
+        printf '\n[Engine System] review evidence %s invalid writer: %s\n' "$file" "$_prov_writer" >&2
+        IFS="$old_ifs"; exit 1
+      fi
+      if [ "$_prov_commit" != "$_head_commit" ]; then
+        printf '\n[Engine System] review evidence %s stale: commit=%s HEAD=%s\n' "$file" "$_prov_commit" "$_head_commit" >&2
+        IFS="$old_ifs"; exit 1
+      fi
+      case "$_prov_argv" in
+        "engine review $_tid") : ;;
+        *) printf '\n[Engine System] review evidence %s argv mismatch: %s\n' "$file" "$_prov_argv" >&2
+           IFS="$old_ifs"; exit 1 ;;
+      esac
     fi
-    if [ "$_prov_commit" != "$_head_commit" ]; then
-      printf '\n[Engine System] review evidence %s stale: commit=%s HEAD=%s\n' "$file" "$_prov_commit" "$_head_commit" >&2
-      IFS="$old_ifs"; exit 1
-    fi
-    case "$_prov_argv" in
-      "engine review $_tid") : ;;
-      *) printf '\n[Engine System] review evidence %s argv mismatch: %s\n' "$file" "$_prov_argv" >&2
-         IFS="$old_ifs"; exit 1 ;;
-    esac
   done
   IFS="$old_ifs"
 fi

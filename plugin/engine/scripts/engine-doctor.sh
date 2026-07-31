@@ -1463,6 +1463,102 @@ check_review_config_protected() {
   fi
 }
 
+# v6.21.0 (T-072): agent-reviewer Doctor check.
+# 对 done 卡:若 agent_review enabled(config 或 L2 override),检查 AGENT-REVIEW.json 存在且状态可接受。
+# 新 done 缺 evidence → FAIL;历史 done → WARN;status=block → FAIL;status=concerns → WARN。
+check_agent_review_evidence() {
+  local tasks_dir="$ENGINE_DIR/tasks"
+  local config_file="$ENGINE_DIR/review/config.json"
+  [ -d "$tasks_dir" ] || return 0
+
+  # 读 config: agent_review.enabled
+  local ar_enabled=false
+  if [ -f "$config_file" ]; then
+    if command -v python3 >/dev/null 2>&1; then
+      ar_enabled="$(CONFIG_FILE="$config_file" python3 -c "
+import json, os
+try:
+    with open(os.environ['CONFIG_FILE']) as f: cfg = json.load(f)
+except: cfg = {}
+ar = cfg.get('defaults',{}).get('agent_review',{})
+ar_ov = cfg.get('overrides',{}).get('agent_review',{})
+if isinstance(ar_ov, dict): ar = {**ar, **ar_ov}
+print('true' if ar.get('enabled', False) else 'false')
+" 2>/dev/null || echo "false")"
+    elif command -v python >/dev/null 2>&1; then
+      ar_enabled="$(CONFIG_FILE="$config_file" python -c "
+import json, os
+try:
+    with open(os.environ['CONFIG_FILE']) as f: cfg = json.load(f)
+except: cfg = {}
+ar = cfg.get('defaults',{}).get('agent_review',{})
+ar_ov = cfg.get('overrides',{}).get('agent_review',{})
+if isinstance(ar_ov, dict): ar = {**ar, **ar_ov}
+print('true' if ar.get('enabled', False) else 'false')
+" 2>/dev/null || echo "false")"
+    fi
+  fi
+
+  for f in "$tasks_dir"/T-*.md; do
+    [ -f "$f" ] || continue
+    [[ "$f" == *.spec.md ]] && continue
+    card_status_done "$f" || continue
+    local tid; tid="$(basename "$f" .md)"
+
+    # 判断此卡是否需要 agent review: config enabled 或 L2 override
+    local needs_agent_review=false
+    if [ "$ar_enabled" = "true" ]; then
+      needs_agent_review=true
+    else
+      # L2 REVIEW-OVERRIDE: add_dimensions: agent_review
+      if awk '/^## REVIEW-OVERRIDE/{f=1;next} /^## /{f=0} f' "$f" 2>/dev/null | grep -q 'add_dimensions:.*agent_review'; then
+        needs_agent_review=true
+      fi
+    fi
+    [ "$needs_agent_review" = true ] || continue
+
+    local agent_review_file="$ENGINE_DIR/review/evidence/$tid/AGENT-REVIEW.json"
+
+    if [ ! -f "$agent_review_file" ]; then
+      # 判断 HEAD status:已 done → 历史 WARN;否则新 done FAIL
+      if command -v git >/dev/null 2>&1 && git cat-file -e "HEAD:engine/tasks/$tid.md" 2>/dev/null \
+        && git show "HEAD:engine/tasks/$tid.md" 2>/dev/null | grep -Eq '^[[:space:]]*(>[[:space:]]*)?status:[[:space:]]*done'; then
+        warn "done task $tid missing agent review evidence (legacy)"
+        echo "  human: Task $tid was 'done' in HEAD; agent review evidence missing (legacy). Run 'engine review-agent $tid --package' then validate."
+      else
+        fail "newly-done task $tid missing agent review evidence"
+        echo "  human: Task $tid is marked 'done' but has no agent review evidence. Run 'engine review-agent $tid --package', feed to agent, then '--validate'."
+      fi
+      continue
+    fi
+
+    # 校验 status
+    local agent_status
+    agent_status="$(grep -oE '"status":"[^"]*"' "$agent_review_file" | head -1 | sed 's/"status":"//;s/"//')"
+    case "$agent_status" in
+      block)
+        fail "$tid done task has agent review block status"
+        echo "  human: Task $tid agent review found critical findings (status=block). Fix or waive via D-xxx decision."
+        ;;
+      concerns)
+        warn "$tid agent review has concerns (architect should confirm)"
+        echo "  human: Task $tid agent review status=concerns. Architect should confirm the high findings are acceptable."
+        ;;
+      pass) : ;;
+      *)
+        warn "$tid agent review has unknown status: $agent_status"
+        ;;
+    esac
+
+    # provenance sanity: writer
+    local ar_writer
+    ar_writer="$(grep -oE '"writer":"[^"]*"' "$agent_review_file" | head -1 | sed 's/"writer":"//;s/"//')"
+    if [ "$ar_writer" != "agent-reviewer" ]; then
+      warn "$tid agent review writer=$ar_writer (expected agent-reviewer)"
+    fi
+  done
+}
+
 # v6.18.0 (D-038/T-066 AC-8): drift-check integration. Defers to the
 # standalone engine-drift-check.sh script (cheap fingerprint comparison,
 # no verify re-run). Tamper/drift = FAIL; warn-only issues stay WARN.
@@ -1882,6 +1978,7 @@ check_status_conflict
 check_workstream_orphan
 check_review_evidence
 check_review_config_protected
+check_agent_review_evidence
 
 # ── Project-custom checks (engine/checks/) ──
 # Each project may place executable check-*.sh (FAIL on non-zero) or warn-*.sh

@@ -1,6 +1,6 @@
 # ENGINE_MAP — 引擎索引
 
-> Engine System (engine_system) · Revision: 40 · Last updated: 2026-07-30 (v6.19.0)
+> Engine System (engine_system) · Revision: 41 · Last updated: 2026-07-31 (v6.21.0)
 > ⚠️ MVP dogfood 实例（精简版）。完整 v5.5 注册表（§1.1 / §1.2 / §2 / §3 / 预算）待 `/engine-reconcile` 或 `/engine-init` 补全。
 
 ## §0 Profile & Read-Gate
@@ -20,6 +20,8 @@
 | GLOSSARY.md | irreducible | v6.2 开发者沟通规则-术语表（Developer Communication Rule 配套） | 2026-07-13 |
 | ENGINE_DOCTOR.md | irreducible | 引擎健康检查、自维护脚本契约与旧项目 contract migrator 契约 | 2026-06-22 |
 | engine/review/config.json | mixed | review 子系统配置(L0 defaults + L1 overrides) | 2026-07-30 |
+| engine/review/protocol.md | irreducible | agent-reviewer L0 默认审查协议(5 维度 + 输出规则) | 2026-07-31 |
+| engine/scripts/engine-review-agent*.sh | tool | agent-reviewer CLI(package/validate 两原子命令) | 2026-07-31 |
 
 ### §1.1 Section class breakdown (mixed 文件分段)
 
@@ -44,7 +46,7 @@ path-glob → domain 路由表。机读源:`engine/domains/federation.json`;Sess
 
 ## §4 完整性与新鲜度
 
-- 全局 revision：35
+- 全局 revision：41
 
 ### 里程碑状态
 
@@ -70,6 +72,7 @@ path-glob → domain 路由表。机读源:`engine/domains/federation.json`;Sess
 | v6.13.0 (T-052) .engineignore 旁路通道 | ✅ | issue #17:非产品路径(跨 agent 锚点 GEMINI.md/AGENTS.md、engine 工具自身、项目 config)被 task-card union gating 拦截,要么建 throwaway 卡,要么 `--no-verify` 绕过。本版加 `.engineignore`(gitignore 风格)旁路:pre-commit hook 加 `is_engineignored()`(读 `$ROOT/.engineignore`,复用 `match_any_glob`,strip trailing `/**`,纯 shell 零子进程)+ `union_not_all_forbidden()`(命中 .engineignore 跳 WRITE-SET 检查,但不跳 FORBIDDEN——纠正 issue #17 提案设计错误)。旁路范围仅 no-card + union WRITE-SET 两块;protected-path/dist-stale 独立路径不受影响。`.engineignore` 入 rules.json protected_paths(需 covering decision D-036);Doctor `check_engineignore` 对 product 路径 WARN。`engine/skeleton/.engineignore` 模板供 engine-init。测试 7 场景 10 断言 PASS。 |
 | v6.18.0 (T-066) 防漂移 P1 — 证据多锚 + drift-check | ✅ | D-038a/b 实施:evidence schema 升级为多锚(output_fingerprint + code_fingerprint via `git ls-files -s` + write_set_snapshot + verified_against_commit + write_provenance + MANIFEST.json 聚合 hash)。新增 `engine-drift-check.{sh,ps1}` 三步顺序校验(完整性自证 → WRITE-SET 二阶 → 代码指纹)。pre-commit 加 provenance gate(writer=engine-verify + commit=HEAD + argv 匹配;手动需 evidence-manual-edit 标注)。rules.json 加 `engine/evidence/**` + `engine-drift-check.*` protected_paths。engine-doctor 集成 drift-check。plugin 镜像 byte-identical(7 脚本)。测试:drift-check 5 场景 + provenance 6 场景。 |
 | v6.19.0 (T-067) 防漂移 P2 — 状态面板视图化 + 信任分级注入 | ✅ | D-038c/d 实施:CONTEXT.md 状态面板从「权威声明」降级为「派生视图」(双写过渡期 v6.19.0~v6.20.0,旧静态段保留并标 `<!-- legacy: status-panel -->`,新 "Derived Status" 段由 engine context 实时重算 git tag + engine/VERSION + 最近 done 卡 evidence 信任级)。`engine-context.{sh,ps1}` 新增 `render_derived_status()` 输出 [T1]/[T2 legacy]/[T2 declared-only]/[T3 unverified] 信任标签(T1=code_fingerprint + verified_against_commit=HEAD/ancestor + tag/VERSION 一致;T2 分档 legacy-evidence/declared-only/stale;T3=待验证)。`engine-doctor.{sh,ps1}` 新增 `check_derived_status` 校验 legacy 标注 + tag/VERSION 一致性 + stale panel(双写过渡期 WARN 不 FAIL)。plugin 镜像 byte-identical(4 脚本)。测试 test_derived_status.sh 6 场景 9/9 PASS。 |
+| v6.21.0 (T-071) Review P2 — agent-reviewer 语义审查 | ✅ | 两原子命令(--package 打包审查上下文 / --validate 校验 agent 产出)。5 维固定审查(correctness/design/consistency/readability/completeness) + 3 参数化静态挑战 + 反橡皮图章(E_SHALLOW) + provenance 回显模型(package_sha256 COMPUTE 归一化 + head_commit echo)。config.json agent_review 段(opt-in)。ps1 行为镜像(非 byte-identical)。60 断言全绿(CLI 12 + package 19 + validate 16 + config 4 + mirror 9)。 |
 | N1-N5 | ✅ | 全部达成 |
 
 ### 运营工件层
@@ -79,7 +82,7 @@ path-glob → domain 路由表。机读源:`engine/domains/federation.json`;Sess
 ### 当前状态
 
 - 最近 change capsule：`engine/changes/CHANGE-2026-07-30-04.md`
-- 活跃任务卡：无。前序: T-067 done(v6.19.0 防漂移 P2 状态面板视图化 + 信任分级注入 D-038c/d) / T-066 done(v6.18.0 防漂移 P1 证据多锚 + drift-check D-038a/b) / T-065 done(v6.17.4 pre-commit governing #21) / T-064 done(v6.17.3 CI/Doctor 三修复) / T-063 done(v6.17.2 migrator bump 提示 #15) / T-060 done(v6.16.0 doctor 一致性 #19+#20) / T-059 done(v6.15.1 evidence+文档完整性) / T-058 done(v6.15.0 PS 5.1 BOM 根因修复) / T-057 done(v6.14.2 § 编码 hotfix) / T-056 done(v6.14.1 em-dash 编码 hotfix) / T-054 done(v6.14.0 pre-commit AC PASS #18) / T-052 done(v6.13.0 .engineignore 旁路通道, issue #17) / T-051 done(v6.12.3 dist-stale pre-commit 门禁) / T-050 done(v6.12.2 tombstone 生命周期修复) / T-049 done(v6.12.1 issue #11 九项门禁静默失效修复) / T-048 done(v6.12.0 多卡并行 union gating + 租约液性修复)
+- 活跃任务卡：T-071(agent-reviewer 语义审查子系统,v6.21.0)。前序: T-070 done(v6.20.0 Review P1 pipeline) / T-069 done(v6.20.0 Review P1 基础) / T-067 done(v6.19.0 防漂移 P2) / T-066 done(v6.18.0 防漂移 P1)
 - 待批决策：D-018(proposed); Q2 基准试点库待拍板
 - 已批准决策：D-001~D-015, D-017, D-024~D-027, D-029, D-030, D-031, D-032, D-033, D-034, D-035, D-036（详见 `engine/decisions/`）
 

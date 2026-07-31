@@ -35,6 +35,8 @@ Usage:
   engine migrate        Run contract migration on existing engine files
   engine verify T-NNN   Run behavior verification for a task card
   engine review T-NNN  Run post-task code review (semgrep + eslint) for a task card
+  engine review-agent T-NNN --package   Package review context for external agent review
+  engine review-agent T-NNN --validate  Validate agent-produced AGENT-REVIEW.json
   engine doctor         Run engine health check
   engine load           Install the engine CLI shim into user PATH (%USERPROFILE%\.engine\bin)
   engine unload         Remove the engine CLI shim from user PATH
@@ -632,6 +634,20 @@ switch ($Command) {
     }
     $reviewScript = Join-Path $PWD.Path "engine\scripts\engine-review.ps1"
     & $reviewScript -Task $Task
+  }
+  "review-agent" {
+    if (-not (Test-Path "engine")) {
+      Write-Error "Error: engine/ not found in $PWD. Run 'engine review-agent' in a project root."
+      exit 2
+    }
+    # Collect all args after command: T-NNN + --package/--validate
+    $raArgs = @()
+    if ($Task) { $raArgs += $Task }
+    if ($Agent) { $raArgs += $Agent }
+    foreach ($a in $args) { $raArgs += "$a" }
+    $raScript = Join-Path $PWD.Path "engine\scripts\engine-review-agent.ps1"
+    & $raScript @raArgs
+    exit $LASTEXITCODE
   }
   "context" {
     if (-not (Test-Path "engine")) {

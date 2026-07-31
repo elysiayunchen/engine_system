@@ -1,5 +1,17 @@
 # Changelog
 
+## v6.21.0 (2026-07-31) — Review 子系统 P2(agent-reviewer 语义审查)
+
+- 新增 `engine review-agent T-NNN --package/--validate` 两原子命令(外部 agent 做语义级代码审查)
+- 新增 6 个脚本:engine-review-agent{,-package,-validate}.{sh,ps1}(plugin 行为镜像)
+- 新增 `engine/review/protocol.md`(L0 默认审查协议,5 维度固定)
+- config.json 新增 `agent_review` 配置段(enabled 默认 false,opt-in;min_entries/min_narrative/adversarial_challenges 等参数)
+- Package 阶段:WRITE-SET diff + 周边上下文(git hunk header + grep) + 域知识(federation 路由) + 3 个参数化静态挑战 + v1 linter 摘要注入 + sha256 自证(COMPUTE 归一化算法)
+- Validate 阶段:E_SCHEMA(7 必填字段 + 5 维度结构) → E_SHALLOW(反橡皮图章:最小条目/叙事量/对抗响应长度) → E_PROVENANCE(回显模型:package_sha256 + head_commit  echoes) → E_STALE(WARN)
+- 通过后更新 REVIEW.json(追加 agent_review 维度) + 重算 evidence_manifest_sha256
+- CLI dispatcher 更新:engine/bin/engine{,.ps1} + plugin 镜像
+- 60 个测试断言全绿(CLI 12 + package 19 + validate 16 + config 4 + mirror 9)
+
 ## v6.20.0 (2026-07-30) — Review 子系统 P1(pipeline 核心)
 
 - 新增 `engine review T-069` 命令(二维审查:semgrep + eslint)

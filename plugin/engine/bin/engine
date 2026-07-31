@@ -25,6 +25,8 @@ Usage:
   engine migrate        Run contract migration on existing engine files
   engine verify T-NNN   Run behavior verification for a task card
   engine review T-NNN  Run post-task code review (semgrep + eslint) for a task card
+  engine review-agent T-NNN --package   Package review context for agent code review
+  engine review-agent T-NNN --validate  Validate agent-produced AGENT-REVIEW.json
   engine doctor         Run engine health check
   engine load           Install the engine CLI shim into user PATH (~/.local/bin)
   engine unload         Remove the engine CLI shim from user PATH
@@ -698,6 +700,14 @@ case "${1:-help}" in
       exit 2
     fi
     bash "$PWD/engine/scripts/engine-review.sh" "$task"
+    ;;
+  review-agent)
+    if [ ! -d "$PWD/engine" ]; then
+      echo "Error: engine/ not found in $PWD. Run 'engine review-agent' in a project root." >&2
+      exit 2
+    fi
+    shift
+    bash "$PWD/engine/scripts/engine-review-agent.sh" "$@"
     ;;
   context)
     if [ ! -d "$PWD/engine" ]; then

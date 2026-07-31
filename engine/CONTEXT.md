@@ -1,6 +1,6 @@
 # CONTEXT — 当前状态
 
-> Engine System (engine_system) · Last updated: 2026-07-31 (v6.20.0) · Profile: CLI-LEAN
+> Engine System (engine_system) · Last updated: 2026-07-31 (v6.21.0) · Profile: CLI-LEAN
 
 ## 状态面板
 
@@ -10,8 +10,8 @@
 | 维度 | 状态 |
 |------|------|
 | 构建 | ✅ 正常（纯 markdown + shell 脚本，无构建步骤） |
-| 上次完成 | **v6.20.0(T-069 + T-070 Review 子系统上线)**:T-069 review pipeline core(19 AC)— `engine review T-NNN` CLI + pipeline(diff by task_first_commit + semgrep/eslint 工具 + L0/L1/L2 config 三层 merge + extension whitelist + L2 REVIEW-OVERRIDE 升级 + block/degraded/no_tool_for_language 路径)。T-070 pre-commit provenance + Doctor + 集成(13 AC)— pre-commit 加 review evidence provenance 独立校验块(writer=engine-review + commit=HEAD + argv="engine review") + protected-path 豁免;Doctor 加 `check_review_evidence` + `check_review_config_protected`;全链路 e2e + T-070 自审 evidence(狗食,本提交经 provenance gate)。Review 子系统全功能 operational。前序 **v6.19.0(T-067 防漂移 P2)**。 |
-| 进行中 | 无。Review 子系统已全功能上线。下一里程碑:T-068 批量补 code_fingerprint(14+ 张 done 卡)提升 T1 信任级占比。 |
+| 上次完成 | **v6.21.0(T-071 + T-072 Agent-Reviewer 子系统上线)**:T-071 核心(16 AC)— `engine review-agent T-NNN --package/--validate` 两原子命令(package 打包审查上下文 + validate 四层校验 E_SCHEMA/E_SHALLOW/E_PROVENANCE/E_STALE + provenance COMPUTE 归一化 sha256 + ps1 行为镜像 + 5 处 spec 偏差修正)。T-072 门禁集成(9 AC)— pre-commit 扩展 AGENT-REVIEW.json provenance(writer=agent-reviewer + package_sha256 校验) + Doctor check_agent_review_evidence(done + enabled → FAIL/WARN) + rules.json +14 protected_paths。测试 83 断言全 PASS。前序 **v6.20.0(T-069 + T-070 Review 子系统)**。 |
+| 进行中 | 无。Agent-Reviewer 子系统已全功能上线。已知债:doctor ps1 缺 review 相关 check(T-070 遗留对等债)。 |
 | 阻塞 | 无。 |
 
 ## 当前假设 / 决策（本轮拍板）

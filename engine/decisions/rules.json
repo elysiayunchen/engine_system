@@ -16,6 +16,17 @@
     "engine/scripts/engine-drift-check.sh",
     "engine/scripts/engine-drift-check.ps1",
     "plugin/engine/scripts/engine-drift-check.sh",
-    "plugin/engine/scripts/engine-drift-check.ps1"
+    "plugin/engine/scripts/engine-drift-check.ps1",
+    "engine/scripts/engine-review.sh",
+    "engine/scripts/engine-review.ps1",
+    "engine/scripts/engine-review-pipeline.sh",
+    "engine/scripts/engine-review-pipeline.ps1",
+    "plugin/engine/scripts/engine-review.sh",
+    "plugin/engine/scripts/engine-review.ps1",
+    "plugin/engine/scripts/engine-review-pipeline.sh",
+    "plugin/engine/scripts/engine-review-pipeline.ps1",
+    "engine/review/config.json",
+    "engine/review/evidence/**",
+    "plugin/engine/review/**"
   ]
 }

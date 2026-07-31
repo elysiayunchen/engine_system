@@ -19,3 +19,7 @@
 3. 4 plugin mirrors synced byte-identical.
 4. manifest.json SHA256 recalculated (62 entries).
 5. AGENTS.md / engine/SYSTEM.md / engine/ENGINE_DOCTOR.md managed blocks updated by migrator (contract-version 6.16.0).
+- [x] AC-1 bash -c "awk 'length>2000' engine/ENGINE_DOCTOR.md plugin/engine/ENGINE_DOCTOR.m — evidence/AC-1.json PASS @ 2026-07-31T05:11:35Z
+- [x] AC-2 bash -c "grep -c 'pre-existing in HEAD' engine/scripts/engine-doctor.sh plugin/e — evidence/AC-2.json PASS @ 2026-07-31T05:11:35Z
+- [x] AC-3 bash -c "bash engine/scripts/engine-migrate-contract.sh --root . 2>&1 | grep -q  — evidence/AC-3.json PASS @ 2026-07-31T05:11:35Z
+- [x] AC-5 bash -c "grep -c 'legacy card' engine/scripts/engine-doctor.sh" = 1 — evidence/AC-5.json PASS @ 2026-07-31T05:11:57Z

@@ -21,6 +21,12 @@
 | ENGINE_DOCTOR.md | irreducible | 引擎健康检查、自维护脚本契约与旧项目 contract migrator 契约 | 2026-06-22 |
 | engine/review/config.json | mixed | review 子系统配置(L0 defaults + L1 overrides) | 2026-07-30 |
 
+### §1.1 Section class breakdown (mixed 文件分段)
+
+| 文件 | 段落 | Class | 说明 |
+|------|------|-------|------|
+| engine/review/config.json | defaults + overrides | mixed | L0 defaults + L1 overrides 两段配置 |
+
 > 维护脚本：`plugin/engine/scripts/engine-hook-session-start.{sh,ps1}`、`engine-hook-stop.{sh,ps1}`、`engine-doctor.{sh,ps1}`、`engine-migrate-contract.{sh,ps1}`、`githooks/pre-commit`。
 > 按 v5.5 完整注册路由，脚本属维护工具，**不登记为权威文件**；其契约见 ENGINE_DOCTOR.md 与 AGENT_ADAPTERS.md。
 

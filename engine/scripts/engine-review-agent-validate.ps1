@@ -1,4 +1,4 @@
-# Engine System — Agent-Reviewer Validate (v6.21.0) [PowerShell behavioral mirror]
+# Engine System — Agent-Reviewer Validate (v6.22.0) [PowerShell behavioral mirror]
 #
 # Phase 3: Validate AGENT-REVIEW.json produced by external agent
 # Behavioral mirror of engine-review-agent-validate.sh
@@ -125,6 +125,45 @@ try {
         exit 1
     }
 
+    # === 4b. E_GROUNDED (v6.22.0): verify finding file:line references exist ===
+    $groundedErrors = @()
+    $groundedWarnings = @()
+    $totalFindingsForGrounding = 0
+    $ungroundedCount = 0
+    foreach ($dim in $requiredDims) {
+        $entries = @($data.dimensions.$dim.entries)
+        for ($i = 0; $i -lt $entries.Count; $i++) {
+            $e = $entries[$i]
+            if ($e.type -ne 'finding') { continue }
+            $totalFindingsForGrounding++
+            $fpath = if ($e.PSObject.Properties['file']) { $e.file } else { '' }
+            $fline = if ($e.PSObject.Properties['line']) { [int]$e.line } else { 0 }
+            if (-not $fpath -or -not $fline) { continue }
+            $fullPath = Join-Path $ROOT $fpath
+            if (-not (Test-Path $fullPath -PathType Leaf)) {
+                $ungroundedCount++
+                $groundedErrors += "${dim}.entries[${i}] references non-existent file: $fpath"
+                continue
+            }
+            try {
+                $lineCount = (Get-Content $fullPath -Encoding UTF8).Count
+                if ($fline -gt $lineCount) {
+                    $ungroundedCount++
+                    $groundedErrors += "${dim}.entries[${i}] line $fline exceeds file length ($lineCount lines): $fpath"
+                }
+            } catch {}
+        }
+    }
+    if ($totalFindingsForGrounding -gt 0 -and $ungroundedCount -gt 0) {
+        $ratio = $ungroundedCount / $totalFindingsForGrounding
+        if ($ratio -gt 0.5) {
+            foreach ($msg in $groundedErrors) { [Console]::Error.WriteLine("[engine-review-agent-validate] FAIL E_GROUNDED: $msg") }
+            exit 1
+        } else {
+            $groundedWarnings = $groundedErrors
+        }
+    }
+
     # === 5. E_PROVENANCE ===
     $provErrors = @()
     if ($prov.writer -ne 'agent-reviewer') { $provErrors += "invalid writer: $($prov.writer)" }
@@ -170,6 +209,22 @@ try {
         }
     }
 
+    # === 6b. E_INDEPENDENCE (v6.22.0, WARN): reviewer_session should differ from packaged_by ===
+    if (Test-Path $packageFile) {
+        $pkgPackagedBy = $null
+        foreach ($line in (Get-Content $packageFile -Encoding UTF8)) {
+            if ($line -match '^> packaged_by:\s*(.+)$') { $pkgPackagedBy = $Matches[1].Trim(); break }
+        }
+        $reviewerSession = if ($prov.PSObject.Properties['reviewer_session']) { $prov.reviewer_session } else { '' }
+        if (-not $reviewerSession) {
+            [Console]::Error.WriteLine("[engine-review-agent-validate] WARN: reviewer_session missing in write_provenance (grace period, will be required)")
+        } elseif ($pkgPackagedBy -and $reviewerSession -eq $pkgPackagedBy) {
+            [Console]::Error.WriteLine("[engine-review-agent-validate] WARN: reviewer_session matches packaged_by ($reviewerSession) - review may not be independent")
+        }
+    }
+    # Output grounded warnings
+    foreach ($gw in $groundedWarnings) { [Console]::Error.WriteLine("[engine-review-agent-validate] WARN: E_GROUNDED: $gw") }
+
     # === 7. Append validated_by ===
     $validatedAt = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
     $data.write_provenance | Add-Member -NotePropertyName 'validated_by' -NotePropertyValue "engine review-agent $Task --validate" -Force
@@ -188,7 +243,7 @@ try {
 
     if (Test-Path $reviewJson) {
         $review = Get-Content $reviewJson -Raw -Encoding UTF8 | ConvertFrom-Json
-        $agentDim = @{ status = $agentStatus; findings_count = @{critical=0;high=0;medium=0;low=0;info=0}; protocol_version = 'v6.21.0' }
+        $agentDim = @{ status = $agentStatus; findings_count = @{critical=0;high=0;medium=0;low=0;info=0}; protocol_version = 'v6.22.0' }
         foreach ($dim in $requiredDims) {
             foreach ($e in @($data.dimensions.$dim.entries)) { $agentDim.findings_count[$e.severity]++ }
         }
@@ -203,8 +258,8 @@ try {
         }
         $newReview = @{
             task = $Task; timestamp = $validatedAt; status = $agentStatus
-            dimensions = @{ agent_review = @{ status = $agentStatus; findings_count = $newCounts; protocol_version = 'v6.21.0' } }
-            write_provenance = @{ writer = 'engine-review-agent-validate'; commit = $headCommit; timestamp = $validatedAt; argv = "engine review-agent $Task --validate"; pipeline_version = 'v6.21.0' }
+            dimensions = @{ agent_review = @{ status = $agentStatus; findings_count = $newCounts; protocol_version = 'v6.22.0' } }
+            write_provenance = @{ writer = 'engine-review-agent-validate'; commit = $headCommit; timestamp = $validatedAt; argv = "engine review-agent $Task --validate"; pipeline_version = 'v6.22.0' }
         }
         $newReview | ConvertTo-Json -Depth 10 -Compress | Set-Content $reviewJson -Encoding UTF8
     }

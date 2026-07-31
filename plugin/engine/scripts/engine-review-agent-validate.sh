@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Engine System — Agent-Reviewer Validate(v6.21.0)
+# Engine System — Agent-Reviewer Validate(v6.22.0)
 #
 # Phase 3: 校验外部 agent 产出的 AGENT-REVIEW.json
 #
@@ -111,7 +111,7 @@ print(ar.get('max_package_age_hours', 72))
 VALIDATE_RESULT=$(REVIEW_FILE="$review_file" PACKAGE_FILE="$package_file" \
   MIN_ENTRIES="$min_entries" MIN_NARRATIVE="$min_narrative" \
   MIN_MESSAGE="$min_message" MAX_AGE_HOURS="$max_age_hours" \
-  TASK="$task" \
+  TASK="$task" ROOT_DIR="$ROOT" \
 "$PY" << 'PYEOF'
 import json, os, sys, hashlib
 from datetime import datetime, timezone
@@ -234,6 +234,48 @@ if shallow_errors:
         print(f"E_SHALLOW|{msg}")
     sys.exit(1)
 
+# --- E_GROUNDED (v6.22.0): verify finding file:line references exist ---
+grounded_errors = []
+grounded_warnings = []
+total_findings_for_grounding = 0
+ungrounded_count = 0
+
+root_dir = os.environ.get('ROOT_DIR', '.')
+for dim in required_dims:
+    for i, entry in enumerate(dims.get(dim, {}).get('entries', [])):
+        if entry.get('type') != 'finding':
+            continue
+        total_findings_for_grounding += 1
+        fpath = entry.get('file', '')
+        fline = entry.get('line', 0)
+        if not fpath or not fline:
+            continue
+        # check file exists
+        full_path = os.path.join(root_dir, fpath)
+        if not os.path.isfile(full_path):
+            ungrounded_count += 1
+            grounded_errors.append(f'{dim}.entries[{i}] references non-existent file: {fpath}')
+            continue
+        # check line number within file
+        try:
+            with open(full_path, encoding='utf-8', errors='replace') as ff:
+                line_count = sum(1 for _ in ff)
+            if fline > line_count:
+                ungrounded_count += 1
+                grounded_errors.append(f'{dim}.entries[{i}] line {fline} exceeds file length ({line_count} lines): {fpath}')
+        except Exception:
+            pass
+
+if total_findings_for_grounding > 0 and ungrounded_count > 0:
+    ratio = ungrounded_count / total_findings_for_grounding
+    if ratio > 0.5:
+        for msg in grounded_errors:
+            print(f"E_GROUNDED|{msg}")
+        sys.exit(1)
+    else:
+        for msg in grounded_errors:
+            grounded_warnings.append(msg)
+
 # --- E_PROVENANCE ---
 prov_errors = []
 
@@ -284,6 +326,23 @@ if os.path.isfile(package_file):
                 warnings.append(f'package is {int(age_hours)} hours old (>{max_age_hours}h), consider regenerating')
         except ValueError:
             warnings.append('cannot parse package generated timestamp')
+
+# --- E_INDEPENDENCE (v6.22.0, WARN): reviewer_session should differ from packaged_by ---
+if os.path.isfile(package_file):
+    pkg_packaged_by = None
+    with open(package_file, encoding='utf-8') as f:
+        for line in f:
+            if line.startswith('> packaged_by:'):
+                pkg_packaged_by = line.split(':', 1)[1].strip()
+                break
+    reviewer_session = prov.get('reviewer_session', '')
+    if not reviewer_session:
+        warnings.append('reviewer_session missing in write_provenance (grace period, will be required)')
+    elif pkg_packaged_by and reviewer_session == pkg_packaged_by:
+        warnings.append(f'reviewer_session matches packaged_by ({reviewer_session}) — review may not be independent')
+
+# merge grounded warnings
+warnings.extend(grounded_warnings)
 
 # --- Output summary ---
 total_findings = sum(
@@ -367,7 +426,7 @@ if os.path.isfile(review_json):
     review.setdefault('dimensions', {})['agent_review'] = {
         'status': agent_status,
         'findings_count': counts,
-        'protocol_version': 'v6.21.0'
+        'protocol_version': 'v6.22.0'
     }
     if agent_status == 'block':
         review['status'] = 'block'
@@ -380,7 +439,7 @@ else:
             'agent_review': {
                 'status': agent_status,
                 'findings_count': counts,
-                'protocol_version': 'v6.21.0'
+                'protocol_version': 'v6.22.0'
             }
         },
         'write_provenance': {
@@ -388,7 +447,7 @@ else:
             'commit': head_commit,
             'timestamp': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
             'argv': f'engine review-agent {task} --validate',
-            'pipeline_version': 'v6.21.0'
+            'pipeline_version': 'v6.22.0'
         }
     }
 

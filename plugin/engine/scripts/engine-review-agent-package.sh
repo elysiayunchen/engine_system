@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Engine System — Agent-Reviewer Package(v6.21.0)
+# Engine System — Agent-Reviewer Package(v6.22.0)
 #
 # Phase 1: 打包审查上下文 → engine/review/evidence/T-NNN/review-package.md
 #
@@ -276,18 +276,133 @@ $(head -"$pit_lines" "$pit_file" 2>/dev/null || true)
   fi
 fi
 
-# === 7. 静态挑战生成(参数化) ===
-# most_changed_file: diff --stat 排序
+# === 7. 动态挑战生成(v6.22.0: diff 语义信号 → 参数化挑战) ===
+# packaged_by: 用于 reviewer 独立性校验
+packaged_by="${CLAUDE_SESSION_ID:-$(hostname 2>/dev/null || echo unknown):$$}"
+
+# most_changed_file: diff --stat 排序(保留,用于 fallback)
 most_changed_file=$(git diff --stat "$diff_base"..HEAD -- $diff_files 2>/dev/null | grep '|' | sort -t'|' -k2 -rn | head -1 | sed 's/|.*//' | tr -d ' ' || true)
 [ -z "$most_changed_file" ] && most_changed_file=$(echo "$diff_files" | tr ' ' '\n' | head -1)
 
-# largest_hunk_line: 最大 hunk 起始行
-largest_hunk_line=$(git diff -U0 "$diff_base"..HEAD -- "$most_changed_file" 2>/dev/null | grep '^@@' | sed 's/@@[^+]*+\([0-9]*\).*/\1/' | sort -rn | head -1 || true)
-[ -z "$largest_hunk_line" ] && largest_hunk_line="1"
+# 动态挑战:python 分析 diff 语义信号,生成 3 个针对性挑战
+challenges=$(DIFF_BASE="$diff_base" HEAD_REF="HEAD" DIFF_FILES="$diff_files" ROOT_DIR="$ROOT" "$PY" << 'PYEOF'
+import subprocess, os, re, sys
 
-# another_writeset_file: WRITE-SET 中除 most_changed_file 外的第一个代码文件
-another_file=$(printf '%s\n' $diff_files | grep -v "^$most_changed_file$" | head -1 || true)
-[ -z "$another_file" ] && another_file="(other WRITE-SET files)"
+diff_base = os.environ['DIFF_BASE']
+diff_files = os.environ['DIFF_FILES'].split()
+root = os.environ['ROOT_DIR']
+
+signals = []  # (priority, challenge_text)
+
+for f in diff_files:
+    try:
+        diff = subprocess.check_output(
+            ['git', 'diff', '-U3', f'{diff_base}..HEAD', '--', f],
+            cwd=root, stderr=subprocess.DEVNULL
+        ).decode('utf-8', errors='replace')
+    except Exception:
+        continue
+
+    added_lines = []
+    removed_count = 0
+    hunk_sizes = []
+    current_hunk = 0
+
+    for line in diff.split('\n'):
+        if line.startswith('@@'):
+            if current_hunk > 0:
+                hunk_sizes.append(current_hunk)
+            current_hunk = 0
+            m = re.search(r'\+(\d+)', line)
+            hunk_start = int(m.group(1)) if m else 0
+        elif line.startswith('+') and not line.startswith('+++'):
+            current_hunk += 1
+            added_lines.append((hunk_start + current_hunk, line[1:]))
+        elif line.startswith('-') and not line.startswith('---'):
+            removed_count += 1
+            current_hunk += 1
+
+    if current_hunk > 0:
+        hunk_sizes.append(current_hunk)
+
+    # Signal 1: new branch (if/case/switch) without visible else/fi in added lines
+    for lineno, content in added_lines:
+        stripped = content.strip()
+        if re.match(r'\b(if|case|switch|elif)\b', stripped) and not re.search(r'\belse\b', stripped):
+            # check if else appears within next 10 added lines
+            nearby = [c for l, c in added_lines if abs(l - lineno) < 10]
+            if not any('else' in c for c in nearby):
+                signals.append((90, f"File `{f}` line ~{lineno} adds a new branch (`{stripped[:60]}`) with no visible else/fallback. What happens when this condition is false — silent skip, crash, or data corruption?"))
+                break
+
+    # Signal 2: function signature change (def/function/func with params)
+    for lineno, content in added_lines:
+        stripped = content.strip()
+        if re.match(r'\b(def|function|func|sub)\b', stripped) and '(' in stripped:
+            signals.append((80, f"File `{f}` line ~{lineno} defines/modifies `{stripped[:60]}`. Are all callers updated to match the new signature? What breaks if an old caller invokes it?"))
+            break
+
+    # Signal 3: large hunk (>20 changed lines)
+    if hunk_sizes and max(hunk_sizes) > 20:
+        big_line = max(hunk_sizes)
+        signals.append((70, f"File `{f}` has a hunk with {big_line} changed lines. Is this a single logical change, or should it be split? What is the rollback story if this introduces a regression?"))
+
+    # Signal 4: significant deletion
+    if removed_count > 15:
+        signals.append((60, f"File `{f}` removes {removed_count} lines. Is any removed behavior still depended upon elsewhere? Are there tests that covered the deleted code path?"))
+
+    # Signal 5: TODO/FIXME/HACK added
+    for lineno, content in added_lines:
+        if re.search(r'\b(TODO|FIXME|HACK|XXX)\b', content):
+            signals.append((50, f"File `{f}` line ~{lineno} adds `{content.strip()[:60]}`. Is this intentional tech debt or a sign the design is incomplete? Who owns the follow-up?"))
+            break
+
+    # Signal 6: error handling added (try/catch/err/panic)
+    for lineno, content in added_lines:
+        stripped = content.strip()
+        if re.match(r'\b(try|catch|except|recover|on error)\b', stripped, re.IGNORECASE):
+            signals.append((55, f"File `{f}` line ~{lineno} adds error handling (`{stripped[:60]}`). Is the error propagated, swallowed, or logged? What does the user see when this path triggers?"))
+            break
+
+# Deduplicate and sort by priority
+seen = set()
+unique = []
+for pri, text in sorted(signals, key=lambda x: -x[0]):
+    key = text[:40]
+    if key not in seen:
+        seen.add(key)
+        unique.append(text)
+
+# Output top 3, or fallback
+if len(unique) >= 3:
+    for i, c in enumerate(unique[:3], 1):
+        print(f"{i}. {c}")
+elif len(unique) > 0:
+    for i, c in enumerate(unique, 1):
+        print(f"{i}. {c}")
+    # pad with static
+    statics = [
+        "If someone needs to modify this code 6 months from now, what is the biggest comprehension barrier?",
+        "What is the worst-case input for this change, and does it degrade gracefully?",
+        "Does this change introduce any implicit coupling that is not documented?"
+    ]
+    for j in range(len(unique), 3):
+        print(f"{j+1}. {statics[j - len(unique)]}")
+else:
+    print("SIGNAL_NONE")
+PYEOF
+) || challenges="SIGNAL_NONE"
+
+# Fallback: 无信号时用静态挑战
+if [ "$challenges" = "SIGNAL_NONE" ] || [ -z "$challenges" ]; then
+  largest_hunk_line=$(git diff -U0 "$diff_base"..HEAD -- "$most_changed_file" 2>/dev/null | grep '^@@' | sed 's/@@[^+]*+\([0-9]*\).*/\1/' | sort -rn | head -1 || true)
+  [ -z "$largest_hunk_line" ] && largest_hunk_line="1"
+  another_file=$(printf '%s\n' $diff_files | grep -v "^$most_changed_file$" | head -1 || true)
+  [ -z "$another_file" ] && another_file="(other WRITE-SET files)"
+  challenges="1. File \`$most_changed_file\` around line $largest_hunk_line contains the most complex change. What happens if it receives empty input or extremely long input?
+2. Does this change break any assumptions that \`$another_file\` makes about \`$most_changed_file\`?
+3. If someone needs to modify this code 6 months from now, what is the biggest comprehension barrier?"
+fi
 
 # === 8. v1 linter findings 摘要 ===
 linter_summary=""
@@ -388,7 +503,8 @@ schema_example='{
     "writer": "agent-reviewer",
     "commit": "'"$head_commit"'",
     "timestamp": "<write time>",
-    "package_sha256": "<fill from package header>"
+    "package_sha256": "<fill from package header>",
+    "reviewer_session": "<your session/agent identifier, must differ from packaged_by>"
   }
 }'
 
@@ -399,6 +515,7 @@ cat > "$package_file" <<PACKAGE_EOF
 > generated: $timestamp
 > package_sha256: PLACEHOLDER
 > head_commit: $head_commit
+> packaged_by: $packaged_by
 > task: $goal_text
 > scope: ${diff_base:0:8}..${head_commit:0:8}, $(echo "$diff_files" | wc -w | tr -d ' ') code files
 
@@ -431,9 +548,7 @@ $protocol_content
 
 ### Adversarial Challenges (must answer all 3)
 
-1. File \`$most_changed_file\` around line $largest_hunk_line contains the most complex change. What happens if it receives empty input or extremely long input?
-2. Does this change break any assumptions that \`$another_file\` makes about \`$most_changed_file\`?
-3. If someone needs to modify this code 6 months from now, what is the biggest comprehension barrier?
+$challenges
 
 $linter_summary
 
@@ -460,7 +575,7 @@ PACKAGE_EOF
 # 算法:将 package_sha256 行替换为固定占位符 "COMPUTE" 后计算 hash
 package_sha256=$(PKG_FILE="$package_file" "$PY" -c "
 import hashlib, re, os
-with open(os.environ['PKG_FILE'], encoding='utf-8') as f:
+with open(os.environ['PKG_FILE'], encoding='utf-8', errors='replace') as f:
     content = f.read()
 # normalize: replace whatever is after 'package_sha256: ' with canonical placeholder
 normalized = re.sub(r'(> package_sha256: ).*', r'\1COMPUTE', content)
@@ -470,7 +585,7 @@ sed -i "s/package_sha256: PLACEHOLDER/package_sha256: $package_sha256/" "$packag
   PKG_FILE="$package_file" PKG_SHA="$package_sha256" "$PY" -c "
 import pathlib, os
 p = pathlib.Path(os.environ['PKG_FILE'])
-t = p.read_text(encoding='utf-8')
+t = p.read_text(encoding='utf-8', errors='replace')
 p.write_text(t.replace('package_sha256: PLACEHOLDER', 'package_sha256: ' + os.environ['PKG_SHA']), encoding='utf-8')
 "
 
@@ -484,7 +599,7 @@ import os, re
 pkg = os.environ['PKG_FILE']
 max_lines = int(os.environ['MAX_LINES'])
 
-with open(pkg, encoding='utf-8') as f:
+with open(pkg, encoding='utf-8', errors='replace') as f:
     lines = f.readlines()
 
 def find_section(lines, header):

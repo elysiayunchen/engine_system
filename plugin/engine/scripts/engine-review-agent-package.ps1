@@ -1,4 +1,4 @@
-# Engine System — Agent-Reviewer Package (v6.21.0) [PowerShell behavioral mirror]
+# Engine System — Agent-Reviewer Package (v6.22.0) [PowerShell behavioral mirror]
 #
 # Phase 1: Package review context -> engine/review/evidence/T-NNN/review-package.md
 # Behavioral mirror of engine-review-agent-package.sh (same input -> same output)
@@ -164,17 +164,142 @@ try {
         }
     }
 
-    # === 7. Static challenges ===
+    # === 7. Dynamic challenges (v6.22.0: diff semantic signals -> parameterized challenges) ===
+    # packaged_by: for reviewer independence validation
+    $packagedBy = if ($env:CLAUDE_SESSION_ID) { $env:CLAUDE_SESSION_ID } else { "$([System.Net.Dns]::GetHostName()):$PID" }
+
+    # most_changed_file (retained for fallback)
     $diffStat = git -C $ROOT diff --stat "$diffBase..HEAD" -- @diffFiles 2>$null
     $mostChanged = ($diffStat | Select-String '\|' | Sort-Object { [int]($_ -replace '.*\|\s*(\d+).*','$1') } -Descending | Select-Object -First 1) -replace '\s*\|.*$', ''
     $mostChanged = $mostChanged.Trim()
     if (-not $mostChanged) { $mostChanged = $diffFiles[0] }
 
-    $hunkLines = git -C $ROOT diff -U0 "$diffBase..HEAD" -- $mostChanged 2>$null | Select-String '^@@' | ForEach-Object { if ($_ -match '\+(\d+)') { [int]$Matches[1] } } | Sort-Object -Descending | Select-Object -First 1
-    if (-not $hunkLines) { $hunkLines = 1 }
+    # Dynamic challenges: python analyzes diff semantic signals, generates 3 targeted challenges
+    $pyCmd = $null
+    foreach ($c in @('python3','python')) { try { $null = cmd /c "$c --version 2>nul"; if ($LASTEXITCODE -eq 0) { $pyCmd = $c; break } } catch {} }
 
-    $anotherFile = ($diffFiles | Where-Object { $_ -ne $mostChanged } | Select-Object -First 1)
-    if (-not $anotherFile) { $anotherFile = '(other WRITE-SET files)' }
+    $challenges = $null
+    if ($pyCmd) {
+        $env:DIFF_BASE = $diffBase
+        $env:HEAD_REF = 'HEAD'
+        $env:DIFF_FILES = ($diffFiles -join ' ')
+        $env:ROOT_DIR = $ROOT
+        $pyScript = @'
+import subprocess, os, re, sys
+
+diff_base = os.environ['DIFF_BASE']
+diff_files = os.environ['DIFF_FILES'].split()
+root = os.environ['ROOT_DIR']
+
+signals = []
+
+for f in diff_files:
+    try:
+        diff = subprocess.check_output(
+            ['git', 'diff', '-U3', f'{diff_base}..HEAD', '--', f],
+            cwd=root, stderr=subprocess.DEVNULL
+        ).decode('utf-8', errors='replace')
+    except Exception:
+        continue
+
+    added_lines = []
+    removed_count = 0
+    hunk_sizes = []
+    current_hunk = 0
+
+    for line in diff.split('\n'):
+        if line.startswith('@@'):
+            if current_hunk > 0:
+                hunk_sizes.append(current_hunk)
+            current_hunk = 0
+            m = re.search(r'\+(\d+)', line)
+            hunk_start = int(m.group(1)) if m else 0
+        elif line.startswith('+') and not line.startswith('+++'):
+            current_hunk += 1
+            added_lines.append((hunk_start + current_hunk, line[1:]))
+        elif line.startswith('-') and not line.startswith('---'):
+            removed_count += 1
+            current_hunk += 1
+
+    if current_hunk > 0:
+        hunk_sizes.append(current_hunk)
+
+    for lineno, content in added_lines:
+        stripped = content.strip()
+        if re.match(r'\b(if|case|switch|elif)\b', stripped) and not re.search(r'\belse\b', stripped):
+            nearby = [c for l, c in added_lines if abs(l - lineno) < 10]
+            if not any('else' in c for c in nearby):
+                signals.append((90, f"File `{f}` line ~{lineno} adds a new branch (`{stripped[:60]}`) with no visible else/fallback. What happens when this condition is false?"))
+                break
+
+    for lineno, content in added_lines:
+        stripped = content.strip()
+        if re.match(r'\b(def|function|func|sub)\b', stripped) and '(' in stripped:
+            signals.append((80, f"File `{f}` line ~{lineno} defines/modifies `{stripped[:60]}`. Are all callers updated to match the new signature?"))
+            break
+
+    if hunk_sizes and max(hunk_sizes) > 20:
+        big_line = max(hunk_sizes)
+        signals.append((70, f"File `{f}` has a hunk with {big_line} changed lines. Is this a single logical change, or should it be split?"))
+
+    if removed_count > 15:
+        signals.append((60, f"File `{f}` removes {removed_count} lines. Are there callers or tests that still depend on the removed behavior?"))
+
+    for lineno, content in added_lines:
+        stripped = content.strip()
+        if re.search(r'\b(TODO|FIXME|HACK|XXX)\b', stripped):
+            signals.append((50, f"File `{f}` line ~{lineno} adds `{stripped[:60]}`. Is this intentional tech debt, and is it tracked?"))
+            break
+
+    for lineno, content in added_lines:
+        stripped = content.strip()
+        if re.match(r'\b(catch|except|rescue|on error|trap)\b', stripped, re.IGNORECASE):
+            signals.append((55, f"File `{f}` line ~{lineno} adds error handling (`{stripped[:60]}`). Does it swallow errors silently or propagate them correctly?"))
+            break
+
+signals.sort(key=lambda x: -x[0])
+unique = []
+seen = set()
+for pri, text in signals:
+    key = text[:40]
+    if key not in seen:
+        seen.add(key)
+        unique.append(text)
+
+if len(unique) >= 3:
+    for i, c in enumerate(unique[:3], 1):
+        print(f"{i}. {c}")
+elif len(unique) > 0:
+    for i, c in enumerate(unique, 1):
+        print(f"{i}. {c}")
+    statics = [
+        "If someone needs to modify this code 6 months from now, what is the biggest comprehension barrier?",
+        "What is the worst-case input for this change, and does it degrade gracefully?",
+        "Does this change introduce any implicit coupling that is not documented?"
+    ]
+    for j in range(len(unique), 3):
+        print(f"{j+1}. {statics[j - len(unique)]}")
+else:
+    print("SIGNAL_NONE")
+'@
+        try {
+            $challenges = & $pyCmd -c $pyScript 2>$null
+            $env:DIFF_BASE = $null; $env:HEAD_REF = $null; $env:DIFF_FILES = $null; $env:ROOT_DIR = $null
+        } catch {
+            $challenges = $null
+        }
+    }
+
+    # Fallback: no signals or python unavailable -> static challenges
+    if (-not $challenges -or $challenges -eq 'SIGNAL_NONE' -or ($challenges -join '').Trim() -eq '') {
+        $hunkLines = git -C $ROOT diff -U0 "$diffBase..HEAD" -- $mostChanged 2>$null | Select-String '^@@' | ForEach-Object { if ($_ -match '\+(\d+)') { [int]$Matches[1] } } | Sort-Object -Descending | Select-Object -First 1
+        if (-not $hunkLines) { $hunkLines = 1 }
+        $anotherFile = ($diffFiles | Where-Object { $_ -ne $mostChanged } | Select-Object -First 1)
+        if (-not $anotherFile) { $anotherFile = '(other WRITE-SET files)' }
+        $challenges = "1. File ``$mostChanged`` around line $hunkLines contains the most complex change. What happens if it receives empty input or extremely long input?`n2. Does this change break any assumptions that ``$anotherFile`` makes about ``$mostChanged``?`n3. If someone needs to modify this code 6 months from now, what is the biggest comprehension barrier?"
+    } else {
+        $challenges = ($challenges -join "`n")
+    }
 
     # === 8. Linter summary ===
     $linterSummary = ''
@@ -230,6 +355,7 @@ try {
 > generated: $timestamp
 > package_sha256: PLACEHOLDER
 > head_commit: $headCommit
+> packaged_by: $packagedBy
 > task: $goalText
 > scope: $scopeShort, $($diffFiles.Count) code files
 
@@ -262,9 +388,7 @@ $protocolContent
 
 ### Adversarial Challenges (must answer all 3)
 
-1. File ``$mostChanged`` around line $hunkLines contains the most complex change. What happens if it receives empty input or extremely long input?
-2. Does this change break any assumptions that ``$anotherFile`` makes about ``$mostChanged``?
-3. If someone needs to modify this code 6 months from now, what is the biggest comprehension barrier?
+$challenges
 
 $linterSummary
 
@@ -296,7 +420,8 @@ Schema (all fields required):
     "writer": "agent-reviewer",
     "commit": "$headCommit",
     "timestamp": "<write time>",
-    "package_sha256": "<fill from package header>"
+    "package_sha256": "<fill from package header>",
+    "reviewer_session": "<your session/agent identifier, must differ from packaged_by>"
   }
 }
 ``````

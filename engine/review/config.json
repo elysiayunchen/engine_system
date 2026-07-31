@@ -10,7 +10,7 @@
     "diff_strategy": "task_first_commit",
     "code_extensions": [".sh", ".ps1", ".py", ".js", ".ts", ".go", ".rs", ".java", ".c", ".cpp", ".rb", ".php"],
     "agent_review": {
-      "enabled": false,
+      "enabled": true,
       "min_entries_per_dimension": 1,
       "min_narrative_chars": 200,
       "min_entry_message_chars": 20,

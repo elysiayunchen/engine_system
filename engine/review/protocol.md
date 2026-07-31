@@ -52,8 +52,10 @@ incomplete documentation for public APIs, missing logging for debuggability.
   package). This ensures the reviewer is independent from the packager.
 - `packaged_by` (package header): identifies who generated the review package.
   Format: `<session-id>` or `<hostname>:<pid>`.
-- During grace period, missing `reviewer_session` produces a WARN (not FAIL).
-  In future versions this will become a hard requirement.
+- **Subagent review is mandatory.** A missing `reviewer_session` or one that
+  matches `packaged_by` will cause validation to FAIL with E_INDEPENDENCE.
+  The review MUST be performed by a separate agent session from the one that
+  packaged the review context.
 
 ## Grounding Requirement (v6.22.0)
 

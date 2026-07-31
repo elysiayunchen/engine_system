@@ -327,7 +327,7 @@ if os.path.isfile(package_file):
         except ValueError:
             warnings.append('cannot parse package generated timestamp')
 
-# --- E_INDEPENDENCE (v6.22.0, WARN): reviewer_session should differ from packaged_by ---
+# --- E_INDEPENDENCE (v6.22.0, FAIL): reviewer_session must differ from packaged_by ---
 if os.path.isfile(package_file):
     pkg_packaged_by = None
     with open(package_file, encoding='utf-8') as f:
@@ -337,9 +337,11 @@ if os.path.isfile(package_file):
                 break
     reviewer_session = prov.get('reviewer_session', '')
     if not reviewer_session:
-        warnings.append('reviewer_session missing in write_provenance (grace period, will be required)')
+        print('E_INDEPENDENCE|reviewer_session missing in write_provenance (subagent review is mandatory)')
+        sys.exit(1)
     elif pkg_packaged_by and reviewer_session == pkg_packaged_by:
-        warnings.append(f'reviewer_session matches packaged_by ({reviewer_session}) — review may not be independent')
+        print(f'E_INDEPENDENCE|reviewer_session matches packaged_by ({reviewer_session}) — reviewer must be a separate agent/session')
+        sys.exit(1)
 
 # merge grounded warnings
 warnings.extend(grounded_warnings)

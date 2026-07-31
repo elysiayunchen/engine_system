@@ -209,7 +209,7 @@ try {
         }
     }
 
-    # === 6b. E_INDEPENDENCE (v6.22.0, WARN): reviewer_session should differ from packaged_by ===
+    # === 6b. E_INDEPENDENCE (v6.22.0, FAIL): reviewer_session must differ from packaged_by ===
     if (Test-Path $packageFile) {
         $pkgPackagedBy = $null
         foreach ($line in (Get-Content $packageFile -Encoding UTF8)) {
@@ -217,9 +217,11 @@ try {
         }
         $reviewerSession = if ($prov.PSObject.Properties['reviewer_session']) { $prov.reviewer_session } else { '' }
         if (-not $reviewerSession) {
-            [Console]::Error.WriteLine("[engine-review-agent-validate] WARN: reviewer_session missing in write_provenance (grace period, will be required)")
+            [Console]::Error.WriteLine("[engine-review-agent-validate] FAIL E_INDEPENDENCE: reviewer_session missing in write_provenance (subagent review is mandatory)")
+            exit 1
         } elseif ($pkgPackagedBy -and $reviewerSession -eq $pkgPackagedBy) {
-            [Console]::Error.WriteLine("[engine-review-agent-validate] WARN: reviewer_session matches packaged_by ($reviewerSession) - review may not be independent")
+            [Console]::Error.WriteLine("[engine-review-agent-validate] FAIL E_INDEPENDENCE: reviewer_session matches packaged_by ($reviewerSession) - reviewer must be a separate agent/session")
+            exit 1
         }
     }
     # Output grounded warnings

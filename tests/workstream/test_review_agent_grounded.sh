@@ -205,28 +205,28 @@ OUT3=$(CLAUDE_PROJECT_DIR="$S3" bash "$VALIDATE_SH" T-099 2>&1); RC3=$?
 assert_exit "S3 validate exits 0" 0 $RC3
 assert_contains "S3 WARN about grounded" "$OUT3" "non-existent file\|exceeds file length"
 
-# --- S4: reviewer_session matches packaged_by → WARN ---
+# --- S4: reviewer_session matches packaged_by → FAIL ---
 echo ""
-echo "--- S4: reviewer_session == packaged_by → WARN independence ---"
+echo "--- S4: reviewer_session == packaged_by → FAIL E_INDEPENDENCE ---"
 S4="$TMPDIR_TEST/s4"
 HEAD4=$(setup_validate_env "$S4")
 SHA4=$(PKG="$S4/engine/review/evidence/T-099/review-package.md" get_package_sha "$S4")
 # session matches packaged_by (packager-session-abc)
 make_review_json "$S4" "$HEAD4" "$SHA4" "packager-session-abc" "src/real.sh:1:finding"
 OUT4=$(CLAUDE_PROJECT_DIR="$S4" bash "$VALIDATE_SH" T-099 2>&1); RC4=$?
-assert_exit "S4 validate exits 0 (WARN only)" 0 $RC4
-assert_contains "S4 independence warning" "$OUT4" "independent\|packaged_by"
+assert_exit "S4 validate exits 1 (FAIL)" 1 $RC4
+assert_contains "S4 independence error" "$OUT4" "E_INDEPENDENCE\|separate agent"
 
-# --- S5: reviewer_session missing → WARN grace period ---
+# --- S5: reviewer_session missing → FAIL ---
 echo ""
-echo "--- S5: reviewer_session missing → WARN grace period ---"
+echo "--- S5: reviewer_session missing → FAIL E_INDEPENDENCE ---"
 S5="$TMPDIR_TEST/s5"
 HEAD5=$(setup_validate_env "$S5")
 SHA5=$(PKG="$S5/engine/review/evidence/T-099/review-package.md" get_package_sha "$S5")
 make_review_json "$S5" "$HEAD5" "$SHA5" "" "src/real.sh:1:finding"
 OUT5=$(CLAUDE_PROJECT_DIR="$S5" bash "$VALIDATE_SH" T-099 2>&1); RC5=$?
-assert_exit "S5 validate exits 0 (WARN only)" 0 $RC5
-assert_contains "S5 grace period warning" "$OUT5" "grace period\|reviewer_session"
+assert_exit "S5 validate exits 1 (FAIL)" 1 $RC5
+assert_contains "S5 mandatory subagent error" "$OUT5" "E_INDEPENDENCE\|mandatory"
 
 # --- Summary ---
 echo ""

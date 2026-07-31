@@ -498,7 +498,10 @@ if [ "$strict_task_mode" -eq 1 ]; then
 '
   for file in $staged; do
     [ -n "$file" ] || continue
-    case "$file" in engine/review/evidence/*) ;; *) continue ;; esac
+    # Only REVIEW.json carries write_provenance (writer/commit/argv). Satellite
+    # files (QUALITY.json/SECURITY.json) are per-dimension detail records with
+    # no provenance block; validating them would always fail (no writer field).
+    case "$file" in engine/review/evidence/*/REVIEW.json) ;; *) continue ;; esac
     # 路径中提取 task id,只校验任务自身的 review evidence(card_owns_itself 模式)
     _base="${file#engine/review/evidence/}"
     _tid="${_base%%/*}"

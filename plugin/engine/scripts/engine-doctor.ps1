@@ -1753,6 +1753,59 @@ function Test-WorkstreamOrphan {
   }
 }
 
+# v6.20.0 (T-070): review evidence Doctor check (spec §3.3).
+function Test-ReviewEvidence {
+  $tasksDir = Join-Path $engineDir "tasks"
+  if (-not (Test-Path $tasksDir)) { return }
+  Get-ChildItem -Path $tasksDir -Filter "T-*.md" | ForEach-Object {
+    $f = $_.FullName
+    if ($f -like "*.spec.md") { return }
+    $content = Get-Content $f -Raw
+    if ($content -notmatch '(?m)^\s*(>\s*)?status:\s*done') { return }
+    $tid = $_.BaseName
+    $reviewFile = Join-Path $engineDir "review\evidence\$tid\REVIEW.json"
+
+    if (-not (Test-Path $reviewFile)) {
+      $headContent = git show "HEAD:engine/tasks/$tid.md" 2>$null
+      if ($headContent -and ($headContent -match '(?m)^\s*(>\s*)?status:\s*done')) {
+        Write-Warn "done task $tid missing review evidence (legacy)"
+      } else {
+        Write-Fail "newly-done task $tid missing review evidence"
+      }
+      return
+    }
+
+    $review = Get-Content $reviewFile -Raw | ConvertFrom-Json
+    $headCommit = git rev-parse HEAD 2>$null
+    if ($review.write_provenance.writer -ne "engine-review") {
+      Write-Warn "$tid review evidence writer=$($review.write_provenance.writer) (expected engine-review)"
+    }
+    if ($review.write_provenance.commit -ne $headCommit) {
+      Write-Warn "$tid stale review evidence (commit=$($review.write_provenance.commit) HEAD=$headCommit)"
+    }
+    if ($review.write_provenance.argv -ne "engine review $tid") {
+      Write-Warn "$tid review evidence argv mismatch: $($review.write_provenance.argv)"
+    }
+    if ($review.tool_unavailable -eq $true) {
+      Write-Warn "$tid review degraded (tool_unavailable=true), architect should confirm"
+    }
+    if ($review.status -eq "block") {
+      Write-Fail "$tid done task has unresolved block findings"
+    }
+  }
+}
+
+# v6.20.0 (T-070): review config protected check (spec §3.3).
+function Test-ReviewConfigProtected {
+  $rulesFile = Join-Path $engineDir "decisions\rules.json"
+  if (-not (Test-Path $rulesFile)) { return }
+  if (-not (Test-Path (Join-Path $engineDir "review\config.json"))) { return }
+  $rules = Get-Content $rulesFile -Raw
+  if ($rules -notmatch '"engine/review/config.json"') {
+    Write-Warn "engine/review/config.json not in protected_paths (rule gap)"
+  }
+}
+
 if (Test-Path $engineDir) {
   Get-ChildItem -Path $engineDir -File -Filter "*.md" | ForEach-Object {
     $rel = "engine/$($_.Name)"
@@ -1840,6 +1893,8 @@ Test-MultiSessionIsolation
 Test-MultiCardWritesetOverlap
 Test-StatusConflict
 Test-WorkstreamOrphan
+Test-ReviewEvidence
+Test-ReviewConfigProtected
 
 # ── Project-custom checks (engine/checks/) ──
 function Run-CustomChecks {

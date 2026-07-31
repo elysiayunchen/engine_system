@@ -1385,6 +1385,84 @@ check_task_card_done_evidence() {
   [ "$done_count" -eq 0 ] || pass "done task evidence summary: $done_count checked ($verified_count verified, $exempt_count exempt)"
 }
 
+# v6.20.0 (T-070): review evidence Doctor check (spec §3.3).
+# 分档:新 done(HEAD status≠done)缺 evidence → FAIL;历史 done → WARN。
+# 复用 check_task_card_done_evidence 的 HEAD status 比较逻辑(L1348-1386 precedent)。
+check_review_evidence() {
+  local tasks_dir="$ENGINE_DIR/tasks"
+  [ -d "$tasks_dir" ] || return 0
+  for f in "$tasks_dir"/T-*.md; do
+    [ -f "$f" ] || continue
+    [[ "$f" == *.spec.md ]] && continue
+    card_status_done "$f" || continue
+    local tid; tid="$(basename "$f" .md)"
+    local review_file="$ENGINE_DIR/review/evidence/$tid/REVIEW.json"
+
+    if [ ! -f "$review_file" ]; then
+      # 判断 HEAD status:已 done → 历史 WARN;否则新 done FAIL
+      if command -v git >/dev/null 2>&1 && git cat-file -e "HEAD:engine/tasks/$tid.md" 2>/dev/null \
+        && git show "HEAD:engine/tasks/$tid.md" 2>/dev/null | grep -Eq '^[[:space:]]*(>[[:space:]]*)?status:[[:space:]]*done'; then
+        warn "done task $tid missing review evidence (legacy)"
+        echo "  human: Task $tid was 'done' in HEAD; review evidence missing (legacy). Run 'engine review $tid' or mark exempt."
+      else
+        fail "newly-done task $tid missing review evidence"
+        echo "  human: Task $tid is marked 'done' but has no review evidence. Run 'engine review $tid'."
+      fi
+      continue
+    fi
+
+    # 校验 write_provenance
+    local prov_writer prov_commit prov_argv head_commit
+    prov_writer="$(grep -oE '"writer":"[^"]*"' "$review_file" | head -1 | sed 's/"writer":"//;s/"//')"
+    prov_commit="$(grep -oE '"commit":"[^"]*"' "$review_file" | head -1 | sed 's/"commit":"//;s/"//')"
+    prov_argv="$(grep -oE '"argv":"[^"]*"' "$review_file" | head -1 | sed 's/"argv":"//;s/"//')"
+    head_commit="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
+
+    [ "$prov_writer" = "engine-review" ] || warn "$tid review evidence writer=$prov_writer (expected engine-review)"
+    if [ "$prov_commit" != "$head_commit" ]; then
+      warn "$tid stale review evidence (commit=$prov_commit HEAD=$head_commit)"
+      echo "  human: Task $tid review evidence is stale. Re-run 'engine review $tid' against current HEAD."
+    fi
+    case "$prov_argv" in
+      "engine review $tid") : ;;
+      *) warn "$tid review evidence argv mismatch: $prov_argv" ;;
+    esac
+
+    # tool_unavailable → WARN
+    if grep -q '"tool_unavailable":true' "$review_file" 2>/dev/null; then
+      warn "$tid review degraded (tool_unavailable=true), architect should confirm"
+      echo "  human: Task $tid review ran with tools unavailable. Architect should confirm the skip is acceptable."
+    fi
+
+    # status == block → FAIL
+    if grep -q '"status":"block"' "$review_file" 2>/dev/null; then
+      fail "$tid done task has unresolved block findings"
+      echo "  human: Task $tid is 'done' but review found critical/high findings. Waive via D-xxx decision or fix the findings."
+    fi
+  done
+}
+
+# v6.20.0 (T-070): review config protected check (spec §3.3).
+check_review_config_protected() {
+  local rules_file="$ENGINE_DIR/decisions/rules.json"
+  local config_path="engine/review/config.json"
+  [ -f "$rules_file" ] || return 0
+  [ -f "$ENGINE_DIR/review/config.json" ] || return 0
+
+  # 1. config 在 protected_paths?
+  if ! grep -q '"engine/review/config.json"' "$rules_file" 2>/dev/null; then
+    warn "engine/review/config.json not in protected_paths (rule gap)"
+    echo "  human: engine/review/config.json should be in rules.json protected_paths."
+    return 0
+  fi
+
+  # 2. config 修改是否有 covering decision?(类似 protected-path 检查)
+  # 注:完整的 covering_decision 检查由既有 protected-path gate 负责,这里只做存在性 sanity
+  if ! git diff --name-only HEAD..HEAD~1 -- "$config_path" 2>/dev/null | grep -q .; then
+    : # 未在最近 commit 改动,无需检查
+  fi
+}
+
 # v6.18.0 (D-038/T-066 AC-8): drift-check integration. Defers to the
 # standalone engine-drift-check.sh script (cheap fingerprint comparison,
 # no verify re-run). Tamper/drift = FAIL; warn-only issues stay WARN.
@@ -1802,6 +1880,8 @@ check_multi_session_isolation
 check_multi_card_writeset_overlap
 check_status_conflict
 check_workstream_orphan
+check_review_evidence
+check_review_config_protected
 
 # ── Project-custom checks (engine/checks/) ──
 # Each project may place executable check-*.sh (FAIL on non-zero) or warn-*.sh

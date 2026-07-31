@@ -1,0 +1,14 @@
+{
+  "defaults": {
+    "dimensions": ["security", "quality"],
+    "severity_threshold": "high",
+    "tools": {
+      "security": "semgrep",
+      "quality": "eslint"
+    },
+    "tool_unavailable": "warn_skip",
+    "diff_strategy": "task_first_commit",
+    "code_extensions": [".sh", ".ps1", ".py", ".js", ".ts", ".go", ".rs", ".java", ".c", ".cpp", ".rb", ".php"]
+  },
+  "overrides": {}
+}

@@ -8,6 +8,7 @@
         "plugin/engine/prompts/**",
         "plugin/engine/domains/**",
         "engine/scripts/**",
+        "engine/review/**",
         "engine/prompts/**",
         "plugin/.claude/commands/**",
         "engine/ENGINE_DOCTOR.md",

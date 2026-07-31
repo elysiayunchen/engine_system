@@ -1,5 +1,16 @@
 # Changelog
 
+## v6.22.0 (2026-07-31) — Agent-Reviewer 对抗性升级(T-073)
+
+- Package 动态挑战生成:静态 3 挑战 → python diff 语义信号分析(6 信号:无 else 分支/函数签名变更/大 hunk>20 行/大量删除>15 行/TODO-FIXME/错误处理,优先级排序取 top 3,无信号 fallback 静态)
+- Package 新增 `packaged_by` header(CLAUDE_SESSION_ID 或 hostname:pid)+ schema 新增 `reviewer_session` 字段
+- Validate 新增 E_GROUNDED:校验 finding file:line 引用真实存在(>50% 虚假 → FAIL,≤50% → WARN)
+- Validate 新增 E_INDEPENDENCE:reviewer_session 与 packaged_by 比对(相同或缺失 → WARN,grace period)
+- config.json `agent_review.enabled` 默认 true(新项目开箱即用;代码 fallback 亦为 true)
+- 修复 Windows CRLF/GBK 字节导致 python UnicodeDecodeError(所有 open() 加 errors='replace')
+- plugin 镜像 byte-identical(4 脚本)
+- 测试:dynamic 9/9 + grounded 10/10 + 回归 gate 10/10 + doctor 13/13 = 42 断言 PASS
+
 ## v6.21.0 (2026-07-31) — Review 子系统 P2(agent-reviewer 语义审查)
 
 - 新增 `engine review-agent T-NNN --package/--validate` 两原子命令(外部 agent 做语义级代码审查)

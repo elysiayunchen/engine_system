@@ -1,6 +1,6 @@
 # CONTEXT — 当前状态
 
-> Engine System (engine_system) · Last updated: 2026-07-31 (v6.21.0) · Profile: CLI-LEAN
+> Engine System (engine_system) · Last updated: 2026-07-31 (v6.22.0) · Profile: CLI-LEAN
 
 ## 状态面板
 
@@ -10,8 +10,8 @@
 | 维度 | 状态 |
 |------|------|
 | 构建 | ✅ 正常（纯 markdown + shell 脚本，无构建步骤） |
-| 上次完成 | **v6.21.0(T-071 + T-072 Agent-Reviewer 子系统上线)**:T-071 核心(16 AC)— `engine review-agent T-NNN --package/--validate` 两原子命令(package 打包审查上下文 + validate 四层校验 E_SCHEMA/E_SHALLOW/E_PROVENANCE/E_STALE + provenance COMPUTE 归一化 sha256 + ps1 行为镜像 + 5 处 spec 偏差修正)。T-072 门禁集成(9 AC)— pre-commit 扩展 AGENT-REVIEW.json provenance(writer=agent-reviewer + package_sha256 校验) + Doctor check_agent_review_evidence(done + enabled → FAIL/WARN) + rules.json +14 protected_paths。测试 83 断言全 PASS。前序 **v6.20.0(T-069 + T-070 Review 子系统)**。 |
-| 进行中 | 无。Agent-Reviewer 子系统已全功能上线。已知债:doctor ps1 缺 review 相关 check(T-070 遗留对等债)。 |
+| 上次完成 | **v6.22.0(T-073 Agent-Reviewer 对抗性升级)**:动态挑战生成(python diff 6 语义信号优先级排序 top3,fallback 静态)+ E_GROUNDED(finding file:line 存在性校验,>50% FAIL)+ E_INDEPENDENCE(reviewer_session≠packaged_by WARN)+ 默认 enabled + packaged_by header + Windows 编码修复。测试 42 断言全 PASS(dynamic 9 + grounded 10 + gate 10 + doctor 13)。前序 **v6.21.0(T-071 + T-072 Agent-Reviewer 子系统)**。 |
+| 进行中 | 无。已知债:doctor ps1 缺 review 相关 check(T-070 遗留对等债);E_INDEPENDENCE grace period 后需升级为 FAIL。 |
 | 阻塞 | 无。 |
 
 ## 当前假设 / 决策（本轮拍板）

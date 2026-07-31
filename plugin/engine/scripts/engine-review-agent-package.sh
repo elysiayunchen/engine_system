@@ -71,8 +71,8 @@ ar = defaults.get('agent_review', {})
 ar_ov = overrides.get('agent_review', {})
 if isinstance(ar_ov, dict):
     ar = {**ar, **ar_ov}
-print('true' if ar.get('enabled', False) else 'false')
-" 2>/dev/null || echo "false")
+print('true' if ar.get('enabled', True) else 'false')
+" 2>/dev/null || echo "true")
 
 # L2 REVIEW-OVERRIDE: add_dimensions: agent_review
 l2_override=$(awk '/^## REVIEW-OVERRIDE/{f=1;next} /^## /{f=0} f' "$task_file" | grep -E '^- ' | sed 's/^- //' || true)

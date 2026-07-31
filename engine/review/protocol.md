@@ -44,3 +44,24 @@ incomplete documentation for public APIs, missing logging for debuggability.
 - status = "block" ONLY if you found at least one critical issue that MUST be fixed
   before merge. Use "concerns" for high-severity issues that the architect might
   accept. Use "pass" when no high/critical issues exist.
+
+## Provenance & Independence (v6.22.0)
+
+- `write_provenance.reviewer_session`: your session/agent identifier. MUST differ
+  from the package header's `packaged_by` value (the session that generated the
+  package). This ensures the reviewer is independent from the packager.
+- `packaged_by` (package header): identifies who generated the review package.
+  Format: `<session-id>` or `<hostname>:<pid>`.
+- During grace period, missing `reviewer_session` produces a WARN (not FAIL).
+  In future versions this will become a hard requirement.
+
+## Grounding Requirement (v6.22.0)
+
+- Every finding with `file` and `line` fields will be validated for existence:
+  the referenced file must exist in the repository, and the line number must not
+  exceed the file's actual length.
+- If more than 50% of your findings reference non-existent locations, validation
+  FAILS with E_GROUNDED. If 50% or fewer are ungrounded, a WARN is issued but
+  validation still passes.
+- Always verify file paths and line numbers against the actual diff before citing
+  them in findings.

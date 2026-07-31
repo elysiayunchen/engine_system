@@ -40,7 +40,7 @@ try {
     if ($cfg.overrides.agent_review) {
         $cfg.overrides.agent_review.PSObject.Properties | ForEach-Object { $ar[$_.Name] = $_.Value }
     }
-    $agentReviewEnabled = if ($ar.enabled) { $true } else { $false }
+    $agentReviewEnabled = if ($null -eq $ar.enabled) { $true } elseif ($ar.enabled) { $true } else { $false }
 
     # L2 REVIEW-OVERRIDE check
     $taskContent = Get-Content $taskFile -Raw -Encoding UTF8

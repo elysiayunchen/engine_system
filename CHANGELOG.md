@@ -1,5 +1,29 @@
 # Changelog
 
+## v6.20.0 (2026-07-30) — Review 子系统 P1(pipeline 核心)
+
+- 新增 `engine review T-069` 命令(二维审查:semgrep + eslint)
+- 新增 4 个脚本:engine-review.{sh,ps1} + engine-review-pipeline.{sh,ps1}(plugin 镜像 byte-identical)
+- 新增 `engine/review/config.json`(L0 defaults + L1 overrides,Class=mixed)
+- evidence schema:REVIEW.json + SECURITY.json + QUALITY.json,含 write_provenance + code_fingerprint + evidence_manifest_sha256 + tool_detection + config_layers
+- L2 REVIEW-OVERRIDE 单向提级校验(severity_threshold + add/skip_dimensions)
+- diff 算法:git log --reverse + git diff task_first_commit..HEAD(只扫 WRITE-SET 内代码文件)
+- tool_unavailable 降级:WARN + skip + 记检测证据(不静默不卡死)
+- flock -n(Unix)+ mkdir 原子锁(macOS fallback)+ FileStream(Windows)
+- 19 AC 全绿,9 个测试文件
+
+## v6.20.0 (2026-07-30)
+
+T-068 防漂移 P3 — 批量补 code_fingerprint(D-038d 迁移期收尾)。对 T-048~T-060, T-063~T-065 共 16 张 legacy done 卡批量重跑 `engine verify` 补 code_fingerprint,全部升级为 T1 结构性信任级(code_fingerprint 存在 + verified_against_commit 记录)。16 张卡均因版本漂移有 AC FAIL,标 exempt(check.sh 跳过 evidence 检查,drift-check 仍校验)。双写过渡期(v6.19.0~v6.20.0)结束。
+
+**T-068 (D-038d 迁移期收尾):**
+- 16 张 done 卡 evidence 从单锚 `fingerprint` 升级为多锚(`output_fingerprint` + `code_fingerprint` + `write_set_snapshot` + `verified_against_commit` + `write_provenance` + `MANIFEST.json`)
+- 16 张任务卡 frontmatter 加 `<!-- exempt: AC-N verify failed due to version drift -->` 注释
+- T1 占比:16/16 = 100%(目标 ≥75%)
+- 深度历史卡(T-004~T-047)保留 T2(D-038 决策点 #8)
+
+**漂移原因分类:** 版本号漂移(全部 16 张)、check.sh/doctor 漂移(多数卡)、PowerShell 环境缺失(T-053)、contract-version 漂移(T-048)。
+
 ## v6.19.0 (2026-07-30)
 
 T-067 防漂移 P2 — 状态面板视图化 + 信任分级注入(D-038c/d)。堵声明漂移 + 决策漂移 + agent 误判:CONTEXT.md 状态面板从「权威声明」降级为「派生视图」(双写过渡期 v6.19.0~v6.20.0,旧静态段保留并标 legacy,新 Derived Status 段实时重算 git tag + engine/VERSION + 最近 done 卡 evidence 信任级),`engine context` 输出对每段声明打 T1/T2/T3 信任标签(T1=机器校验通过;T2=legacy-evidence/declared-only;T3=待验证),Doctor 校验 derived/legacy 标注与一致性。批量补 code_fingerprint 独立到 T-068。

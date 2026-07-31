@@ -212,6 +212,10 @@ $FILES = @(
   @{ src = "engine/scripts/engine-migrate-contract.ps1";    dest = "engine\scripts\engine-migrate-contract.ps1";    protect = $true }
   @{ src = "engine/scripts/engine-verify.sh";      dest = "engine\scripts\engine-verify.sh";      protect = $true }
   @{ src = "engine/scripts/engine-verify.ps1";     dest = "engine\scripts\engine-verify.ps1";     protect = $true }
+  @{ src = "engine/scripts/engine-review.sh";           dest = "engine\scripts\engine-review.sh";           protect = $true }
+  @{ src = "engine/scripts/engine-review.ps1";          dest = "engine\scripts\engine-review.ps1";          protect = $true }
+  @{ src = "engine/scripts/engine-review-pipeline.sh";  dest = "engine\scripts\engine-review-pipeline.sh";  protect = $true }
+  @{ src = "engine/scripts/engine-review-pipeline.ps1"; dest = "engine\scripts\engine-review-pipeline.ps1"; protect = $true }
   @{ src = "engine/scripts/githooks/pre-commit";   dest = "engine\scripts\githooks\pre-commit";   protect = $true }
   @{ src = "bin/engine";                            dest = "engine\bin\engine";                            protect = $true }
   @{ src = "bin/engine.ps1";                        dest = "engine\bin\engine.ps1";                        protect = $true }

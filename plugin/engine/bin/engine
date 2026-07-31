@@ -24,6 +24,7 @@ Usage:
   engine update --no-migrate   Update tooling but skip migration/doctor
   engine migrate        Run contract migration on existing engine files
   engine verify T-NNN   Run behavior verification for a task card
+  engine review T-NNN  Run post-task code review (semgrep + eslint) for a task card
   engine doctor         Run engine health check
   engine load           Install the engine CLI shim into user PATH (~/.local/bin)
   engine unload         Remove the engine CLI shim from user PATH
@@ -682,6 +683,21 @@ case "${1:-help}" in
       exit 2
     fi
     bash "$PWD/engine/scripts/engine-verify.sh" "$task"
+    ;;
+  review)
+    if [ ! -d "$PWD/engine" ]; then
+      echo "Error: engine/ not found in $PWD. Run 'engine review' in a project root." >&2
+      exit 2
+    fi
+    task="${2:-}"
+    if [ -z "$task" ]; then
+      echo "Usage: engine review T-NNN" >&2
+      echo "  Run post-task code review (semgrep + eslint) for a task card." >&2
+      echo "  Must be run after 'engine verify T-NNN' passes." >&2
+      echo "  Exit codes: 0=pass | 1=block(critical/high findings) | 2=usage error" >&2
+      exit 2
+    fi
+    bash "$PWD/engine/scripts/engine-review.sh" "$task"
     ;;
   context)
     if [ ! -d "$PWD/engine" ]; then

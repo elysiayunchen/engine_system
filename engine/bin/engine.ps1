@@ -1,4 +1,4 @@
-﻿# Engine System user-level CLI shim for Windows PowerShell.
+# Engine System user-level CLI shim for Windows PowerShell.
 
 param(
   [Parameter(Position=0)][string]$Command = "help",
@@ -34,6 +34,7 @@ Usage:
   engine update -NoMigrate       Update tooling but skip migration/doctor
   engine migrate        Run contract migration on existing engine files
   engine verify T-NNN   Run behavior verification for a task card
+  engine review T-NNN  Run post-task code review (semgrep + eslint) for a task card
   engine doctor         Run engine health check
   engine load           Install the engine CLI shim into user PATH (%USERPROFILE%\.engine\bin)
   engine unload         Remove the engine CLI shim from user PATH
@@ -619,6 +620,18 @@ switch ($Command) {
     }
     $verifyScript = Join-Path $PWD.Path "engine\scripts\engine-verify.ps1"
     & $verifyScript -Task $Task
+  }
+  "review" {
+    if (-not (Test-Path "engine")) {
+      Write-Error "Error: engine/ not found in $PWD. Run 'engine review' in a project root."
+      exit 2
+    }
+    if (-not $Task) {
+      Write-Error "Usage: engine review T-NNN`n  Run post-task code review (semgrep + eslint) for a task card.`n  Must be run after 'engine verify T-NNN' passes.`n  Exit codes: 0=pass | 1=block(critical/high findings) | 2=usage error"
+      exit 2
+    }
+    $reviewScript = Join-Path $PWD.Path "engine\scripts\engine-review.ps1"
+    & $reviewScript -Task $Task
   }
   "context" {
     if (-not (Test-Path "engine")) {

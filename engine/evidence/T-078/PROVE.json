@@ -1,0 +1,51 @@
+{
+  "schema_version": "1.0",
+  "task_id": "T-078",
+  "command": "engine prove T-078 --execute",
+  "timestamp": "2026-08-01T14:23:17Z",
+  "status": "PASS",
+  "code_fingerprint": "sha256:d5fcf414421ff830e650673c7c0f50638917f2685969b29eedae615c05238130",
+  "assertions_fingerprint": "sha256:8b2089bfa3588ba89a5a0bcb6d1485d6e5ee5ede0ebd9019776a8cb8e839dc88",
+  "ac_coverage": "OK",
+  "summary": {
+    "total": 2,
+    "passed": 2,
+    "failed": 0,
+    "timed_out": 0
+  },
+  "results": [
+    {
+      "id": "A-01",
+      "category": "regression",
+      "command": "bash tests/workstream/test_acceptance_preflight.sh",
+      "status": "PASS",
+      "exit_code": 0,
+      "expect_exit": 0,
+      "duration_ms": 5340,
+      "output_fingerprint": "sha256:6fa9ee0d7c4934c459afee3ca5d07851b2b31ebee112680866082667160d6b0b",
+      "output_truncated": "=== acceptance preflight behavior classification ===\nPASS  preflight returns non-zero for blocked/fail ACs (exit=1)\nPASS  coverage result is blocked\nPASS  coverage keeps command_exit=1\nPASS  coverage behavior diagnostic passes\nPASS  coverage failure is classified\nPASS  coverage policy defaults to auto\nPASS  missing dependency is blocked\nPASS  missing dependency is classified\nPASS  missing dependency cannot be PASS\nPASS  ordinary behavior failure remains fail\nPASS  ordinary command exit is retain"
+    },
+    {
+      "id": "A-02",
+      "category": "regression",
+      "command": "bash tests/behavior-verify/run-verify-tests.sh",
+      "status": "PASS",
+      "exit_code": 0,
+      "expect_exit": 0,
+      "duration_ms": 2267,
+      "output_fingerprint": "sha256:2ab10fc810d4d5d3ff1d74bf63b4c479e94a1a8310ab5c35668906d77f57fe3c",
+      "output_truncated": "=== A. verify pass/fail/skip ===\nPASS  A1 verify-mixed-exit1 (fail_count>0)\nPASS  A2 ac1-pass (AC-1.status=pass)\nPASS  A3 ac2-fail (AC-2.status=fail)\nPASS  A4 ac3-skip (AC-3.json 不存在=skip)\nSKIP  ps1  A1-A4 (no PowerShell on this host)\n\n=== B. evidence JSON 格式 ===\nPASS  B1 fingerprint-format (sha256:64hex)\nPASS  B2 exit-field\nPASS  B3 ac+verify-fields\nSKIP  ps1  B1-B3 (no PowerShell on this host)\n\n=== C. 任务卡不存在 ===\nPASS  C1 missing-task-exit2\nSKIP  ps1  C1 (no PowerShell on this host)\n\n=== D. 全 p"
+    }
+  ],
+  "gate": {
+    "decision": "PASS",
+    "rule": "ALL assertions must pass; any FAIL or TIMEOUT = gate FAIL"
+  },
+  "write_provenance": {
+    "writer": "engine-prove",
+    "model_id": "",
+    "commit": "",
+    "timestamp": "2026-08-01T14:23:17Z",
+    "argv": "engine prove T-078 --execute"
+  }
+}

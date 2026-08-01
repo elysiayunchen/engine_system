@@ -1,0 +1,35 @@
+{
+  "task": "T-078",
+  "timestamp": "2026-08-01T14:23:32Z",
+  "status": "handoff",
+  "stages": {
+    "verify": {
+      "status": "pass",
+      "exit": 0
+    },
+    "gate": {
+      "status": "pass",
+      "exit": 0
+    },
+    "doctor": {
+      "status": "pass",
+      "exit": 0
+    }
+  },
+  "memory": {
+    "mode": "worker",
+    "status": "pass",
+    "handoff_agent": "codex",
+    "handoff_path": "engine/workstreams/T-078/sessions/s-codex/HANDOFF.md"
+  },
+  "capsule": {
+    "status": "deferred_to_coordinator",
+    "path": null
+  },
+  "write_provenance": {
+    "writer": "engine-close",
+    "commit": "21b75af9ded1c64ba517340121e5a45662b5d062",
+    "timestamp": "2026-08-01T14:23:32Z",
+    "argv": "engine close T-078 --handoff codex"
+  }
+}

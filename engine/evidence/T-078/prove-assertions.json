@@ -1,0 +1,22 @@
+{
+  "task_id": "T-078",
+  "code_fingerprint": "sha256:d5fcf414421ff830e650673c7c0f50638917f2685969b29eedae615c05238130",
+  "assertions": [
+    {
+      "id": "A-01",
+      "category": "regression",
+      "command": "bash tests/workstream/test_acceptance_preflight.sh",
+      "expect_exit": 0,
+      "timeout_s": 120,
+      "rationale": "Exercises the acceptance preflight alias, blocked coverage and environment states, ordinary behavior failure, no-cov policy, mirror presence, and compatibility checks."
+    },
+    {
+      "id": "A-02",
+      "category": "regression",
+      "command": "bash tests/behavior-verify/run-verify-tests.sh",
+      "expect_exit": 0,
+      "timeout_s": 120,
+      "rationale": "Confirms the existing full engine verify behavior remains compatible after the preflight changes."
+    }
+  ]
+}

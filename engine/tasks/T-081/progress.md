@@ -13,9 +13,9 @@
 - [x] AC-3 domain INVENTORY coverage
 - [x] AC-4 Bash verify PowerShell resolution
 - [x] AC-5 historical evidence integrity (valid historical snapshots now warn; tamper remains hard-fail)
-- [ ] AC-6 T-078 lifecycle evidence
+- [x] AC-6 T-078 lifecycle evidence (verify/review/agent-review/prove/gate/close recorded)
 - [ ] AC-7 full Doctor zero failures
 
 ## Next
 
-注册表/路径、progress 锚点、域 INVENTORY 与 Bash PowerShell 解析已修复并通过静态回归；下一步重验历史 evidence、完成 T-078 生命周期并运行完整 Doctor。
+注册表/路径、progress 锚点、域 INVENTORY、Bash PowerShell 解析与历史 evidence 分级已修复；T-078 生命周期证据现已完整，下一步运行最终 Doctor 并收口 T-081。

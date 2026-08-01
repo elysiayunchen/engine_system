@@ -1,6 +1,6 @@
 {
   "task": "T-079",
-  "timestamp": "2026-08-01T12:33:03Z",
+  "timestamp": "2026-08-01T12:48:02Z",
   "status": "block",
   "stages": {
     "verify": {
@@ -28,8 +28,8 @@
   },
   "write_provenance": {
     "writer": "engine-close",
-    "commit": "639d945099ad5441c5caeccd43f653adee0c4528",
-    "timestamp": "2026-08-01T12:33:03Z",
+    "commit": "ab0b7ff5bbb95c775a3755bbe6d32b1d0e321308",
+    "timestamp": "2026-08-01T12:48:02Z",
     "argv": "engine close T-079 --handoff codex"
   }
 }

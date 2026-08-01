@@ -1,27 +1,27 @@
 {
   "task": "T-079",
-  "timestamp": "2026-08-01T12:33:21Z",
+  "timestamp": "2026-08-01T12:48:20Z",
   "status": "pass",
   "gates": {
     "verify": {
       "status": "pass",
       "detail": "6/6 AC PASS",
-      "checked_at": "2026-08-01T12:33:21Z"
+      "checked_at": "2026-08-01T12:48:20Z"
     },
     "review": {
       "status": "pass",
       "detail": "linter review passed",
-      "checked_at": "2026-08-01T12:33:21Z"
+      "checked_at": "2026-08-01T12:48:20Z"
     },
     "review_agent": {
       "status": "pass",
       "detail": "agent review passed",
-      "checked_at": "2026-08-01T12:33:21Z"
+      "checked_at": "2026-08-01T12:48:20Z"
     },
     "prove": {
       "status": "pass",
       "detail": "prove assertions passed",
-      "checked_at": "2026-08-01T12:33:21Z"
+      "checked_at": "2026-08-01T12:48:20Z"
     }
   },
   "config": {
@@ -36,8 +36,8 @@
   },
   "write_provenance": {
     "writer": "engine-gate",
-    "commit": "639d945099ad5441c5caeccd43f653adee0c4528",
-    "timestamp": "2026-08-01T12:33:21Z",
+    "commit": "ab0b7ff5bbb95c775a3755bbe6d32b1d0e321308",
+    "timestamp": "2026-08-01T12:48:20Z",
     "argv": "engine gate T-079"
   }
 }

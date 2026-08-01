@@ -2,10 +2,10 @@
   "schema_version": "1.0",
   "task_id": "T-079",
   "command": "engine prove T-079 --execute",
-  "timestamp": "2026-08-01T12:32:51Z",
+  "timestamp": "2026-08-01T12:47:45Z",
   "status": "PASS",
-  "code_fingerprint": "sha256:325d11b8d87e8826de3dc157aed2b21918d4d8993a34c28888dc6c4e50ae707e",
-  "assertions_fingerprint": "sha256:86b2ad26f9fe417b423d2f3a44df36ec94d47402a491a04ac749020e34fa54d7",
+  "code_fingerprint": "sha256:8ee07afdc6ca921c04dcd9a9880de8f75f5a0b679b829c88f97089392b391f9e",
+  "assertions_fingerprint": "sha256:d48187d7d4d921c0ec8eca65347e3b601dc9c725f33a1788ed2327dbb229f587",
   "ac_coverage": "OK",
   "summary": {
     "total": 1,
@@ -21,8 +21,8 @@
       "status": "PASS",
       "exit_code": 0,
       "expect_exit": 0,
-      "duration_ms": 2455,
-      "output_fingerprint": "sha256:7b00916890414164deca42777b7e98203b1068beb4c7c92049134cff153ab691",
+      "duration_ms": 3563,
+      "output_fingerprint": "sha256:8fd15dbb5071cdd04ff6e2685aa328e93a237d4b58d5256163c81586f52d18dd",
       "output_truncated": "=== T-079 lifecycle tests ===\nPASS  Bash engine gate CLI is reachable (exit=0)\nPASS  CLI gate provenance is real\nPASS  direct gate script still works (exit=0)\nPASS  direct gate provenance is not mislabeled\nPASS  Bash engine verify still works (exit=0)\nPASS  CLI verify provenance is real\nPASS  Bash engine prove CLI is reachable (exit=0)\nPASS  prove infer writes its package\nPASS  Bash engine doctor propagates failure (exit=7)\nPASS  close succeeds when verify/gate/doctor pass (exit=0)\nPASS  close s"
     }
   ],
@@ -34,7 +34,7 @@
     "writer": "engine-prove",
     "model_id": "",
     "commit": "",
-    "timestamp": "2026-08-01T12:32:51Z",
+    "timestamp": "2026-08-01T12:47:45Z",
     "argv": "engine prove T-079 --execute"
   }
 }

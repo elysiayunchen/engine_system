@@ -26,10 +26,10 @@
 
 ## Evidence
 
-- Lifecycle test: 31 passed, 0 failed.
+- Lifecycle test: 32 passed, 0 failed.
 - PowerShell parser/static test: 17 passed, 0 failed.
 - PowerShell `workstream ... --kind session --print`: pass; PowerShell `gate ... --run`: reaches prove without WSL path corruption.
-- Prove regression initially caught the leakage; lifecycle rerun is 31/31 after the fix.
+- Prove regression initially caught the leakage; package-hash regression then caught asymmetric pre-commit normalization; lifecycle rerun is 32/32 after both fixes.
 - PowerShell lifecycle static test is 17/17; full PS close reached all stages but is slow in the mixed Git Bash/WSL environment.
 - Task verify: 6/6 AC passed (preflight and full).
 - Review: PASS.

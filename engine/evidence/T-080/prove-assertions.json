@@ -1,0 +1,40 @@
+{
+  "task_id": "T-080",
+  "code_fingerprint": "sha256:c437553404847a0c87a890b893b7d7cebfae270d65ff78cde85a78af4b0838fe",
+  "assertions": [
+    {
+      "id": "A-01",
+      "category": "regression",
+      "command": "bash tests/workstream/test_issue_regressions.sh",
+      "expect_exit": 0,
+      "timeout_s": 120,
+      "rationale": "Exercises migration ownership, version direction, legacy evidence, candidate commits, mirror parity, manifest integrity, and README coverage."
+    },
+    {
+      "id": "A-02",
+      "category": "regression",
+      "command": "bash tests/behavior-verify/test_verify_block_ac_format.sh",
+      "expect_exit": 0,
+      "timeout_s": 120,
+      "rationale": "Protects all four acceptance declaration formats used by the updated task-card verification path."
+    },
+    {
+      "id": "A-03",
+      "category": "invariant",
+      "command": "cmp -s engine/scripts/githooks/pre-commit plugin/engine/scripts/githooks/pre-commit",
+      "expect_exit": 0,
+      "timeout_s": 30,
+      "revert_would_fail": true,
+      "rationale": "Confirms the protected-path union-gating fix is identical in the root and plugin hook mirrors."
+    },
+    {
+      "id": "A-04",
+      "category": "invariant",
+      "command": "cmp -s engine/scripts/engine-check-update.sh plugin/engine/scripts/engine-check-update.sh",
+      "expect_exit": 0,
+      "timeout_s": 30,
+      "revert_would_fail": true,
+      "rationale": "Confirms the numeric version comparison implementation is identical in both distributed Bash scripts."
+    }
+  ]
+}

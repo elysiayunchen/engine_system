@@ -1,0 +1,73 @@
+{
+  "schema_version": "1.0",
+  "task_id": "T-080",
+  "command": "engine prove T-080 --execute",
+  "timestamp": "2026-08-01T13:34:05Z",
+  "status": "PASS",
+  "code_fingerprint": "sha256:c437553404847a0c87a890b893b7d7cebfae270d65ff78cde85a78af4b0838fe",
+  "assertions_fingerprint": "sha256:0d2ea20d09c134b1da60f157e9c14dea5ebb6f828aa11cf22685e084da33021b",
+  "ac_coverage": "OK",
+  "summary": {
+    "total": 4,
+    "passed": 4,
+    "failed": 0,
+    "timed_out": 0
+  },
+  "results": [
+    {
+      "id": "A-01",
+      "category": "regression",
+      "command": "bash tests/workstream/test_issue_regressions.sh",
+      "status": "PASS",
+      "exit_code": 0,
+      "expect_exit": 0,
+      "duration_ms": 620,
+      "output_fingerprint": "sha256:61697da6a21ec31970ed4d06354f9029e7445be50fede081523835b155bdecc7",
+      "output_truncated": "PASS test_issue_regressions.sh\n\n[Engine System] Code changed but project memory was not staged.\nCoordinator: update engine/CONTEXT.md or engine/HANDOFF.md.\nParallel worker: stage your engine/workstreams/<task>/<agent>/ shard.\n\n"
+    },
+    {
+      "id": "A-02",
+      "category": "regression",
+      "command": "bash tests/behavior-verify/test_verify_block_ac_format.sh",
+      "status": "PASS",
+      "exit_code": 0,
+      "expect_exit": 0,
+      "duration_ms": 283,
+      "output_fingerprint": "sha256:0977617f67a58b81bca5c21b32a4570d2990603f17ecb0b145c299d841be0749",
+      "output_truncated": "PASS test_verify_block_ac_format.sh\n"
+    },
+    {
+      "id": "A-03",
+      "category": "invariant",
+      "command": "cmp -s engine/scripts/githooks/pre-commit plugin/engine/scripts/githooks/pre-commit",
+      "status": "PASS",
+      "exit_code": 0,
+      "expect_exit": 0,
+      "duration_ms": 9,
+      "output_fingerprint": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "output_truncated": ""
+    },
+    {
+      "id": "A-04",
+      "category": "invariant",
+      "command": "cmp -s engine/scripts/engine-check-update.sh plugin/engine/scripts/engine-check-update.sh",
+      "status": "PASS",
+      "exit_code": 0,
+      "expect_exit": 0,
+      "duration_ms": 7,
+      "output_fingerprint": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "output_truncated": ""
+    }
+  ],
+  "gate": {
+    "decision": "PASS",
+    "rule": "ALL assertions must pass; any FAIL or TIMEOUT = gate FAIL"
+  },
+  "write_provenance": {
+    "writer": "engine-prove",
+    "model_id": "",
+    "commit": "",
+    "timestamp": "2026-08-01T13:34:05Z",
+    "argv": "engine prove T-080 --execute"
+  }
+}

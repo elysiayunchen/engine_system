@@ -1,0 +1,43 @@
+{
+  "task": "T-080",
+  "timestamp": "2026-08-01T13:38:57Z",
+  "status": "pass",
+  "gates": {
+    "verify": {
+      "status": "pass",
+      "detail": "8/8 AC PASS",
+      "checked_at": "2026-08-01T13:38:57Z"
+    },
+    "review": {
+      "status": "pass",
+      "detail": "linter review passed",
+      "checked_at": "2026-08-01T13:38:57Z"
+    },
+    "review_agent": {
+      "status": "pass",
+      "detail": "agent review passed",
+      "checked_at": "2026-08-01T13:38:57Z"
+    },
+    "prove": {
+      "status": "pass",
+      "detail": "prove assertions passed",
+      "checked_at": "2026-08-01T13:38:57Z"
+    }
+  },
+  "config": {
+    "gates_applicable": [
+      "verify",
+      "review",
+      "review_agent",
+      "prove"
+    ],
+    "gates_skipped": [],
+    "skip_reasons": {}
+  },
+  "write_provenance": {
+    "writer": "engine-gate",
+    "commit": "e5d263bbb0f1fe44cdf6de365a08267d4b75706f",
+    "timestamp": "2026-08-01T13:38:57Z",
+    "argv": "engine gate T-080"
+  }
+}

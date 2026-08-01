@@ -15,6 +15,10 @@ log_error() { echo "[engine-hook-session-start] ERROR: $*" >&2; }
 
 ROOT="${CLAUDE_PROJECT_DIR:-$PWD}"
 ENGINE_DIR="$ROOT/engine"
+
+# v6.26.1: Injection budget (TDAI mmdMaxTokenRatio=0.2 inspired)
+# ~500 lines approx 40K chars approx 20% of 200K context window
+INJECT_LINE_BUDGET=${ENGINE_INJECT_BUDGET:-500}
 MODE="${1:-full}"
 
 if [ ! -d "$ENGINE_DIR" ]; then
@@ -201,7 +205,7 @@ for f in "$ENGINE_DIR"/tasks/T-*.md; do
   if [ "$active_count" -le 3 ]; then
     echo "──── 🎯 Active Task Card ($task_id) ────"
     echo "⚠️ 所有项目路径(含 engine/*)必须在某张 active 卡的 WRITE-SET 内;本卡 FORBIDDEN 碰了即被拦截。"
-    cat "$f" 2>/dev/null || log_error "failed to read active task card: $f"
+    head -80 "$f" 2>/dev/null || log_error "failed to read active task card: $f"
     echo ""
   else
     echo "──── 🎯 Additional active card: $task_id (read engine/tasks/$task_id.md) ────"
@@ -358,8 +362,15 @@ for f in "$ENGINE_DIR"/tasks/T-*.md; do
   fi
 done
 
+# v6.26.1: budget guard - skip optional enrichment if mandatory sections already large
+_inject_estimate=0
+[ -f "$ROOT/runtime-law.md" ] && _inject_estimate=$((_inject_estimate + 40))
+[ -f "$ENGINE_DIR/CONTEXT.md" ] && _inject_estimate=$((_inject_estimate + 50))
+[ -n "${active_task:-}" ] && _inject_estimate=$((_inject_estimate + ${active_count:-0} * 80))
+_inject_estimate=$((_inject_estimate + 20))  # HANDOFF + dashboard + headers
+
 # v6 S2: L2 所属域装配——按 active 任务卡 domain 拉取对应域的 CONTEXT+PITFALLS(各受预算约束)。
-if [ -n "$active_task" ] && [ -f "$fed" ]; then
+if [ -n "$active_task" ] && [ -f "$fed" ] && [ "$_inject_estimate" -lt "$INJECT_LINE_BUDGET" ]; then
   task_domains_l2="$(grep '^>.*domain:' "$active_task" 2>/dev/null | head -1 | sed 's/.*domain:[[:space:]]*//' | sed 's/|.*//' | tr -d ' ')"
   if [ -n "$task_domains_l2" ]; then
     saved_IFS="$IFS"; IFS=','
@@ -378,6 +389,8 @@ if [ -n "$active_task" ] && [ -f "$fed" ]; then
   fi
 fi
 
+# v6.26.1: budget guard
+if [ "$_inject_estimate" -lt "$INJECT_LINE_BUDGET" ]; then
 # 「等你拍板」队列:proposed 决策,提示架构师需要拍板。
 proposed_count=0
 for f in "$ENGINE_DIR"/decisions/D-*.md; do
@@ -391,6 +404,8 @@ for f in "$ENGINE_DIR"/decisions/D-*.md; do
     proposed_count=$((proposed_count + 1))
   fi
 done
+
+fi  # end budget guard (proposed decisions)
 
 # SessionEnd hook 会把遗留待办/Doctor 结果写到这里，由本钩子读出。
 if [ -f "$ENGINE_DIR/.cache/pending.txt" ]; then

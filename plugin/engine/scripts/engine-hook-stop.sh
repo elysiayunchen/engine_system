@@ -533,14 +533,16 @@ if [ "$code_changed" -eq 1 ] && [ "$engine_written" -eq 0 ]; then
           _s5_ts="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo unknown)"
           printf -- '- **CAND-%s** Code changed but engine memory not written back
   - signal: S5
+  - severity: low
   - task: %s
   - domain: %s
   - session: %s
+  - cluster: %s
   - date: %s
   - dedup-key: %s
   - status: pending
 
-'             "$(date -u +%Y%m%d%H%M%S 2>/dev/null || echo 000)" "$_s5_task" "$_s5_dom" "${session_id:-unknown}" "$_s5_ts" "$_s5_dk" >> "$_s5_pfile" 2>/dev/null || true
+'             "$(date -u +%Y%m%d%H%M%S 2>/dev/null || echo 000)" "$_s5_task" "$_s5_dom" "${session_id:-unknown}" "${_s5_task}@${session_id:-unknown}" "$_s5_ts" "$_s5_dk" >> "$_s5_pfile" 2>/dev/null || true
           printf '%s
 ' "$_s5_dk" >> "$_s5_seen" 2>/dev/null || true
         fi
@@ -659,6 +661,14 @@ fi
   # 辅助: 追加候选条目到 PITFALLS
   _fe_append_candidate() {
     local sig="$1" detail="$2" dom="$3" dkey="$4"
+    # Severity by signal type (TDAI-inspired score)
+    local sev="medium"
+    case "$sig" in
+      S18) sev="high" ;;
+      S12|S13) sev="medium" ;;
+      S5) sev="low" ;;
+    esac
+    local cluster="${_fe_task}@${session_id:-unknown}"
     local pfile="$ENGINE_DIR/domains/$dom/PITFALLS.md"
     [ -f "$pfile" ] || pfile="$ENGINE_DIR/domains/engine-runtime/PITFALLS.md"
     if [ ! -f "$pfile" ]; then
@@ -687,6 +697,7 @@ fi
     ts="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo unknown)"
     printf -- '- **%s** %s
   - signal: %s
+  - severity: %s
   - task: %s
   - domain: %s
   - session: %s
@@ -694,7 +705,7 @@ fi
   - dedup-key: %s
   - status: pending
 
-'       "$cand_id" "$detail" "$sig" "$_fe_task" "$dom" "${session_id:-unknown}" "$ts" "$dkey" >> "$pfile" 2>/dev/null || true
+'       "$cand_id" "$detail" "$sig" "$sev" "$_fe_task" "$dom" "${session_id:-unknown}" "$cluster" "$ts" "$dkey" >> "$pfile" 2>/dev/null || true
     printf '%s
 ' "$dkey" >> "$_fe_seen" 2>/dev/null || true
   }

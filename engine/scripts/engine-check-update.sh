@@ -2,7 +2,7 @@
 # Engine System - check for remote updates
 #
 # Compares local engine/VERSION against the remote repository VERSION.
-# Exit codes: 0 = up to date | 7 = update available | 8 = network error
+# Exit codes: 0 = up to date (or remote is older) | 7 = update available | 8 = network error
 #
 # Idempotent and fail-open: a missing local version falls back to parsing
 # ENGINE_FILE_SYSTEM_v5.md; a network failure exits 8 without touching state.
@@ -16,7 +16,7 @@ LOCAL_VERSION_FILE="$ROOT/engine/VERSION"
 REMOTE_URL="https://raw.githubusercontent.com/${REPO}/${BRANCH}/VERSION"
 
 # 归一化:补足 major.minor.patch(6.0 -> 6.0.0)再比较,防 6.0 vs 6.0.0 伪更新提示;
-# 非纯数字版本(unknown 等)原样返回,退回原始不等判定(D-015)。
+# 非纯数字版本(unknown 等)原样返回；只有可排序数字版本才判断方向，未知形状保守退出 7。
 normalize_version() {
   v="$(printf '%s' "${1:-}" | tr -d '[:space:]')"
   case "$v" in
@@ -28,6 +28,38 @@ normalize_version() {
     *) v="$v.0.0" ;;
   esac
   printf '%s' "$v"
+}
+
+is_numeric_version() {
+  [[ "${1:-}" =~ ^[0-9]+(\.[0-9]+)*$ ]]
+}
+
+# Compare normalized numeric versions without relying on sort-version support.
+# Prints -1 when left < right, 0 when equal, and 1 when left > right.
+compare_versions() {
+  local left="$1" right="$2"
+  local IFS=.
+  local -a left_parts right_parts
+  read -r -a left_parts <<< "$left"
+  read -r -a right_parts <<< "$right"
+  local max_parts="${#left_parts[@]}"
+  if [ "${#right_parts[@]}" -gt "$max_parts" ]; then
+    max_parts="${#right_parts[@]}"
+  fi
+  local i left_part right_part
+  for ((i = 0; i < max_parts; i++)); do
+    left_part=$((10#${left_parts[$i]:-0}))
+    right_part=$((10#${right_parts[$i]:-0}))
+    if [ "$left_part" -lt "$right_part" ]; then
+      printf '%s' '-1'
+      return
+    fi
+    if [ "$left_part" -gt "$right_part" ]; then
+      printf '%s' '1'
+      return
+    fi
+  done
+  printf '%s' '0'
 }
 
 # Read local version: prefer engine/VERSION, fall back to ENGINE_FILE_SYSTEM_v5.md header.
@@ -59,11 +91,27 @@ fi
 echo "Local:  $local_version"
 echo "Remote: $remote_version"
 
-if [ "$(normalize_version "$local_version")" = "$(normalize_version "$remote_version")" ]; then
+local_normalized="$(normalize_version "$local_version")"
+remote_normalized="$(normalize_version "$remote_version")"
+
+if [ "$local_normalized" = "$remote_normalized" ]; then
   echo "Up to date."
   exit 0
-else
-  echo "Update available: $local_version -> $remote_version"
-  echo "Run: engine update"
-  exit 7
 fi
+
+if is_numeric_version "$local_normalized" && is_numeric_version "$remote_normalized"; then
+  case "$(compare_versions "$local_normalized" "$remote_normalized")" in
+    -1)
+      echo "Update available: $local_version -> $remote_version"
+      echo "Run: engine update"
+      exit 7
+      ;;
+    1)
+      echo "Remote version $remote_version is older than local $local_version; no downgrade recommended."
+      exit 0
+      ;;
+  esac
+fi
+
+echo "Version comparison unavailable for local '$local_version' and remote '$remote_version'." >&2
+exit 7

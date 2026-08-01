@@ -5,6 +5,8 @@
 
 [English](./README.md) · [中文](./README.zh.md)
 
+当前仓库基线：**v6.24.0** · CLI 已包含任务卡门禁、验收预检、证明/审查证据和任务闭环。
+
 </div>
 
 ---
@@ -122,8 +124,12 @@ Engine System v6 把最初的记忆层升级成了数据驱动运行时。文件
 | **任务卡（S1）** | 一项可独立验收的目标一张卡（`engine/tasks/T-NNN.md`）。每条项目路径——包括 `engine/*`——必须落在 WRITE-SET 内、FORBIDDEN 外。 |
 | **决策台账（S1）** | 非显然选择变成可引用工件（`engine/decisions/D-NNN.md`），带 status / scope / expiry。受保护路径提交时必须引用一个 approved 决策。 |
 | **分形记忆（S2）** | 联邦表（`engine/domains/federation.json`）按 path-glob 路由到域；每个域有自己的 CONTEXT + PITFALLS。L2 装配不超过 400 行会话预算。 |
-| **契约编译（S3）** | `contract/src/*.md` 是唯一正本；`contract/compile.sh` 编译到 dist；减法预算强制"新规则必须净零增长"，契约不会膨胀。 |
+| **契约编译（S3）** | `contract/src/*.md` 是唯一正本；`contract/compile.sh` 编译到 dist；减法预算强制“新规则必须净零增长”，契约不会膨胀。 |
 | **驾驶舱验收（S4）** | `engine verify T-NNN` 跑行为验收——AC verify 命令产出 PASS/FAIL + sha256 指纹到 `engine/evidence/`。任务卡只有在 verify 全绿或架构师批准豁免时才能标 `done`。 |
+| **验收预检** | `engine acceptance-preflight T-NNN` 在实现前运行冻结的 AC 命令，并把 harness/环境故障与真实行为失败分开记录。 |
+| **证明与审查** | `engine prove` 记录 infer/execute 证明断言；`engine review` 和 `engine review-agent` 生成、校验审查证据。 |
+| **Gatekeeper 闭环** | `engine gate` 汇总 verify/prove/review 写入 `GATE.json`；`engine close` 执行闭环并记录交接证据。 |
+| **有方向的更新** | `engine update` 在安装器之后只迁移一次本地引擎文件；远端版本更旧时只告警，不建议降级。 |
 
 ### v6.5——长会话硬边界与并行记忆分片
 
@@ -142,6 +148,19 @@ Engine System v6 把最初的记忆层升级成了数据驱动运行时。文件
 ### 行为技能
 
 五个 Claude Code 技能把契约行为封装好：`engine-scout`、`engine-task-run`、`engine-handoff`、`engine-decision-draft`、`engine-verify-writeback`。同样的 prompt 也以 agent-neutral 形式发布在 `engine/prompts/behaviors/`，让非 Claude agent（Codex、Copilot、Cursor、Gemini、Aider、网页 chat）也能用。
+
+### v6.18–v6.24——证明、审查与闭环门禁
+
+最近几个版本把“验收命令”推进到了可审查的任务闭环：
+
+- **验收预检（T-078）**：实现前运行冻结的 AC 命令。证据会区分行为失败、覆盖率问题和环境依赖缺失，避免把本机缺包误判成产品失败。
+- **证明（T-069）**：`engine prove T-NNN --infer` 从任务卡和证据推导证明断言；`--execute` 执行断言并写入 `PROVE.json`。
+- **审查（T-070）**：`engine review T-NNN` 运行本地审查流水线；需要外部审查时，用 `engine review-agent` 打包并校验审查结果。
+- **质量门（T-077）**：`engine gate T-NNN --run` 汇总闭环输入，生成 `engine/evidence/T-NNN/GATE.json`。
+- **关闭（T-076）**：`engine close T-NNN` 执行 verify → gate → Doctor，并记录关闭胶囊/交接信息。代码改完不等于任务完成。
+- **兼容旧证据**：Doctor 和 pre-commit 接受历史的 `verdict: PASS`；Doctor 会告警，并建议重新 verify 生成当前的 `status: pass` 格式。
+
+随仓库发布的 Bash、PowerShell 入口和 plugin 镜像必须保持同步。扩展运行时脚本时，要同时更新对应 twin 和 plugin 镜像。
 
 ---
 
@@ -361,8 +380,14 @@ engine workstream T-NNN <agent-id>
 | `engine init`                            | 展示如何把 `engine/prompts/init.md` 喂给任意 AI agent。`--print` 直接吐出原始 prompt            |
 | `engine context`                         | 打印完整会话上下文包（Claude Code SessionStart 注入的 agent-neutral 等价物）                    |
 | `engine workstream T-NNN <agent-id>`     | 为并行 agent 创建隔离 worker 记忆分片（v6.5+）                                                  |
-| `engine verify T-NNN`                     | 跑行为验收，把 PASS/FAIL + sha256 证据写到 `engine/evidence/`（v6+）                            |
-| `engine check-update`                    | 对比本地 `engine/VERSION` 和远端。Exit 0 最新 / 7 有更新 / 8 网络错误                            |
+| `engine verify T-NNN [--preflight] [--no-cov]` | 跑行为验收；`--preflight` 在实现前区分冻结命令的 harness/环境故障                         |
+| `engine acceptance-preflight T-NNN [--no-cov]` | 在实现前运行冻结 AC 命令，并记录环境/覆盖率分类                                     |
+| `engine prove T-NNN --infer \| --execute`  | 推导或执行证明断言，写入 `PROVE.json`                                                       |
+| `engine review T-NNN`                    | 跑本地任务后审查流水线，写入 `REVIEW.json`                                                |
+| `engine review-agent T-NNN --package \| --validate` | 打包审查上下文，或校验外部 `AGENT-REVIEW.json`                                         |
+| `engine gate T-NNN [--run]`              | 汇总 verify/prove/review，写入 `GATE.json`                                                  |
+| `engine close T-NNN [--handoff AGENT]`   | 执行关闭序列并记录最终证据/交接信息                                                        |
+| `engine check-update`                    | 对比本地和远端：只有远端更新时 Exit 7；相同或远端更旧 Exit 0；网络错误 Exit 8              |
 | `engine update`                          | 一站式：拉 installer → 更新工具 → 跑 migrator → 跑 Doctor                                        |
 | `engine update --check-only`             | 只预览，不改任何东西                                                                            |
 | `engine update --no-migrate`             | 更新工具但跳过迁移/Doctor                                                                       |
@@ -371,6 +396,23 @@ engine workstream T-NNN <agent-id>
 | `engine help`                            | 显示用法                                                                                       |
 
 CLI 不会自动改你的项目记忆——`engine migrate` 只应用托管契约区块和结构性迁移；项目专属的 `SYSTEM.md`、`PITFALLS.md`、`CONTEXT.md`、`HANDOFF.md`、plans、decisions 都保留。
+
+### 推荐的任务生命周期
+
+```text
+engine context
+  → 创建/激活 engine/tasks/T-NNN.md
+  → engine acceptance-preflight T-NNN
+  → 在 WRITE-SET 内实现
+  → engine verify T-NNN
+  → engine prove T-NNN --infer
+  → engine prove T-NNN --execute
+  → engine review T-NNN
+  → engine gate T-NNN --run
+  → engine close T-NNN
+```
+
+通常最后运行 `engine close`；需要检查或修复某一道门时，再单独运行对应阶段。并行 worker 从 `engine workstream T-NNN AGENT --kind=session` 开始，只写自己的分片。实现者候选提交可以设置 `ENGINE_COMMIT_ROLE=implementer-candidate`，在不回写共享记忆时提交产品代码；该角色仍不能提交共享单例文件，之后由协调者合并分片。
 
 ---
 

@@ -116,6 +116,15 @@ parse_ac_declarations() {
   return 0
 }
 
+# Evidence compatibility: current records use status=pass; pre-v6.13 records
+# used verdict=PASS. Accept both so historical done cards remain committable.
+evidence_has_pass() {
+  local content="${1:-}"
+  printf '%s\n' "$content" | grep -Eiq '"status"[[:space:]]*:[[:space:]]*"pass"' && return 0
+  printf '%s\n' "$content" | grep -Eiq '"status"[[:space:]]*:' && return 1
+  printf '%s\n' "$content" | grep -Eiq '"verdict"[[:space:]]*:[[:space:]]*"pass"'
+}
+
 is_strict_task_project() {
   _version=""
   for _marker in "$ROOT/AGENTS.md" "$ENGINE_DIR/SYSTEM.md" "$ENGINE_DIR/ENGINE_DOCTOR.md"; do
@@ -328,8 +337,14 @@ covering_decision() {
     [ -n "$_cws" ] || continue
     if [ -n "$_cfb" ] && match_any_glob "$_dpath" "$_cfb"; then continue; fi
     if match_any_glob "$_dpath" "$_cws"; then
-      grep 'decision:' "$_cf" 2>/dev/null | head -1 | sed 's/.*decision:[[:space:]]*//' | sed 's/[[:space:]|].*//'
-      return 0
+      _decision="$(grep 'decision:' "$_cf" 2>/dev/null | head -1 | sed 's/.*decision:[[:space:]]*//' | sed 's/[[:space:]|].*//')"
+      # Union gating may have several active cards covering one path. A card
+      # with decision:none must not shadow a later covering card with an
+      # approved decision; keep searching for an actionable authorization.
+      if [ -n "$_decision" ] && [ "$_decision" != "none" ]; then
+        printf '%s' "$_decision"
+        return 0
+      fi
     fi
   done <<COVER_EOF
 $card_meta
@@ -418,7 +433,7 @@ if [ "$strict_task_mode" -eq 1 ]; then
     for ac_id in $ac_ids; do
       evidence_path="engine/evidence/$done_task_id/$ac_id.json"
       evidence="$(git -C "$ROOT" show ":$evidence_path" 2>/dev/null || true)"
-      if ! printf '%s\n' "$evidence" | grep -Eq '"status"[[:space:]]*:[[:space:]]*"pass"'; then
+      if ! evidence_has_pass "$evidence"; then
         printf '\n[Engine System] %s cannot be marked done: %s has no PASS evidence.\n' "$done_task_id" "$ac_id" >&2
         printf "Run 'engine verify %s' and stage engine/evidence/%s/.\n\n" "$done_task_id" "$done_task_id" >&2
         IFS="$old_ifs"
@@ -521,10 +536,11 @@ fi
 # v6.11.1 (D-029/T-038) AC-4: B tier pre-commit backstop - with ENGINE_WORKER=1
 # set, refuse staging the shared memory trio (Codex/Cursor/Aider have no
 # SessionStart hook to write the .role=worker flag; the user sets the env var).
-if [ "${ENGINE_WORKER:-}" = "1" ]; then
+commit_role="${ENGINE_COMMIT_ROLE:-}"
+if [ "${ENGINE_WORKER:-}" = "1" ] || [ "$commit_role" = "implementer-candidate" ]; then
   shared_staged="$(printf '%s\n' "$staged" | grep -E '^engine/(CONTEXT|HANDOFF|ENGINE_MAP)\.md$' | head -1)"
   if [ -n "$shared_staged" ]; then
-    printf '\n[Engine System] Worker mode (ENGINE_WORKER=1) cannot stage shared memory: %s\n' "$shared_staged" >&2
+    printf '\n[Engine System] Worker/candidate mode cannot stage shared memory: %s\n' "$shared_staged" >&2
     printf 'Stage your engine/workstreams/<task>/<sid>/ shard instead.\n\n' >&2
     exit 1
   fi
@@ -532,8 +548,8 @@ fi
 
 # Code changes must carry shared memory or a worker shard in the same commit.
 code_changed="$(printf '%s\n' "$staged" | grep -vE '^(engine/|\.engine/)' | head -1)"
-  memory_written="$(printf '%s\n' "$staged" | grep -E '^engine/(CONTEXT|HANDOFF|ENGINE_MAP)\.md$|^engine/workstreams/[^/]+/([^/]+/)?[^/]+/(CONTEXT|HANDOFF)\.md$' | head -1)"
-if [ -n "$code_changed" ] && [ -z "$memory_written" ]; then
+memory_written="$(printf '%s\n' "$staged" | grep -E '^engine/(CONTEXT|HANDOFF|ENGINE_MAP)\.md$|^engine/workstreams/[^/]+/([^/]+/)?[^/]+/(CONTEXT|HANDOFF)\.md$' | head -1)"
+if [ -n "$code_changed" ] && [ -z "$memory_written" ] && [ "$commit_role" != "implementer-candidate" ]; then
   printf '\n[Engine System] Code changed but project memory was not staged.\n' >&2
   printf 'Coordinator: update engine/CONTEXT.md or engine/HANDOFF.md.\n' >&2
   printf 'Parallel worker: stage your engine/workstreams/<task>/<agent>/ shard.\n\n' >&2

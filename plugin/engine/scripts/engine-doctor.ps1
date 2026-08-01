@@ -1312,6 +1312,16 @@ function Test-ContractDebt {
   }
 }
 
+function Test-EvidencePass([string]$Content) {
+  if ($Content -match '(?i)"status"\s*:\s*"pass"') { return $true }
+  if ($Content -match '(?i)"status"\s*:') { return $false }
+  return ($Content -match '(?i)"verdict"\s*:\s*"pass"')
+}
+
+function Test-LegacyVerdictEvidence([string]$Content) {
+  return (($Content -match '(?i)"verdict"\s*:\s*"pass"') -and ($Content -notmatch '(?i)"status"\s*:'))
+}
+
 function Test-TaskCardDoneEvidence {
   $tasksDir = Join-Path $engineDir "tasks"
   if (-not (Test-Path $tasksDir)) { return }
@@ -1335,7 +1345,12 @@ function Test-TaskCardDoneEvidence {
       $evPath = Join-Path $evDir ($ac + '.json')
       if (-not (Test-Path $evPath)) { $missing.Add($ac); continue }
       $evContent = Get-Content -Raw -Path $evPath -Encoding UTF8 -ErrorAction SilentlyContinue
-      if ($evContent -notmatch '"status"\s*:\s*"pass"') { $missing.Add($ac) }
+      if (-not (Test-EvidencePass $evContent)) {
+        $missing.Add($ac)
+      } elseif (Test-LegacyVerdictEvidence $evContent) {
+        Write-Warn "task $tid/$ac uses legacy verdict evidence (accepted; re-run 'engine verify $tid' to write status=pass)"
+        Write-Output "  human: Evidence for $tid/$ac uses the legacy verdict=PASS field. It is accepted for compatibility; re-run engine verify to upgrade it to status=pass."
+      }
     }
     if ($acIds.Count -gt 0 -and $missing.Count -eq 0) {
       $verifiedCount++

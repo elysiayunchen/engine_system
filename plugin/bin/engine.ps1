@@ -52,7 +52,7 @@ locates engine/prompts/init.md (distributed by the installer) and shows how to
 feed it to your AI agent; --print emits the raw prompt for piping/copying.
 
 `engine check-update` compares local engine/VERSION against the remote VERSION.
-Exit codes: 0 = up to date | 7 = update available | 8 = network error.
+Exit codes: 0 = up to date or remote is older (no downgrade) | 7 = update available | 8 = network error.
 
 `engine update` downloads the latest installer, runs update mode (does not
 overwrite project-specific engine/*.md memory), then runs the contract migrator
@@ -902,7 +902,7 @@ switch ($Command) {
     $tmp = Join-Path $env:TEMP ("engine-install-" + [guid]::NewGuid().ToString("N") + ".ps1")
     try {
       Invoke-WebRequest -Uri "https://raw.githubusercontent.com/$Repo/$Branch/install.ps1" -OutFile $tmp -UseBasicParsing
-      powershell -NoProfile -ExecutionPolicy Bypass -File $tmp -Update
+      powershell -NoProfile -ExecutionPolicy Bypass -File $tmp -Update -SkipMigrate
       Write-Host ""
       if (-not $NoMigrate) {
         Run-Migrate -Root $PWD.Path

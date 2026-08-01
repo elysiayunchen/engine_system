@@ -5,6 +5,8 @@
 
 [English](./README.md) · [中文](./README.zh.md)
 
+Current repository baseline: **v6.24.0** · task-card gating, acceptance preflight, proof/review evidence, and lifecycle close are included in the CLI.
+
 </div>
 
 ---
@@ -125,6 +127,10 @@ Engine System v6 turns the original memory layer into a data-driven runtime. The
 | **Fractal memory (S2)** | A federation table (`engine/domains/federation.json`) routes path-globs to domains. Each domain keeps its own CONTEXT + PITFALLS. L2 assembly stays within a 400-line session budget. |
 | **Contract compile (S3)** | `contract/src/*.md` is the single source of truth; `contract/compile.sh` compiles to dist; a subtraction budget enforces "new rules must net-zero" so the contract doesn't bloat. |
 | **Cockpit verify (S4)** | `engine verify T-NNN` runs behavior verification — AC verify commands produce PASS/FAIL with sha256 fingerprints in `engine/evidence/`. A task is `done` only when verify is all-green or the architect grants an exemption. |
+| **Acceptance preflight** | `engine acceptance-preflight T-NNN` runs frozen AC commands before implementation and classifies harness/environment failures separately from behavior failures. |
+| **Proof + review** | `engine prove` records infer/execute proof assertions; `engine review` and `engine review-agent` produce and validate review evidence. |
+| **Gatekeeper lifecycle** | `engine gate` aggregates verify/prove/review results into `GATE.json`; `engine close` runs the closure sequence and records handoff evidence. |
+| **Version-aware update** | `engine update` migrates local engine files once after the installer; a remote version older than local is reported without recommending a downgrade. |
 
 ### v6.5 — long-session hard boundary & parallel memory sharding
 
@@ -143,6 +149,19 @@ Two recurring problems — long-context models forgetting the task scope, and pa
 ### Behavior skills
 
 Five Claude Code skills wrap the contract behaviors: `engine-scout`, `engine-task-run`, `engine-handoff`, `engine-decision-draft`, `engine-verify-writeback`. The same prompts ship agent-neutral under `engine/prompts/behaviors/` so non-Claude agents (Codex, Copilot, Cursor, Gemini, Aider, web chat) can use them too.
+
+### v6.18–v6.24 — proof, review, and closure gates
+
+Recent releases complete the path from an acceptance command to a reviewable task closure:
+
+- **Acceptance preflight (T-078):** run the frozen AC commands before implementation. The evidence records whether a failure is behavior, coverage, or an unavailable environment, so a missing local dependency is not mistaken for a product failure.
+- **Proof (T-069):** `engine prove T-NNN --infer` derives proof assertions from the task and evidence; `--execute` runs the assertions and writes `PROVE.json`.
+- **Review (T-070):** `engine review T-NNN` runs the local review pipeline. When an external reviewer is used, `engine review-agent` packages and validates its result.
+- **Quality gate (T-077):** `engine gate T-NNN --run` aggregates the closure inputs into `engine/evidence/T-NNN/GATE.json`.
+- **Close (T-076):** `engine close T-NNN` runs the verify → gate → Doctor sequence and records the closure capsule/handoff. A task is not complete merely because its code was changed.
+- **Compatibility:** Doctor and the pre-commit gate accept historical evidence using `verdict: PASS`; Doctor warns and recommends re-running verification to write the current `status: pass` shape.
+
+The shipped Bash and PowerShell entry points are maintained as mirrors. If you extend a runtime script, update its twin and the plugin mirror together.
 
 ---
 
@@ -366,8 +385,14 @@ The `engine` CLI is a thin shim installed at `engine/bin/engine` (and a user-lev
 | `engine init`                            | Shows how to feed `engine/prompts/init.md` to any AI agent. `--print` emits the raw prompt    |
 | `engine context`                         | Prints the full session-context bundle (agent-agnostic equivalent of Claude Code's SessionStart injection) |
 | `engine workstream T-NNN <agent-id>`     | Creates an isolated worker memory shard for parallel agents (v6.5+)                           |
-| `engine verify T-NNN`                     | Runs behavior verification and writes PASS/FAIL + sha256 evidence (v6+)                       |
-| `engine check-update`                    | Compares local `engine/VERSION` against the remote. Exit 0 up-to-date / 7 update available / 8 network error |
+| `engine verify T-NNN [--preflight] [--no-cov]` | Runs behavior verification; `--preflight` classifies frozen-command harness failures before implementation |
+| `engine acceptance-preflight T-NNN [--no-cov]` | Runs the frozen AC commands and records environment/coverage classification before implementation |
+| `engine prove T-NNN --infer \| --execute`  | Infer proof assertions or execute them, writing `PROVE.json`                          |
+| `engine review T-NNN`                    | Run the local post-task review pipeline and write `REVIEW.json`                         |
+| `engine review-agent T-NNN --package \| --validate` | Package review context or validate an external `AGENT-REVIEW.json`                  |
+| `engine gate T-NNN [--run]`              | Aggregate verify/prove/review results into `GATE.json`                                 |
+| `engine close T-NNN [--handoff AGENT]`   | Run the closure sequence and record final evidence/handoff                             |
+| `engine check-update`                    | Compares local `engine/VERSION` against remote: exit 7 only when remote is newer; exit 0 when equal or remote is older; exit 8 network error |
 | `engine update`                          | One-shot: pull installer → update tooling → run migrator → run Doctor                          |
 | `engine update --check-only`             | Preview only, change nothing                                                                  |
 | `engine update --no-migrate`             | Update tooling but skip migration/Doctor                                                      |
@@ -376,6 +401,23 @@ The `engine` CLI is a thin shim installed at `engine/bin/engine` (and a user-lev
 | `engine help`                            | Show usage                                                                                    |
 
 The CLI never auto-edits your project memory — `engine migrate` only applies managed-contract blocks and structural migrations; project-specific `SYSTEM.md`, `PITFALLS.md`, `CONTEXT.md`, `HANDOFF.md`, plans, and decisions are preserved.
+
+### Recommended task lifecycle
+
+```text
+engine context
+  → create/activate engine/tasks/T-NNN.md
+  → engine acceptance-preflight T-NNN
+  → implement within WRITE-SET
+  → engine verify T-NNN
+  → engine prove T-NNN --infer
+  → engine prove T-NNN --execute
+  → engine review T-NNN
+  → engine gate T-NNN --run
+  → engine close T-NNN
+```
+
+`engine close` is the normal final command; run the individual stages when you need to inspect or repair one gate. A parallel worker starts with `engine workstream T-NNN AGENT --kind=session` and writes only its shard. An implementer-candidate may set `ENGINE_COMMIT_ROLE=implementer-candidate` for a product-only commit without shared-memory write-back; shared singleton files remain forbidden to that role and the coordinator merges the shard later.
 
 ---
 

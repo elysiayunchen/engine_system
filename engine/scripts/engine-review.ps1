@@ -6,12 +6,17 @@
 # 用法:engine review T-NNN (via engine.ps1)
 # 安全:review 命令由任务卡声明;用户主动跑,非 hook 自动。
 
+param(
+  [Parameter(Position=0)]
+  [string]$Task = ""
+)
+
 $ErrorActionPreference = "Stop"
 
 $ROOT = $env:CLAUDE_PROJECT_DIR
 if (-not $ROOT) { $ROOT = (Get-Location).Path }
 $ENGINE_DIR = Join-Path $ROOT "engine"
-$task = $args[0]
+$task = $Task
 
 if (-not $task) {
   Write-Error "Usage: engine review T-NNN"

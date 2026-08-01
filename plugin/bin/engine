@@ -41,7 +41,7 @@ locates engine/prompts/init.md (distributed by the installer) and shows how to
 feed it to your AI agent; --print emits the raw prompt for piping/copying.
 
 `engine check-update` compares local engine/VERSION against the remote VERSION.
-Exit codes: 0 = up to date | 7 = update available | 8 = network error.
+Exit codes: 0 = up to date or remote is older (no downgrade) | 7 = update available | 8 = network error.
 
 `engine update` downloads the latest installer, runs update mode (does not
 overwrite project-specific engine/*.md memory), then runs the contract migrator
@@ -841,7 +841,7 @@ case "${1:-help}" in
     tmp="$(mktemp -t engine-install.XXXXXX)"
     trap 'rm -f "$tmp"' EXIT
     download "https://raw.githubusercontent.com/${REPO}/${BRANCH}/install.sh" "$tmp"
-    bash "$tmp" --update
+    bash "$tmp" --update --skip-migrate
     echo ""
     if ! $NO_MIGRATE; then
       run_migrate "$PWD"

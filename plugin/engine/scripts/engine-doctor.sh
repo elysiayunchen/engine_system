@@ -1345,6 +1345,22 @@ check_contract_debt() {
   fi
 }
 
+# Evidence compatibility: current records use status=pass; pre-v6.13 records
+# used verdict=PASS. Keep old cards readable while warning that re-verification
+# will upgrade the evidence shape.
+evidence_has_pass() {
+  local content="${1:-}"
+  printf '%s\n' "$content" | grep -Eiq '"status"[[:space:]]*:[[:space:]]*"pass"' && return 0
+  printf '%s\n' "$content" | grep -Eiq '"status"[[:space:]]*:' && return 1
+  printf '%s\n' "$content" | grep -Eiq '"verdict"[[:space:]]*:[[:space:]]*"pass"'
+}
+
+evidence_is_legacy_verdict() {
+  local content="${1:-}"
+  printf '%s\n' "$content" | grep -Eiq '"verdict"[[:space:]]*:[[:space:]]*"pass"' || return 1
+  ! printf '%s\n' "$content" | grep -Eiq '"status"[[:space:]]*:'
+}
+
 check_task_card_done_evidence() {
   local tasks_dir="$ENGINE_DIR/tasks"
   local done_count=0 exempt_count=0 verified_count=0
@@ -1366,8 +1382,16 @@ check_task_card_done_evidence() {
     missing=""
     for ac in $ac_ids; do
       ev="$ev_dir/$ac.json"
-      if [ ! -f "$ev" ] || ! grep -Eq '"status"[[:space:]]*:[[:space:]]*"pass"' "$ev" 2>/dev/null; then
+      if [ ! -f "$ev" ]; then
         missing="${missing}${missing:+,}$ac"
+      else
+        ev_content="$(cat "$ev" 2>/dev/null || true)"
+        if ! evidence_has_pass "$ev_content"; then
+          missing="${missing}${missing:+,}$ac"
+        elif evidence_is_legacy_verdict "$ev_content"; then
+          warn "task $tid/$ac uses legacy verdict evidence (accepted; re-run 'engine verify $tid' to write status=pass)"
+          echo "  human: Evidence for $tid/$ac uses the legacy verdict=PASS field. It is accepted for compatibility; re-run engine verify to upgrade it to status=pass."
+        fi
       fi
     done
     if [ "$ac_count" -gt 0 ] 2>/dev/null && [ -z "$missing" ]; then

@@ -2,12 +2,14 @@
 # Usage:
 #   Invoke-WebRequest https://raw.githubusercontent.com/elysiayunchen/engine_system/main/install.ps1 -OutFile install.ps1
 #   powershell -NoProfile -File .\install.ps1 [-Update] [-Version TAG]
+# Internal update wrapper switch: -SkipMigrate (the outer CLI owns migration)
 #
 # Keep this installer file-download-first. Avoid pipe-to-execute examples:
 # security products often flag remote-content direct execution as malware-like.
 
 param(
   [switch]$Update,
+  [switch]$SkipMigrate,
   [string]$Version = "",
   [string]$Local = ""
 )
@@ -464,7 +466,7 @@ if ($LocalDir -and (Test-Path (Join-Path $LocalDir "manifest.json"))) {
 }
 
 # Create v6 data layer dirs (tasks/decisions/domains/changes/evidence)
-if (Test-Path "engine\scripts\engine-migrate-contract.ps1") {
+if (-not $SkipMigrate -and (Test-Path "engine\scripts\engine-migrate-contract.ps1")) {
   try {
     & powershell -NoProfile -ExecutionPolicy Bypass -File "engine\scripts\engine-migrate-contract.ps1" "." 2>$null
   } catch {

@@ -2,6 +2,7 @@
 # Engine System installer
 # Usage: bash <(curl -sSL https://raw.githubusercontent.com/elysiayunchen/engine_system/main/install.sh)
 # Or:    bash install.sh [--update]
+# Internal update wrapper flag: --skip-migrate (the outer CLI owns migration)
 
 set -euo pipefail
 INSTALL_SCRIPT="install.sh"
@@ -12,6 +13,7 @@ REPO="elysiayunchen/engine_system"
 BRANCH="main"
 PLUGIN_DIR="plugin"
 UPDATE_MODE=false
+SKIP_MIGRATE=false
 VERSION_TAG=""
 LOCAL_PATH=""
 LOCAL_DIR=""
@@ -20,6 +22,7 @@ LOCAL_DIR=""
 while [[ $# -gt 0 ]]; do
   case $1 in
     --update) UPDATE_MODE=true; shift ;;
+    --skip-migrate) SKIP_MIGRATE=true; shift ;;
     --version)
       VERSION_TAG="$2"
       # Normalize: strip leading 'v' if present for internal use
@@ -49,6 +52,7 @@ while [[ $# -gt 0 ]]; do
       echo "  --version TAG    Install a specific version (e.g. --version 6.0.1)"
       echo "                   Tries GitHub Release first, falls back to raw content"
       echo "  --local PATH     Install from local tarball or directory (no network)"
+      echo "  --skip-migrate   Internal: let the outer update wrapper run migration once"
       echo "  --help, -h       Show this help"
       exit 0
       ;;
@@ -485,7 +489,7 @@ elif [[ -n "$VERSION_TAG" ]]; then
 fi
 
 # 创建 v6 数据层目录结构(tasks/decisions/domains/changes/evidence)
-if [ -f "engine/scripts/engine-migrate-contract.sh" ]; then
+if ! $SKIP_MIGRATE && [ -f "engine/scripts/engine-migrate-contract.sh" ]; then
   bash "engine/scripts/engine-migrate-contract.sh" "." 2>/dev/null || true
 fi
 

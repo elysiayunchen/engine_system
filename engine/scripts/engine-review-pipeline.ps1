@@ -235,10 +235,10 @@ try {
   $review | ConvertTo-Json -Depth 10 -Compress | Out-File (Join-Path $evidenceDir "REVIEW.json") -Encoding utf8
 
   if ($overallStatus -eq "block") {
-    Write-Error "[engine-review-pipeline] $task: BLOCK (critical/high findings)"
+    Write-Error "[engine-review-pipeline] ${task}: BLOCK (critical/high findings)"
     exit 1
   }
-  Write-Host "[engine-review-pipeline] $task: PASS"
+  Write-Host "[engine-review-pipeline] ${task}: PASS"
   exit 0
 } finally {
   if ($stream) { $stream.Dispose() }

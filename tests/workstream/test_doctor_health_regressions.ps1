@@ -42,11 +42,16 @@ foreach ($path in @(
 )) { Assert-Contains $inventory "| $path |" }
 
 Assert-Contains (Join-Path $repoRoot 'engine\scripts\engine-doctor.ps1') 'Prefer an existing project-root path'
+Assert-Contains (Join-Path $repoRoot 'engine\scripts\engine-doctor.sh') 'json_file_valid'
+Assert-Contains (Join-Path $repoRoot 'engine\scripts\engine-doctor.sh') 'sys.argv[1]'
 Assert-Contains (Join-Path $repoRoot 'engine\scripts\engine-verify.sh') 'ensure_powershell_on_path'
 Assert-Contains (Join-Path $repoRoot 'engine\scripts\engine-drift-check.sh') 'historical_snapshot=0'
 Assert-Contains (Join-Path $repoRoot 'engine\scripts\engine-drift-check.ps1') '$historicalSnapshot = $false'
 Assert-Contains (Join-Path $repoRoot 'engine\scripts\engine-drift-check.ps1') 'array membership rather than HashSet constructors'
+Assert-Contains (Join-Path $repoRoot 'engine\scripts\engine-drift-check.ps1') 'StringComparer]::Ordinal'
 $driftPsHash = (Get-FileHash (Join-Path $repoRoot 'engine\scripts\engine-drift-check.ps1') -Algorithm SHA256).Hash
 $driftPsPluginHash = (Get-FileHash (Join-Path $repoRoot 'plugin\engine\scripts\engine-drift-check.ps1') -Algorithm SHA256).Hash
 if ($driftPsHash -ne $driftPsPluginHash) { throw 'Drift PowerShell mirrors differ' }
+$driftOutput = & (Join-Path $repoRoot 'engine\scripts\engine-drift-check.ps1') -Task T-078 2>&1
+if ($LASTEXITCODE -ne 0 -or -not (($driftOutput -join "`n") -match 'tamper=0 drift=0')) { throw 'PowerShell drift checker rejected the T-078 manifest' }
 Write-Output 'PASS test_doctor_health_regressions.ps1'

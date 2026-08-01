@@ -26,7 +26,7 @@
     { "src": ".claude/skills/engine-scout/SKILL.md", "sha256": "814ffe3bcf9a91906b3fd91d56cc8e44633759867fd666b03bcd35580dcf4e2f", "dest": ".claude/skills/engine-scout/SKILL.md", "protect": true },
     { "src": ".claude/skills/engine-task-run/SKILL.md", "sha256": "dfd7ee99ed54a992fdc995ebc9fa61850f89ac20e1927525635eeb3b2971adc9", "dest": ".claude/skills/engine-task-run/SKILL.md", "protect": true },
     { "src": ".claude/skills/engine-verify-writeback/SKILL.md", "sha256": "4a3fa37e7c754e444a079c851dfa0b298fe3436b6aac5eb1e60e5368470390de", "dest": ".claude/skills/engine-verify-writeback/SKILL.md", "protect": true },
-    { "src": "engine/scripts/engine-doctor.sh", "sha256": "fc743d0858df70f8926f823eed350288a4983f2486a50c392f7a9f4e88b44543", "dest": "engine/scripts/engine-doctor.sh", "protect": true },
+    { "src": "engine/scripts/engine-doctor.sh", "sha256": "75cd3053895966e76f8fab16ff57c27f95f07eb0a7caf02f0c1f7b669d84b461", "dest": "engine/scripts/engine-doctor.sh", "protect": true },
     { "src": "engine/scripts/engine-doctor.ps1", "sha256": "af889ae355838297631f7acf637b7511df3bf162837bc929cdd0d682d1949975", "dest": "engine/scripts/engine-doctor.ps1", "protect": true },
     { "src": "engine/scripts/engine-context.sh", "sha256": "e7a5e1d77f494a67f174178e4101da062cb7687f0a1565c21fb9861ed02c0c11", "dest": "engine/scripts/engine-context.sh", "protect": true },
     { "src": "engine/scripts/engine-context.ps1", "sha256": "7283b3b9f4bab349382cc3f348067e0857d226b86c453d04e635263b38bf20e7", "dest": "engine/scripts/engine-context.ps1", "protect": true },

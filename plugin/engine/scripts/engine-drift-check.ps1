@@ -95,9 +95,21 @@ foreach ($tid in $doneCards) {
     }
   } else {
     # Recompute manifest aggregate hash and compare
-    $files = Get-ChildItem -Path $evDir -File |
-      Where-Object { $_.Name -ne 'MANIFEST.json' -and ($_.Name -like '*.json' -or $_.Name -eq 'checkpoint.md') } |
-      Sort-Object Name
+    # Keep the manifest order identical to Bash's LC_ALL=C byte ordering.
+    # PowerShell's default Sort-Object is culture-aware and places lowercase
+    # names before uppercase names, which falsely invalidates manifests that
+    # contain both e.g. PROVE.json and prove-assertions.json.
+    $files = @(
+      Get-ChildItem -Path $evDir -File |
+        Where-Object { $_.Name -ne 'MANIFEST.json' -and ($_.Name -like '*.json' -or $_.Name -eq 'checkpoint.md') }
+    )
+    $ordinalComparer = [System.Collections.Generic.Comparer[object]]::Create(
+      [System.Comparison[object]]{
+        param($left, $right)
+        [System.StringComparer]::Ordinal.Compare($left.Name, $right.Name)
+      }
+    )
+    if ($files.Count -gt 1) { [System.Array]::Sort($files, $ordinalComparer) }
     $manifestContent = ""
     foreach ($f in $files) {
       $h = (Get-FileHash -Path $f.FullName -Algorithm SHA256).Hash.ToLower()

@@ -2037,6 +2037,21 @@ check_prove_health() {
   local prove_dir="$ENGINE_DIR/prove"
   local scripts_dir="$ENGINE_DIR/scripts"
 
+  # Git Bash may expose a Windows Python executable while ROOT is a POSIX
+  # path such as /e/projects/.... Pass paths through argv so MSYS converts
+  # them for Windows Python; embedding the POSIX path in Python source makes
+  # valid JSON look unreadable and falsely fails Doctor.
+  json_file_valid() {
+    local json_path="$1"
+    if command -v python3 >/dev/null 2>&1; then
+      python3 -c 'import json,sys; json.load(open(sys.argv[1], encoding="utf-8"))' "$json_path" >/dev/null 2>&1
+    elif command -v python >/dev/null 2>&1; then
+      python -c 'import json,sys; json.load(open(sys.argv[1], encoding="utf-8"))' "$json_path" >/dev/null 2>&1
+    else
+      return 0
+    fi
+  }
+
   # Scripts exist
   if [[ -f "$scripts_dir/engine-prove.sh" ]]; then
     pass "prove script exists: engine/scripts/engine-prove.sh"
@@ -2053,14 +2068,14 @@ check_prove_health() {
   # Config valid
   if [[ -f "$prove_dir/config.json" ]]; then
     if command -v python3 >/dev/null 2>&1; then
-      if python3 -c "import json; json.load(open('$prove_dir/config.json'))" 2>/dev/null; then
+      if json_file_valid "$prove_dir/config.json"; then
         pass "prove config.json is valid JSON"
       else
         fail "prove config.json is invalid JSON"
         echo "  human: engine/prove/config.json has a JSON syntax error. Fix it manually."
       fi
     elif command -v python >/dev/null 2>&1; then
-      if python -c "import json; json.load(open('$prove_dir/config.json'))" 2>/dev/null; then
+      if json_file_valid "$prove_dir/config.json"; then
         pass "prove config.json is valid JSON"
       else
         fail "prove config.json is invalid JSON"
@@ -2075,14 +2090,14 @@ check_prove_health() {
   # Schema valid
   if [[ -f "$prove_dir/prove-assertions.schema.json" ]]; then
     if command -v python3 >/dev/null 2>&1; then
-      if python3 -c "import json; json.load(open('$prove_dir/prove-assertions.schema.json'))" 2>/dev/null; then
+      if json_file_valid "$prove_dir/prove-assertions.schema.json"; then
         pass "prove schema is valid JSON"
       else
         fail "prove schema is invalid JSON"
         echo "  human: engine/prove/prove-assertions.schema.json has a JSON syntax error."
       fi
     elif command -v python >/dev/null 2>&1; then
-      if python -c "import json; json.load(open('$prove_dir/prove-assertions.schema.json'))" 2>/dev/null; then
+      if json_file_valid "$prove_dir/prove-assertions.schema.json"; then
         pass "prove schema is valid JSON"
       else
         fail "prove schema is invalid JSON"

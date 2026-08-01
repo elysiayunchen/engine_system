@@ -170,7 +170,9 @@ try {
     if (Test-Path $packageFile) {
         # Normalize: replace package_sha256 line value with COMPUTE before hashing
         $pkgContent = [System.IO.File]::ReadAllText($packageFile, [System.Text.Encoding]::UTF8)
-        $normalized = [regex]::Replace($pkgContent, '(> package_sha256: ).*', '${1}COMPUTE')
+        # Only replace FIRST occurrence (diff content may contain same pattern)
+        $regexObj = [System.Text.RegularExpressions.Regex]::new('(> package_sha256: ).*')
+        $normalized = $regexObj.Replace($pkgContent, '${1}COMPUTE', 1)
         $sha = [System.Security.Cryptography.SHA256]::Create()
         $normBytes = [System.Text.Encoding]::UTF8.GetBytes($normalized)
         $actualSha = [BitConverter]::ToString($sha.ComputeHash($normBytes)).Replace('-','').ToLower()

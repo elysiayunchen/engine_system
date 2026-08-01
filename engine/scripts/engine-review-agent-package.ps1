@@ -436,13 +436,7 @@ Schema (all fields required):
 - status: "pass" (no critical/high) | "concerns" (has high, acceptable) | "block" (has critical)
 "@
 
-    # Write + sha256 backfill (COMPUTE normalization: replace sha line with COMPUTE before hashing)
-    [System.IO.File]::WriteAllText($packageFile, $packageContent, [System.Text.UTF8Encoding]::new($false))
-    $normalized = [regex]::Replace($packageContent, '(> package_sha256: ).*', '${1}COMPUTE')
-    $sha = [System.Security.Cryptography.SHA256]::Create()
-    $normBytes = [System.Text.Encoding]::UTF8.GetBytes($normalized)
-    $finalHash = [BitConverter]::ToString($sha.ComputeHash($normBytes)).Replace('-','').ToLower()
-    $packageContent = $packageContent.Replace('package_sha256: PLACEHOLDER', "package_sha256: $finalHash")
+    # Write with PLACEHOLDER first (sha computed after truncation)
     [System.IO.File]::WriteAllText($packageFile, $packageContent, [System.Text.UTF8Encoding]::new($false))
 
     $packageLines = (Get-Content $packageFile).Count
@@ -477,6 +471,16 @@ Schema (all fields required):
         [System.IO.File]::WriteAllLines($packageFile, $pkgLinesArr.ToArray(), [System.Text.UTF8Encoding]::new($false))
         $packageLines = $pkgLinesArr.Count
     }
+
+    # sha256 backfill (MUST be after truncation — compute on final file content)
+    $finalContent = [System.IO.File]::ReadAllText($packageFile, [System.Text.Encoding]::UTF8)
+    $regexObj = [System.Text.RegularExpressions.Regex]::new('(> package_sha256: ).*')
+    $normalized = $regexObj.Replace($finalContent, '${1}COMPUTE', 1)
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    $normBytes = [System.Text.Encoding]::UTF8.GetBytes($normalized)
+    $finalHash = [BitConverter]::ToString($sha.ComputeHash($normBytes)).Replace('-','').ToLower()
+    $finalContent = $finalContent.Replace('package_sha256: PLACEHOLDER', "package_sha256: $finalHash")
+    [System.IO.File]::WriteAllText($packageFile, $finalContent, [System.Text.UTF8Encoding]::new($false))
 
     Write-Output "[engine-review-agent-package] $Task`: package ready ($packageLines lines)"
     Write-Output "  Output: engine/review/evidence/$Task/review-package.md"

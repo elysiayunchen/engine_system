@@ -88,20 +88,20 @@ PKGEOF
   sha=$("$PY" -c "
 import hashlib, re, os
 f = os.environ['PKG']
-with open(f, encoding='utf-8') as fh:
+with open(f, encoding='utf-8', newline='') as fh:
     content = fh.read()
-normalized = re.sub(r'(> package_sha256: ).*', r'\1COMPUTE', content)
+normalized = re.sub(r'(> package_sha256: ).*', r'\1COMPUTE', content, count=1)
 print(hashlib.sha256(normalized.encode('utf-8')).hexdigest())
 " 2>/dev/null) || sha="deadbeef"
   PKG="$dir/engine/review/evidence/T-099/review-package.md" "$PY" -c "
 import hashlib, re, os
 f = os.environ['PKG']
-with open(f, encoding='utf-8') as fh:
+with open(f, encoding='utf-8', newline='') as fh:
     content = fh.read()
-normalized = re.sub(r'(> package_sha256: ).*', r'\1COMPUTE', content)
+normalized = re.sub(r'(> package_sha256: ).*', r'\1COMPUTE', content, count=1)
 sha = hashlib.sha256(normalized.encode('utf-8')).hexdigest()
-content = content.replace('package_sha256: PLACEHOLDER', f'package_sha256: {sha}')
-with open(f, 'w', encoding='utf-8') as fh:
+content = content.replace('package_sha256: PLACEHOLDER', f'package_sha256: {sha}', 1)
+with open(f, 'w', encoding='utf-8', newline='') as fh:
     fh.write(content)
 " 2>/dev/null
   git add -A && git commit -qm "package" --allow-empty 2>/dev/null || true
@@ -163,9 +163,9 @@ get_package_sha() {
   "$PY" -c "
 import hashlib, re, os
 f = os.environ['PKG']
-with open(f, encoding='utf-8') as fh:
+with open(f, encoding='utf-8', newline='') as fh:
     content = fh.read()
-normalized = re.sub(r'(> package_sha256: ).*', r'\1COMPUTE', content)
+normalized = re.sub(r'(> package_sha256: ).*', r'\1COMPUTE', content, count=1)
 print(hashlib.sha256(normalized.encode('utf-8')).hexdigest())
 " 2>/dev/null
 }

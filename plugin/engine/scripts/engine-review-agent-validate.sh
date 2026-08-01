@@ -286,9 +286,9 @@ if prov.get('writer') != 'agent-reviewer':
 # package_sha256 (normalize: replace sha line with COMPUTE before hashing)
 if os.path.isfile(package_file):
     import re
-    with open(package_file, encoding='utf-8') as f:
+    with open(package_file, encoding='utf-8', newline='') as f:
         pkg_content = f.read()
-    normalized = re.sub(r'(> package_sha256: ).*', r'\1COMPUTE', pkg_content)
+    normalized = re.sub(r'(> package_sha256: ).*', r'\1COMPUTE', pkg_content, count=1)
     actual_sha = hashlib.sha256(normalized.encode('utf-8')).hexdigest()
     if prov.get('package_sha256') != actual_sha:
         prov_errors.append(f'package_sha256 mismatch (review based on different package)')
@@ -297,7 +297,7 @@ else:
 
 # commit echo check (compare with package header)
 if os.path.isfile(package_file):
-    with open(package_file, encoding='utf-8') as f:
+    with open(package_file, encoding='utf-8', newline='') as f:
         for line in f:
             if line.startswith('> head_commit:'):
                 pkg_head = line.split(':', 1)[1].strip()
@@ -313,7 +313,7 @@ if prov_errors:
 # --- E_STALE (WARN only, uses embedded timestamp from package header) ---
 if os.path.isfile(package_file):
     pkg_generated = None
-    with open(package_file, encoding='utf-8') as f:
+    with open(package_file, encoding='utf-8', newline='') as f:
         for line in f:
             if line.startswith('> generated:'):
                 pkg_generated = line.split(':', 1)[1].strip()
@@ -330,7 +330,7 @@ if os.path.isfile(package_file):
 # --- E_INDEPENDENCE (v6.22.0, FAIL): reviewer_session must differ from packaged_by ---
 if os.path.isfile(package_file):
     pkg_packaged_by = None
-    with open(package_file, encoding='utf-8') as f:
+    with open(package_file, encoding='utf-8', newline='') as f:
         for line in f:
             if line.startswith('> packaged_by:'):
                 pkg_packaged_by = line.split(':', 1)[1].strip()

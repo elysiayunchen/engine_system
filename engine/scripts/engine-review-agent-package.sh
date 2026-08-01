@@ -571,24 +571,6 @@ $schema_example
 - status: "pass" (no critical/high) | "concerns" (has high, acceptable) | "block" (has critical)
 PACKAGE_EOF
 
-# 回填 sha256(排除 sha256 行本身,避免鸡生蛋)
-# 算法:将 package_sha256 行替换为固定占位符 "COMPUTE" 后计算 hash
-package_sha256=$(PKG_FILE="$package_file" "$PY" -c "
-import hashlib, re, os
-with open(os.environ['PKG_FILE'], encoding='utf-8', errors='replace') as f:
-    content = f.read()
-# normalize: replace whatever is after 'package_sha256: ' with canonical placeholder
-normalized = re.sub(r'(> package_sha256: ).*', r'\1COMPUTE', content)
-print(hashlib.sha256(normalized.encode('utf-8')).hexdigest())
-")
-sed -i "s/package_sha256: PLACEHOLDER/package_sha256: $package_sha256/" "$package_file" 2>/dev/null || \
-  PKG_FILE="$package_file" PKG_SHA="$package_sha256" "$PY" -c "
-import pathlib, os
-p = pathlib.Path(os.environ['PKG_FILE'])
-t = p.read_text(encoding='utf-8', errors='replace')
-p.write_text(t.replace('package_sha256: PLACEHOLDER', 'package_sha256: ' + os.environ['PKG_SHA']), encoding='utf-8')
-"
-
 # === 10. 大小控制(截断周边上下文 → 域知识) ===
 package_lines=$(wc -l < "$package_file")
 if [ "$package_lines" -gt "$max_package_lines" ]; then
@@ -630,7 +612,7 @@ if len(lines) > max_lines:
 else:
     r2 = 0
 
-with open(pkg, 'w', encoding='utf-8') as f:
+with open(pkg, 'w', encoding='utf-8', newline='\n') as f:
     f.writelines(lines)
 
 import sys
@@ -638,6 +620,33 @@ print(f'{r1} {r2}', file=sys.stderr)
 "
   package_lines=$(wc -l < "$package_file")
 fi
+
+# === 11. 回填 sha256(必须在截断之后,对最终内容计算) ===
+# 两遍法:先写占位→重读(与 validate 相同模式)→算 sha→回填
+# 保证 sha 基于 validate 将看到的完全相同的字节
+PKG_FILE="$package_file" "$PY" -c "
+import hashlib, re, os
+
+pkg = os.environ['PKG_FILE']
+
+# Pass 1: 确认 PLACEHOLDER 存在,先用临时标记写入
+with open(pkg, encoding='utf-8', errors='replace', newline='') as f:
+    content = f.read()
+content = content.replace('package_sha256: PLACEHOLDER', 'package_sha256: __COMPUTING__', 1)
+with open(pkg, 'w', encoding='utf-8', newline='') as f:
+    f.write(content)
+
+# Pass 2: 以 validate 相同方式重读,计算 sha
+with open(pkg, encoding='utf-8', newline='') as f:
+    final = f.read()
+normalized = re.sub(r'(> package_sha256: ).*', r'\1COMPUTE', final, count=1)
+sha = hashlib.sha256(normalized.encode('utf-8')).hexdigest()
+
+# 回填真实 sha(只替换 header 第一个)
+final = final.replace('package_sha256: __COMPUTING__', f'package_sha256: {sha}', 1)
+with open(pkg, 'w', encoding='utf-8', newline='') as f:
+    f.write(final)
+"
 
 echo "[engine-review-agent-package] $task: package ready ($package_lines lines)"
 echo "  Output: engine/review/evidence/$task/review-package.md"

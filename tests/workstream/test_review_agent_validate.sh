@@ -76,15 +76,17 @@ EOF
 # Compute sha256 using normalization (replace sha line with COMPUTE)
 if command -v python3 >/dev/null 2>&1; then PY=python3; else PY=python; fi
 final_sha=$($PY -c "
-import hashlib, re, pathlib
-p = pathlib.Path('$PKG')
-content = p.read_text(encoding='utf-8')
-# normalize: replace sha line value with COMPUTE
-normalized = re.sub(r'(> package_sha256: ).*', r'\1COMPUTE', content)
+import hashlib, re
+p = '$PKG'
+with open(p, encoding='utf-8', newline='') as f:
+    content = f.read()
+# normalize: replace sha line value with COMPUTE (first occurrence only)
+normalized = re.sub(r'(> package_sha256: ).*', r'\1COMPUTE', content, count=1)
 sha = hashlib.sha256(normalized.encode('utf-8')).hexdigest()
 # write final file with actual sha
-content = content.replace('package_sha256: PLACEHOLDER', f'package_sha256: {sha}')
-p.write_text(content, encoding='utf-8')
+content = content.replace('package_sha256: PLACEHOLDER', f'package_sha256: {sha}', 1)
+with open(p, 'w', encoding='utf-8', newline='') as f:
+    f.write(content)
 print(sha)
 ")
 
@@ -179,7 +181,7 @@ data = {
         {'challenge': 'q3', 'response': 'The simplicity means there is very little comprehension barrier.'}
     ],
     'overall_assessment': 'This is a very simple script that echoes a greeting. No significant issues found during review.',
-    'write_provenance': {'writer': 'agent-reviewer', 'commit': '$HEAD_SHA', 'package_sha256': '$final_sha'}
+    'write_provenance': {'writer': 'agent-reviewer', 'commit': '$HEAD_SHA', 'package_sha256': '$final_sha', 'reviewer_session': 'test-reviewer-session'}
 }
 with open('engine/review/evidence/T-096/AGENT-REVIEW.json','w') as f:
     json.dump(data, f)

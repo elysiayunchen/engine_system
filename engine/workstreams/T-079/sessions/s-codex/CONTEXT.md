@@ -14,6 +14,7 @@
 - Fixed the canonical `sessions/<sid>` worker-shard pattern in both pre-commit mirrors.
 - Fixed PowerShell remaining-argument forwarding (`--handoff`, `--kind`, `--run`, `--execute`) and PowerShell gate child invocation so Windows paths are not handed to WSL bash.
 - Fixed prove's outer-entrypoint environment leakage so nested assertions retain their own direct/CLI provenance.
+- Fixed PowerShell close worker creation to isolate it from the preceding Doctor `$LASTEXITCODE`.
 
 ## Changed Paths
 
@@ -29,6 +30,7 @@
 - PowerShell parser/static test: 16 passed, 0 failed.
 - PowerShell `workstream ... --kind session --print`: pass; PowerShell `gate ... --run`: reaches prove without WSL path corruption.
 - Prove regression initially caught the leakage; lifecycle rerun is 31/31 after the fix.
+- PowerShell lifecycle static test is 17/17; full PS close reached all stages but is slow in the mixed Git Bash/WSL environment.
 - Task verify: 6/6 AC passed (preflight and full).
 - Review: PASS.
 - Gate is PASS; close records verify=0, gate=0, Doctor=1, worker memory=pass, capsule=deferred_to_coordinator, so final close is BLOCK only on repository Doctor baseline.

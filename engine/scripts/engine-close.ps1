@@ -45,6 +45,8 @@ if (-not (Test-Path $cli)) {
   Write-Error "[engine-close] public CLI not found: $cli"
   exit 2
 }
+$psExe = (Get-Command pwsh -ErrorAction SilentlyContinue).Source
+if (-not $psExe) { $psExe = (Get-Command powershell -ErrorAction SilentlyContinue).Source }
 
 New-Item -ItemType Directory -Force -Path (Join-Path $EngineDir "evidence\$Task") | Out-Null
 $timestamp = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
@@ -96,8 +98,13 @@ if (Test-Path $lockFile) {
       $memoryStatus = 'block'
       Write-Error "[engine-close] worker closure requires --handoff AGENT (writes only that workstream shard)"
     } else {
-      & $cli workstream $Task $handoffAgent --kind session *> $null
-      $wsRc = if ($null -ne $LASTEXITCODE) { [int]$LASTEXITCODE } else { 0 }
+      if ($psExe) {
+        & $psExe -NoProfile -ExecutionPolicy Bypass -File $cli workstream $Task $handoffAgent --kind session *> $null
+        $wsRc = if ($null -ne $LASTEXITCODE) { [int]$LASTEXITCODE } else { 0 }
+      } else {
+        & $cli workstream $Task $handoffAgent --kind session *> $null
+        $wsRc = 0
+      }
       $shardDir = Join-Path $EngineDir "workstreams\$Task\sessions\s-$handoffAgent"
       $handoffPath = "engine/workstreams/$Task/sessions/s-$handoffAgent/HANDOFF.md"
       $shardHandoff = Join-Path $shardDir 'HANDOFF.md'

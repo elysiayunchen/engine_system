@@ -36,6 +36,7 @@ Assert-True 'PowerShell CLI preserves bash-compatible remaining flags' ($psCli -
 Assert-True 'PowerShell CLI preserves Doctor exit' ($psCli -match 'doctorExit' -and $psCli -match 'exit \$doctorExit')
 Assert-True 'PowerShell gate provenance is environment-aware' ((Get-Content -Raw -Path (Join-Path $Root 'engine/scripts/engine-gate.ps1')) -match 'ENGINE_CLI_ENTRYPOINT')
 Assert-True 'PowerShell gate runs PowerShell child scripts' ($psGate -match 'engine-prove\.ps1' -and $psGate -match 'ExecutionPolicy Bypass')
+Assert-True 'PowerShell close isolates workstream exit code' ((Get-Content -Raw -Path (Join-Path $Root 'engine/scripts/engine-close.ps1')) -match 'ExecutionPolicy Bypass -File \$cli workstream')
 
 Write-Output "=== RESULTS: $pass passed, $fail failed ==="
 if ($fail -ne 0) { exit 1 }

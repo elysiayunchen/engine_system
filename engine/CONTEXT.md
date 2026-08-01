@@ -1,6 +1,6 @@
 # CONTEXT — 当前状态
 
-> Engine System (engine_system) · Last updated: 2026-08-01 (v6.24.0) · Profile: CLI-LEAN
+> Engine System (engine_system) · Last updated: 2026-08-01 (v6.25.0) · Profile: CLI-LEAN
 
 ## 状态面板
 
@@ -10,8 +10,8 @@
 | 维度 | 状态 |
 |------|------|
 | 构建 | ✅ 正常（纯 markdown + shell 脚本，无构建步骤） |
-| 上次完成 | **v6.24.0(T-077 Gatekeeper 子系统)**:`engine gate T-NNN` 聚合门禁证据 → GATE.json;pre-commit done 过渡硬拦截(status=pass + provenance);--no-verify 封死(bypass-detected → block all commits);Doctor check_gate_registry;D-039 决策(budget 2940→2980)。测试 25 断言全 PASS(cli 11 + precommit 9 + seal 5)。前序 **v6.23.0(T-075/T-076 Prove 子系统)**。 |
-| 进行中 | **T-081 Engine Doctor 健康收口**：已修复 root/plugin 跨 shell JSON 路径、PowerShell manifest 序序、历史 evidence 分级与 Bash PowerShell 解析；当前 7/7 verify、Doctor 0 failure，待最终 close/done 写回。已知债：旧卡/旧 evidence、tag/VERSION、CLI-LEAN 长度与孤儿 shard 仍为可见 warning。 |
+| 上次完成 | **v6.25.0(T-077 Gatekeeper 子系统)**:`engine gate T-NNN` 聚合门禁证据 → GATE.json;pre-commit done 过渡硬拦截(status=pass + provenance);--no-verify 封死(bypass-detected → block all commits);Doctor check_gate_registry;D-039 决策(budget 2940→2980)。测试 25 断言全 PASS(cli 11 + precommit 9 + seal 5)。前序 **v6.23.0(T-075/T-076 Prove 子系统)**。 |
+| 进行中 | **T-080、T-069、T-082** 仍在维护中；**T-081 已 done**：已修复 root/plugin 跨 shell JSON 路径、PowerShell manifest 顺序、历史 evidence 分级与 Bash PowerShell 解析，并补齐 verify/close 的 MANIFEST 写入边界；完成 9/9 verify、review、agent-review、prove(4/4)、gate、close，Doctor 0 failure。已知债：旧卡/旧 evidence、tag/VERSION、CLI-LEAN 长度与孤儿 shard 仍为可见 warning。 |
 | 阻塞 | 无。 |
 
 ## 当前假设 / 决策（本轮拍板）

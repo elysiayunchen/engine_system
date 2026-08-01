@@ -201,6 +201,28 @@ function Touch-File([string]$Path) {
   } catch {}
 }
 
+# v6.25.0 (T-082): dedup key helper - the PowerShell counterpart to the bash
+# hook's `cksum | cut -c1-12`. Produces a deterministic 12-char key from a
+# CRC32 of the input so the same signal|task|domain always maps to one key.
+function Get-DedupKey([string]$Text) {
+  $bytes = [System.Text.Encoding]::UTF8.GetBytes($Text)
+  # PowerShell bitwise ops return signed integers, so accumulate in [long] and
+  # reinterpret the masked low 32 bits as unsigned at the end.
+  [long]$crc = 4294967295          # 0xFFFFFFFF
+  [long]$poly = 3988292384         # 0xEDB88320 (reflected CRC32 polynomial)
+  foreach ($b in $bytes) {
+    $crc = $crc -bxor $b
+    for ($i = 0; $i -lt 8; $i++) {
+      if ($crc -band 1) { $crc = ($crc -shr 1) -bxor $poly }
+      else { $crc = $crc -shr 1 }
+    }
+  }
+  $crc = $crc -bxor 4294967295
+  $u = [System.BitConverter]::ToUInt32([System.BitConverter]::GetBytes([long]($crc -band 0xFFFFFFFF)), 0)
+  $str = [string]$u
+  return $str.Substring(0, [Math]::Min(12, $str.Length))
+}
+
 $strictTaskMode = Test-StrictTaskProject
 
 # v6.12.0 (D-035): cache every governing card (all active, plus dirty-done
@@ -506,6 +528,52 @@ if (($cardFiles.Count -gt 0) -or $strictTaskMode) {
 }
 
 if ($codeChanged -and -not $engineWritten) {
+  # v6.25.0 (T-082): S5 failure candidate before block exit (fail-open)
+  try {
+    if ($activeTaskId) {
+      $s5Dom = "engine-runtime"
+      $s5Card = Join-Path $EngineDir "tasks\$activeTaskId.md"
+      if (Test-Path $s5Card) {
+        $s5Content = Get-Content -Raw -Path $s5Card -Encoding UTF8 -ErrorAction SilentlyContinue
+        if ($s5Content -and ($s5Content -match '(?m)domain:\s*([^|\r\n]*)')) {
+          $s5DomLine = ($Matches[1] -replace '\s+$', '')
+          if ($s5DomLine) { $s5Dom = ($s5DomLine -split ',')[0] }
+        }
+      }
+      $s5PFile = Join-Path $EngineDir "domains\$s5Dom\PITFALLS.md"
+      if (-not (Test-Path $s5PFile)) { $s5PFile = Join-Path $EngineDir "domains\engine-runtime\PITFALLS.md" }
+      if (Test-Path $s5PFile) {
+        $s5Dk = Get-DedupKey "S5|$activeTaskId|$s5Dom"
+        $s5Cache = Join-Path $EngineDir ".cache"
+        New-Item -ItemType Directory -Force -Path $s5Cache -ErrorAction SilentlyContinue | Out-Null
+        $s5Seen = Join-Path $s5Cache "seen-keys"
+        if (-not (Test-Path $s5Seen)) { New-Item -ItemType File -Path $s5Seen -Force -ErrorAction SilentlyContinue | Out-Null }
+        $s5SeenHit = $false
+        $s5PitHit = $false
+        try { $s5SeenHit = [bool](Select-String -Path $s5Seen -Pattern ([regex]::Escape($s5Dk)) -SimpleMatch -Quiet -ErrorAction Stop) } catch { $s5SeenHit = $false }
+        try { $s5PitHit = [bool](Select-String -Path $s5PFile -Pattern ([regex]::Escape($s5Dk)) -SimpleMatch -Quiet -ErrorAction Stop) } catch { $s5PitHit = $false }
+        if ((-not $s5SeenHit) -and (-not $s5PitHit)) {
+          $s5PitContent = Get-Content -Raw -Path $s5PFile -Encoding UTF8 -ErrorAction SilentlyContinue
+          if (-not ($s5PitContent -and ($s5PitContent -match '(?m)^## Auto-detected'))) {
+            Add-Content -Path $s5PFile -Value "`n## Auto-detected (pending review)`n`n" -Encoding UTF8 -ErrorAction SilentlyContinue
+          }
+          $s5Ts = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
+          $s5Cand = "CAND-" + (Get-Date).ToUniversalTime().ToString('yyyyMMddHHmmss')
+          $s5Sid = if ($sessionId) { $sessionId } else { "unknown" }
+          $s5Entry = "- **$s5Cand** Code changed but engine memory not written back`n" +
+            "  - signal: S5`n" +
+            "  - task: $activeTaskId`n" +
+            "  - domain: $s5Dom`n" +
+            "  - session: $s5Sid`n" +
+            "  - date: $s5Ts`n" +
+            "  - dedup-key: $s5Dk`n" +
+            "  - status: pending`n`n"
+          Add-Content -Path $s5PFile -Value $s5Entry -Encoding UTF8 -NoNewline -ErrorAction SilentlyContinue
+          Add-Content -Path $s5Seen -Value $s5Dk -Encoding UTF8 -ErrorAction SilentlyContinue
+        }
+      }
+    }
+  } catch {}
   Write-Block '[Engine System] Code changed but this session did not update project memory. | developer: Save what changed and what comes next before ending. Parallel workers must write their own workstream shard; the coordinator updates shared CONTEXT/HANDOFF.'
 }
 
@@ -603,5 +671,105 @@ if ($sessionKey -and (Test-Path (Join-Path $EngineDir '.cache\sessions'))) {
     } catch {}
   }
 }
+
+# v6.25.0 (T-082): failure-mode auto extraction (pure pattern matching, fail-open).
+# Detect observable signals and append PITFALLS candidate entries. Any error is
+# silently ignored so the stop gate can never be broken by this block.
+try {
+  if ($activeTaskId) {
+    $feCache = Join-Path $EngineDir ".cache"
+    New-Item -ItemType Directory -Force -Path $feCache -ErrorAction SilentlyContinue | Out-Null
+    $feSeen = Join-Path $feCache "seen-keys"
+    if (-not (Test-Path $feSeen)) { New-Item -ItemType File -Path $feSeen -Force -ErrorAction SilentlyContinue | Out-Null }
+
+    # Determine the active task's primary domain.
+    $feDomain = "engine-runtime"
+    $feCard = Join-Path $EngineDir "tasks\$activeTaskId.md"
+    if (Test-Path $feCard) {
+      $feCardContent = Get-Content -Raw -Path $feCard -Encoding UTF8 -ErrorAction SilentlyContinue
+      if ($feCardContent -and ($feCardContent -match '(?m)domain:\s*([^|\r\n]*)')) {
+        $feDomLine = ($Matches[1] -replace '\s+$', '')
+        if ($feDomLine) { $feDomain = ($feDomLine -split ',')[0] }
+      }
+    }
+
+    $feSid = if ($sessionId) { $sessionId } else { "unknown" }
+
+    # Helper: append a dedup'd candidate entry to the domain PITFALLS.
+    function Add-FailureCandidate([string]$Sig, [string]$Detail, [string]$Dom, [string]$DKey) {
+      $pfile = Join-Path $EngineDir "domains\$Dom\PITFALLS.md"
+      if (-not (Test-Path $pfile)) { $pfile = Join-Path $EngineDir "domains\engine-runtime\PITFALLS.md" }
+      if (-not (Test-Path $pfile)) {
+        $pdir = Split-Path $pfile -Parent
+        New-Item -ItemType Directory -Force -Path $pdir -ErrorAction SilentlyContinue | Out-Null
+        Set-Content -Path $pfile -Value "# PITFALLS`n`n## Auto-detected (pending review)`n`n" -Encoding UTF8 -ErrorAction SilentlyContinue
+      }
+      # Dedup: seen-keys + PITFALLS full text.
+      $seenHit = $false
+      $pitHit = $false
+      try { $seenHit = [bool](Select-String -Path $script:feSeen -Pattern ([regex]::Escape($DKey)) -SimpleMatch -Quiet -ErrorAction Stop) } catch { $seenHit = $false }
+      try { $pitHit = [bool](Select-String -Path $pfile -Pattern ([regex]::Escape($DKey)) -SimpleMatch -Quiet -ErrorAction Stop) } catch { $pitHit = $false }
+      if ($seenHit -or $pitHit) { return }
+      # Ensure the Auto-detected section exists.
+      $pitContent = Get-Content -Raw -Path $pfile -Encoding UTF8 -ErrorAction SilentlyContinue
+      if (-not ($pitContent -and ($pitContent -match '(?m)^## Auto-detected'))) {
+        Add-Content -Path $pfile -Value "`n## Auto-detected (pending review)`n`n" -Encoding UTF8 -ErrorAction SilentlyContinue
+      }
+      $candId = "CAND-" + (Get-Date).ToUniversalTime().ToString('yyyyMMddHHmmss')
+      $ts = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
+      $entry = "- **$candId** $Detail`n" +
+        "  - signal: $Sig`n" +
+        "  - task: $($script:activeTaskId)`n" +
+        "  - domain: $Dom`n" +
+        "  - session: $($script:feSid)`n" +
+        "  - date: $ts`n" +
+        "  - dedup-key: $DKey`n" +
+        "  - status: pending`n`n"
+      Add-Content -Path $pfile -Value $entry -Encoding UTF8 -NoNewline -ErrorAction SilentlyContinue
+      Add-Content -Path $script:feSeen -Value $DKey -Encoding UTF8 -ErrorAction SilentlyContinue
+    }
+
+    # S5: memory-writeback (code changed but engine memory not written).
+    if ($codeChanged -and -not $engineWritten) {
+      $dk = Get-DedupKey "S5|$activeTaskId|$feDomain"
+      Add-FailureCandidate "S5" "Code changed but engine memory (CONTEXT/HANDOFF/progress) not written back" $feDomain $dk
+    }
+
+    # S12: verify-fail (evidence contains status=fail).
+    $feEvid = Join-Path $EngineDir "evidence\$activeTaskId"
+    if (Test-Path $feEvid) {
+      $feFail = $null
+      foreach ($ac in (Get-ChildItem -Path $feEvid -File -Filter "AC-*.json" -ErrorAction SilentlyContinue | Sort-Object Name)) {
+        $acContent = Get-Content -Raw -Path $ac.FullName -Encoding UTF8 -ErrorAction SilentlyContinue
+        if ($acContent -and ($acContent -match '"status"\s*:\s*"fail"')) { $feFail = $ac; break }
+      }
+      if ($feFail) {
+        $feAc = $feFail.BaseName
+        $dk = Get-DedupKey "S12|$feAc|$feDomain"
+        Add-FailureCandidate "S12" "Verify FAIL in $feAc during $activeTaskId" $feDomain $dk
+      }
+    }
+
+    # S13: doctor-fail.
+    $feDocLog = Join-Path $feCache "session-end-doctor.log"
+    if (Test-Path $feDocLog) {
+      $feFailLine = $null
+      foreach ($line in (Get-Content -Path $feDocLog -Encoding UTF8 -ErrorAction SilentlyContinue)) {
+        if ($line -match '^FAIL') { $feFailLine = $line; break }
+      }
+      if ($feFailLine) {
+        if ($feFailLine.Length -gt 60) { $feFailLine = $feFailLine.Substring(0, 60) }
+        $dk = Get-DedupKey "S13|$feFailLine|$feDomain"
+        Add-FailureCandidate "S13" "Doctor FAIL: $feFailLine" $feDomain $dk
+      }
+    }
+
+    # S18: capsule-missing (code+memory changed but no capsule).
+    if ($codeChanged -and $engineWritten -and -not $capsuleWritten) {
+      $dk = Get-DedupKey "S18|$activeTaskId|$feDomain"
+      Add-FailureCandidate "S18" "Code and memory changed but no change capsule (CHANGE-*.md) written" $feDomain $dk
+    }
+  }
+} catch {}
 
 exit 0

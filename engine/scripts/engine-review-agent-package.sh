@@ -560,7 +560,7 @@ Conduct your review through 3 distinct cognitive lenses. For each lens, actively
 2. **Security lens**: Injection vectors (shell/SQL/path), permission bypasses, unvalidated input, data leakage, unsafe deserialization, hardcoded secrets.
 3. **Edge-case lens**: Empty/null inputs, boundary values, concurrent access, resource exhaustion, platform-specific behavior (CRLF, encoding, path separators).
 
-Tag each finding's id with its lens: e.g. `agent-correctness-file:line`, `agent-security-file:line`, `agent-edge-file:line`.
+Tag each finding's id with its lens: e.g. \`agent-correctness-file:line\`, \`agent-security-file:line\`, \`agent-edge-file:line\`.
 At least 1 finding per lens is expected (use type="strength" + severity="info" if genuinely clean).
 
 ## 6. Output Format (strict)

@@ -1,5 +1,17 @@
 # Changelog
 
+## v6.25.0 (2026-08-01) — TDAI P0 集成: 任务画布 + 失败模式提取(T-082)
+
+- 新增 engine-canvas.{sh,ps1}: 从 evidence 实时派生 Mermaid 任务状态画布(零 LLM, 零持久化, view not state)
+- SessionStart 注入: Active Task Card 之后自动输出画布块(%%{taskGoal, progress, cardStatus, gateStatus}%%)
+- Guard 模式一行摘要: CANVAS: T-NNN M/N AC PASS
+- 状态映射: pass→done/绿, fail→blocked/红, 首个 todo→doing/黄, 其余 todo→紫; >8 AC 自动 graph TD
+- 新增失败模式自动提取: Stop hook 检测 S5(memory-writeback)/S12(verify-fail)/S13(doctor-fail)/S18(capsule-missing)
+- pre-commit EXIT trap: 任何 block 写 .cache/last-commit-block(signal_id + trigger_file)
+- PITFALLS Auto-detected 候选区: 自动追加 CAND 条目, cksum 去重(seen-keys + 全文), fail-open
+- PS1 行为镜像 + plugin 镜像 byte-identical + manifest 71 项 + protected_paths 42 项
+- 测试: canvas 18 + failure_extract 12 = 30 断言 ALL PASS
+
 ## v6.24.0 (2026-08-01) — Gatekeeper 子系统(T-077)
 
 - 新增 `engine gate T-NNN` 命令:聚合 verify/review/review-agent/prove 门禁证据 → 写 GATE.json

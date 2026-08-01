@@ -10,6 +10,8 @@ doctor="$REPO_ROOT/engine/scripts/engine-doctor.sh"
 doctor_plugin="$REPO_ROOT/plugin/engine/scripts/engine-doctor.sh"
 verify="$REPO_ROOT/engine/scripts/engine-verify.sh"
 verify_plugin="$REPO_ROOT/plugin/engine/scripts/engine-verify.sh"
+close="$REPO_ROOT/engine/scripts/engine-close.sh"
+close_plugin="$REPO_ROOT/plugin/engine/scripts/engine-close.sh"
 drift_sh="$REPO_ROOT/engine/scripts/engine-drift-check.sh"
 drift_plugin_sh="$REPO_ROOT/plugin/engine/scripts/engine-drift-check.sh"
 drift_ps="$REPO_ROOT/engine/scripts/engine-drift-check.ps1"
@@ -55,6 +57,9 @@ contains "$doctor" '-e "$ROOT/$file"'
 contains "$doctor" 'if out="$(bash "$script" 2>&1)"; then'
 contains "$doctor" 'json_file_valid'
 contains "$doctor" 'sys.argv[1]'
+contains "$verify" 'refresh evidence written by preceding ACs'
+contains "$close" 'refresh_evidence_manifest'
+contains "$REPO_ROOT/engine/scripts/engine-close.ps1" 'Refresh-EvidenceManifest'
 contains "$drift_sh" 'historical_snapshot=0'
 contains "$drift_sh" 'legacy evidence provenance.commit mismatch'
 contains "$drift_ps" '$historicalSnapshot = $false'
@@ -62,6 +67,8 @@ contains "$drift_ps" 'array membership rather than HashSet constructors'
 contains "$drift_ps" 'StringComparer]::Ordinal'
 cmp -s "$doctor" "$doctor_plugin" || fail 'Doctor Bash mirrors differ'
 cmp -s "$verify" "$verify_plugin" || fail 'Verify Bash mirrors differ'
+cmp -s "$close" "$close_plugin" || fail 'Close Bash mirrors differ'
+cmp -s "$REPO_ROOT/engine/scripts/engine-close.ps1" "$REPO_ROOT/plugin/engine/scripts/engine-close.ps1" || fail 'Close PowerShell mirrors differ'
 cmp -s "$drift_sh" "$drift_plugin_sh" || fail 'Drift Bash mirrors differ'
 cmp -s "$drift_ps" "$drift_plugin_ps" || fail 'Drift PowerShell mirrors differ'
 

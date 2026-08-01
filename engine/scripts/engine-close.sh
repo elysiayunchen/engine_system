@@ -62,11 +62,39 @@ run_stage() {
   rm -f "$tmp"
 }
 
+# Gate and close both write evidence files that are covered by MANIFEST.json.
+# Refresh the manifest at each evidence-writer boundary so a done task's
+# Doctor/drift check never observes a transient self-tamper state.
+refresh_evidence_manifest() {
+  local ev_dir="$ENGINE_DIR/evidence/$task"
+  [ -d "$ev_dir" ] || return 0
+  local manifest_content="" fname fhash
+  while IFS= read -r fname; do
+    [ -n "$fname" ] || continue
+    fhash="$(sha256sum "$ev_dir/$fname" | cut -d' ' -f1)"
+    manifest_content+="${fname}:${fhash}"$'\n'
+  done < <(cd "$ev_dir" && find . -maxdepth 1 -type f \( -name '*.json' -o -name 'checkpoint.md' \) ! -name 'MANIFEST.json' -print 2>/dev/null | sed 's|^\./||' | LC_ALL=C sort)
+
+  local manifest_hash="$(printf '%s' "$manifest_content" | sha256sum | cut -d' ' -f1)"
+  local files_json="{" first=1
+  while IFS=: read -r fname fhash; do
+    [ -n "$fname" ] || continue
+    [ "$first" = "1" ] || files_json+=",";
+    files_json+="\"$fname\":\"$fhash\""
+    first=0
+  done <<< "$manifest_content"
+  files_json+="}"
+  printf '{"evidence_manifest_sha256":"sha256:%s","generated":"%s","writer":"engine-verify","commit":"%s","files":%s}\n' \
+    "$manifest_hash" "$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo unknown)" "$head_commit" "$files_json" \
+    > "$ev_dir/MANIFEST.json"
+}
+
 verify_rc=0
 gate_rc=0
 doctor_rc=0
 run_stage verify bash "$cli" verify "$task"
 run_stage gate bash "$cli" gate "$task"
+refresh_evidence_manifest
 run_stage doctor bash "$cli" doctor
 
 memory_mode="single-session"
@@ -206,6 +234,8 @@ else
   echo "[engine-close] python3/python is required to write $out" >&2
   status="block"
 fi
+
+refresh_evidence_manifest
 
 echo "[Engine System] Close status for $task: ${status^^}"
 echo "  Evidence: ${out#"$ROOT/"}"

@@ -1,0 +1,73 @@
+{
+  "schema_version": "1.0",
+  "task_id": "T-081",
+  "command": "engine prove T-081 --execute",
+  "timestamp": "2026-08-01T17:07:01Z",
+  "status": "PASS",
+  "code_fingerprint": "sha256:4131ad0b541b5fdd60a5846e8a37d1f7913ce69ace5357f1e94819d6e01261a3",
+  "assertions_fingerprint": "sha256:94214084e5a414eedf99c1abfb88ec3a87984ec2a60066cddd53c2a7534273f5",
+  "ac_coverage": "OK",
+  "summary": {
+    "total": 4,
+    "passed": 4,
+    "failed": 0,
+    "timed_out": 0
+  },
+  "results": [
+    {
+      "id": "A-01",
+      "category": "regression",
+      "command": "bash tests/workstream/test_doctor_health_regressions.sh",
+      "status": "PASS",
+      "exit_code": 0,
+      "expect_exit": 0,
+      "duration_ms": 225,
+      "output_fingerprint": "sha256:128977b7e5e5c75c1b361d0ef78e65e5315f4ef6b9a0f50898056d0cfaf5d33f",
+      "output_truncated": "PASS test_doctor_health_regressions.sh\n"
+    },
+    {
+      "id": "A-02",
+      "category": "regression",
+      "command": "bash tests/workstream/test_verify_shell_resolution.sh",
+      "status": "PASS",
+      "exit_code": 0,
+      "expect_exit": 0,
+      "duration_ms": 27690,
+      "output_fingerprint": "sha256:44298cf33e29ddae8c3441582262908a2b045d93fc49a2b5ae6b4381386cdaa9",
+      "output_truncated": "PASS test_verify_shell_resolution.sh\n"
+    },
+    {
+      "id": "A-03",
+      "category": "regression",
+      "command": "bash engine/scripts/engine-doctor.sh",
+      "status": "PASS",
+      "exit_code": 0,
+      "expect_exit": 0,
+      "duration_ms": 71067,
+      "output_fingerprint": "sha256:c5b2fbcfba791872b20269a4819fcd5c2426a3fa5b8ae9bb82358f5c9b526345",
+      "output_truncated": "PASS ENGINE_MAP exists\nPASS registered file exists: ENGINE_MAP.md\nPASS registered file exists: CONTEXT.md\nPASS registered file exists: HANDOFF.md\nPASS registered file exists: SYSTEM.md\nPASS registered file exists: AGENT_ADAPTERS.md\nPASS registered file exists: GLOSSARY.md\nPASS registered file exists: ENGINE_DOCTOR.md\nPASS registered file exists: engine/review/config.json\nPASS registered file exists: engine/review/protocol.md\nPASS registered file exists: engine/scripts/engine-review-agent.sh\nPASS"
+    },
+    {
+      "id": "A-04",
+      "category": "invariant",
+      "command": "cmp -s engine/scripts/engine-verify.sh plugin/engine/scripts/engine-verify.sh && cmp -s engine/scripts/engine-doctor.sh plugin/engine/scripts/engine-doctor.sh && cmp -s engine/scripts/engine-drift-che",
+      "status": "PASS",
+      "exit_code": 0,
+      "expect_exit": 0,
+      "duration_ms": 28,
+      "output_fingerprint": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "output_truncated": ""
+    }
+  ],
+  "gate": {
+    "decision": "PASS",
+    "rule": "ALL assertions must pass; any FAIL or TIMEOUT = gate FAIL"
+  },
+  "write_provenance": {
+    "writer": "engine-prove",
+    "model_id": "",
+    "commit": "",
+    "timestamp": "2026-08-01T17:07:01Z",
+    "argv": "engine prove T-081 --execute"
+  }
+}

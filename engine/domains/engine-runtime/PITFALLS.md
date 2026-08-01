@@ -22,3 +22,8 @@ rg "contract-version" plugin/engine/scripts/                  # 契约版本标�
 rg "Write-Output|echo " plugin/engine/scripts/engine-hook-stop.ps1 engine/scripts/engine-hook-stop.sh  # 双实现对照
 rg "set \+H|normalize_version" engine/scripts/ engine/bin/    # histexpand 防御 / 版本归一化
 ```
+
+## Auto-detected (pending review)
+
+<!-- Stop hook 自动追加的失败模式候选。人工 review 后提升为正式条目或删除。-->
+

@@ -18,3 +18,8 @@ ls engine/changes/CHANGE-*.md | sort -r | head -3             # 最近胶囊
 rg "verify:" engine/tasks/                                    # AC 验证命令
 rg "protected_paths" engine/decisions/rules.json              # 受保护路径
 ```
+
+## Auto-detected (pending review)
+
+<!-- Stop hook 自动追加的失败模式候选。人工 review 后提升为正式条目或删除。-->
+

@@ -1,0 +1,39 @@
+{
+  "task_id": "T-081",
+  "code_fingerprint": "sha256:0103b3f0afb36d73c4adbfcac178c5012600c931c66c954c311efe0503634509",
+  "assertions": [
+    {
+      "id": "A-01",
+      "category": "regression",
+      "command": "bash tests/workstream/test_doctor_health_regressions.sh",
+      "expect_exit": 0,
+      "timeout_s": 120,
+      "rationale": "Exercises concrete ENGINE_MAP rows, progress/archive anchors, INVENTORY coverage, root-level path resolution, drift policy, and mirror parity."
+    },
+    {
+      "id": "A-02",
+      "category": "regression",
+      "command": "bash tests/workstream/test_verify_shell_resolution.sh",
+      "expect_exit": 0,
+      "timeout_s": 120,
+      "rationale": "Runs the real Bash verifier against T-080 in the WSL environment and requires the Windows-facing ACs to execute successfully."
+    },
+    {
+      "id": "A-03",
+      "category": "regression",
+      "command": "bash engine/scripts/engine-doctor.sh",
+      "expect_exit": 0,
+      "timeout_s": 120,
+      "rationale": "Confirms the repository health contract has zero hard failures while legacy warnings remain observable."
+    },
+    {
+      "id": "A-04",
+      "category": "invariant",
+      "command": "cmp -s engine/scripts/engine-verify.sh plugin/engine/scripts/engine-verify.sh && cmp -s engine/scripts/engine-doctor.sh plugin/engine/scripts/engine-doctor.sh && cmp -s engine/scripts/engine-drift-check.sh plugin/engine/scripts/engine-drift-check.sh",
+      "expect_exit": 0,
+      "timeout_s": 30,
+      "revert_would_fail": true,
+      "rationale": "Protects root/plugin byte identity for the changed runtime health and verifier scripts."
+    }
+  ]
+}

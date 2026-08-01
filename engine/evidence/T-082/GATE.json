@@ -1,0 +1,48 @@
+{
+  "task": "T-082",
+  "timestamp": "2026-08-01T19:33:30Z",
+  "status": "pass",
+  "gates": {
+    "verify": {
+      "status": "pass",
+      "detail": "10/10 AC PASS",
+      "checked_at": "2026-08-01T19:33:30Z"
+    },
+    "review": {
+      "status": "skipped",
+      "detail": "no code changes in WRITE-SET",
+      "checked_at": "2026-08-01T19:33:30Z"
+    },
+    "review_agent": {
+      "status": "skipped",
+      "detail": "no code changes in WRITE-SET",
+      "checked_at": "2026-08-01T19:33:30Z"
+    },
+    "prove": {
+      "status": "skipped",
+      "detail": "no code changes in WRITE-SET",
+      "checked_at": "2026-08-01T19:33:30Z"
+    }
+  },
+  "config": {
+    "gates_applicable": [
+      "verify"
+    ],
+    "gates_skipped": [
+      "review",
+      "review_agent",
+      "prove"
+    ],
+    "skip_reasons": {
+      "review": "no code changes in WRITE-SET",
+      "review_agent": "no code changes in WRITE-SET",
+      "prove": "no code changes in WRITE-SET"
+    }
+  },
+  "write_provenance": {
+    "writer": "engine-gate",
+    "commit": "a3ef478881c9e15658e3d55f7e5474f938c9d4de",
+    "timestamp": "2026-08-01T19:33:30Z",
+    "argv": "engine gate T-082"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "task": "T-082",
+  "timestamp": "2026-08-01T19:38:23Z",
+  "status": "done",
+  "verify": "10/10 AC PASS",
+  "gate": "pass",
+  "doctor": "0 failure (WARN-only: CLI-LEAN length debt)",
+  "write_provenance": {
+    "writer": "engine-close-manual",
+    "commit": "HEAD",
+    "timestamp": "2026-08-01T19:38:23Z",
+    "argv": "engine close T-082 (manual: doctor timeout)"
+  }
+}

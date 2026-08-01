@@ -15,6 +15,21 @@ ROOT="${CLAUDE_PROJECT_DIR:-$PWD}"
 ENGINE_DIR="$ROOT/engine"
 TAB="$(printf '\t')"
 
+# v6.25.0 (T-082): failure signal write (for Stop hook failure mode extraction)
+_block_signal="S6-precommit"
+_block_file=""
+_fe_write_signal() {
+  local rc=$?
+  if [ $rc -ne 0 ] && [ -d "$ENGINE_DIR/.cache" ]; then
+    printf '%s
+%s
+' "$_block_signal" "${_block_file:-unknown}" > "$ENGINE_DIR/.cache/last-commit-block" 2>/dev/null || true
+  fi
+  exit $rc
+}
+trap _fe_write_signal EXIT
+
+
 staged="$(git diff --cached --name-only -z 2>/dev/null | tr '\0' '\n')"
 [ -n "$staged" ] || exit 0
 

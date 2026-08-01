@@ -95,6 +95,11 @@ if ($Mode -eq '--guard') {
     Write-Output "[Engine Guard] ACTIVE: none | v6.5+ ordinary writes are blocked; create/select a task card first."
   }
   Write-Output "PARALLEL: each session drives its own card; same-task workers write engine/workstreams/<task>/<agent>/; only the lease-holding coordinator writes shared memory."
+  # v6.25.0 (T-082): canvas one-liner summary
+  $canvasScript = Join-Path $EngineDir "scripts/engine-canvas.ps1"
+  if (Test-Path $canvasScript) {
+    try { & pwsh -NoProfile -File $canvasScript --guard 2>$null } catch {}
+  }
   exit 0
 }
 
@@ -184,6 +189,14 @@ if ($activeCount -eq 0) {
   Write-Output ""
 } elseif ($activeCount -gt 1) {
   Write-Output ("WARNING: Multi-card parallel (" + ($activeIds -join ', ') + "): work under ONE card; write only inside YOUR card's WRITE-SET (union gating).")
+  Write-Output ""
+}
+
+# v6.25.0 (T-082): Mermaid task canvas
+$canvasScript = Join-Path $EngineDir "scripts/engine-canvas.ps1"
+if ($activeCount -gt 0 -and (Test-Path $canvasScript)) {
+  Write-Output "──── 🗺️ Task Canvas ────"
+  try { & pwsh -NoProfile -File $canvasScript 2>$null } catch {}
   Write-Output ""
 }
 

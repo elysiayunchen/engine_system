@@ -94,3 +94,7 @@
 | Doctor derived status 校验 ps1 (v6.19.0) | engine/scripts/engine-doctor.ps1 | Test-DerivedStatus() | stable | 2026-07-30 |
 | derived status 测试套件 (v6.19.0) | tests/workstream/test_derived_status.sh | test_derived_status() | stable | 2026-07-30 |
 | workstream CLI 测试 runner (v6.19.0 补注册) | tests/workstream/run-workstream-tests.sh | run_workstream_tests() | stable | 2026-07-30 |
+| Doctor health regression test | tests/workstream/test_doctor_health_regressions.sh | test_doctor_health_regressions() | stable | 2026-08-01 |
+| Doctor health regression test ps1 | tests/workstream/test_doctor_health_regressions.ps1 | Test-DoctorHealthRegressions() | stable | 2026-08-01 |
+| verify shell resolution test | tests/workstream/test_verify_shell_resolution.sh | test_verify_shell_resolution() | stable | 2026-08-01 |
+| verify shell resolution test ps1 | tests/workstream/test_verify_shell_resolution.ps1 | Test-VerifyShellResolution() | stable | 2026-08-01 |

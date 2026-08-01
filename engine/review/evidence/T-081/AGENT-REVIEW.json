@@ -1,0 +1,105 @@
+{
+  "task": "T-081",
+  "timestamp": "2026-08-01T17:25:00Z",
+  "reviewer": {
+    "type": "agent",
+    "model": "Codex independent review pass"
+  },
+  "status": "pass",
+  "dimensions": {
+    "correctness": {
+      "entries": [
+        {
+          "id": "agent-correctness-doctor-health",
+          "severity": "info",
+          "type": "strength",
+          "file": "engine/scripts/engine-doctor.sh",
+          "line": 299,
+          "message": "Doctor resolves registered root-level paths and validates JSON across Git Bash and Windows Python path formats without weakening drift failures.",
+          "suggestion": "Keep the cross-shell health regression suite as the contract for future Doctor changes."
+        }
+      ],
+      "summary": "The implementation addresses the observed hard failures with explicit registry, root-path, JSON argv, historical evidence, and drift handling."
+    },
+    "design": {
+      "entries": [
+        {
+          "id": "agent-design-ordinal-manifest",
+          "severity": "info",
+          "type": "strength",
+          "file": "engine/scripts/engine-drift-check.ps1",
+          "line": 104,
+          "message": "Ordinal filename ordering and pre-AC/post-close manifest refresh keep PowerShell and Bash verification byte-compatible while valid historical snapshots remain visible legacy warnings.",
+          "suggestion": "Preserve one deterministic byte-order and evidence-refresh contract across manifest producers and consumers."
+        }
+      ],
+      "summary": "The design separates valid historical snapshots from tamper and prevents done-task Doctor checks from observing transient manifest mismatches at verify, gate, or close boundaries."
+    },
+    "consistency": {
+      "entries": [
+        {
+          "id": "agent-consistency-shell-mirrors",
+          "severity": "info",
+          "type": "strength",
+          "file": "tests/workstream/test_verify_shell_resolution.sh",
+          "line": 1,
+          "message": "The real shell test exercises Bash verification while root/plugin mirrors, close manifest refresh, manifest hashes, and Git Bash Doctor behavior are checked for parity.",
+          "suggestion": "Run the real shell tests whenever verifier, close, or Doctor command runners change."
+        }
+      ],
+      "summary": "Bash and PowerShell twins remain synchronized, and the real T-080 verifier plus Git Bash Doctor cover the cross-shell execution path."
+    },
+    "readability": {
+      "entries": [
+        {
+          "id": "agent-readability-health-regressions",
+          "severity": "info",
+          "type": "strength",
+          "file": "tests/workstream/test_doctor_health_regressions.sh",
+          "line": 1,
+          "message": "Focused assertions document registry classes, archive anchors, inventory rows, mirror parity, historical warning semantics, and both manifest refresh boundaries.",
+          "suggestion": "Keep health regressions narrow and diagnostic rather than relying only on a full repository scan."
+        }
+      ],
+      "summary": "The changed behavior is explained in comments and tested through named regressions, making future Doctor failures easier to localize."
+    },
+    "completeness": {
+      "entries": [
+        {
+          "id": "agent-completeness-lifecycle",
+          "severity": "info",
+          "type": "strength",
+          "file": "engine/tasks/T-081.md",
+          "line": 103,
+          "message": "All nine task criteria have current PASS evidence, including full Git Bash Doctor exit 0, pre-AC refresh, post-gate/post-close manifest refresh, and completed proof, gate, and close evidence.",
+          "suggestion": "Keep the final Doctor exit and writer-boundary manifest behavior as explicit acceptance criteria for repository-health tasks."
+        }
+      ],
+      "summary": "The scoped implementation covers every declared acceptance criterion and records the final lifecycle stages with zero Doctor failures."
+    }
+  },
+  "adversarial_responses": [
+    {
+      "challenge": "Does converting historical provenance and code drift to warnings hide tampering?",
+      "response": "No. The manifest is recomputed first, writer and commit validity are checked, unknown or missing commits remain hard failures, and only a valid done-card snapshot becomes an explicit legacy warning."
+    },
+    {
+      "challenge": "Can the WSL resolver claim success while the nested acceptance shell still cannot invoke PowerShell?",
+      "response": "The regression runs the actual Bash verifier against T-080 and requires its 8/8 result, including extensionless pwsh resolution to the discovered quoted executable path."
+    },
+    {
+      "challenge": "Could Git Bash falsely report valid JSON as invalid because Windows Python cannot open a /e path?",
+      "response": "The Doctor passes JSON paths as argv, allowing MSYS to convert them for Windows Python; the integration test now validates both prove JSON files and the full Doctor exits with zero failures."
+    }
+  ],
+  "overall_assessment": "The T-081 remediation is correct and complete for the repository-health issue. It repairs registry and root-path assumptions, restores progress and archive anchors, covers Doctor-reported files in INVENTORY, makes Bash lifecycle verification work with installed Windows PowerShell, makes manifest ordering deterministic across shells, refreshes evidence before Doctor ACs and after gate/close writers, and preserves only self-validating historical snapshots as legacy warnings. The final acceptance run is 9/9 with Git Bash Doctor exit 0, and no critical, high, or medium finding was identified.",
+  "write_provenance": {
+    "writer": "agent-reviewer",
+    "commit": "dd907c521153bea4ee1ea05c5406aa45d6279e4d",
+    "timestamp": "2026-08-01T17:25:00Z",
+    "package_sha256": "58e266db7352ea323ebb4c6d5c729580352320d179b6b797f40559b06422f164",
+    "reviewer_session": "codex-independent-review-T081-20260801-172500",
+    "validated_by": "engine review-agent T-081 --validate",
+    "validated_at": "2026-08-01T17:26:00Z"
+  }
+}

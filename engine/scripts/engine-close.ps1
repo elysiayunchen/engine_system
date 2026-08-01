@@ -63,10 +63,46 @@ function Invoke-Stage {
   return $rc
 }
 
+# Gate and close both write evidence files covered by MANIFEST.json. Refresh at
+# each evidence-writer boundary so a done task's Doctor/drift check never sees
+# a transient self-tamper state.
+function Refresh-EvidenceManifest {
+  $evDir = Join-Path $EngineDir "evidence\$Task"
+  if (-not (Test-Path $evDir)) { return }
+  $files = @(Get-ChildItem -Path $evDir -File | Where-Object { $_.Name -ne 'MANIFEST.json' -and ($_.Name -like '*.json' -or $_.Name -eq 'checkpoint.md') })
+  $ordinalComparer = [System.Collections.Generic.Comparer[object]]::Create(
+    [System.Comparison[object]]{
+      param($left, $right)
+      [System.StringComparer]::Ordinal.Compare($left.Name, $right.Name)
+    }
+  )
+  if ($files.Count -gt 1) { [System.Array]::Sort($files, $ordinalComparer) }
+  $manifestContent = ""
+  $filesDict = [ordered]@{}
+  foreach ($f in $files) {
+    $h = (Get-FileHash -Path $f.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+    $manifestContent += "$($f.Name):$h`n"
+    $filesDict[$f.Name] = $h
+  }
+  $bytes = [System.Text.Encoding]::UTF8.GetBytes($manifestContent)
+  $sha = [System.Security.Cryptography.SHA256]::Create()
+  $manifestHash = ([System.BitConverter]::ToString($sha.ComputeHash($bytes)) -replace '-', '').ToLowerInvariant()
+  $sha.Dispose()
+  $manifest = [ordered]@{
+    evidence_manifest_sha256 = "sha256:$manifestHash"
+    generated = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+    writer = 'engine-verify'
+    commit = $headCommit
+    files = $filesDict
+  }
+  $manifest | ConvertTo-Json -Depth 8 | Set-Content -Path (Join-Path $evDir 'MANIFEST.json') -Encoding UTF8
+}
+
 Push-Location $Root
 try {
   $verifyRc = Invoke-Stage -Label "verify" -Action { & $cli verify $Task }
   $gateRc = Invoke-Stage -Label "gate" -Action { & $cli gate $Task }
+  Refresh-EvidenceManifest
   $doctorRc = Invoke-Stage -Label "doctor" -Action { & $cli doctor }
 } finally {
   Pop-Location
@@ -177,6 +213,7 @@ $closeObj = [ordered]@{
   write_provenance = [ordered]@{ writer = 'engine-close'; commit = $headCommit; timestamp = $timestamp; argv = $closeArgv }
 }
 $closeObj | ConvertTo-Json -Depth 8 | Set-Content -Path $out -Encoding UTF8
+Refresh-EvidenceManifest
 
 Write-Host "[Engine System] Close status for ${Task}: $($status.ToUpperInvariant())"
 Write-Host "  Evidence: engine/evidence/$Task/CLOSE.json"

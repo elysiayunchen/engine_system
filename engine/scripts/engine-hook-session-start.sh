@@ -73,6 +73,11 @@ $guard_id GOAL: $(printf '%.200s' "$guard_goal")"
     echo "[Engine Guard] ACTIVE: none | v6.5+ ordinary writes are blocked; create/select a task card first."
   fi
   echo "PARALLEL: each session drives its own card; same-task workers write engine/workstreams/<task>/<agent>/; only the lease-holding coordinator writes shared memory."
+  # v6.25.0 (T-082): canvas one-liner summary
+  canvas_script="$ENGINE_DIR/scripts/engine-canvas.sh"
+  if [ -x "$canvas_script" ] || [ -f "$canvas_script" ]; then
+    bash "$canvas_script" --guard 2>/dev/null || true
+  fi
   exit 0
 fi
 
@@ -149,6 +154,14 @@ if [ "$active_count" -eq 0 ]; then
   echo ""
 elif [ "$active_count" -gt 1 ]; then
   echo "⚠️ Multi-card parallel ($active_ids): work under ONE card; write only inside YOUR card's WRITE-SET (union gating)."
+  echo ""
+fi
+
+# v6.25.0 (T-082): Mermaid 任务状态画布（证据派生，无 LLM，无持久化）
+canvas_script="$ENGINE_DIR/scripts/engine-canvas.sh"
+if [ "$active_count" -gt 0 ] && { [ -x "$canvas_script" ] || [ -f "$canvas_script" ]; }; then
+  echo "──── 🗺️ Task Canvas ────"
+  bash "$canvas_script" 2>/dev/null || true
   echo ""
 fi
 

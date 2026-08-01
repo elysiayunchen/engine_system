@@ -508,6 +508,45 @@ if [ "${#card_files[@]}" -gt 0 ] || [ "$strict_task_mode" -eq 1 ]; then
 fi
 
 if [ "$code_changed" -eq 1 ] && [ "$engine_written" -eq 0 ]; then
+  # v6.25.0 (T-082): S5 failure candidate before block exit
+  (
+    _s5_task="${active_task_id:-}"
+    if [ -n "$_s5_task" ]; then
+      _s5_dom="engine-runtime"
+      _s5_card="$ENGINE_DIR/tasks/$_s5_task.md"
+      if [ -f "$_s5_card" ]; then
+        _s5_dl="$(sed -n 's/.*domain:[[:space:]]*\([^|]*\).*/\1/p' "$_s5_card" | head -1 | sed 's/[[:space:]]*$//')"
+        [ -n "$_s5_dl" ] && _s5_dom="$(printf '%s' "$_s5_dl" | cut -d, -f1)"
+      fi
+      _s5_pfile="$ENGINE_DIR/domains/$_s5_dom/PITFALLS.md"
+      [ -f "$_s5_pfile" ] || _s5_pfile="$ENGINE_DIR/domains/engine-runtime/PITFALLS.md"
+      if [ -f "$_s5_pfile" ]; then
+        _s5_dk="$(printf 'S5|%s|%s' "$_s5_task" "$_s5_dom" | cksum | cut -d' ' -f1 | cut -c1-12)"
+        _s5_seen="$ENGINE_DIR/.cache/seen-keys"
+        mkdir -p "$ENGINE_DIR/.cache" 2>/dev/null || true
+        touch "$_s5_seen" 2>/dev/null || true
+        if ! grep -qF "$_s5_dk" "$_s5_seen" 2>/dev/null && ! grep -qF "$_s5_dk" "$_s5_pfile" 2>/dev/null; then
+          grep -q '^## Auto-detected' "$_s5_pfile" 2>/dev/null || printf '
+## Auto-detected (pending review)
+
+' >> "$_s5_pfile" 2>/dev/null
+          _s5_ts="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo unknown)"
+          printf -- '- **CAND-%s** Code changed but engine memory not written back
+  - signal: S5
+  - task: %s
+  - domain: %s
+  - session: %s
+  - date: %s
+  - dedup-key: %s
+  - status: pending
+
+'             "$(date -u +%Y%m%d%H%M%S 2>/dev/null || echo 000)" "$_s5_task" "$_s5_dom" "${session_id:-unknown}" "$_s5_ts" "$_s5_dk" >> "$_s5_pfile" 2>/dev/null || true
+          printf '%s
+' "$_s5_dk" >> "$_s5_seen" 2>/dev/null || true
+        fi
+      fi
+    fi
+  ) || true
   printf '%s\n' '{"decision":"block","reason":"[Engine System] Code changed but this session did not update project memory. | developer: Save what changed and what comes next before ending. Parallel workers must write their own workstream shard; the coordinator updates shared CONTEXT/HANDOFF."}'
   exit 0
 fi
@@ -596,5 +635,110 @@ if [ -n "$session_key" ] && [ -d "$ENGINE_DIR/.cache/sessions" ]; then
     printf '%s|%s|coordinator-exited\n' "$stopped_at" "$lock_pid" > "$tombstone_file" 2>/dev/null || true
   fi
 fi
+
+
+# v6.25.0 (T-082): 失败模式自动提取（纯模式匹配，fail-open）
+# 检测可观测信号，追加 PITFALLS 候选条目。任何错误静默忽略。
+(
+  _fe_cache="$ENGINE_DIR/.cache"
+  _fe_seen="$_fe_cache/seen-keys"
+  _fe_task="${active_task_id:-}"
+  [ -n "$_fe_task" ] || exit 0
+  mkdir -p "$_fe_cache" 2>/dev/null || true
+  touch "$_fe_seen" 2>/dev/null || true
+
+  # 辅助: 计算 dedup key (signal|task|domain 的前12字符 hash)
+  _fe_dedup_key() {
+    local sig="$1" path="$2" dom="$3"
+    # 简化 glob_normalize: 保留前2级目录+扩展名
+    local norm
+    norm="$(printf '%s' "$path" | sed 's|T-[0-9]\{3\}|T-*|g' | awk -F/ '{if(NF>2) print $1"/"$2"/..."; else print $0}')"
+    printf '%s|%s|%s' "$sig" "$norm" "$dom" | cksum | cut -d' ' -f1 | cut -c1-12
+  }
+
+  # 辅助: 追加候选条目到 PITFALLS
+  _fe_append_candidate() {
+    local sig="$1" detail="$2" dom="$3" dkey="$4"
+    local pfile="$ENGINE_DIR/domains/$dom/PITFALLS.md"
+    [ -f "$pfile" ] || pfile="$ENGINE_DIR/domains/engine-runtime/PITFALLS.md"
+    if [ ! -f "$pfile" ]; then
+      mkdir -p "$(dirname "$pfile")" 2>/dev/null || true
+      printf '# PITFALLS
+
+## Auto-detected (pending review)
+
+' > "$pfile" 2>/dev/null || true
+    fi
+
+    # 去重: seen-keys + PITFALLS 全文
+    grep -qF "$dkey" "$_fe_seen" 2>/dev/null && exit 0
+    grep -qF "$dkey" "$pfile" 2>/dev/null && exit 0
+
+    # 确保 Auto-detected 区存在
+    if ! grep -q '^## Auto-detected' "$pfile" 2>/dev/null; then
+      printf '
+## Auto-detected (pending review)
+
+' >> "$pfile" 2>/dev/null || true
+    fi
+
+    local cand_id ts
+    cand_id="CAND-$(date -u +%Y%m%d%H%M%S 2>/dev/null || echo 000)"
+    ts="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo unknown)"
+    printf -- '- **%s** %s
+  - signal: %s
+  - task: %s
+  - domain: %s
+  - session: %s
+  - date: %s
+  - dedup-key: %s
+  - status: pending
+
+'       "$cand_id" "$detail" "$sig" "$_fe_task" "$dom" "${session_id:-unknown}" "$ts" "$dkey" >> "$pfile" 2>/dev/null || true
+    printf '%s
+' "$dkey" >> "$_fe_seen" 2>/dev/null || true
+  }
+
+  # 确定当前任务的域
+  _fe_domain="engine-runtime"
+  _fe_card="$ENGINE_DIR/tasks/$_fe_task.md"
+  if [ -f "$_fe_card" ]; then
+    _fe_dom_line="$(sed -n 's/.*domain:[[:space:]]*\([^|]*\).*/\1/p' "$_fe_card" | head -1 | sed 's/[[:space:]]*$//')"
+    [ -n "$_fe_dom_line" ] && _fe_domain="$(printf '%s' "$_fe_dom_line" | cut -d, -f1)"
+  fi
+
+  # S5: memory-writeback (code changed but engine memory not written)
+  if [ "${code_changed:-0}" -eq 1 ] && [ "${engine_written:-0}" -eq 0 ]; then
+    _dk="$(_fe_dedup_key S5 "$_fe_task" "$_fe_domain")"
+    _fe_append_candidate "S5" "Code changed but engine memory (CONTEXT/HANDOFF/progress) not written back" "$_fe_domain" "$_dk"
+  fi
+
+  # S12: verify-fail (evidence contains status=fail)
+  _fe_evid="$ENGINE_DIR/evidence/$_fe_task"
+  if [ -d "$_fe_evid" ]; then
+    _fe_fails="$(grep -l '"status"[[:space:]]*:[[:space:]]*"fail"' "$_fe_evid"/AC-*.json 2>/dev/null | head -3)"
+    if [ -n "$_fe_fails" ]; then
+      _fe_ac="$(basename "$(echo "$_fe_fails" | head -1)" .json 2>/dev/null)"
+      _dk="$(_fe_dedup_key S12 "$_fe_ac" "$_fe_domain")"
+      _fe_append_candidate "S12" "Verify FAIL in $_fe_ac during $_fe_task" "$_fe_domain" "$_dk"
+    fi
+  fi
+
+  # S13: doctor-fail
+  _fe_doc_log="$_fe_cache/session-end-doctor.log"
+  if [ -f "$_fe_doc_log" ] && grep -q '^FAIL' "$_fe_doc_log" 2>/dev/null; then
+    _fe_fail_check="$(grep '^FAIL' "$_fe_doc_log" 2>/dev/null | head -1 | cut -c1-60)"
+    _dk="$(_fe_dedup_key S13 "$_fe_fail_check" "$_fe_domain")"
+    _fe_append_candidate "S13" "Doctor FAIL: $_fe_fail_check" "$_fe_domain" "$_dk"
+  fi
+
+  # S18: capsule-missing (code+memory changed but no capsule)
+  if [ "${code_changed:-0}" -eq 1 ] && [ "${engine_written:-0}" -eq 1 ] && [ "${capsule_written:-0}" -eq 0 ]; then
+    _dk="$(_fe_dedup_key S18 "$_fe_task" "$_fe_domain")"
+    _fe_append_candidate "S18" "Code and memory changed but no change capsule (CHANGE-*.md) written" "$_fe_domain" "$_dk"
+  fi
+
+  exit 0
+) || true
 
 exit 0

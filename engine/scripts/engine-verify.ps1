@@ -348,7 +348,14 @@ function Invoke-VerifyCommand {
 
 function Write-EvidenceManifest {
   param([string]$EvDir, [string]$Commit)
-  $files = Get-ChildItem -Path $EvDir -File | Where-Object { $_.Name -ne 'MANIFEST.json' -and ($_.Name -like '*.json' -or $_.Name -eq 'checkpoint.md') } | Sort-Object Name
+  $files = @(Get-ChildItem -Path $EvDir -File | Where-Object { $_.Name -ne 'MANIFEST.json' -and ($_.Name -like '*.json' -or $_.Name -eq 'checkpoint.md') })
+  $ordinalComparer = [System.Collections.Generic.Comparer[object]]::Create(
+    [System.Comparison[object]]{
+      param($left, $right)
+      [System.StringComparer]::Ordinal.Compare($left.Name, $right.Name)
+    }
+  )
+  if ($files.Count -gt 1) { [System.Array]::Sort($files, $ordinalComparer) }
   $manifestContent = ""
   $filesDict = @{}
   foreach ($f in $files) {
@@ -399,6 +406,11 @@ foreach ($ac in (Parse-AcDeclarations -Path $taskFile)) {
   # evidence directory proves only that a file was written, not behavior.
   if ($verifyCmd -like "*engine/evidence/$Task/*") {
     Write-Output "WARN suspicious verify (self-referential evidence path): $acId"
+  }
+  # v6.24.1 (T-081): refresh evidence written by preceding ACs before running
+  # the next command so a done task's Doctor AC never sees a transient mismatch.
+  if (-not $Preflight) {
+    Write-EvidenceManifest -EvDir $evidenceDir -Commit $verifiedCommit
   }
   $runResult = Invoke-VerifyCommand -Command $executionCmd -Root $Root -TaskId $Task -BashExe $bashExe
   $output = $runResult.Output

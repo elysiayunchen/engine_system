@@ -428,6 +428,12 @@ while IFS=$'\t' read -r ac_id verify_cmd; do
       echo "WARN suspicious verify (self-referential evidence path): $ac_id" ;;
   esac
   tmp_out="$(mktemp)"
+  # v6.24.1 (T-081): refresh evidence written by preceding ACs before running
+  # the next command. This keeps a done task's Doctor AC from observing a
+  # transient MANIFEST mismatch while verify is rewriting AC evidence.
+  if [ "$preflight" -eq 0 ]; then
+    write_evidence_manifest "$evidence_dir" "$verified_commit"
+  fi
   rc=0
   # v6.9.0 (T-034): redirect stdin from /dev/null so verify commands that
   # spawn subshells reading stdin (e.g. `bash scripts/check.sh` in AC-10)

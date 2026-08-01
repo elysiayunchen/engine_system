@@ -1,0 +1,35 @@
+{
+  "task": "T-081",
+  "timestamp": "2026-08-01T16:25:49Z",
+  "status": "block",
+  "stages": {
+    "verify": {
+      "status": "fail",
+      "exit": 1
+    },
+    "gate": {
+      "status": "fail",
+      "exit": 1
+    },
+    "doctor": {
+      "status": "fail",
+      "exit": 1
+    }
+  },
+  "memory": {
+    "mode": "coordinator",
+    "status": "pass",
+    "handoff_agent": null,
+    "handoff_path": null
+  },
+  "capsule": {
+    "status": "pass",
+    "path": "engine/changes/CHANGE-2026-08-01-02.md"
+  },
+  "write_provenance": {
+    "writer": "engine-close",
+    "commit": "dd907c521153bea4ee1ea05c5406aa45d6279e4d",
+    "timestamp": "2026-08-01T16:25:49Z",
+    "argv": "engine close T-081"
+  }
+}

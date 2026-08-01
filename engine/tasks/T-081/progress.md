@@ -4,7 +4,7 @@
 
 ## Goal
 
-收口 Engine Doctor 全仓失败与 Windows/WSL 跨 shell 生命周期缺口。
+收口 Engine Doctor 全仓失败与 Windows/WSL 跨 shell 生命周期缺口，并修复 verify/close 写证据时序缺口。
 
 ## Checkpoint
 
@@ -14,8 +14,10 @@
 - [x] AC-4 Bash verify PowerShell resolution (WSL `.exe` path rewriting verified by real T-080 run)
 - [x] AC-5 historical evidence integrity (valid historical snapshots now warn; tamper remains hard-fail)
 - [x] AC-6 T-078 lifecycle evidence (verify/review/agent-review/prove/gate/close recorded)
-- [ ] AC-7 full Doctor zero failures
+- [x] AC-7 full Doctor zero failures (Bash Doctor exit 0; legacy warnings remain explicit)
+- [x] AC-8 verify refreshes MANIFEST before a Doctor AC
+- [ ] AC-9 close refreshes MANIFEST after gate and CLOSE writes
 
 ## Next
 
-注册表/路径、progress 锚点、域 INVENTORY、Bash PowerShell 解析与历史 evidence 分级已修复；T-078 生命周期证据现已完整，下一步运行最终 Doctor 并收口 T-081。
+验证 close 的 gate/Doctor/CLOSE 写入边界，完成最终证据刷新后恢复 done，并归档本 progress 文件。

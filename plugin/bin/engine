@@ -25,6 +25,9 @@ Usage:
   engine migrate        Run contract migration on existing engine files
   engine verify T-NNN [--preflight] [--no-cov]   Run behavior verification for a task card
   engine acceptance-preflight T-NNN [--no-cov]   Validate frozen AC commands and classify harness failures
+  engine gate T-NNN [--run]   Aggregate quality gates and write GATE.json
+  engine prove T-NNN --infer|--execute   Infer or execute proof assertions
+  engine close T-NNN [--handoff AGENT]   Run verify → gate → doctor and record closure evidence
   engine review T-NNN  Run post-task code review (semgrep + eslint) for a task card
   engine review-agent T-NNN --package   Package review context for agent code review
   engine review-agent T-NNN --validate  Validate agent-produced AGENT-REVIEW.json
@@ -491,8 +494,15 @@ run_doctor() {
   local doctor="$root/engine/scripts/engine-doctor.sh"
   if [ -f "$doctor" ]; then
     echo "[engine] running doctor..."
-    bash "$doctor" "$root" || echo "[engine] doctor reported issues (see above)" >&2
+    local rc=0
+    bash "$doctor" "$root" || rc=$?
+    if [ "$rc" -ne 0 ]; then
+      echo "[engine] doctor reported issues (see above)" >&2
+    fi
+    return "$rc"
   fi
+  echo "[engine] doctor script not found: $doctor" >&2
+  return 2
 }
 
 # load_engine: 重新铺设引擎工具的外部副作用(PATH shim + git hook)。
@@ -686,7 +696,10 @@ case "${1:-help}" in
       exit 2
     fi
     shift 2
-    bash "$PWD/engine/scripts/engine-verify.sh" "$task" "$@"
+    entrypoint="engine verify $task"
+    for arg in "$@"; do entrypoint+=" $arg"; done
+    ENGINE_CLI_ENTRYPOINT="$entrypoint" bash "$PWD/engine/scripts/engine-verify.sh" "$task" "$@"
+    exit $?
     ;;
   acceptance-preflight)
     if [ ! -d "$PWD/engine" ]; then
@@ -699,7 +712,58 @@ case "${1:-help}" in
       exit 2
     fi
     shift 2
-    bash "$PWD/engine/scripts/engine-verify.sh" "$task" --preflight "$@"
+    entrypoint="engine acceptance-preflight $task"
+    for arg in "$@"; do entrypoint+=" $arg"; done
+    ENGINE_CLI_ENTRYPOINT="$entrypoint" bash "$PWD/engine/scripts/engine-verify.sh" "$task" --preflight "$@"
+    exit $?
+    ;;
+  gate)
+    if [ ! -d "$PWD/engine" ]; then
+      echo "Error: engine/ not found in $PWD. Run 'engine gate' in a project root." >&2
+      exit 2
+    fi
+    task="${2:-}"
+    if [ -z "$task" ]; then
+      echo "Usage: engine gate T-NNN [--run]" >&2
+      exit 2
+    fi
+    shift 2
+    entrypoint="engine gate $task"
+    for arg in "$@"; do entrypoint+=" $arg"; done
+    ENGINE_CLI_ENTRYPOINT="$entrypoint" bash "$PWD/engine/scripts/engine-gate.sh" "$task" "$@"
+    exit $?
+    ;;
+  prove)
+    if [ ! -d "$PWD/engine" ]; then
+      echo "Error: engine/ not found in $PWD. Run 'engine prove' in a project root." >&2
+      exit 2
+    fi
+    task="${2:-}"
+    if [ -z "$task" ]; then
+      echo "Usage: engine prove T-NNN --infer|--execute" >&2
+      exit 2
+    fi
+    shift 2
+    entrypoint="engine prove $task"
+    for arg in "$@"; do entrypoint+=" $arg"; done
+    ENGINE_CLI_ENTRYPOINT="$entrypoint" bash "$PWD/engine/scripts/engine-prove.sh" "$task" "$@"
+    exit $?
+    ;;
+  close)
+    if [ ! -d "$PWD/engine" ]; then
+      echo "Error: engine/ not found in $PWD. Run 'engine close' in a project root." >&2
+      exit 2
+    fi
+    task="${2:-}"
+    if [ -z "$task" ]; then
+      echo "Usage: engine close T-NNN [--handoff AGENT]" >&2
+      exit 2
+    fi
+    shift 2
+    entrypoint="engine close $task"
+    for arg in "$@"; do entrypoint+=" $arg"; done
+    ENGINE_CLI_ENTRYPOINT="$entrypoint" bash "$PWD/engine/scripts/engine-close.sh" "$task" "$@"
+    exit $?
     ;;
   review)
     if [ ! -d "$PWD/engine" ]; then
@@ -781,7 +845,9 @@ case "${1:-help}" in
     echo ""
     if ! $NO_MIGRATE; then
       run_migrate "$PWD"
-      run_doctor "$PWD"
+      doctor_rc=0
+      run_doctor "$PWD" || doctor_rc=$?
+      [ "$doctor_rc" -eq 0 ] || exit "$doctor_rc"
     fi
     echo ""
     echo "Engine tooling updated from remote."
@@ -796,6 +862,7 @@ case "${1:-help}" in
       exit 2
     fi
     run_doctor "$PWD"
+    exit $?
     ;;
   load)
     if [ ! -d "$PWD/engine" ]; then

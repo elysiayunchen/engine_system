@@ -236,6 +236,12 @@ json_escape() {
   printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g; s/\r//g; s/\n/ /g'
 }
 
+verify_argv="${ENGINE_CLI_ENTRYPOINT:-engine-verify.sh $*}"
+verify_argv_json="$(json_escape "$verify_argv")"
+# Do not leak the outer CLI label into a user-declared AC command. Nested
+# direct maintenance calls must report their own provenance, not the verifier's.
+unset ENGINE_CLI_ENTRYPOINT
+
 classify_environment_status() {
   local output_file="$1"
   if grep -Eiq 'ModuleNotFoundError|No module named|ImportError:|command not found|not recognized as an internal|No such file or directory|cannot find.*(python|pytest|executable)|executable.*not found|venv.*not found|failed to activate|Could not import' "$output_file" 2>/dev/null; then
@@ -258,16 +264,39 @@ extract_coverage_policy() {
   local command="$1"
   local policy="auto"
   case "$command" in
-    *'| coverage:'*|*'|coverage:'*)
-      policy="${command##*|coverage:}"
+    *'| coverage:'*)
+      policy="${command#*| coverage:}"
       command="${command%%| coverage:*}"
+      policy="${policy%%|*}"
+      policy="$(printf '%s' "$policy" | sed 's/^[[:space:]]*//;s/[[:space:]]*|[[:space:]]*$//')"
+      ;;
+    *'|coverage:'*)
+      policy="${command#*|coverage:}"
       command="${command%%|coverage:*}"
+      policy="${policy%%|*}"
       policy="$(printf '%s' "$policy" | sed 's/^[[:space:]]*//;s/[[:space:]]*|[[:space:]]*$//')"
       ;;
   esac
-  if [ "$force_no_cov" -eq 1 ]; then policy="no-cov"; fi
+  command="${command%%| behavior:*}"
+  command="${command%%|behavior:*}"
+  if [ "$force_no_cov" -eq 1 ]; then
+    policy="no-cov"
+    command="$(append_no_cov "$command")"
+  fi
   if printf '%s' "$command" | grep -Eqi -- '--no-cov([[:space:]]|$)'; then policy="no-cov"; fi
   printf '%s\t%s\n' "$command" "${policy:-auto}"
+}
+
+extract_behavior_command() {
+  local command="$1" behavior=""
+  case "$command" in
+    *'| behavior:'*) behavior="${command#*| behavior:}" ;;
+    *'|behavior:'*) behavior="${command#*|behavior:}" ;;
+  esac
+  behavior="${behavior%%| coverage:*}"
+  behavior="${behavior%%|coverage:*}"
+  behavior="$(printf '%s' "$behavior" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+  printf '%s' "$behavior"
 }
 
 append_no_cov() {
@@ -323,7 +352,17 @@ echo ""
 
 # v6.18.0 (D-038/T-066): 收集 code_fingerprint + 前置 git add 检查
 verified_commit="$(cd "$ROOT" && git rev-parse HEAD 2>/dev/null || echo "unknown")"
-collect_code_fingerprint "$task_file"
+# Acceptance preflight is intentionally usable before implementation starts.
+# In that mode the frozen AC command is the subject under test; requiring every
+# WRITE-SET file to be staged would turn a useful harness diagnostic into a
+# false code-fingerprint failure.
+if [ "$preflight" -eq 1 ]; then
+  code_fingerprint=()
+  code_fp_files=()
+  ws_snapshot=()
+else
+  collect_code_fingerprint "$task_file"
+fi
 code_fp_json="$(build_code_fingerprint_json)"
 ws_snap_json="$(build_ws_snapshot_json)"
 
@@ -339,6 +378,7 @@ while IFS=$'\t' read -r ac_id verify_cmd; do
   coverage_parts="$(extract_coverage_policy "$verify_cmd")"
   IFS=$'\t' read -r execution_cmd coverage_policy <<< "$coverage_parts"
   [ -n "$execution_cmd" ] || execution_cmd="$verify_cmd"
+  explicit_behavior_command="$(extract_behavior_command "$verify_cmd")"
   # v6.12.1 (issue #11 E-1): a verify command that checks this card's own
   # evidence directory proves only that a file was written, not that behavior
   # happened. Flag it; the architect decides.
@@ -379,6 +419,18 @@ while IFS=$'\t' read -r ac_id verify_cmd; do
       empty_fp_pass=$((empty_fp_pass+1))
     fi
     echo "PASS  (exit=0, fp=${fp:0:12})"
+  elif [ "$preflight" -eq 1 ] && [ -n "$explicit_behavior_command" ] && [ "$environment_status" = "blocked" ]; then
+    behavior_out="$(mktemp)"
+    behavior_rc=0
+    run_verify_command "$explicit_behavior_command" "$behavior_out" || behavior_rc=$?
+    behavior_rc=${behavior_rc:-0}
+    behavior_fp="$(sha256sum "$behavior_out" | cut -d' ' -f1)"
+    behavior_output_fp_json="\"sha256:$behavior_fp\""
+    behavior_exit_json="$behavior_rc"
+    if [ "$behavior_rc" -eq 0 ]; then behavior_status="pass"; else behavior_status="fail"; fi
+    status="blocked"; blocked_count=$((blocked_count+1))
+    echo "BLOCKED (declared environment unavailable; explicit behavior diagnostic exit=$behavior_rc)"
+    rm -f "$behavior_out"
   elif [ "$preflight" -eq 1 ] && [ "$environment_status" = "blocked" ]; then
     status="blocked"; blocked_count=$((blocked_count+1))
     behavior_exit_json="null"
@@ -386,7 +438,7 @@ while IFS=$'\t' read -r ac_id verify_cmd; do
     echo "BLOCKED (command_exit=$rc, environment dependency unavailable)"
     sed -n '1,5p' "$tmp_out" 2>/dev/null
   elif [ "$preflight" -eq 1 ] && [ "$coverage_status" = "failed_threshold" ]; then
-    behavior_command="$(append_no_cov "$execution_cmd")"
+    behavior_command="${explicit_behavior_command:-$(append_no_cov "$execution_cmd")}"
     if [ "$behavior_command" != "$execution_cmd" ]; then
       behavior_out="$(mktemp)"
       behavior_rc=0
@@ -412,6 +464,18 @@ while IFS=$'\t' read -r ac_id verify_cmd; do
       status="blocked"; blocked_count=$((blocked_count+1))
       echo "BLOCKED (coverage threshold; no pytest --no-cov diagnostic available)"
     fi
+  elif [ "$preflight" -eq 1 ] && [ -n "$explicit_behavior_command" ]; then
+    behavior_out="$(mktemp)"
+    behavior_rc=0
+    run_verify_command "$explicit_behavior_command" "$behavior_out" || behavior_rc=$?
+    behavior_rc=${behavior_rc:-0}
+    behavior_fp="$(sha256sum "$behavior_out" | cut -d' ' -f1)"
+    behavior_output_fp_json="\"sha256:$behavior_fp\""
+    behavior_exit_json="$behavior_rc"
+    if [ "$behavior_rc" -eq 0 ]; then behavior_status="pass"; else behavior_status="fail"; fi
+    status="fail"; fail_count=$((fail_count+1))
+    echo "FAIL  (command_exit=$rc, behavior diagnostic exit=$behavior_rc)"
+    rm -f "$behavior_out"
   else
     status="fail"; fail_count=$((fail_count+1))
     behavior_status="fail"
@@ -423,8 +487,8 @@ while IFS=$'\t' read -r ac_id verify_cmd; do
   policy_escaped="$(json_escape "$coverage_policy")"
   preflight_json="false"; [ "$preflight" -eq 1 ] && preflight_json="true"
   ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  printf '{"ac":"%s","verify":"%s","execution_command":"%s","status":"%s","exit":%d,"command_exit":%d,"behavior_exit":%s,"behavior_status":"%s","environment_status":"%s","coverage_status":"%s","coverage_policy":"%s","preflight":%s,"output_fingerprint":"sha256:%s","behavior_output_fingerprint":%s,"code_fingerprint":%s,"write_set_snapshot":%s,"verified_against_commit":"%s","write_provenance":{"writer":"engine-verify","commit":"%s","timestamp":"%s","argv":"engine verify %s"},"timestamp":"%s"}\n' \
-    "$ac_id" "$verify_escaped" "$execution_escaped" "$status" "$rc" "$rc" "$behavior_exit_json" "$behavior_status" "$environment_status" "$coverage_status" "$policy_escaped" "$preflight_json" "$fp" "$behavior_output_fp_json" "$code_fp_json" "$ws_snap_json" "$verified_commit" "$verified_commit" "$ts" "$task" "$ts" \
+  printf '{"ac":"%s","verify":"%s","execution_command":"%s","status":"%s","exit":%d,"command_exit":%d,"behavior_exit":%s,"behavior_status":"%s","environment_status":"%s","coverage_status":"%s","coverage_policy":"%s","preflight":%s,"output_fingerprint":"sha256:%s","behavior_output_fingerprint":%s,"code_fingerprint":%s,"write_set_snapshot":%s,"verified_against_commit":"%s","write_provenance":{"writer":"engine-verify","commit":"%s","timestamp":"%s","argv":"%s"},"timestamp":"%s"}\n' \
+    "$ac_id" "$verify_escaped" "$execution_escaped" "$status" "$rc" "$rc" "$behavior_exit_json" "$behavior_status" "$environment_status" "$coverage_status" "$policy_escaped" "$preflight_json" "$fp" "$behavior_output_fp_json" "$code_fp_json" "$ws_snap_json" "$verified_commit" "$verified_commit" "$ts" "$verify_argv_json" "$ts" \
     > "$evidence_dir/$ac_id.json"
 
   # v6.9.0 (D-028/T-034): on AC PASS, write a line to checkpoint.md so

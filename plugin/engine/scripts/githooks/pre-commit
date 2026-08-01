@@ -532,7 +532,7 @@ fi
 
 # Code changes must carry shared memory or a worker shard in the same commit.
 code_changed="$(printf '%s\n' "$staged" | grep -vE '^(engine/|\.engine/)' | head -1)"
-memory_written="$(printf '%s\n' "$staged" | grep -E '^engine/(CONTEXT|HANDOFF|ENGINE_MAP)\.md$|^engine/workstreams/[^/]+/[^/]+/(CONTEXT|HANDOFF)\.md$' | head -1)"
+  memory_written="$(printf '%s\n' "$staged" | grep -E '^engine/(CONTEXT|HANDOFF|ENGINE_MAP)\.md$|^engine/workstreams/[^/]+/([^/]+/)?[^/]+/(CONTEXT|HANDOFF)\.md$' | head -1)"
 if [ -n "$code_changed" ] && [ -z "$memory_written" ]; then
   printf '\n[Engine System] Code changed but project memory was not staged.\n' >&2
   printf 'Coordinator: update engine/CONTEXT.md or engine/HANDOFF.md.\n' >&2

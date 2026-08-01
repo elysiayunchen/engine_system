@@ -20,6 +20,7 @@ trap { [Console]::Error.WriteLine("[engine-prove] error: $_"); exit 1 }
 $ROOT = if ($env:CLAUDE_PROJECT_DIR) { $env:CLAUDE_PROJECT_DIR } else { (Get-Location).Path }
 $ENGINE_DIR = Join-Path $ROOT 'engine'
 $PROVE_DIR = Join-Path $ENGINE_DIR 'prove'
+$proveArgv = if ($env:ENGINE_CLI_ENTRYPOINT) { $env:ENGINE_CLI_ENTRYPOINT } else { "engine-prove.ps1 -Task $Task -Mode $Mode" }
 
 Set-Location $ROOT
 
@@ -757,6 +758,7 @@ else:
     $env:PROVE_HEAD_COMMIT = $script:PROVE_HEAD_COMMIT
     $env:AC_COVERAGE = $acCoverage
     $env:MODEL_ID = if ($env:ENGINE_MODEL_ID) { $env:ENGINE_MODEL_ID } else { '' }
+    $env:PROVE_ARGV = $proveArgv
     & $PY -c @"
 import json, os, hashlib
 from datetime import datetime, timezone
@@ -768,6 +770,7 @@ fp = os.environ['FP']
 prove_file = os.environ['PROVE_FILE']
 ac_coverage = os.environ.get('AC_COVERAGE', 'OK')
 model_id = os.environ.get('MODEL_ID', '')
+prove_argv = os.environ.get('PROVE_ARGV', f'engine prove {task_id} --execute')
 
 # Compute assertions fingerprint
 assertions_file = prove_file.replace('PROVE.json', 'prove-assertions.json')
@@ -801,7 +804,7 @@ evidence = {
         'model_id': model_id,
         'commit': os.environ.get('PROVE_HEAD_COMMIT', ''),
         'timestamp': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
-        'argv': f'engine prove {task_id} --execute'
+        'argv': prove_argv
     }
 }
 

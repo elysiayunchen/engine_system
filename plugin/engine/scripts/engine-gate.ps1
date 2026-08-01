@@ -163,8 +163,10 @@ try {
     $acFiles = Get-ChildItem (Join-Path $ENGINE_DIR "evidence\$task\AC-*.json") -ErrorAction SilentlyContinue
     if (-not $acFiles) {
       Write-Host "[engine-gate] Running: engine verify $task"
+      $verifyCli = Join-Path $ROOT "engine\bin\engine.ps1"
       $verifyScript = Join-Path $ENGINE_DIR "scripts\engine-verify.sh"
-      if (Test-Path $verifyScript) { bash $verifyScript $task 2>&1 | Out-Host }
+      if (Test-Path $verifyCli) { & $verifyCli verify $task 2>&1 | Out-Host }
+      elseif (Test-Path $verifyScript) { bash $verifyScript $task 2>&1 | Out-Host }
     }
     if ($hasCode -and -not (Test-Path (Join-Path $ENGINE_DIR "review\evidence\$task\REVIEW.json"))) {
       Write-Host "[engine-gate] Running: engine review $task"
@@ -216,6 +218,7 @@ try {
   $headCommit = cmd /c "git -C `"$ROOT`" rev-parse HEAD 2>nul"
   if (-not $headCommit) { $headCommit = "unknown" }
   $timestamp = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+  $gateArgv = if ($env:ENGINE_CLI_ENTRYPOINT) { $env:ENGINE_CLI_ENTRYPOINT } else { "engine-gate.ps1 " + ($args -join " ") }
 
   $gateObj = [ordered]@{
     task = $task
@@ -231,7 +234,7 @@ try {
       writer = "engine-gate"
       commit = $headCommit
       timestamp = $timestamp
-      argv = "engine gate $task"
+      argv = $gateArgv
     }
   }
 

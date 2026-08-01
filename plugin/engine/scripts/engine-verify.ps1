@@ -7,7 +7,11 @@
 # Safety: verify commands are declared in the task card; approving the card
 # approves verify. User-run, not hook-automated.
 
-param([Parameter(Mandatory=$false)][string]$Task)
+param(
+  [Parameter(Mandatory=$false)][string]$Task,
+  [switch]$Preflight,
+  [switch]$NoCov
+)
 
 $ErrorActionPreference = "Stop"
 trap { [Console]::Error.WriteLine("[engine-verify] error: $_"); exit 1 }
@@ -42,7 +46,7 @@ if (-not (Test-Path $taskFile)) {
 $evidenceDir = Join-Path $EngineDir ("evidence\" + $Task)
 New-Item -ItemType Directory -Path $evidenceDir -Force | Out-Null
 
-$passCount = 0; $failCount = 0; $skipCount = 0
+$passCount = 0; $failCount = 0; $blockedCount = 0; $skipCount = 0
 # v6.12.1 (issue #11 E-1): tautology heuristics. Track how many PASS ACs have
 # the empty-output fingerprint; if ALL of them do, the verify commands may be
 # tautologies. WARN only - never changes the exit code.
@@ -247,6 +251,101 @@ function Build-WsSnapshotJson {
   return '[' + ($parts -join ',') + ']'
 }
 
+# v6.24.0 (T-078 / issue #25): acceptance preflight classification. The
+# frozen command always runs first; these helpers classify its output and may
+# run only the explicitly declared (or pytest --no-cov) behavior diagnostic.
+function Escape-JsonString {
+  param([AllowNull()][string]$Value)
+  if ($null -eq $Value) { return "" }
+  return $Value.Replace('\', '\\').Replace('"', '\"').Replace("`r", '').Replace("`n", ' ')
+}
+
+$verifyArgv = if ($env:ENGINE_CLI_ENTRYPOINT) { $env:ENGINE_CLI_ENTRYPOINT } else { "engine-verify.ps1 -Task $Task" }
+$verifyArgvEscaped = Escape-JsonString -Value $verifyArgv
+[Environment]::SetEnvironmentVariable('ENGINE_CLI_ENTRYPOINT', $null, 'Process')
+
+function Get-EnvironmentStatus {
+  param([string]$Output)
+  if ($Output -match '(?im)ModuleNotFoundError|No module named|ImportError:|command not found|not recognized as an internal|No such file or directory|cannot find.*(python|pytest|executable)|executable.*not found|venv.*not found|failed to activate|Could not import') {
+    return 'blocked'
+  }
+  return 'ok'
+}
+
+function Get-CoverageStatus {
+  param([string]$Output)
+  if ($Output -match '(?im)required test coverage.*not reached|coverage.*(fail[- ]under|below.*threshold|threshold.*not reached)|fail[- ]under.*coverage|coverage.*minimum.*not met') {
+    return 'failed_threshold'
+  }
+  return 'not_applicable'
+}
+
+function Split-PreflightCommand {
+  param([string]$Command)
+  $commandPart = $Command.Trim()
+  $coveragePolicy = 'auto'
+  $behaviorCommand = ''
+
+  $behaviorMarker = [regex]::Match($commandPart, '(?is)\s*\|\s*behavior:\s*')
+  if ($behaviorMarker.Success) {
+    $behaviorCommand = $commandPart.Substring($behaviorMarker.Index + $behaviorMarker.Length).Trim()
+    $commandPart = $commandPart.Substring(0, $behaviorMarker.Index).Trim()
+    $behaviorCommand = [regex]::Replace($behaviorCommand, '(?is)\s*\|\s*coverage:.*$', '').Trim()
+  }
+
+  $coverageMarker = [regex]::Match($commandPart, '(?is)\s*\|\s*coverage:\s*')
+  if ($coverageMarker.Success) {
+    $coveragePolicy = $commandPart.Substring($coverageMarker.Index + $coverageMarker.Length).Trim()
+    $commandPart = $commandPart.Substring(0, $coverageMarker.Index).Trim()
+  }
+  if ($NoCov) {
+    $coveragePolicy = 'no-cov'
+    $commandPart = Add-NoCov -Command $commandPart
+  } elseif ($commandPart -match '(?i)(^|\s)--no-cov(\s|$)') {
+    $coveragePolicy = 'no-cov'
+  }
+
+  return [PSCustomObject]@{
+    Command = $commandPart
+    CoveragePolicy = if ($coveragePolicy) { $coveragePolicy } else { 'auto' }
+    BehaviorCommand = $behaviorCommand
+  }
+}
+
+function Add-NoCov {
+  param([string]$Command)
+  if ($Command -match '(?i)(^|\s)--no-cov(\s|$)') { return $Command }
+  if ($Command -match '(?i)(^|\s)pytest(\s|$)') { return "$Command --no-cov" }
+  return $Command
+}
+
+function Invoke-VerifyCommand {
+  param([string]$Command, [string]$Root, [string]$TaskId, [string]$BashExe)
+  $output = ''
+  $exitCode = 1
+  Push-Location $Root
+  try {
+    $env:ENGINE_VERIFY_RECURSE_GUARD = $TaskId
+    try {
+      if ($BashExe) {
+        $output = & $BashExe -lc $Command 2>&1 | Out-String
+      } else {
+        Write-Warning "Git Bash not found; falling back to cmd /c (bash syntax may fail)" 2>&1
+        $output = & cmd /c $Command 2>&1 | Out-String
+      }
+      $exitCode = $LASTEXITCODE
+      if ($null -eq $exitCode) { $exitCode = 0 }
+    } catch {
+      $output = ($_ | Out-String)
+      $exitCode = 1
+    }
+  } finally {
+    [Environment]::SetEnvironmentVariable('ENGINE_VERIFY_RECURSE_GUARD', $null, 'Process')
+    Pop-Location
+  }
+  return [PSCustomObject]@{ Output = [string]$output; ExitCode = [int]$exitCode }
+}
+
 function Write-EvidenceManifest {
   param([string]$EvDir, [string]$Commit)
   $files = Get-ChildItem -Path $EvDir -File | Where-Object { $_.Name -ne 'MANIFEST.json' -and ($_.Name -like '*.json' -or $_.Name -eq 'checkpoint.md') } | Sort-Object Name
@@ -270,9 +369,17 @@ function Write-EvidenceManifest {
 # v6.18.0 (D-038/T-066): 收集 code_fingerprint + 前置 git add 检查
 $verifiedCommit = & git -C $Root rev-parse HEAD 2>$null
 if (-not $verifiedCommit) { $verifiedCommit = "unknown" }
-$cfResult = Collect-CodeFingerprint -TaskFile $taskFile -Root $Root
-$codeFpJson = Build-CodeFingerprintJson -Hash $cfResult.CodeFingerprint
-$wsSnapJson = Build-WsSnapshotJson -Arr $cfResult.WsSnapshot
+if ($Preflight) {
+  # Preflight is intended to run before implementation and before WRITE-SET
+  # files are staged. Do not let code-fingerprint enforcement mask the AC
+  # command's environment/coverage result.
+  $codeFpJson = '{}'
+  $wsSnapJson = '[]'
+} else {
+  $cfResult = Collect-CodeFingerprint -TaskFile $taskFile -Root $Root
+  $codeFpJson = Build-CodeFingerprintJson -Hash $cfResult.CodeFingerprint
+  $wsSnapJson = Build-WsSnapshotJson -Arr $cfResult.WsSnapshot
+}
 
 foreach ($ac in (Parse-AcDeclarations -Path $taskFile)) {
   $acId = $ac.AcId
@@ -283,47 +390,113 @@ foreach ($ac in (Parse-AcDeclarations -Path $taskFile)) {
   }
   Write-Output "-- $acId --"
   Write-Output "verify: $verifyCmd"
+  $commandParts = Split-PreflightCommand -Command $verifyCmd
+  $executionCmd = $commandParts.Command
+  if (-not $executionCmd) { $executionCmd = $verifyCmd }
+  $coveragePolicy = $commandParts.CoveragePolicy
+  $explicitBehaviorCommand = $commandParts.BehaviorCommand
   # v6.12.1 (issue #11 E-1): a verify command that checks this card's own
   # evidence directory proves only that a file was written, not behavior.
   if ($verifyCmd -like "*engine/evidence/$Task/*") {
     Write-Output "WARN suspicious verify (self-referential evidence path): $acId"
   }
-  Push-Location $Root
-  # v6.10.0 (T-035): set ENGINE_VERIFY_RECURSE_GUARD=<task> so any AC verify
-  # that recursively invokes engine-verify for the SAME task exits 0
-  # immediately (no infinite loop). Other task IDs (e.g. test fixtures) run
-  # normally.
-  $env:ENGINE_VERIFY_RECURSE_GUARD = $Task
-  if ($bashExe) {
-    $output = & $bashExe -lc $verifyCmd 2>&1 | Out-String
-  } else {
-    Write-Warning "Git Bash not found; falling back to cmd /c (bash syntax may fail)" 2>&1
-    $output = & cmd /c $verifyCmd 2>&1 | Out-String
-  }
-  $rc = $LASTEXITCODE
-  # Clear guard after each AC verify so subsequent code paths are unaffected.
-  # v6.13.1 (T-053): use .NET SetEnvironmentVariable instead of Remove-Item Env:
-  # to avoid TRAE safe_rm_alias.ps1 wrapping that doesn't recognize the Env:
-  # drive prefix under $ErrorActionPreference="Stop" (would trigger trap → exit 1).
-  [Environment]::SetEnvironmentVariable('ENGINE_VERIFY_RECURSE_GUARD', $null, 'Process')
-  Pop-Location
+  $runResult = Invoke-VerifyCommand -Command $executionCmd -Root $Root -TaskId $Task -BashExe $bashExe
+  $output = $runResult.Output
+  $rc = $runResult.ExitCode
   $bytes = [System.Text.Encoding]::UTF8.GetBytes($output)
   $sha = [System.Security.Cryptography.SHA256]::Create()
   $hashBytes = $sha.ComputeHash($bytes)
   $fp = ([System.BitConverter]::ToString($hashBytes) -replace '-', '').ToLower()
   $sha.Dispose()
+  $environmentStatus = 'ok'
+  $coverageStatus = 'not_applicable'
+  $behaviorExitJson = [string]$rc
+  $behaviorStatus = 'pass'
+  $behaviorOutputFpJson = 'null'
+  if ($rc -ne 0) {
+    $environmentStatus = Get-EnvironmentStatus -Output $output
+    $coverageStatus = Get-CoverageStatus -Output $output
+  } elseif ($coveragePolicy -eq 'no-cov') {
+    $coverageStatus = 'disabled'
+  }
+
   if ($rc -eq 0) {
     $status = "pass"; $passCount++
+    $behaviorStatus = 'pass'
     if ($fp -eq $emptyFpHash) { $emptyFpPass++ }
     Write-Output "PASS  (exit=0, fp=$($fp.Substring(0,12)))"
+  } elseif ($Preflight -and $coverageStatus -eq 'failed_threshold') {
+    $behaviorCommand = $explicitBehaviorCommand
+    if (-not $behaviorCommand) { $behaviorCommand = Add-NoCov -Command $executionCmd }
+    if ($behaviorCommand -and $behaviorCommand -ne $executionCmd) {
+      $behaviorResult = Invoke-VerifyCommand -Command $behaviorCommand -Root $Root -TaskId $Task -BashExe $bashExe
+      $behaviorOutput = $behaviorResult.Output
+      $behaviorRc = $behaviorResult.ExitCode
+      $behaviorBytes = [System.Text.Encoding]::UTF8.GetBytes($behaviorOutput)
+      $behaviorSha = [System.Security.Cryptography.SHA256]::Create()
+      $behaviorHashBytes = $behaviorSha.ComputeHash($behaviorBytes)
+      $behaviorFp = ([System.BitConverter]::ToString($behaviorHashBytes) -replace '-', '').ToLower()
+      $behaviorSha.Dispose()
+      $behaviorOutputFpJson = '"sha256:' + $behaviorFp + '"'
+      $behaviorExitJson = [string]$behaviorRc
+      if ($behaviorRc -eq 0) {
+        $behaviorStatus = 'pass'; $status = 'blocked'; $blockedCount++
+        Write-Output "BLOCKED (coverage threshold in frozen command; behavior diagnostic passed with --no-cov)"
+      } else {
+        $behaviorStatus = 'fail'; $status = 'fail'; $failCount++
+        Write-Output "FAIL  (coverage threshold plus behavior diagnostic exit=$behaviorRc)"
+        ($behaviorOutput -split "`n")[0..4] | ForEach-Object { Write-Output $_ }
+      }
+    } else {
+      $behaviorExitJson = 'null'; $behaviorStatus = 'not_run'
+      $status = 'blocked'; $blockedCount++
+      Write-Output "BLOCKED (coverage threshold; no pytest --no-cov diagnostic available)"
+    }
+  } elseif ($Preflight -and $explicitBehaviorCommand -and $environmentStatus -eq 'blocked') {
+    $behaviorResult = Invoke-VerifyCommand -Command $explicitBehaviorCommand -Root $Root -TaskId $Task -BashExe $bashExe
+    $behaviorOutput = $behaviorResult.Output
+    $behaviorRc = $behaviorResult.ExitCode
+    $behaviorBytes = [System.Text.Encoding]::UTF8.GetBytes($behaviorOutput)
+    $behaviorSha = [System.Security.Cryptography.SHA256]::Create()
+    $behaviorHashBytes = $behaviorSha.ComputeHash($behaviorBytes)
+    $behaviorFp = ([System.BitConverter]::ToString($behaviorHashBytes) -replace '-', '').ToLower()
+    $behaviorSha.Dispose()
+    $behaviorOutputFpJson = '"sha256:' + $behaviorFp + '"'
+    $behaviorExitJson = [string]$behaviorRc
+    if ($behaviorRc -eq 0) { $behaviorStatus = 'pass' } else { $behaviorStatus = 'fail' }
+    $status = 'blocked'; $blockedCount++
+    Write-Output "BLOCKED (declared environment unavailable; explicit behavior diagnostic exit=$behaviorRc)"
+  } elseif ($Preflight -and $environmentStatus -eq 'blocked') {
+    $behaviorExitJson = 'null'; $behaviorStatus = 'not_run'
+    $status = 'blocked'; $blockedCount++
+    Write-Output "BLOCKED (command_exit=$rc, environment dependency unavailable)"
+    ($output -split "`n")[0..4] | ForEach-Object { Write-Output $_ }
+  } elseif ($Preflight -and $explicitBehaviorCommand) {
+    $behaviorResult = Invoke-VerifyCommand -Command $explicitBehaviorCommand -Root $Root -TaskId $Task -BashExe $bashExe
+    $behaviorOutput = $behaviorResult.Output
+    $behaviorRc = $behaviorResult.ExitCode
+    $behaviorBytes = [System.Text.Encoding]::UTF8.GetBytes($behaviorOutput)
+    $behaviorSha = [System.Security.Cryptography.SHA256]::Create()
+    $behaviorHashBytes = $behaviorSha.ComputeHash($behaviorBytes)
+    $behaviorFp = ([System.BitConverter]::ToString($behaviorHashBytes) -replace '-', '').ToLower()
+    $behaviorSha.Dispose()
+    $behaviorOutputFpJson = '"sha256:' + $behaviorFp + '"'
+    $behaviorExitJson = [string]$behaviorRc
+    if ($behaviorRc -eq 0) { $behaviorStatus = 'pass' } else { $behaviorStatus = 'fail' }
+    $status = 'fail'; $failCount++
+    Write-Output "FAIL  (command_exit=$rc, behavior diagnostic exit=$behaviorRc)"
   } else {
     $status = "fail"; $failCount++
+    $behaviorStatus = 'fail'
     Write-Output "FAIL  (exit=$rc, fp=$($fp.Substring(0,12)))"
     ($output -split "`n")[0..4] | ForEach-Object { Write-Output $_ }
   }
-  $verifyEscaped = $verifyCmd -replace '\\', '\\' -replace '"', '\"'
+  $verifyEscaped = Escape-JsonString -Value $verifyCmd
+  $executionEscaped = Escape-JsonString -Value $executionCmd
+  $policyEscaped = Escape-JsonString -Value $coveragePolicy
+  $preflightJson = $Preflight.IsPresent.ToString().ToLower()
   $ts = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
-  $json = '{"ac":"' + $acId + '","verify":"' + $verifyEscaped + '","status":"' + $status + '","exit":' + $rc + ',"output_fingerprint":"sha256:' + $fp + '","code_fingerprint":' + $codeFpJson + ',"write_set_snapshot":' + $wsSnapJson + ',"verified_against_commit":"' + $verifiedCommit + '","write_provenance":{"writer":"engine-verify","commit":"' + $verifiedCommit + '","timestamp":"' + $ts + '","argv":"engine verify ' + $Task + '"},"timestamp":"' + $ts + '"}'
+  $json = '{"ac":"' + $acId + '","verify":"' + $verifyEscaped + '","execution_command":"' + $executionEscaped + '","status":"' + $status + '","exit":' + $rc + ',"command_exit":' + $rc + ',"behavior_exit":' + $behaviorExitJson + ',"behavior_status":"' + $behaviorStatus + '","environment_status":"' + $environmentStatus + '","coverage_status":"' + $coverageStatus + '","coverage_policy":"' + $policyEscaped + '","preflight":' + $preflightJson + ',"output_fingerprint":"sha256:' + $fp + '","behavior_output_fingerprint":' + $behaviorOutputFpJson + ',"code_fingerprint":' + $codeFpJson + ',"write_set_snapshot":' + $wsSnapJson + ',"verified_against_commit":"' + $verifiedCommit + '","write_provenance":{"writer":"engine-verify","commit":"' + $verifiedCommit + '","timestamp":"' + $ts + '","argv":"' + $verifyArgvEscaped + '"},"timestamp":"' + $ts + '"}'
   $json | Set-Content -Path (Join-Path $evidenceDir ($acId + ".json")) -Encoding UTF8
 
   # v6.9.0 (D-028/T-034): on AC PASS, write a line to checkpoint.md so
@@ -550,7 +723,7 @@ Invoke-DeadCodeDetection -TaskId $Task -EvidenceDir $evidenceDir -TaskFile $task
 
 Write-Output ""
 Write-Output "=========================================="
-Write-Output "$Task`: $passCount pass, $failCount fail, $skipCount skip"
+Write-Output "$Task`: $passCount pass, $failCount fail, $blockedCount blocked, $skipCount skip"
 # v6.12.1 (issue #11 A-1): all-SKIP is a parse failure, not a clean result.
 $totalAcs = $passCount + $failCount + $skipCount
 if ($totalAcs -gt 0 -and $passCount -eq 0 -and $failCount -eq 0) {
@@ -562,4 +735,4 @@ if ($totalAcs -gt 0 -and $passCount -eq 0 -and $failCount -eq 0) {
 if ($passCount -gt 0 -and $emptyFpPass -eq $passCount) {
   Write-Output "WARN all PASS fingerprints are the empty-string hash - verify commands may be tautologies"
 }
-if ($failCount -ne 0) { exit 1 }
+if ($failCount -ne 0 -or $blockedCount -ne 0) { exit 1 }

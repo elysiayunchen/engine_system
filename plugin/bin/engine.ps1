@@ -35,6 +35,9 @@ Usage:
   engine migrate        Run contract migration on existing engine files
   engine verify T-NNN [--preflight] [--no-cov]   Run behavior verification for a task card
   engine acceptance-preflight T-NNN [--no-cov]   Validate frozen AC commands and classify harness failures
+  engine gate T-NNN [--run]   Aggregate quality gates and write GATE.json
+  engine prove T-NNN --infer|--execute   Infer or execute proof assertions
+  engine close T-NNN [--handoff AGENT]   Run verify -> gate -> doctor and record closure evidence
   engine review T-NNN  Run post-task code review (semgrep + eslint) for a task card
   engine review-agent T-NNN --package   Package review context for external agent review
   engine review-agent T-NNN --validate  Validate agent-produced AGENT-REVIEW.json
@@ -135,9 +138,14 @@ function Run-Doctor {
   $doctor = Join-Path $Root "engine\scripts\engine-doctor.ps1"
   if (Test-Path $doctor) {
     Write-Host "[engine] running doctor..."
-    & $doctor
-    if ($LASTEXITCODE -ne 0) { Write-Host "[engine] doctor reported issues (see above)" }
+    $doctorOutput = @(& $doctor 2>&1)
+    $rc = if ($null -ne $LASTEXITCODE) { [int]$LASTEXITCODE } else { 0 }
+    foreach ($line in $doctorOutput) { Write-Host "$line" }
+    if ($rc -ne 0) { Write-Host "[engine] doctor reported issues (see above)" }
+    return $rc
   }
+  Write-Error "[engine] doctor script not found: $doctor"
+  return 2
 }
 
 # Load-Engine: 重新铺设引擎工具的外部副作用(PATH shim + git hook)。
@@ -622,10 +630,29 @@ switch ($Command) {
       exit 2
     }
     $verifyScript = Join-Path $PWD.Path "engine\scripts\engine-verify.ps1"
-    $verifyArgs = @('-Task', $Task)
-    foreach ($a in $args) { $verifyArgs += "$a" }
-    & $verifyScript @verifyArgs
-    exit $LASTEXITCODE
+    $preflightFlag = $false
+    $noCovFlag = $false
+    foreach ($a in $args) {
+      switch ("$a".ToLowerInvariant()) {
+        '--preflight' { $preflightFlag = $true }
+        '--no-cov' { $noCovFlag = $true }
+      }
+    }
+    $entrypoint = "engine verify $Task"
+    foreach ($a in $args) { $entrypoint += " $a" }
+    $oldEntrypoint = $env:ENGINE_CLI_ENTRYPOINT
+    $env:ENGINE_CLI_ENTRYPOINT = $entrypoint
+    try {
+      if ($preflightFlag -and $noCovFlag) { & $verifyScript -Task $Task -Preflight -NoCov }
+      elseif ($preflightFlag) { & $verifyScript -Task $Task -Preflight }
+      elseif ($noCovFlag) { & $verifyScript -Task $Task -NoCov }
+      else { & $verifyScript -Task $Task }
+      $verifyExit = if ($null -ne $LASTEXITCODE) { [int]$LASTEXITCODE } else { 0 }
+    } finally {
+      if ($null -eq $oldEntrypoint) { Remove-Item Env:ENGINE_CLI_ENTRYPOINT -ErrorAction SilentlyContinue }
+      else { $env:ENGINE_CLI_ENTRYPOINT = $oldEntrypoint }
+    }
+    exit $verifyExit
   }
   "acceptance-preflight" {
     if (-not (Test-Path "engine")) {
@@ -637,10 +664,101 @@ switch ($Command) {
       exit 2
     }
     $preflightScript = Join-Path $PWD.Path "engine\scripts\engine-verify.ps1"
-    $preflightArgs = @('-Task', $Task, '-Preflight')
-    foreach ($a in $args) { $preflightArgs += "$a" }
-    & $preflightScript @preflightArgs
-    exit $LASTEXITCODE
+    $noCovFlag = $false
+    foreach ($a in $args) {
+      if ("$a".ToLowerInvariant() -eq '--no-cov') { $noCovFlag = $true }
+    }
+    $entrypoint = "engine acceptance-preflight $Task"
+    foreach ($a in $args) { $entrypoint += " $a" }
+    $oldEntrypoint = $env:ENGINE_CLI_ENTRYPOINT
+    $env:ENGINE_CLI_ENTRYPOINT = $entrypoint
+    try {
+      if ($noCovFlag) { & $preflightScript -Task $Task -Preflight -NoCov }
+      else { & $preflightScript -Task $Task -Preflight }
+      $preflightExit = if ($null -ne $LASTEXITCODE) { [int]$LASTEXITCODE } else { 0 }
+    } finally {
+      if ($null -eq $oldEntrypoint) { Remove-Item Env:ENGINE_CLI_ENTRYPOINT -ErrorAction SilentlyContinue }
+      else { $env:ENGINE_CLI_ENTRYPOINT = $oldEntrypoint }
+    }
+    exit $preflightExit
+  }
+  "gate" {
+    if (-not (Test-Path "engine")) {
+      Write-Error "Error: engine/ not found in $PWD. Run engine gate in a project root."
+      exit 2
+    }
+    if (-not $Task) {
+      Write-Error "Usage: engine gate T-NNN [--run]"
+      exit 2
+    }
+    $gateScript = Join-Path $PWD.Path "engine\scripts\engine-gate.ps1"
+    $gateArgs = @()
+    foreach ($a in $args) { $gateArgs += "$a" }
+    $entrypoint = "engine gate $Task"
+    foreach ($a in $gateArgs) { $entrypoint += " $a" }
+    $oldEntrypoint = $env:ENGINE_CLI_ENTRYPOINT
+    $env:ENGINE_CLI_ENTRYPOINT = $entrypoint
+    try {
+      & $gateScript $Task @gateArgs
+      $gateExit = if ($null -ne $LASTEXITCODE) { [int]$LASTEXITCODE } else { 0 }
+    } finally {
+      if ($null -eq $oldEntrypoint) { Remove-Item Env:ENGINE_CLI_ENTRYPOINT -ErrorAction SilentlyContinue }
+      else { $env:ENGINE_CLI_ENTRYPOINT = $oldEntrypoint }
+    }
+    exit $gateExit
+  }
+  "prove" {
+    if (-not (Test-Path "engine")) {
+      Write-Error "Error: engine/ not found in $PWD. Run engine prove in a project root."
+      exit 2
+    }
+    if (-not $Task) {
+      Write-Error "Usage: engine prove T-NNN --infer|--execute"
+      exit 2
+    }
+    $proveMode = ""
+    if ($Agent -and $Agent.StartsWith('--')) { $proveMode = $Agent }
+    elseif ($args.Count -gt 0) { $proveMode = "$($args[0])" }
+    if ($proveMode -notin @('--infer', '--execute')) {
+      Write-Error "Usage: engine prove T-NNN --infer|--execute"
+      exit 2
+    }
+    $proveScript = Join-Path $PWD.Path "engine\scripts\engine-prove.ps1"
+    $oldEntrypoint = $env:ENGINE_CLI_ENTRYPOINT
+    $env:ENGINE_CLI_ENTRYPOINT = "engine prove $Task $proveMode"
+    try {
+      & $proveScript -Task $Task -Mode $proveMode
+      $proveExit = if ($null -ne $LASTEXITCODE) { [int]$LASTEXITCODE } else { 0 }
+    } finally {
+      if ($null -eq $oldEntrypoint) { Remove-Item Env:ENGINE_CLI_ENTRYPOINT -ErrorAction SilentlyContinue }
+      else { $env:ENGINE_CLI_ENTRYPOINT = $oldEntrypoint }
+    }
+    exit $proveExit
+  }
+  "close" {
+    if (-not (Test-Path "engine")) {
+      Write-Error "Error: engine/ not found in $PWD. Run engine close in a project root."
+      exit 2
+    }
+    if (-not $Task) {
+      Write-Error "Usage: engine close T-NNN [--handoff AGENT]"
+      exit 2
+    }
+    $closeScript = Join-Path $PWD.Path "engine\scripts\engine-close.ps1"
+    $closeArgs = @()
+    foreach ($a in $args) { $closeArgs += "$a" }
+    $entrypoint = "engine close $Task"
+    foreach ($a in $closeArgs) { $entrypoint += " $a" }
+    $oldEntrypoint = $env:ENGINE_CLI_ENTRYPOINT
+    $env:ENGINE_CLI_ENTRYPOINT = $entrypoint
+    try {
+      & $closeScript $Task @closeArgs
+      $closeExit = if ($null -ne $LASTEXITCODE) { [int]$LASTEXITCODE } else { 0 }
+    } finally {
+      if ($null -eq $oldEntrypoint) { Remove-Item Env:ENGINE_CLI_ENTRYPOINT -ErrorAction SilentlyContinue }
+      else { $env:ENGINE_CLI_ENTRYPOINT = $oldEntrypoint }
+    }
+    exit $closeExit
   }
   "review" {
     if (-not (Test-Path "engine")) {
@@ -759,7 +877,8 @@ switch ($Command) {
       Write-Host ""
       if (-not $NoMigrate) {
         Run-Migrate -Root $PWD.Path
-        Run-Doctor -Root $PWD.Path
+        $doctorExit = Run-Doctor -Root $PWD.Path
+        if ($doctorExit -ne 0) { exit $doctorExit }
       }
       Write-Host ""
       Write-Host "Engine tooling updated from remote."
@@ -776,7 +895,8 @@ switch ($Command) {
       Write-Error "Error: engine/ not found in $PWD. Run 'engine init' first."
       exit 2
     }
-    Run-Doctor -Root $PWD.Path
+    $doctorExit = Run-Doctor -Root $PWD.Path
+    exit $doctorExit
   }
   "load" {
     if (-not (Test-Path "engine")) {

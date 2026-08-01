@@ -50,6 +50,11 @@ if [ ! -f "$task_file" ]; then
   exit 2
 fi
 
+# Evidence must tell a real CLI invocation from a direct script call. The
+# latter remains supported for tests/maintenance, but is never mislabeled as
+# `engine gate`.
+gate_argv="${ENGINE_CLI_ENTRYPOINT:-engine-gate.sh $*}"
+
 # 0. flock 防并发
 mkdir -p "$ENGINE_DIR/evidence/$task"
 if command -v flock >/dev/null 2>&1; then
@@ -225,7 +230,11 @@ if [ "$run_mode" -eq 1 ]; then
   # verify
   if [ ! -d "$ENGINE_DIR/evidence/$task" ] || ! ls "$ENGINE_DIR/evidence/$task"/AC-*.json >/dev/null 2>&1; then
     echo "[engine-gate] Running: engine verify $task"
-    bash "$ENGINE_DIR/scripts/engine-verify.sh" "$task" || true
+    if [ -f "$ROOT/engine/bin/engine" ]; then
+      bash "$ROOT/engine/bin/engine" verify "$task" || true
+    else
+      bash "$ENGINE_DIR/scripts/engine-verify.sh" "$task" || true
+    fi
   fi
   # review (需要代码文件)
   if [ "$has_code" -eq 1 ] && [ ! -f "$ENGINE_DIR/review/evidence/$task/REVIEW.json" ]; then
@@ -318,7 +327,7 @@ gate_json = {
         'writer': 'engine-gate',
         'commit': head_commit,
         'timestamp': timestamp,
-        'argv': 'engine gate ' + task
+        'argv': sys.argv[7]
     }
 }
 
@@ -348,7 +357,7 @@ with open(out_path, 'w', encoding='utf-8', newline='') as f:
     printf '"%s":{"status":"%s","detail":"%s","fix":"%s"},' \
       "$g" "${gate_status[$g]}" "${gate_detail[$g]}" "${gate_fix[$g]}"
   done | sed 's/,$//' | sed 's/^/{/' | sed 's/$/}/')" \
-  "$ENGINE_DIR/evidence/$task/GATE.json"
+  "$ENGINE_DIR/evidence/$task/GATE.json" "$gate_argv"
 
 # 6. 打印人类可读摘要
 echo ""

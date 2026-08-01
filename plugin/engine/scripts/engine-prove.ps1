@@ -478,9 +478,11 @@ print(data.get('code_fingerprint', ''))
     }
 
     # 4. Safety validation (blocklist + anti-tautology + relevance)
-    $blockedJson = Load-ConfigValue -Key 'blocked_commands' -Default '["rm","mv","curl","wget","sudo","dd","mkfs"]'
+    $blockedJson = Load-ConfigValue -Key 'blocked_commands' -Default '["rm","mv","curl","wget","sudo","dd","mkfs","chmod","chown","kill","shutdown","reboot","format","unlink","nc","scp","ssh"]'
     $env:ASSERTIONS_FILE = $assertionsFile
     $env:DIFF_FILES = $script:PROVE_DIFF_FILES
+    $env:WRITE_SET = $script:PROVE_WRITE_SET
+    $env:ROOT_DIR = $ROOT
     $env:BLOCKED_JSON = $blockedJson
     & $PY -c @"
 import json, os, sys, re
@@ -490,6 +492,8 @@ with open(os.environ['ASSERTIONS_FILE'], encoding='utf-8') as f:
 
 blocked = json.loads(os.environ['BLOCKED_JSON'])
 diff_files = os.environ['DIFF_FILES'].split()
+write_set = os.environ.get('WRITE_SET', '').split()
+all_relevant = list(set(diff_files + write_set))
 errors = []
 
 for a in data.get('assertions', []):
@@ -501,20 +505,33 @@ for a in data.get('assertions', []):
         if re.search(r'\b' + re.escape(b) + r'\b', cmd):
             errors.append(f'{aid}: blocked command word "{b}" in: {cmd[:80]}')
 
-    # Tautology check
+    # Tautology check (expanded patterns)
     stripped = cmd.strip()
-    if stripped in ('true', ':', 'exit 0') or re.match(r'^(echo|printf)\s', stripped):
-        errors.append(f'{aid}: tautological command (always succeeds): {stripped[:60]}')
+    tautology_patterns = [
+        r'^(true|:|exit 0)\s*$',
+        r'^(echo|printf)\s',
+        r'^/usr/bin/true',
+        r'^bash -c ["\']?(true|:|exit 0)["\']?\s*$',
+        r'^test -[efdz] ',
+        r'^\[ -[efdz] ',
+        r'^grep -c "" ',
+    ]
+    for pat in tautology_patterns:
+        if re.match(pat, stripped):
+            errors.append(f'{aid}: tautological command (always succeeds): {stripped[:60]}')
+            break
 
-    # Relevance: must reference at least one diff file or its basename
+    # Relevance: must reference at least one WRITE-SET/diff file or its basename
     referenced = False
-    for f in diff_files:
+    for f in all_relevant:
         if f in cmd or os.path.basename(f) in cmd:
             referenced = True
             break
-    # Also accept if command references a test file that covers diff files
-    if not referenced and 'test' in cmd.lower():
-        referenced = True  # test commands are assumed relevant
+    # Accept if command references an actual test script path (tests/*.sh)
+    if not referenced:
+        test_match = re.search(r'tests/[\w/.-]+\.sh', cmd)
+        if test_match and os.path.isfile(os.path.join(os.environ.get('ROOT_DIR', '.'), test_match.group(0))):
+            referenced = True
     if not referenced:
         errors.append(f'{aid}: command does not reference any changed file: {cmd[:80]}')
 

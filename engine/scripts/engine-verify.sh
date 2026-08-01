@@ -542,7 +542,8 @@ if [ "$pass_count" -gt 0 ] && [ "$empty_fp_pass" -eq "$pass_count" ]; then
 fi
 # v6.23.0 (T-074): chain PROVE.json — if execution verification ran and failed, verify fails too
 if [ -f "$evidence_dir/PROVE.json" ]; then
-  prove_status=$(grep -o '"status": *"[^"]*"' "$evidence_dir/PROVE.json" | head -1 | sed 's/.*"status": *"//;s/"//' || echo "UNKNOWN")
+  prove_status=$(sed -n 's/^  "status": *"\([^"]*\)".*/\1/p' "$evidence_dir/PROVE.json" | head -1)
+  if [ -z "$prove_status" ]; then prove_status="UNKNOWN"; fi
   if [ "$prove_status" != "PASS" ]; then
     echo "PROVE chain: engine prove $task status=$prove_status — overriding to FAIL"
     fail_count=$((fail_count + 1))

@@ -398,7 +398,7 @@ print(data.get('code_fingerprint', ''))
   fi
 
   # 4. Safety validation (blocklist + anti-tautology + relevance)
-  ASSERTIONS_FILE="$assertions_file" DIFF_FILES="$PROVE_DIFF_FILES" WRITE_SET="$PROVE_WRITE_SET" BLOCKED_JSON="$(load_config_value 'blocked_commands' '["rm","mv","curl","wget","sudo","dd","mkfs"]')" "$PY" -c "
+  ASSERTIONS_FILE="$assertions_file" DIFF_FILES="$PROVE_DIFF_FILES" WRITE_SET="$PROVE_WRITE_SET" ROOT_DIR="$ROOT" BLOCKED_JSON="$(load_config_value 'blocked_commands' '["rm","mv","curl","wget","sudo","dd","mkfs","chmod","chown","kill","shutdown","reboot","format","unlink","nc","scp","ssh"]')" "$PY" -c "
 import json, os, sys, re
 
 with open(os.environ['ASSERTIONS_FILE'], encoding='utf-8') as f:
@@ -419,10 +419,21 @@ for a in data.get('assertions', []):
         if re.search(r'\b' + re.escape(b) + r'\b', cmd):
             errors.append(f'{aid}: blocked command word \"{b}\" in: {cmd[:80]}')
 
-    # Tautology check
+    # Tautology check (expanded patterns)
     stripped = cmd.strip()
-    if stripped in ('true', ':', 'exit 0') or re.match(r'^(echo|printf)\s', stripped):
-        errors.append(f'{aid}: tautological command (always succeeds): {stripped[:60]}')
+    tautology_patterns = [
+        r'^(true|:|exit 0)\s*$',
+        r'^(echo|printf)\s',
+        r'^/usr/bin/true',
+        r'^bash -c [\"\']?(true|:|exit 0)[\"\']?\s*$',
+        r'^test -[efdz] ',
+        r'^\[ -[efdz] ',
+        r'^grep -c \"\" ',
+    ]
+    for pat in tautology_patterns:
+        if re.match(pat, stripped):
+            errors.append(f'{aid}: tautological command (always succeeds): {stripped[:60]}')
+            break
 
     # Relevance: must reference at least one WRITE-SET/diff file or its basename
     referenced = False
@@ -430,9 +441,11 @@ for a in data.get('assertions', []):
         if f in cmd or os.path.basename(f) in cmd:
             referenced = True
             break
-    # Also accept if command references a test file that covers diff files
-    if not referenced and 'test' in cmd.lower():
-        referenced = True  # test commands are assumed relevant
+    # Accept if command references an actual test script path (tests/*.sh)
+    if not referenced:
+        test_match = re.search(r'tests/[\w/.-]+\.sh', cmd)
+        if test_match and os.path.isfile(os.path.join(os.environ.get('ROOT_DIR', '.'), test_match.group(0))):
+            referenced = True
     if not referenced:
         errors.append(f'{aid}: command does not reference any changed file: {cmd[:80]}')
 
@@ -526,7 +539,7 @@ print(json.dumps({'total': total, 'passed': passed, 'failed': failed, 'timed_out
   failed=$(echo "$results_json" | "$PY" -c "import json,sys; d=json.load(sys.stdin); print(d['failed'])" 2>/dev/null || echo "0")
   timed_out=$(echo "$results_json" | "$PY" -c "import json,sys; d=json.load(sys.stdin); print(d['timed_out'])" 2>/dev/null || echo "0")
 
-  if [ "$failed" -gt 0 ] || [ "$timed_out" -gt 0 ]; then
+  if [ "$failed" -gt 0 ] || [ "$timed_out" -gt 0 ] || [ "$total" -eq 0 ]; then
     gate="FAIL"
   else
     gate="PASS"

@@ -3,7 +3,7 @@
     "assertion_timeout_s": 30,
     "max_assertions": 10,
     "output_truncate_chars": 500,
-    "blocked_commands": ["rm", "mv", "curl", "wget", "sudo", "dd", "mkfs", "chmod", "chown", "kill", "shutdown", "reboot", "format"],
+    "blocked_commands": ["rm", "mv", "curl", "wget", "sudo", "dd", "mkfs", "chmod", "chown", "kill", "shutdown", "reboot", "format", "unlink", "nc", "scp", "ssh", "truncate", "pkexec", "doas"],
     "syntax_checkers": {
       ".sh": "bash -n {file}",
       ".py": "python -m py_compile {file}",

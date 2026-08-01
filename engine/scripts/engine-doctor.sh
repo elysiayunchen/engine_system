@@ -299,7 +299,10 @@ fi
 engine_path() {
   local file="$1"
   file="$(trim "$file")"
-  if [[ "$file" == engine/* ]]; then
+  # Registry rows may name root-level files (docs/, tests/, install.sh, ...)
+  # as well as engine-relative files. Prefer an existing project-root path;
+  # otherwise retain the historical engine/relative resolution.
+  if [[ "$file" == engine/* || -e "$ROOT/$file" ]]; then
     printf '%s/%s' "$ROOT" "$file"
   else
     printf '%s/%s' "$ENGINE_DIR" "$file"

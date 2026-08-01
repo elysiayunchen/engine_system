@@ -20,3 +20,17 @@
 | Claude 引导器 | CLAUDE.md | read_quick_start() | stable | 2026-07-19 |
 | migrator bump 提示测试(sh) | tests/update-flow/test_migrator_bump_prompt.sh | test_migrator_bump_prompt_sh() | stable | 2026-07-29 |
 | migrator bump 提示测试(ps1) | tests/update-flow/test_migrator_bump_prompt.ps1 | test_migrator_bump_prompt_ps1() | stable | 2026-07-29 |
+| Agent review CLI regression | tests/workstream/test_review_agent_cli.sh | test_review_agent_cli_sh() | stable | 2026-08-01 |
+| Agent review package regression | tests/workstream/test_review_agent_package.sh | test_review_agent_package_sh() | stable | 2026-08-01 |
+| Agent review validator regression | tests/workstream/test_review_agent_validate.sh | test_review_agent_validate_sh() | stable | 2026-08-01 |
+| Agent review config regression | tests/workstream/test_review_agent_config.sh | test_review_agent_config_sh() | stable | 2026-08-01 |
+| Agent review mirror regression | tests/workstream/test_review_agent_mirror.sh | test_review_agent_mirror_sh() | stable | 2026-08-01 |
+| Agent reviewer design specification | docs/superpowers/specs/2026-07-31-agent-reviewer-design.md | agent_reviewer_design_spec() | stable | 2026-08-01 |
+| Agent review gate regression | tests/workstream/test_review_agent_gate.sh | test_review_agent_gate_sh() | stable | 2026-08-01 |
+| Doctor agent review regression | tests/workstream/test_doctor_agent_review.sh | test_doctor_agent_review_sh() | stable | 2026-08-01 |
+| Grounded review regression | tests/workstream/test_review_agent_grounded.sh | test_review_agent_grounded_sh() | stable | 2026-08-01 |
+| Dynamic review regression | tests/workstream/test_review_agent_dynamic.sh | test_review_agent_dynamic_sh() | stable | 2026-08-01 |
+| Prove inference regression | tests/workstream/test_prove_infer.sh | test_prove_infer_sh() | stable | 2026-08-01 |
+| Prove execution regression | tests/workstream/test_prove_execute.sh | test_prove_execute_sh() | stable | 2026-08-01 |
+| Acceptance preflight regression(sh) | tests/workstream/test_acceptance_preflight.sh | test_acceptance_preflight_sh() | stable | 2026-08-01 |
+| Acceptance preflight regression(ps1) | tests/workstream/test_acceptance_preflight.ps1 | test_acceptance_preflight_ps1() | stable | 2026-08-01 |

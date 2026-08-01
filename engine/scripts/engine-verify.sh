@@ -312,9 +312,28 @@ append_no_cov() {
   fi
 }
 
+# Windows Git Bash/WSL installations may expose PowerShell only as a .exe
+# outside the inherited PATH. Resolve that executable before running declared
+# AC commands so Bash close/verify does not turn a valid Windows AC into 127.
+ensure_powershell_on_path() {
+  command -v pwsh >/dev/null 2>&1 && return 0
+  local dir
+  for dir in \
+    "/mnt/c/Program Files/PowerShell"/* \
+    "/mnt/c/Program Files (x86)/PowerShell"/*; do
+    if [ -x "$dir/pwsh.exe" ]; then
+      PATH="$dir:$PATH"
+      export PATH
+      return 0
+    fi
+  done
+  return 0
+}
+
 run_verify_command() {
   local command="$1" output_file="$2" verify_timeout rc=0
   verify_timeout="${ENGINE_VERIFY_TIMEOUT:-120}"
+  ensure_powershell_on_path
   if command -v timeout >/dev/null 2>&1; then
     ( cd "$ROOT" && ENGINE_VERIFY_RECURSE_GUARD="$task" timeout "$verify_timeout" bash -c "$command" ) </dev/null >"$output_file" 2>&1 || rc=$?
   else

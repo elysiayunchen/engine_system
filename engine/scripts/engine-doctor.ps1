@@ -159,7 +159,10 @@ function Get-TaskPatterns([string]$Content, [string]$Field) {
 
 function Resolve-EnginePath([string]$File) {
   $clean = Trim-Cell $File
-  if ($clean -like "engine/*") {
+  # Registry rows may name root-level files (docs/, tests/, install.ps1, ...)
+  # as well as engine-relative files. Prefer an existing project-root path;
+  # otherwise retain the historical engine-relative resolution.
+  if ($clean -like "engine/*" -or (Test-Path -LiteralPath (Join-Path $Root ($clean -replace "/", [IO.Path]::DirectorySeparatorChar)))) {
     return Join-Path $Root ($clean -replace "/", [IO.Path]::DirectorySeparatorChar)
   }
   return Join-Path $engineDir ($clean -replace "/", [IO.Path]::DirectorySeparatorChar)

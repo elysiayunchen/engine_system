@@ -1,6 +1,6 @@
 # ENGINE_MAP — 引擎索引
 
-> Engine System (engine_system) · Revision: 44 · Last updated: 2026-08-01 (v6.24.0)
+> Engine System (engine_system) · Revision: 45 · Last updated: 2026-08-01 (v6.24.0)
 > ⚠️ MVP dogfood 实例（精简版）。完整 v5.5 注册表（§1.1 / §1.2 / §2 / §3 / 预算）待 `/engine-reconcile` 或 `/engine-init` 补全。
 
 ## §0 Profile & Read-Gate
@@ -21,15 +21,21 @@
 | ENGINE_DOCTOR.md | irreducible | 引擎健康检查、自维护脚本契约与旧项目 contract migrator 契约 | 2026-06-22 |
 | engine/review/config.json | mixed | review 子系统配置(L0 defaults + L1 overrides) | 2026-07-30 |
 | engine/review/protocol.md | irreducible | agent-reviewer L0 默认审查协议(5 维度 + 输出规则) | 2026-07-31 |
-| engine/scripts/engine-review-agent*.sh | tool | agent-reviewer CLI(package/validate 两原子命令) | 2026-07-31 |
+| engine/scripts/engine-review-agent.sh | derivable | agent-reviewer CLI 入口(package/validate 两原子命令) | 2026-07-31 |
+| engine/scripts/engine-review-agent-package.sh | derivable | agent-reviewer review package 生成器 | 2026-07-31 |
+| engine/scripts/engine-review-agent-validate.sh | derivable | agent-reviewer AGENT-REVIEW 校验器 | 2026-07-31 |
 | engine/gate/config.json | mixed | 质量门禁配置(gates 列表 / block_on / seal / docs_only_skip) | 2026-08-01 |
-| engine/scripts/engine-gate.{sh,ps1} | tool | 门禁聚合器 CLI(聚合 verify/review/prove 证据 → GATE.json) | 2026-08-01 |
+| engine/scripts/engine-gate.sh | derivable | 门禁聚合器 Bash CLI(聚合 verify/review/prove 证据 → GATE.json) | 2026-08-01 |
+| engine/scripts/engine-gate.ps1 | derivable | 门禁聚合器 PowerShell CLI(聚合 verify/review/prove 证据 → GATE.json) | 2026-08-01 |
+| docs/tdai-engine-integration-analysis.md | irreducible | TencentDB-Agent-Memory × Engine 设计层统合分析(6 方案 + 优先级) | 2026-08-01 |
+| docs/tdai-engine-deep-implementation-spec.md | irreducible | TDAI × Engine 深度实现规格(算法解剖 + bash 伪代码 + 路线图) | 2026-08-01 |
 
 ### §1.1 Section class breakdown (mixed 文件分段)
 
 | 文件 | 段落 | Class | 说明 |
 |------|------|-------|------|
 | engine/review/config.json | defaults + overrides | mixed | L0 defaults + L1 overrides 两段配置 |
+| engine/gate/config.json | gates + policy | mixed | 质量门禁列表与 seal/docs-only 策略配置 |
 
 > 维护脚本：`plugin/engine/scripts/engine-hook-session-start.{sh,ps1}`、`engine-hook-stop.{sh,ps1}`、`engine-doctor.{sh,ps1}`、`engine-migrate-contract.{sh,ps1}`、`githooks/pre-commit`。
 > 按 v5.5 完整注册路由，脚本属维护工具，**不登记为权威文件**；其契约见 ENGINE_DOCTOR.md 与 AGENT_ADAPTERS.md。

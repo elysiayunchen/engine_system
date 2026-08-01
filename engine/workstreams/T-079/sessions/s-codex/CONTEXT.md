@@ -31,7 +31,8 @@
 - Prove regression initially caught the leakage; lifecycle rerun is 31/31 after the fix.
 - Task verify: 6/6 AC passed (preflight and full).
 - Review: PASS.
-- Doctor remains non-zero on repository baseline; coordinator must merge this shard and address shared debt before marking the task done.
+- Gate is PASS; close records verify=0, gate=0, Doctor=1, worker memory=pass, capsule=deferred_to_coordinator, so final close is BLOCK only on repository Doctor baseline.
+- Doctor reports 27 failures / 213 warnings; coordinator must merge this shard and address or explicitly track shared debt before marking the task done.
 
 ## Merge Notes
 

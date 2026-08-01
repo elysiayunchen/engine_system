@@ -1,0 +1,1 @@
+{"dimension":"security","tool":"semgrep","status":"skipped","reason":"tool_unavailable","tool_available":false,"detection_command":"command -v semgrep","detection_exit_code":1}

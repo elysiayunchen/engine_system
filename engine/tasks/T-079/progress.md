@@ -23,7 +23,9 @@
 - `bash -n` pass for all changed Bash scripts; `git diff --check` pass.
 - Existing regressions previously passed: gate CLI 11/11, acceptance preflight 22/22, behavior verification 12/12, pre-commit gate 9/9, seal gate 5/5, evidence provenance 6/6.
 - `bash engine/bin/engine verify T-079 --preflight`: 6/6 AC pass; full verify also passed 6/6.
-- `bash engine/bin/engine gate T-079`: reachable and fail-closed, currently blocked by missing review, agent-review, and prove evidence (expected until the task card is committed and review/prove stages are run).
+- `bash engine/bin/engine gate T-079`: PASS after review, agent review, prove, and verify evidence were generated against the final commit.
 - PowerShell `engine workstream T-079 codex --kind session --print`: pass; PowerShell `engine gate T-079 --run`: reaches prove without WSL path corruption and remains blocked only by missing proof/reviewer evidence.
-- Lifecycle regression after the provenance-leak fix: 31/31 pass; prove execution will be regenerated against the final commit fingerprint.
+- Lifecycle regression after the provenance-leak fix: 31/31 pass; `engine prove T-079 --execute`: 1/1 pass.
+- `engine close T-079 --handoff codex`: verify exit 0, gate exit 0, Doctor exit 1, worker memory pass, capsule deferred_to_coordinator; final status BLOCK as designed.
+- Final Doctor: 27 failures / 213 warnings, all repository baseline/shared-memory or pre-existing task evidence debt outside this worker's safe write-set.
 - `bash engine/bin/engine doctor`: correctly returns non-zero and exposes 27 failures / 211 warnings in the repository baseline; shared-memory and pre-existing task debt remain coordinator-owned.

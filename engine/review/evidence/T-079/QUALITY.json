@@ -1,0 +1,1 @@
+{"dimension":"quality","tool":"eslint","status":"skipped","reason":"tool_unavailable","tool_available":false,"detection_command":"command -v eslint","detection_exit_code":1}

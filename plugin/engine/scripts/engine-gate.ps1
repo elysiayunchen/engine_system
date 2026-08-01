@@ -83,6 +83,52 @@ try {
     }
   }
 
+  # Fallback: expand WRITE-SET paths on disk (covers new files, dirs, globs, annotations)
+  if (-not $hasCode -and $wsMatch.Success) {
+    foreach ($line in $wsMatch.Groups[1].Value -split "`n") {
+      $line = $line.Trim()
+      if (-not $line.StartsWith("- ")) { continue }
+      $p = $line.Substring(2).Trim()
+      # Strip annotations: (new), [added], etc.
+      $p = $p -replace "\s*[\(\[].*$", ""
+      $full = Join-Path $ROOT $p
+      # Direct file check
+      if (Test-Path $full -PathType Leaf) {
+        $ext = [System.IO.Path]::GetExtension($full)
+        if ($codeExtensions -contains $ext) { $hasCode = $true; break }
+        continue
+      }
+      # Glob/directory expansion
+      $resolved = @(Resolve-Path $full -ErrorAction SilentlyContinue)
+      if ($resolved.Count -eq 0) {
+        # Try as directory
+        if (Test-Path $full -PathType Container) {
+          $children = Get-ChildItem $full -File -ErrorAction SilentlyContinue
+          foreach ($child in $children) {
+            $ext = $child.Extension
+            if ($codeExtensions -contains $ext) { $hasCode = $true; break }
+          }
+          if ($hasCode) { break }
+        }
+        continue
+      }
+      foreach ($r in $resolved) {
+        if (Test-Path $r.Path -PathType Leaf) {
+          $ext = [System.IO.Path]::GetExtension($r.Path)
+          if ($codeExtensions -contains $ext) { $hasCode = $true; break }
+        } elseif (Test-Path $r.Path -PathType Container) {
+          $children = Get-ChildItem $r.Path -File -ErrorAction SilentlyContinue
+          foreach ($child in $children) {
+            $ext = $child.Extension
+            if ($codeExtensions -contains $ext) { $hasCode = $true; break }
+          }
+          if ($hasCode) { break }
+        }
+      }
+      if ($hasCode) { break }
+    }
+  }
+
   # 3. 门禁检查函数
   function Check-Verify {
     $acCount = ([regex]::Matches($taskContent, '(?m)(^AC-|^AC:.*AC-)')).Count

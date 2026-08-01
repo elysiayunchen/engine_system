@@ -108,6 +108,7 @@ if m:
             print(line[2:].strip())
 " "$task_file")
 
+# Fast path: check path string extensions directly
 for p in $write_set_paths; do
   ext=".${p##*.}"
   for ce in $code_extensions; do
@@ -117,6 +118,41 @@ for p in $write_set_paths; do
     fi
   done
 done
+
+# Fallback: expand WRITE-SET paths on disk (covers new files, dirs, globs, annotations)
+if [ "$has_code" -eq 0 ] && [ -n "$write_set_paths" ]; then
+  has_code=$("$PY" -c "
+import sys, os, glob
+
+root = sys.argv[1]
+paths_str = sys.argv[2]
+code_exts = set(sys.argv[3].split())
+
+paths = [p.strip() for p in paths_str.strip().split('\n') if p.strip()]
+for p in paths:
+    # Strip annotations like (new), (modified)
+    if '(' in p:
+        p = p[:p.index('(')].strip()
+    full = os.path.join(root, p)
+    # Direct file check
+    if os.path.isfile(full):
+        if os.path.splitext(full)[1] in code_exts:
+            print('1'); sys.exit(0)
+        continue
+    # Glob expansion (supports ** recursive)
+    matched = glob.glob(full, recursive=True)
+    for f in matched:
+        if os.path.isfile(f) and os.path.splitext(f)[1] in code_exts:
+            print('1'); sys.exit(0)
+    # Directory scan (1 level deep)
+    if os.path.isdir(full):
+        for fn in os.listdir(full):
+            fp = os.path.join(full, fn)
+            if os.path.isfile(fp) and os.path.splitext(fp)[1] in code_exts:
+                print('1'); sys.exit(0)
+print('0')
+" "$ROOT" "$write_set_paths" "$code_extensions")
+fi
 
 # 3. 逐门禁聚合
 gate_results=""

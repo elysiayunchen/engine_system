@@ -251,6 +251,17 @@ FILES=(
   "engine/scripts/engine-review.ps1:engine/scripts/engine-review.ps1:true"
   "engine/scripts/engine-review-pipeline.sh:engine/scripts/engine-review-pipeline.sh:true"
   "engine/scripts/engine-review-pipeline.ps1:engine/scripts/engine-review-pipeline.ps1:true"
+  "engine/scripts/engine-review-agent-package.sh:engine/scripts/engine-review-agent-package.sh:true"
+  "engine/scripts/engine-review-agent-package.ps1:engine/scripts/engine-review-agent-package.ps1:true"
+  "engine/scripts/engine-review-agent-validate.sh:engine/scripts/engine-review-agent-validate.sh:true"
+  "engine/scripts/engine-review-agent-validate.ps1:engine/scripts/engine-review-agent-validate.ps1:true"
+  "engine/scripts/engine-review-agent.sh:engine/scripts/engine-review-agent.sh:true"
+  "engine/scripts/engine-review-agent.ps1:engine/scripts/engine-review-agent.ps1:true"
+  "engine/scripts/engine-prove.sh:engine/scripts/engine-prove.sh:true"
+  "engine/scripts/engine-prove.ps1:engine/scripts/engine-prove.ps1:true"
+  "engine/prove/config.json:engine/prove/config.json:false"
+  "engine/prove/prove-assertions.schema.json:engine/prove/prove-assertions.schema.json:false"
+  "engine/review/config.json:engine/review/config.json:false"
   "engine/scripts/githooks/pre-commit:engine/scripts/githooks/pre-commit:true"
   "bin/engine:engine/bin/engine:true"
   "bin/engine.ps1:engine/bin/engine.ps1:true"
@@ -273,7 +284,7 @@ FILES=(
 )
 
 # Create directories
-mkdir -p .claude/commands .claude/skills engine engine/scripts engine/scripts/githooks engine/bin engine/migrations engine/prompts engine/prompts/behaviors engine/domains engine/checks engine/workstreams engine/.cache
+mkdir -p .claude/commands .claude/skills engine engine/scripts engine/scripts/githooks engine/bin engine/migrations engine/prompts engine/prompts/behaviors engine/domains engine/checks engine/workstreams engine/.cache engine/prove engine/review
 
 install_count=0
 skip_count=0

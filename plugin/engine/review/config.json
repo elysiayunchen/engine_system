@@ -1,0 +1,25 @@
+{
+  "defaults": {
+    "dimensions": ["security", "quality"],
+    "severity_threshold": "high",
+    "tools": {
+      "security": "semgrep",
+      "quality": "eslint"
+    },
+    "tool_unavailable": "warn_skip",
+    "diff_strategy": "task_first_commit",
+    "code_extensions": [".sh", ".ps1", ".py", ".js", ".ts", ".go", ".rs", ".java", ".c", ".cpp", ".rb", ".php"],
+    "agent_review": {
+      "enabled": true,
+      "min_entries_per_dimension": 1,
+      "min_narrative_chars": 200,
+      "min_entry_message_chars": 20,
+      "adversarial_challenges": 3,
+      "max_package_lines": 2000,
+      "max_surrounding_context_lines": 500,
+      "max_domain_knowledge_lines": 150,
+      "max_package_age_hours": 72
+    }
+  },
+  "overrides": {}
+}

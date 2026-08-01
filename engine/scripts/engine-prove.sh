@@ -31,6 +31,11 @@ mode="${2:-}"
 [ -z "$task" ] && usage
 [ -z "$mode" ] && usage
 
+# Preserve the outer CLI label for PROVE.json, but do not leak it into user
+# assertions: nested verify/gate commands must record their own provenance.
+prove_argv="${ENGINE_CLI_ENTRYPOINT:-engine-prove.sh $*}"
+unset ENGINE_CLI_ENTRYPOINT
+
 # === Config loading ===
 config_file="$PROVE_DIR/config.json"
 load_config_value() {
@@ -667,7 +672,6 @@ else:
   fi
 
   # 6. Write PROVE.json evidence
-  prove_argv="${ENGINE_CLI_ENTRYPOINT:-engine-prove.sh $*}"
   RESULTS_JSON="$results_json" GATE="$gate" TASK_ID="$task_id" FP="$current_fp" PROVE_FILE="$prove_json" AC_COVERAGE="$ac_coverage" MODEL_ID="${ENGINE_MODEL_ID:-}" PROVE_ARGV="$prove_argv" "$PY" -c "
 import json, os, hashlib
 from datetime import datetime, timezone

@@ -13,6 +13,7 @@
 - Stop-hook shared-memory rules were Claude-native; non-Claude agents had no canonical command to produce a closure audit and worker handoff.
 - `engine workstream` emitted `sessions/<sid>` shards while pre-commit only accepted a legacy two-level shard path, so a valid worker handoff could not be committed.
 - PowerShell's public CLI and gate runner dropped `--handoff`/`--kind`-style remaining arguments and attempted to pass Windows paths to WSL `bash`; the mirror now preserves remaining flags and launches PowerShell children for PS gate execution.
+- Prove initially leaked the outer `ENGINE_CLI_ENTRYPOINT` into nested assertions, causing a direct gate invocation to be mislabeled; prove now captures and clears the outer label before executing user assertions.
 - `engine close` now owns verify → gate → doctor sequencing, fail-closed memory/capsule checks, and worker-shard handoff evidence without writing coordinator-owned singleton memory.
 
 ## Verification
@@ -24,4 +25,5 @@
 - `bash engine/bin/engine verify T-079 --preflight`: 6/6 AC pass; full verify also passed 6/6.
 - `bash engine/bin/engine gate T-079`: reachable and fail-closed, currently blocked by missing review, agent-review, and prove evidence (expected until the task card is committed and review/prove stages are run).
 - PowerShell `engine workstream T-079 codex --kind session --print`: pass; PowerShell `engine gate T-079 --run`: reaches prove without WSL path corruption and remains blocked only by missing proof/reviewer evidence.
+- Lifecycle regression after the provenance-leak fix: 31/31 pass; prove execution will be regenerated against the final commit fingerprint.
 - `bash engine/bin/engine doctor`: correctly returns non-zero and exposes 27 failures / 211 warnings in the repository baseline; shared-memory and pre-existing task debt remain coordinator-owned.

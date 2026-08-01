@@ -21,6 +21,7 @@ $ROOT = if ($env:CLAUDE_PROJECT_DIR) { $env:CLAUDE_PROJECT_DIR } else { (Get-Loc
 $ENGINE_DIR = Join-Path $ROOT 'engine'
 $PROVE_DIR = Join-Path $ENGINE_DIR 'prove'
 $proveArgv = if ($env:ENGINE_CLI_ENTRYPOINT) { $env:ENGINE_CLI_ENTRYPOINT } else { "engine-prove.ps1 -Task $Task -Mode $Mode" }
+[Environment]::SetEnvironmentVariable('ENGINE_CLI_ENTRYPOINT', $null, 'Process')
 
 Set-Location $ROOT
 

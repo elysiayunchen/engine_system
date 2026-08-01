@@ -1559,6 +1559,58 @@ print('true' if ar.get('enabled', False) else 'false')
   done
 }
 
+# v6.24.0 (T-077): Quality Gate registry check. Done cards (cv>=6.24.0) must
+# have GATE.json with status=pass. Legacy done cards (cv<6.24.0) get WARN.
+check_gate_registry() {
+  local tasks_dir="$ENGINE_DIR/tasks"
+  [ -d "$tasks_dir" ] || return 0
+  # Determine contract-version
+  local cv=""
+  for _marker in "$ROOT/AGENTS.md" "$ENGINE_DIR/SYSTEM.md" "$ENGINE_DIR/ENGINE_DOCTOR.md"; do
+    [ -f "$_marker" ] || continue
+    cv="$(sed -n 's/.*contract-version:[[:space:]]*\([0-9][0-9.]*\).*/\1/p' "$_marker" 2>/dev/null | head -1)"
+    [ -n "$cv" ] && break
+  done
+  local cv_minor=0
+  if [ -n "$cv" ]; then
+    local cv_major="${cv%%.*}"
+    cv_minor="${cv#*.}"; cv_minor="${cv_minor%%.*}"
+    case "$cv_major:$cv_minor" in *[!0-9:]*|:*) cv_minor=0 ;; esac
+    [ "$cv_major" -gt 6 ] 2>/dev/null && cv_minor=99
+  fi
+
+  for f in "$tasks_dir"/T-*.md; do
+    [ -f "$f" ] || continue
+    [[ "$f" == *.spec.md ]] && continue
+    card_status_done "$f" || continue
+    local tid; tid="$(basename "$f" .md)"
+    local gate_file="$ENGINE_DIR/evidence/$tid/GATE.json"
+
+    if [ ! -f "$gate_file" ]; then
+      if [ "$cv_minor" -ge 24 ] 2>/dev/null; then
+        fail "done task $tid missing GATE.json (cv>=6.24.0)"
+        echo "  human: Task $tid is done but has no gate evidence. Run 'engine gate $tid' and stage the result."
+      else
+        warn "done task $tid missing GATE.json (legacy, cv<6.24.0)"
+      fi
+      continue
+    fi
+
+    local gate_status
+    gate_status="$(grep -oE '"status"[[:space:]]*:[[:space:]]*"[^"]*"' "$gate_file" | head -1 | sed 's/.*"status"[[:space:]]*:[[:space:]]*"//;s/"//')"
+    case "$gate_status" in
+      pass) : ;;
+      block)
+        fail "$tid GATE.json status=block"
+        echo "  human: Task $tid gate verdict is block. Fix failing gates then re-run 'engine gate $tid'."
+        ;;
+      *)
+        warn "$tid GATE.json has unexpected status: $gate_status"
+        ;;
+    esac
+  done
+}
+
 # v6.18.0 (D-038/T-066 AC-8): drift-check integration. Defers to the
 # standalone engine-drift-check.sh script (cheap fingerprint comparison,
 # no verify re-run). Tamper/drift = FAIL; warn-only issues stay WARN.
@@ -1950,6 +2002,69 @@ if [[ -d "$ENGINE_DIR/agents" ]]; then
   done < <(find "$ENGINE_DIR/agents" -maxdepth 1 -type f -name '*.md' 2>/dev/null)
 fi
 
+# v6.23.0 (T-075): prove subsystem health check
+check_prove_health() {
+  local prove_dir="$ENGINE_DIR/prove"
+  local scripts_dir="$ENGINE_DIR/scripts"
+
+  # Scripts exist
+  if [[ -f "$scripts_dir/engine-prove.sh" ]]; then
+    pass "prove script exists: engine/scripts/engine-prove.sh"
+  else
+    warn "prove script missing: engine/scripts/engine-prove.sh"
+    echo "  human: The prove script is missing. Run 'engine sync' or restore from plugin mirror."
+  fi
+  if [[ -f "$scripts_dir/engine-prove.ps1" ]]; then
+    pass "prove ps1 mirror exists: engine/scripts/engine-prove.ps1"
+  else
+    warn "prove ps1 mirror missing: engine/scripts/engine-prove.ps1"
+  fi
+
+  # Config valid
+  if [[ -f "$prove_dir/config.json" ]]; then
+    if command -v python3 >/dev/null 2>&1; then
+      if python3 -c "import json; json.load(open('$prove_dir/config.json'))" 2>/dev/null; then
+        pass "prove config.json is valid JSON"
+      else
+        fail "prove config.json is invalid JSON"
+        echo "  human: engine/prove/config.json has a JSON syntax error. Fix it manually."
+      fi
+    elif command -v python >/dev/null 2>&1; then
+      if python -c "import json; json.load(open('$prove_dir/config.json'))" 2>/dev/null; then
+        pass "prove config.json is valid JSON"
+      else
+        fail "prove config.json is invalid JSON"
+        echo "  human: engine/prove/config.json has a JSON syntax error. Fix it manually."
+      fi
+    fi
+  else
+    warn "prove config missing: engine/prove/config.json"
+    echo "  human: The prove config is missing. Prove will use built-in defaults."
+  fi
+
+  # Schema valid
+  if [[ -f "$prove_dir/prove-assertions.schema.json" ]]; then
+    if command -v python3 >/dev/null 2>&1; then
+      if python3 -c "import json; json.load(open('$prove_dir/prove-assertions.schema.json'))" 2>/dev/null; then
+        pass "prove schema is valid JSON"
+      else
+        fail "prove schema is invalid JSON"
+        echo "  human: engine/prove/prove-assertions.schema.json has a JSON syntax error."
+      fi
+    elif command -v python >/dev/null 2>&1; then
+      if python -c "import json; json.load(open('$prove_dir/prove-assertions.schema.json'))" 2>/dev/null; then
+        pass "prove schema is valid JSON"
+      else
+        fail "prove schema is invalid JSON"
+        echo "  human: engine/prove/prove-assertions.schema.json has a JSON syntax error."
+      fi
+    fi
+  else
+    warn "prove schema missing: engine/prove/prove-assertions.schema.json"
+  fi
+}
+
+check_prove_health
 check_context_semantics
 check_handoff_semantics
 check_handoff_history_cap
@@ -1979,6 +2094,7 @@ check_workstream_orphan
 check_review_evidence
 check_review_config_protected
 check_agent_review_evidence
+check_gate_registry
 
 # ── Project-custom checks (engine/checks/) ──
 # Each project may place executable check-*.sh (FAIL on non-zero) or warn-*.sh

@@ -14,6 +14,14 @@ trap 'on_error ${LINENO}' ERR
 ROOT="${CLAUDE_PROJECT_DIR:-$PWD}"
 ENGINE_DIR="$ROOT/engine"
 task="${1:-}"
+preflight=0
+force_no_cov=0
+for verify_arg in "${@:2}"; do
+  case "$verify_arg" in
+    --preflight) preflight=1 ;;
+    --no-cov) force_no_cov=1 ;;
+  esac
+done
 
 if [ -z "$task" ]; then
   echo "Usage: engine verify T-NNN" >&2
@@ -42,6 +50,7 @@ mkdir -p "$evidence_dir"
 
 pass_count=0
 fail_count=0
+blocked_count=0
 skip_count=0
 # v6.12.1 (issue #11 E-1): tautology heuristics. Track how many PASS ACs have
 # the empty-output fingerprint; if ALL of them do, the verify commands likely
@@ -220,6 +229,71 @@ build_ws_snapshot_json() {
   printf '%s' "$json"
 }
 
+# v6.24.0 (T-078 / issue #25): acceptance preflight classification.  The
+# frozen command still runs first; these helpers only classify its output and
+# optionally run a narrowly-scoped pytest --no-cov behavior diagnostic.
+json_escape() {
+  printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g; s/\r//g; s/\n/ /g'
+}
+
+classify_environment_status() {
+  local output_file="$1"
+  if grep -Eiq 'ModuleNotFoundError|No module named|ImportError:|command not found|not recognized as an internal|No such file or directory|cannot find.*(python|pytest|executable)|executable.*not found|venv.*not found|failed to activate|Could not import' "$output_file" 2>/dev/null; then
+    printf 'blocked'
+  else
+    printf 'ok'
+  fi
+}
+
+classify_coverage_status() {
+  local output_file="$1"
+  if grep -Eiq 'required test coverage.*not reached|coverage.*(fail[- ]under|below.*threshold|threshold.*not reached)|fail[- ]under.*coverage|coverage.*minimum.*not met' "$output_file" 2>/dev/null; then
+    printf 'failed_threshold'
+  else
+    printf 'not_applicable'
+  fi
+}
+
+extract_coverage_policy() {
+  local command="$1"
+  local policy="auto"
+  case "$command" in
+    *'| coverage:'*|*'|coverage:'*)
+      policy="${command##*|coverage:}"
+      command="${command%%| coverage:*}"
+      command="${command%%|coverage:*}"
+      policy="$(printf '%s' "$policy" | sed 's/^[[:space:]]*//;s/[[:space:]]*|[[:space:]]*$//')"
+      ;;
+  esac
+  if [ "$force_no_cov" -eq 1 ]; then policy="no-cov"; fi
+  if printf '%s' "$command" | grep -Eqi -- '--no-cov([[:space:]]|$)'; then policy="no-cov"; fi
+  printf '%s\t%s\n' "$command" "${policy:-auto}"
+}
+
+append_no_cov() {
+  local command="$1"
+  if printf '%s' "$command" | grep -Eqi -- '--no-cov([[:space:]]|$)'; then
+    printf '%s' "$command"
+  elif printf '%s' "$command" | grep -Eqi '(^|[[:space:]])pytest([[:space:]]|$)'; then
+    # The final pytest invocation is the common frozen-AC shape, including
+    # `python -m pytest` and Windows venv/python paths.
+    printf '%s' "$command --no-cov"
+  else
+    printf '%s' "$command"
+  fi
+}
+
+run_verify_command() {
+  local command="$1" output_file="$2" verify_timeout rc=0
+  verify_timeout="${ENGINE_VERIFY_TIMEOUT:-120}"
+  if command -v timeout >/dev/null 2>&1; then
+    ( cd "$ROOT" && ENGINE_VERIFY_RECURSE_GUARD="$task" timeout "$verify_timeout" bash -c "$command" ) </dev/null >"$output_file" 2>&1 || rc=$?
+  else
+    ( cd "$ROOT" && ENGINE_VERIFY_RECURSE_GUARD="$task" eval "$command" ) </dev/null >"$output_file" 2>&1 || rc=$?
+  fi
+  return "${rc:-0}"
+}
+
 # write_evidence_manifest: 循环结束后写 MANIFEST.json
 # 聚合 evidence 目录所有 .json + checkpoint.md,排除 MANIFEST.json 自身
 write_evidence_manifest() {
@@ -262,6 +336,9 @@ while IFS=$'\t' read -r ac_id verify_cmd; do
   fi
   echo "── $ac_id ──"
   echo "verify: $verify_cmd"
+  coverage_parts="$(extract_coverage_policy "$verify_cmd")"
+  IFS=$'\t' read -r execution_cmd coverage_policy <<< "$coverage_parts"
+  [ -n "$execution_cmd" ] || execution_cmd="$verify_cmd"
   # v6.12.1 (issue #11 E-1): a verify command that checks this card's own
   # evidence directory proves only that a file was written, not that behavior
   # happened. Flag it; the architect decides.
@@ -279,30 +356,75 @@ while IFS=$'\t' read -r ac_id verify_cmd; do
   # v6.10.0 (T-035): set ENGINE_VERIFY_RECURSE_GUARD=<task> so any AC verify
   # that recursively invokes engine-verify for the SAME task exits 0 immediately
   # (no infinite loop). Other task IDs (e.g. test fixtures) run normally.
-  # v6.23.0 (T-075): timeout wrapper prevents hung verify commands (default 120s)
-  local verify_timeout="${ENGINE_VERIFY_TIMEOUT:-120}"
-  if command -v timeout >/dev/null 2>&1; then
-    ( cd "$ROOT" && ENGINE_VERIFY_RECURSE_GUARD="$task" timeout "$verify_timeout" bash -c "$verify_cmd" ) </dev/null >"$tmp_out" 2>&1 || rc=$?
-  else
-    ( cd "$ROOT" && ENGINE_VERIFY_RECURSE_GUARD="$task" eval "$verify_cmd" ) </dev/null >"$tmp_out" 2>&1 || rc=$?
-  fi
+  run_verify_command "$execution_cmd" "$tmp_out" || rc=$?
   rc=${rc:-0}
   fp="$(sha256sum "$tmp_out" | cut -d' ' -f1)"
+  environment_status="ok"
+  coverage_status="not_applicable"
+  behavior_exit_json="$rc"
+  behavior_status="pass"
+  behavior_output_fp_json="null"
+  if [ "$rc" -ne 0 ]; then
+    environment_status="$(classify_environment_status "$tmp_out")"
+    coverage_status="$(classify_coverage_status "$tmp_out")"
+  elif [ "$coverage_policy" = "no-cov" ]; then
+    coverage_status="disabled"
+  fi
+
+  status="fail"
   if [ "$rc" -eq 0 ]; then
     status="pass"; pass_count=$((pass_count+1))
+    behavior_status="pass"
     if [ "$fp" = "$empty_fp_hash" ]; then
       empty_fp_pass=$((empty_fp_pass+1))
     fi
     echo "PASS  (exit=0, fp=${fp:0:12})"
+  elif [ "$preflight" -eq 1 ] && [ "$environment_status" = "blocked" ]; then
+    status="blocked"; blocked_count=$((blocked_count+1))
+    behavior_exit_json="null"
+    behavior_status="not_run"
+    echo "BLOCKED (command_exit=$rc, environment dependency unavailable)"
+    sed -n '1,5p' "$tmp_out" 2>/dev/null
+  elif [ "$preflight" -eq 1 ] && [ "$coverage_status" = "failed_threshold" ]; then
+    behavior_command="$(append_no_cov "$execution_cmd")"
+    if [ "$behavior_command" != "$execution_cmd" ]; then
+      behavior_out="$(mktemp)"
+      behavior_rc=0
+      run_verify_command "$behavior_command" "$behavior_out" || behavior_rc=$?
+      behavior_rc=${behavior_rc:-0}
+      behavior_fp="$(sha256sum "$behavior_out" | cut -d' ' -f1)"
+      behavior_output_fp_json="\"sha256:$behavior_fp\""
+      behavior_exit_json="$behavior_rc"
+      if [ "$behavior_rc" -eq 0 ]; then
+        behavior_status="pass"
+        status="blocked"; blocked_count=$((blocked_count+1))
+        echo "BLOCKED (coverage threshold in frozen command; behavior diagnostic passed with --no-cov)"
+      else
+        behavior_status="fail"
+        status="fail"; fail_count=$((fail_count+1))
+        echo "FAIL  (coverage threshold plus behavior diagnostic exit=$behavior_rc)"
+        sed -n '1,5p' "$behavior_out" 2>/dev/null
+      fi
+      rm -f "$behavior_out"
+    else
+      behavior_exit_json="null"
+      behavior_status="not_run"
+      status="blocked"; blocked_count=$((blocked_count+1))
+      echo "BLOCKED (coverage threshold; no pytest --no-cov diagnostic available)"
+    fi
   else
     status="fail"; fail_count=$((fail_count+1))
+    behavior_status="fail"
     echo "FAIL  (exit=$rc, fp=${fp:0:12})"
     sed -n '1,5p' "$tmp_out" 2>/dev/null
   fi
   verify_escaped="$(printf '%s' "$verify_cmd" | sed 's/\\/\\\\/g; s/"/\\"/g')"
+  execution_escaped="$(printf '%s' "$execution_cmd" | sed 's/\\/\\\\/g; s/"/\\"/g')"
+  policy_escaped="$(json_escape "$coverage_policy")"
+  preflight_json="false"; [ "$preflight" -eq 1 ] && preflight_json="true"
   ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  printf '{"ac":"%s","verify":"%s","status":"%s","exit":%d,"output_fingerprint":"sha256:%s","code_fingerprint":%s,"write_set_snapshot":%s,"verified_against_commit":"%s","write_provenance":{"writer":"engine-verify","commit":"%s","timestamp":"%s","argv":"engine verify %s"},"timestamp":"%s"}\n' \
-    "$ac_id" "$verify_escaped" "$status" "$rc" "$fp" "$code_fp_json" "$ws_snap_json" "$verified_commit" "$verified_commit" "$ts" "$task" "$ts" \
+  printf '{"ac":"%s","verify":"%s","execution_command":"%s","status":"%s","exit":%d,"command_exit":%d,"behavior_exit":%s,"behavior_status":"%s","environment_status":"%s","coverage_status":"%s","coverage_policy":"%s","preflight":%s,"output_fingerprint":"sha256:%s","behavior_output_fingerprint":%s,"code_fingerprint":%s,"write_set_snapshot":%s,"verified_against_commit":"%s","write_provenance":{"writer":"engine-verify","commit":"%s","timestamp":"%s","argv":"engine verify %s"},"timestamp":"%s"}\n' \
+    "$ac_id" "$verify_escaped" "$execution_escaped" "$status" "$rc" "$rc" "$behavior_exit_json" "$behavior_status" "$environment_status" "$coverage_status" "$policy_escaped" "$preflight_json" "$fp" "$behavior_output_fp_json" "$code_fp_json" "$ws_snap_json" "$verified_commit" "$verified_commit" "$ts" "$task" "$ts" \
     > "$evidence_dir/$ac_id.json"
 
   # v6.9.0 (D-028/T-034): on AC PASS, write a line to checkpoint.md so
@@ -530,7 +652,7 @@ detect_dead_code "$task" "$evidence_dir" "$task_file"
 
 echo ""
 echo "=========================================="
-echo "$task: $pass_count pass, $fail_count fail, $skip_count skip"
+echo "$task: $pass_count pass, $fail_count fail, $blocked_count blocked, $skip_count skip"
 # v6.12.1 (issue #11 A-1): all-SKIP is a parse failure, not a clean result.
 # The old behavior printed "0 pass, 0 fail, N skip" and exited 0, which reads
 # as "nothing to do" while the acceptance machinery is silently dead.
@@ -555,4 +677,4 @@ if [ -f "$evidence_dir/PROVE.json" ]; then
     fail_count=$((fail_count + 1))
   fi
 fi
-[ "$fail_count" -eq 0 ]
+[ "$fail_count" -eq 0 ] && [ "$blocked_count" -eq 0 ]

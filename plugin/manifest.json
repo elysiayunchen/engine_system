@@ -1,6 +1,6 @@
 {
   "files": [
-    { "src": ".claude/commands/engine-init.md", "sha256": "2a5b0962f81eb6c043077af1994976e6fa8215d4dabe313db672f7a0e1923f93", "dest": ".claude/commands/engine-init.md", "protect": true },
+    { "src": ".claude/commands/engine-init.md", "sha256": "72f5f87421fa448adbe4803f384eddbb1a966a7aa43bd7e1db5c267cbc8d5655", "dest": ".claude/commands/engine-init.md", "protect": true },
     { "src": ".claude/commands/engine-update.md", "sha256": "f2bc3337a994820994ee3b84e75c98be2494da763e9f5f482dd5d12ca6d0dbbe", "dest": ".claude/commands/engine-update.md", "protect": true },
     { "src": ".claude/commands/engine-status.md", "sha256": "9ebc6669ce797727954eb346c3f0ffedd8791450af862d91dd6f0a7028f2f97e", "dest": ".claude/commands/engine-status.md", "protect": true },
     { "src": ".claude/commands/add-pitfall.md", "sha256": "2f132540d7e1c2f2fc5489af8a2250ca0d967d31820b396bdd61ecdbea4f3ac7", "dest": ".claude/commands/add-pitfall.md", "protect": true },
@@ -14,7 +14,7 @@
     { "src": "engine/README.md", "sha256": "184730129b4aa9b273a0e07f5a4adced7b7593e36639600f5c34a58fcd424d87", "dest": "engine/README.md", "protect": false },
     { "src": "engine/README.zh.md", "sha256": "be5e05d80ef3a3eaf045ccbb7c30f05a510a80a141fcddd774a17479cc79a16a", "dest": "engine/README.zh.md", "protect": false },
     { "src": "engine/ENGINE_DOCTOR.md", "sha256": "75e3a6ffb52438cc6f2d7413505bc767b89e6a2a484da146a46635d1c5a3085f", "dest": "engine/ENGINE_DOCTOR.md", "protect": false },
-    { "src": "engine/prompts/init.md", "sha256": "5aa8f82c0872478fab3eac0257e8d12a042f7d5544fdf7955104fd57f7ee8f81", "dest": "engine/prompts/init.md", "protect": true },
+    { "src": "engine/prompts/init.md", "sha256": "10965f0c9e8e644004b79a5517850ad128be249e66fa477918b8918710453c2c", "dest": "engine/prompts/init.md", "protect": true },
     { "src": "engine/prompts/behaviors/decision-draft.md", "sha256": "6b090469784ef09703dde12d679a3e2a980f11e00cfe88bcb14a188cf238c002", "dest": "engine/prompts/behaviors/decision-draft.md", "protect": true },
     { "src": "engine/prompts/behaviors/handoff.md", "sha256": "d725fc91d500e26cd8733aa5a60864af815b55bbd66ddc95195f0d4a91ca699b", "dest": "engine/prompts/behaviors/handoff.md", "protect": true },
     { "src": "engine/prompts/behaviors/scout.md", "sha256": "814ffe3bcf9a91906b3fd91d56cc8e44633759867fd666b03bcd35580dcf4e2f", "dest": "engine/prompts/behaviors/scout.md", "protect": true },
@@ -26,7 +26,7 @@
     { "src": ".claude/skills/engine-scout/SKILL.md", "sha256": "814ffe3bcf9a91906b3fd91d56cc8e44633759867fd666b03bcd35580dcf4e2f", "dest": ".claude/skills/engine-scout/SKILL.md", "protect": true },
     { "src": ".claude/skills/engine-task-run/SKILL.md", "sha256": "dfd7ee99ed54a992fdc995ebc9fa61850f89ac20e1927525635eeb3b2971adc9", "dest": ".claude/skills/engine-task-run/SKILL.md", "protect": true },
     { "src": ".claude/skills/engine-verify-writeback/SKILL.md", "sha256": "4a3fa37e7c754e444a079c851dfa0b298fe3436b6aac5eb1e60e5368470390de", "dest": ".claude/skills/engine-verify-writeback/SKILL.md", "protect": true },
-    { "src": "engine/scripts/engine-doctor.sh", "sha256": "99b0930f192d705e85e01efea7b71a240abbc47d12acb0a35be628b8094a24bf", "dest": "engine/scripts/engine-doctor.sh", "protect": true },
+    { "src": "engine/scripts/engine-doctor.sh", "sha256": "7df66b933586e0a1ac297729362742539a1a538841bbfc8fff60019aec5b7469", "dest": "engine/scripts/engine-doctor.sh", "protect": true },
     { "src": "engine/scripts/engine-doctor.ps1", "sha256": "4b4de40d7f0bd2b4675bfd7a22d2b57e2816d85d952c269a856fc7edcfa263d9", "dest": "engine/scripts/engine-doctor.ps1", "protect": true },
     { "src": "engine/scripts/engine-context.sh", "sha256": "e7a5e1d77f494a67f174178e4101da062cb7687f0a1565c21fb9861ed02c0c11", "dest": "engine/scripts/engine-context.sh", "protect": true },
     { "src": "engine/scripts/engine-context.ps1", "sha256": "7283b3b9f4bab349382cc3f348067e0857d226b86c453d04e635263b38bf20e7", "dest": "engine/scripts/engine-context.ps1", "protect": true },
@@ -41,13 +41,13 @@
     { "src": "engine/scripts/engine-sync-agent-anchors.ps1", "sha256": "aa4944328989d69f275e39c3e6333b12fcbd3d33366e7aa8b8e2d3a4a99a3418", "dest": "engine/scripts/engine-sync-agent-anchors.ps1", "protect": true },
     { "src": "engine/scripts/engine-migrate-contract.sh", "sha256": "58accc68eb567840afa0cae95a5feab71684cf836c3170bbc35cdb1cfc1db194", "dest": "engine/scripts/engine-migrate-contract.sh", "protect": true },
     { "src": "engine/scripts/engine-migrate-contract.ps1", "sha256": "74810916d2311dcf125dfc20f8d6e207724dd53f980dfdde688a5a5844e98d1a", "dest": "engine/scripts/engine-migrate-contract.ps1", "protect": true },
-    { "src": "engine/scripts/engine-verify.sh", "sha256": "a6fa86e233f3a8a22b500beb26f75a2855b20d57629396b2f67ff2889b7ea40d", "dest": "engine/scripts/engine-verify.sh", "protect": true },
+    { "src": "engine/scripts/engine-verify.sh", "sha256": "c02c5983df15655a870f2b6a03579311ed59ca70b79e548c201872ed41b7bfd4", "dest": "engine/scripts/engine-verify.sh", "protect": true },
     { "src": "engine/scripts/engine-verify.ps1", "sha256": "16503c12528a7e46a4f3733339e438f25106a7d13502ac32dd18f420cfe15f2a", "dest": "engine/scripts/engine-verify.ps1", "protect": true },
-    { "src": "engine/scripts/githooks/pre-commit", "sha256": "48566ca72befc257c1295255dcfcf9e9dcf85f3c3a19609b53ad33cbea52f3ec", "dest": "engine/scripts/githooks/pre-commit", "protect": true },
-    { "src": "bin/engine", "sha256": "bc74fb95f5cfda2cbe11ee42859f5d861b6ff344ebf7b2726f9fd77d131ca96d", "dest": "engine/bin/engine", "protect": true },
-    { "src": "bin/engine.ps1", "sha256": "5513435962273a820820ebef633e4d06d3e099fcfc6a031a43a3de2a0299ab3a", "dest": "engine/bin/engine.ps1", "protect": true },
+    { "src": "engine/scripts/githooks/pre-commit", "sha256": "ed622db821091fe8c55b594b7b8d9e2e0a7c66891e25c63978004f47da34ce34", "dest": "engine/scripts/githooks/pre-commit", "protect": true },
+    { "src": "bin/engine", "sha256": "83583af6ed39a584f18e03a2736b29675b0c9a2bb32ece6bb87e9a8474c44ab6", "dest": "engine/bin/engine", "protect": true },
+    { "src": "bin/engine.ps1", "sha256": "adf9f3c850d2ffff11c196678029428dee351036b7f991b702e9b1bf159908b9", "dest": "engine/bin/engine.ps1", "protect": true },
     { "src": "bin/engine.cmd", "sha256": "b618a219b192b59cdcfbd2848af1b548db2a6b6fdc3b4db45a888e3ccdc588f6", "dest": "engine/bin/engine.cmd", "protect": true },
-    { "src": "VERSION", "sha256": "cc6b36068e6ca29af7b16c85bcb6a0b7c588cbec034c9c9c29ec153c264bb428", "dest": "engine/VERSION", "protect": true },
+    { "src": "VERSION", "sha256": "92666fed526dd6d1a1d7968836e08cf69397290ceb17f42d4dbcc28e94e2fd31", "dest": "engine/VERSION", "protect": true },
     { "src": "engine/scripts/engine-check-update.sh", "sha256": "aa4f2b630bf80a911281c5afe17017038616aecb2be290ab8565623fea6d75c3", "dest": "engine/scripts/engine-check-update.sh", "protect": true },
     { "src": "engine/scripts/engine-check-update.ps1", "sha256": "23d6a2ba23e245c48dff02b93b50fe5bce3f03ba5ade2b6c5f806bb2cd1adafc", "dest": "engine/scripts/engine-check-update.ps1", "protect": true },
     { "src": "migrations/v6.0.sh", "sha256": "4eebdf605bd86b17424cdf50e2bf313a3965d41666e7bc37a87c27668d503539", "dest": "engine/migrations/v6.0.sh", "protect": true },
@@ -65,6 +65,9 @@
     { "src": "engine/scripts/engine-review.sh", "sha256": "71cfdac5f151cf5b60bda541bc604635746da956911434c86178a496b02050cf", "dest": "engine/scripts/engine-review.sh", "protect": true },
     { "src": "engine/scripts/engine-review.ps1", "sha256": "42807ccfa1e8a843a59beedecb94d07db12f684b3ab270d72d368e0283c6dcf1", "dest": "engine/scripts/engine-review.ps1", "protect": true },
     { "src": "engine/scripts/engine-review-pipeline.sh", "sha256": "9b35da995b416dc163ad88474f53f5de562a96efdb0a8b167c597daddaa80ad4", "dest": "engine/scripts/engine-review-pipeline.sh", "protect": true },
-    { "src": "engine/scripts/engine-review-pipeline.ps1", "sha256": "e2c9b7996f5c99191b1daceaeff6279333e466bc64ac5cf13091d58c0a4fb5ad", "dest": "engine/scripts/engine-review-pipeline.ps1", "protect": true }
+    { "src": "engine/scripts/engine-review-pipeline.ps1", "sha256": "e2c9b7996f5c99191b1daceaeff6279333e466bc64ac5cf13091d58c0a4fb5ad", "dest": "engine/scripts/engine-review-pipeline.ps1", "protect": true },
+    { "src": "engine/scripts/engine-gate.sh", "sha256": "eef66f8496a1ad45933025e08f9d43dc69aaa7bdf7e586e6d12550fe2d2c921a", "dest": "engine/scripts/engine-gate.sh", "protect": true },
+    { "src": "engine/scripts/engine-gate.ps1", "sha256": "f1c1fcdf850190dd2867e9b449a5590bddb146d186b2a6271e1b7be35f2e12bc", "dest": "engine/scripts/engine-gate.ps1", "protect": true },
+    { "src": "engine/gate/config.json", "sha256": "60d1442682650269133b221d377f4afaaf4401474f65f71ee6836e55080c05c1", "dest": "engine/gate/config.json", "protect": false }
   ]
 }

@@ -1,5 +1,25 @@
 # Changelog
 
+## v6.24.0 (2026-08-01) — Gatekeeper 子系统(T-077)
+
+- 新增 `engine gate T-NNN` 命令:聚合 verify/review/review-agent/prove 门禁证据 → 写 GATE.json
+- 新增 pre-commit 硬拦截:done 过渡时强制 GATE.json status=pass + provenance 校验(writer=engine-gate, commit=HEAD)
+- 新增 --no-verify 封死机制:bypass-detected 标志 → 后续所有 commit 被 block 直到解决;config seal.override_authored 按项目解锁
+- 新增 Doctor check_gate_registry:cv>=6.24.0 done 卡无 GATE.json → FAIL
+- 新增 engine/gate/config.json(gates 列表 / block_on / docs_only_skip / seal 配置)
+- 契约条款:Quality Gate Enforcement Rule 作为 S4 扩展(D-039 决策,budget 基线 2940→2980)
+- engine-gate.{sh,ps1} 行为镜像 + plugin manifest + install.sh + federation 路由
+- 测试:gate_cli 11 + gate_precommit 9 + gate_seal 5 = 25 断言 ALL PASS
+
+## v6.23.0 (2026-07-31) — Prove 子系统(T-075/T-076)
+
+- 新增 `engine prove T-NNN --infer/--execute`:从 code diff 自动推断断言 → 执行验证 → PROVE.json
+- Doctor prove 检查 + 并发锁 + fingerprint 覆盖 WRITE-SET + syntax-only WARN + verify timeout
+- AC 交叉锚定:parse verify: 命令提取 basename 交集(0%→FAIL, <50%→WARN)
+- 多视角审查:correctness/security/edge-case 三 lens prompt + model_id + cross_model 标记
+- 审计 bug 修复 6 项(gate total=0 / test bypass / tautology 扩展 / ps1 WRITE_SET / blocklist / verify sed)
+- install.sh manifest 补齐 prove/review 13 项 + plugin config 镜像
+
 ## v6.22.0 (2026-07-31) — Agent-Reviewer 对抗性升级(T-073)
 
 - Package 动态挑战生成:静态 3 挑战 → python diff 语义信号分析(6 信号:无 else 分支/函数签名变更/大 hunk>20 行/大量删除>15 行/TODO-FIXME/错误处理,优先级排序取 top 3,无信号 fallback 静态)

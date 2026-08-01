@@ -23,7 +23,8 @@ Usage:
   engine update --check-only   Only check for updates, change nothing
   engine update --no-migrate   Update tooling but skip migration/doctor
   engine migrate        Run contract migration on existing engine files
-  engine verify T-NNN   Run behavior verification for a task card
+  engine verify T-NNN [--preflight] [--no-cov]   Run behavior verification for a task card
+  engine acceptance-preflight T-NNN [--no-cov]   Validate frozen AC commands and classify harness failures
   engine review T-NNN  Run post-task code review (semgrep + eslint) for a task card
   engine review-agent T-NNN --package   Package review context for agent code review
   engine review-agent T-NNN --validate  Validate agent-produced AGENT-REVIEW.json
@@ -684,7 +685,21 @@ case "${1:-help}" in
       echo "Usage: engine verify T-NNN" >&2
       exit 2
     fi
-    bash "$PWD/engine/scripts/engine-verify.sh" "$task"
+    shift 2
+    bash "$PWD/engine/scripts/engine-verify.sh" "$task" "$@"
+    ;;
+  acceptance-preflight)
+    if [ ! -d "$PWD/engine" ]; then
+      echo "Error: engine/ not found in $PWD. Run 'engine acceptance-preflight' in a project root." >&2
+      exit 2
+    fi
+    task="${2:-}"
+    if [ -z "$task" ]; then
+      echo "Usage: engine acceptance-preflight T-NNN [--no-cov]" >&2
+      exit 2
+    fi
+    shift 2
+    bash "$PWD/engine/scripts/engine-verify.sh" "$task" --preflight "$@"
     ;;
   review)
     if [ ! -d "$PWD/engine" ]; then

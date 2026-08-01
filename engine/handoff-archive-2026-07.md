@@ -73,3 +73,5 @@
 | 2026-07-28 | **T-051 v6.12.3 dist-stale pre-commit 门禁 done(7/7 AC PASS)**:v6.12.2 发版时直接编辑编译产物未跑 compile.sh 导致 CI Doctor FAIL。本版在 pre-commit hook 加前置防线。 (archived from HANDOFF.md on 2026-07-31 per D-027 when history exceeded 8 rows after T-072 done) | push main + tag v6.12.3 | engine/scripts/githooks/pre-commit, plugin mirror, tests/workstream/test_precommit_dist_stale.sh, engine/tasks/T-051.md |
 
 | 2026-07-29 | **T-052 v6.13.0 .engineignore 旁路通道 done(9/9 AC PASS,issue #17)** | archived from HANDOFF 2026-07-31 (D-027 8-row limit) | engine/scripts/githooks/pre-commit, engine/decisions/D-036.md, tests/workstream/test_precommit_engineignore.sh |
+
+| 2026-07-29 | **T-056 v6.14.1 em-dash 编码 hotfix done(6/6 AC PASS)**:Windows PS 5.1 + zh-CN locale 下 .ps1 文件中 em-dash 渲染为乱码。修 3 处用户可见字符串。plugin 镜像 byte-identical。test 2/2 PASS。 | push main + tag v6.14.1 | engine/scripts/engine-doctor.ps1, plugin mirrors, tests/workstream/test_engine_verify_env_cleanup.ps1, engine/tasks/T-056.md, VERSION, engine/VERSION, plugin/VERSION, plugin/manifest.json, CHANGELOG.md |

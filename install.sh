@@ -261,6 +261,9 @@ FILES=(
   "engine/scripts/engine-prove.ps1:engine/scripts/engine-prove.ps1:true"
   "engine/prove/config.json:engine/prove/config.json:false"
   "engine/prove/prove-assertions.schema.json:engine/prove/prove-assertions.schema.json:false"
+  "engine/scripts/engine-gate.sh:engine/scripts/engine-gate.sh:true"
+  "engine/scripts/engine-gate.ps1:engine/scripts/engine-gate.ps1:true"
+  "engine/gate/config.json:engine/gate/config.json:false"
   "engine/review/config.json:engine/review/config.json:false"
   "engine/scripts/githooks/pre-commit:engine/scripts/githooks/pre-commit:true"
   "bin/engine:engine/bin/engine:true"
@@ -284,7 +287,7 @@ FILES=(
 )
 
 # Create directories
-mkdir -p .claude/commands .claude/skills engine engine/scripts engine/scripts/githooks engine/bin engine/migrations engine/prompts engine/prompts/behaviors engine/domains engine/checks engine/workstreams engine/.cache engine/prove engine/review
+mkdir -p .claude/commands .claude/skills engine engine/scripts engine/scripts/githooks engine/bin engine/migrations engine/prompts engine/prompts/behaviors engine/domains engine/checks engine/workstreams engine/.cache engine/prove engine/gate engine/review
 
 install_count=0
 skip_count=0

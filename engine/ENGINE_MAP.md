@@ -1,6 +1,6 @@
 # ENGINE_MAP — 引擎索引
 
-> Engine System (engine_system) · Revision: 43 · Last updated: 2026-07-31 (v6.22.0)
+> Engine System (engine_system) · Revision: 44 · Last updated: 2026-08-01 (v6.24.0)
 > ⚠️ MVP dogfood 实例（精简版）。完整 v5.5 注册表（§1.1 / §1.2 / §2 / §3 / 预算）待 `/engine-reconcile` 或 `/engine-init` 补全。
 
 ## §0 Profile & Read-Gate
@@ -22,6 +22,8 @@
 | engine/review/config.json | mixed | review 子系统配置(L0 defaults + L1 overrides) | 2026-07-30 |
 | engine/review/protocol.md | irreducible | agent-reviewer L0 默认审查协议(5 维度 + 输出规则) | 2026-07-31 |
 | engine/scripts/engine-review-agent*.sh | tool | agent-reviewer CLI(package/validate 两原子命令) | 2026-07-31 |
+| engine/gate/config.json | mixed | 质量门禁配置(gates 列表 / block_on / seal / docs_only_skip) | 2026-08-01 |
+| engine/scripts/engine-gate.{sh,ps1} | tool | 门禁聚合器 CLI(聚合 verify/review/prove 证据 → GATE.json) | 2026-08-01 |
 
 ### §1.1 Section class breakdown (mixed 文件分段)
 
@@ -46,7 +48,7 @@ path-glob → domain 路由表。机读源:`engine/domains/federation.json`;Sess
 
 ## §4 完整性与新鲜度
 
-- 全局 revision：41
+- 全局 revision：44
 
 ### 里程碑状态
 

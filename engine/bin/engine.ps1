@@ -33,7 +33,8 @@ Usage:
   engine update -CheckOnly       Only check for updates, change nothing
   engine update -NoMigrate       Update tooling but skip migration/doctor
   engine migrate        Run contract migration on existing engine files
-  engine verify T-NNN   Run behavior verification for a task card
+  engine verify T-NNN [--preflight] [--no-cov]   Run behavior verification for a task card
+  engine acceptance-preflight T-NNN [--no-cov]   Validate frozen AC commands and classify harness failures
   engine review T-NNN  Run post-task code review (semgrep + eslint) for a task card
   engine review-agent T-NNN --package   Package review context for external agent review
   engine review-agent T-NNN --validate  Validate agent-produced AGENT-REVIEW.json
@@ -621,7 +622,25 @@ switch ($Command) {
       exit 2
     }
     $verifyScript = Join-Path $PWD.Path "engine\scripts\engine-verify.ps1"
-    & $verifyScript -Task $Task
+    $verifyArgs = @('-Task', $Task)
+    foreach ($a in $args) { $verifyArgs += "$a" }
+    & $verifyScript @verifyArgs
+    exit $LASTEXITCODE
+  }
+  "acceptance-preflight" {
+    if (-not (Test-Path "engine")) {
+      Write-Error "Error: engine/ not found in $PWD. Run engine acceptance-preflight in a project root."
+      exit 2
+    }
+    if (-not $Task) {
+      Write-Error "Usage: engine acceptance-preflight T-NNN [--no-cov]"
+      exit 2
+    }
+    $preflightScript = Join-Path $PWD.Path "engine\scripts\engine-verify.ps1"
+    $preflightArgs = @('-Task', $Task, '-Preflight')
+    foreach ($a in $args) { $preflightArgs += "$a" }
+    & $preflightScript @preflightArgs
+    exit $LASTEXITCODE
   }
   "review" {
     if (-not (Test-Path "engine")) {

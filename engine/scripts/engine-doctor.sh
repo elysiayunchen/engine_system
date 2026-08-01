@@ -1559,6 +1559,58 @@ print('true' if ar.get('enabled', False) else 'false')
   done
 }
 
+# v6.24.0 (T-077): Quality Gate registry check. Done cards (cv>=6.24.0) must
+# have GATE.json with status=pass. Legacy done cards (cv<6.24.0) get WARN.
+check_gate_registry() {
+  local tasks_dir="$ENGINE_DIR/tasks"
+  [ -d "$tasks_dir" ] || return 0
+  # Determine contract-version
+  local cv=""
+  for _marker in "$ROOT/AGENTS.md" "$ENGINE_DIR/SYSTEM.md" "$ENGINE_DIR/ENGINE_DOCTOR.md"; do
+    [ -f "$_marker" ] || continue
+    cv="$(sed -n 's/.*contract-version:[[:space:]]*\([0-9][0-9.]*\).*/\1/p' "$_marker" 2>/dev/null | head -1)"
+    [ -n "$cv" ] && break
+  done
+  local cv_minor=0
+  if [ -n "$cv" ]; then
+    local cv_major="${cv%%.*}"
+    cv_minor="${cv#*.}"; cv_minor="${cv_minor%%.*}"
+    case "$cv_major:$cv_minor" in *[!0-9:]*|:*) cv_minor=0 ;; esac
+    [ "$cv_major" -gt 6 ] 2>/dev/null && cv_minor=99
+  fi
+
+  for f in "$tasks_dir"/T-*.md; do
+    [ -f "$f" ] || continue
+    [[ "$f" == *.spec.md ]] && continue
+    card_status_done "$f" || continue
+    local tid; tid="$(basename "$f" .md)"
+    local gate_file="$ENGINE_DIR/evidence/$tid/GATE.json"
+
+    if [ ! -f "$gate_file" ]; then
+      if [ "$cv_minor" -ge 24 ] 2>/dev/null; then
+        fail "done task $tid missing GATE.json (cv>=6.24.0)"
+        echo "  human: Task $tid is done but has no gate evidence. Run 'engine gate $tid' and stage the result."
+      else
+        warn "done task $tid missing GATE.json (legacy, cv<6.24.0)"
+      fi
+      continue
+    fi
+
+    local gate_status
+    gate_status="$(grep -oE '"status"[[:space:]]*:[[:space:]]*"[^"]*"' "$gate_file" | head -1 | sed 's/.*"status"[[:space:]]*:[[:space:]]*"//;s/"//')"
+    case "$gate_status" in
+      pass) : ;;
+      block)
+        fail "$tid GATE.json status=block"
+        echo "  human: Task $tid gate verdict is block. Fix failing gates then re-run 'engine gate $tid'."
+        ;;
+      *)
+        warn "$tid GATE.json has unexpected status: $gate_status"
+        ;;
+    esac
+  done
+}
+
 # v6.18.0 (D-038/T-066 AC-8): drift-check integration. Defers to the
 # standalone engine-drift-check.sh script (cheap fingerprint comparison,
 # no verify re-run). Tamper/drift = FAIL; warn-only issues stay WARN.
@@ -2042,6 +2094,7 @@ check_workstream_orphan
 check_review_evidence
 check_review_config_protected
 check_agent_review_evidence
+check_gate_registry
 
 # ── Project-custom checks (engine/checks/) ──
 # Each project may place executable check-*.sh (FAIL on non-zero) or warn-*.sh

@@ -1,0 +1,21 @@
+{
+  "defaults": {
+    "gates": ["verify", "review", "review_agent", "prove"],
+    "block_on": {
+      "verify": ["block", "pending"],
+      "review": ["block"],
+      "review_agent": ["block", "concerns"],
+      "prove": ["block", "pending"]
+    },
+    "tool_unavailable": "skip",
+    "docs_only_skip": ["review", "review_agent", "prove"],
+    "code_extensions": [".sh", ".ps1", ".py", ".js", ".ts", ".go", ".rs", ".java", ".c", ".cpp", ".rb", ".php"],
+    "gate_staleness_hours": 72,
+    "seal": {
+      "override_authored": false,
+      "detection": "session_start",
+      "response": "block_next_commit"
+    }
+  },
+  "overrides": {}
+}

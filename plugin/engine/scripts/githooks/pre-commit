@@ -153,6 +153,25 @@ is_engineignored() {
 strict_task_mode=0
 is_strict_task_project && strict_task_mode=1
 
+# v6.24.0 (T-077): --no-verify seal. If bypass-detected flag exists, block ALL
+# commits until resolved (approved decision + engine gate evidence).
+# Config: engine/gate/config.json → seal.override_authored=true disables.
+if [ "$strict_task_mode" -eq 1 ] && [ -f "$ENGINE_DIR/.cache/bypass-detected" ]; then
+  _seal_override=false
+  if [ -f "$ENGINE_DIR/gate/config.json" ]; then
+    grep -q '"override_authored"[[:space:]]*:[[:space:]]*true' "$ENGINE_DIR/gate/config.json" 2>/dev/null && _seal_override=true
+  fi
+  if [ "$_seal_override" = "false" ]; then
+    _bypass_info="$(cat "$ENGINE_DIR/.cache/bypass-detected" 2>/dev/null || echo unknown)"
+    printf '\n[Engine System] Commit seal: --no-verify bypass detected (%s).\n' "$_bypass_info" >&2
+    printf 'All commits blocked until resolved:\n' >&2
+    printf '  1. Create an approved decision card covering the bypass\n' >&2
+    printf '  2. Run "engine gate <task>" and stage the evidence\n' >&2
+    printf '  3. Delete engine/.cache/bypass-detected\n\n' >&2
+    exit 1
+  fi
+fi
+
 parse_task_patterns() {
   _field="$1"; _file="$2"
   _inline="$(grep "^${_field}:" "$_file" 2>/dev/null | head -1 | sed "s/^${_field}:[[:space:]]*//;s/\r$//")"
@@ -443,6 +462,58 @@ if [ "$strict_task_mode" -eq 1 ]; then
         esac
       fi
     done
+  done
+  IFS="$old_ifs"
+fi
+
+# v6.24.0 (T-077): Quality Gate Enforcement at done-transition.
+# After AC evidence passes, also require GATE.json (aggregated gate registry)
+# with status=pass and valid provenance (writer=engine-gate, commit=HEAD).
+if [ "$strict_task_mode" -eq 1 ]; then
+  old_ifs="$IFS"; IFS='
+'
+  for task_path in $staged; do
+    case "$task_path" in engine/tasks/T-*.md) ;; *) continue ;; esac
+    task_snapshot="$(git -C "$ROOT" show ":$task_path" 2>/dev/null || true)"
+    printf '%s\n' "$task_snapshot" | grep -Eq '^[[:space:]]*(>[[:space:]]*)?status:[[:space:]]*done' || continue
+    printf '%s\n' "$task_snapshot" | grep -qi 'exempt' && continue
+    head_task_snapshot="$(git -C "$ROOT" show "HEAD:$task_path" 2>/dev/null || true)"
+    if printf '%s\n' "$head_task_snapshot" | grep -Eq '^[[:space:]]*(>[[:space:]]*)?status:[[:space:]]*done'; then
+      continue
+    fi
+    done_task_id="$(basename "$task_path" .md)"
+    gate_path="engine/evidence/$done_task_id/GATE.json"
+    gate_json="$(git -C "$ROOT" show ":$gate_path" 2>/dev/null || true)"
+    if [ -z "$gate_json" ]; then
+      printf '\n[Engine System] %s cannot be marked done: quality gates not satisfied.\n' "$done_task_id" >&2
+      printf '  MISSING GATE.json — no gate evidence found.\n' >&2
+      printf '  Fix: engine gate %s && git add engine/evidence/%s/GATE.json\n\n' "$done_task_id" "$done_task_id" >&2
+      IFS="$old_ifs"
+      exit 1
+    fi
+    _gate_status="$(printf '%s\n' "$gate_json" | grep -oE '"status"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | sed 's/.*"status"[[:space:]]*:[[:space:]]*"//;s/"//')"
+    if [ "$_gate_status" != "pass" ]; then
+      printf '\n[Engine System] %s cannot be marked done: quality gates not satisfied.\n' "$done_task_id" >&2
+      printf '%s\n' "$gate_json" | grep -oE '"(verify|review|review_agent|prove)"[[:space:]]*:[[:space:]]*\{[^}]*\}' | while IFS= read -r _gline; do
+        _gname="$(printf '%s' "$_gline" | sed 's/.*"\(verify\|review\|review_agent\|prove\)".*/\1/')"
+        _gstatus="$(printf '%s' "$_gline" | grep -oE '"status"[[:space:]]*:[[:space:]]*"[^"]*"' | sed 's/.*"status"[[:space:]]*:[[:space:]]*"//;s/"//')"
+        case "$_gstatus" in
+          pass|skipped|exempt) printf '  PASS %s\n' "$_gname" >&2 ;;
+          *) printf '  FAIL %s: %s\n' "$_gname" "$_gstatus" >&2 ;;
+        esac
+      done
+      printf '  Fix: engine gate %s\n\n' "$done_task_id" >&2
+      IFS="$old_ifs"
+      exit 1
+    fi
+    _gate_prov_commit="$(printf '%s\n' "$gate_json" | grep -oE '"commit"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | sed 's/.*"commit"[[:space:]]*:[[:space:]]*"//;s/"//')"
+    _head_commit="$(git -C "$ROOT" rev-parse HEAD 2>/dev/null || echo unknown)"
+    if [ -n "$_gate_prov_commit" ] && [ "$_gate_prov_commit" != "$_head_commit" ]; then
+      printf '\n[Engine System] %s GATE.json provenance stale: commit=%s HEAD=%s.\n' "$done_task_id" "$_gate_prov_commit" "$_head_commit" >&2
+      printf '  Fix: engine gate %s (re-run against current HEAD)\n\n' "$done_task_id" >&2
+      IFS="$old_ifs"
+      exit 1
+    fi
   done
   IFS="$old_ifs"
 fi

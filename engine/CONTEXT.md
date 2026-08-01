@@ -1,6 +1,6 @@
 # CONTEXT — 当前状态
 
-> Engine System (engine_system) · Last updated: 2026-07-31 (v6.22.0) · Profile: CLI-LEAN
+> Engine System (engine_system) · Last updated: 2026-08-01 (v6.24.0) · Profile: CLI-LEAN
 
 ## 状态面板
 
@@ -10,8 +10,8 @@
 | 维度 | 状态 |
 |------|------|
 | 构建 | ✅ 正常（纯 markdown + shell 脚本，无构建步骤） |
-| 上次完成 | **v6.22.0(T-073 Agent-Reviewer 对抗性升级)**:动态挑战生成(python diff 6 语义信号优先级排序 top3,fallback 静态)+ E_GROUNDED(finding file:line 存在性校验,>50% FAIL)+ E_INDEPENDENCE(reviewer_session≠packaged_by WARN)+ 默认 enabled + packaged_by header + Windows 编码修复。测试 42 断言全 PASS(dynamic 9 + grounded 10 + gate 10 + doctor 13)。前序 **v6.21.0(T-071 + T-072 Agent-Reviewer 子系统)**。 |
-| 进行中 | 无。已知债:doctor ps1 缺 review 相关 check(T-070 遗留对等债);E_INDEPENDENCE grace period 后需升级为 FAIL。 |
+| 上次完成 | **v6.24.0(T-077 Gatekeeper 子系统)**:`engine gate T-NNN` 聚合门禁证据 → GATE.json;pre-commit done 过渡硬拦截(status=pass + provenance);--no-verify 封死(bypass-detected → block all commits);Doctor check_gate_registry;D-039 决策(budget 2940→2980)。测试 25 断言全 PASS(cli 11 + precommit 9 + seal 5)。前序 **v6.23.0(T-075/T-076 Prove 子系统)**。 |
+| 进行中 | 无。已知债:doctor ps1 缺 review 相关 check(T-070 遗留对等债);E_INDEPENDENCE grace period 后需升级为 FAIL;ps1 行为镜像持续熵增无自动对等校验。 |
 | 阻塞 | 无。 |
 
 ## 当前假设 / 决策（本轮拍板）

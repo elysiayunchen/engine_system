@@ -363,11 +363,16 @@ for f in "$ENGINE_DIR"/tasks/T-*.md; do
 done
 
 # v6.26.1: budget guard - skip optional enrichment if mandatory sections already large
-_inject_estimate=0
-[ -f "$ROOT/runtime-law.md" ] && _inject_estimate=$((_inject_estimate + 40))
-[ -f "$ENGINE_DIR/CONTEXT.md" ] && _inject_estimate=$((_inject_estimate + 50))
-[ -n "${active_task:-}" ] && _inject_estimate=$((_inject_estimate + ${active_count:-0} * 80))
-_inject_estimate=$((_inject_estimate + 20))  # HANDOFF + dashboard + headers
+_inject_estimate=20  # HANDOFF + dashboard + headers (fixed overhead)
+[ -f "$ROOT/runtime-law.md" ] && _inject_estimate=$((_inject_estimate + $(wc -l < "$ROOT/runtime-law.md" 2>/dev/null || echo 40)))
+[ -f "$ENGINE_DIR/CONTEXT.md" ] && _inject_estimate=$((_inject_estimate + $(wc -l < "$ENGINE_DIR/CONTEXT.md" 2>/dev/null || echo 50)))
+if [ -n "${active_task:-}" ]; then
+  for _bcard in "$ENGINE_DIR"/tasks/T-*.md; do
+    [ -f "$_bcard" ] || continue
+    grep -Eq '^[[:space:]]*(>[[:space:]]*)?status:[[:space:]]*active' "$_bcard" 2>/dev/null || continue
+    _inject_estimate=$((_inject_estimate + $(wc -l < "$_bcard" 2>/dev/null || echo 80)))
+  done
+fi
 
 # v6 S2: L2 所属域装配——按 active 任务卡 domain 拉取对应域的 CONTEXT+PITFALLS(各受预算约束)。
 if [ -n "$active_task" ] && [ -f "$fed" ] && [ "$_inject_estimate" -lt "$INJECT_LINE_BUDGET" ]; then

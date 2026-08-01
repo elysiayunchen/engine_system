@@ -133,6 +133,7 @@ for p in paths:
     # Strip annotations like (new), (modified)
     if '(' in p:
         p = p[:p.index('(')].strip()
+    p = p.replace('\\\\', '/')  # normalize Windows separators
     full = os.path.join(root, p)
     # Direct file check
     if os.path.isfile(full):

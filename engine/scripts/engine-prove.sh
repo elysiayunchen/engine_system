@@ -398,7 +398,7 @@ print(data.get('code_fingerprint', ''))
   fi
 
   # 4. Safety validation (blocklist + anti-tautology + relevance)
-  ASSERTIONS_FILE="$assertions_file" DIFF_FILES="$PROVE_DIFF_FILES" BLOCKED_JSON="$(load_config_value 'blocked_commands' '["rm","mv","curl","wget","sudo","dd","mkfs"]')" "$PY" -c "
+  ASSERTIONS_FILE="$assertions_file" DIFF_FILES="$PROVE_DIFF_FILES" WRITE_SET="$PROVE_WRITE_SET" BLOCKED_JSON="$(load_config_value 'blocked_commands' '["rm","mv","curl","wget","sudo","dd","mkfs"]')" "$PY" -c "
 import json, os, sys, re
 
 with open(os.environ['ASSERTIONS_FILE'], encoding='utf-8') as f:
@@ -406,6 +406,8 @@ with open(os.environ['ASSERTIONS_FILE'], encoding='utf-8') as f:
 
 blocked = json.loads(os.environ['BLOCKED_JSON'])
 diff_files = os.environ['DIFF_FILES'].split()
+write_set = os.environ.get('WRITE_SET', '').split()
+all_relevant = list(set(diff_files + write_set))
 errors = []
 
 for a in data.get('assertions', []):
@@ -422,9 +424,9 @@ for a in data.get('assertions', []):
     if stripped in ('true', ':', 'exit 0') or re.match(r'^(echo|printf)\s', stripped):
         errors.append(f'{aid}: tautological command (always succeeds): {stripped[:60]}')
 
-    # Relevance: must reference at least one diff file or its basename
+    # Relevance: must reference at least one WRITE-SET/diff file or its basename
     referenced = False
-    for f in diff_files:
+    for f in all_relevant:
         if f in cmd or os.path.basename(f) in cmd:
             referenced = True
             break

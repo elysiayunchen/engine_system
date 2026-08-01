@@ -1,0 +1,78 @@
+{
+  "task_id": "T-074",
+  "code_fingerprint": "sha256:c50685cb8d49dcdb32d188edd075a465e5b9aff564fad14ade5ed645b7f382e2",
+  "assertions": [
+    {
+      "id": "A-01",
+      "category": "syntax",
+      "command": "bash -n engine/scripts/engine-prove.sh",
+      "expect_exit": 0,
+      "timeout_s": 10,
+      "rationale": "Ensures the main prove script has no shell syntax errors that would prevent execution",
+      "revert_would_fail": false
+    },
+    {
+      "id": "A-02",
+      "category": "syntax",
+      "command": "bash -n tests/workstream/test_prove_execute.sh",
+      "expect_exit": 0,
+      "timeout_s": 10,
+      "rationale": "Validates the execute-phase test harness parses correctly before running it",
+      "revert_would_fail": false
+    },
+    {
+      "id": "A-03",
+      "category": "regression",
+      "command": "bash tests/workstream/test_prove_infer.sh",
+      "expect_exit": 0,
+      "timeout_s": 60,
+      "rationale": "Runs the infer-phase test suite to catch regressions in prove-package generation logic",
+      "revert_would_fail": false
+    },
+    {
+      "id": "A-04",
+      "category": "regression",
+      "command": "bash tests/workstream/test_prove_execute.sh",
+      "expect_exit": 0,
+      "timeout_s": 120,
+      "rationale": "Runs the execute-phase test suite to catch regressions in assertion execution and gating",
+      "revert_would_fail": false
+    },
+    {
+      "id": "A-05",
+      "category": "invariant",
+      "command": "grep -q 'cd \"$ROOT\"' engine/scripts/engine-prove.sh",
+      "expect_exit": 0,
+      "timeout_s": 5,
+      "rationale": "The cd-to-ROOT fix ensures all relative path operations resolve from project root; reverting breaks path resolution",
+      "revert_would_fail": true
+    },
+    {
+      "id": "A-06",
+      "category": "invariant",
+      "command": "python3 -c \"import json; d=json.load(open('engine/prove/config.json')); assert isinstance(d['defaults']['blocked_commands'], list) and len(d['defaults']['blocked_commands'])>0\"",
+      "expect_exit": 0,
+      "timeout_s": 10,
+      "rationale": "config.json must define a non-empty blocked_commands array to enforce the safety blocklist during execute phase",
+      "revert_would_fail": true
+    },
+    {
+      "id": "A-07",
+      "category": "invariant",
+      "command": "python3 -c \"import json; d=json.load(open('engine/prove/prove-assertions.schema.json')); assert 'task_id' in d['required'] and 'assertions' in d['required'] and d['properties']['assertions']['items']['required'] == ['id','category','command','expect_exit','rationale']\"",
+      "expect_exit": 0,
+      "timeout_s": 10,
+      "rationale": "Schema must enforce required fields so that malformed assertion files are rejected before execution",
+      "revert_would_fail": true
+    },
+    {
+      "id": "A-08",
+      "category": "invariant",
+      "command": "diff engine/scripts/engine-prove.sh plugin/engine/scripts/engine-prove.sh && diff engine/scripts/engine-prove.ps1 plugin/engine/scripts/engine-prove.ps1",
+      "expect_exit": 0,
+      "timeout_s": 10,
+      "rationale": "Plugin mirrors must stay byte-identical to engine/scripts; divergence means plugin users get stale or broken prove logic",
+      "revert_would_fail": true
+    }
+  ]
+}

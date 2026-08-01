@@ -540,4 +540,12 @@ fi
 if [ "$pass_count" -gt 0 ] && [ "$empty_fp_pass" -eq "$pass_count" ]; then
   echo "WARN all PASS fingerprints are the empty-string hash - verify commands may be tautologies"
 fi
+# v6.23.0 (T-074): chain PROVE.json — if execution verification ran and failed, verify fails too
+if [ -f "$evidence_dir/PROVE.json" ]; then
+  prove_status=$(grep -o '"status": *"[^"]*"' "$evidence_dir/PROVE.json" | head -1 | sed 's/.*"status": *"//;s/"//' || echo "UNKNOWN")
+  if [ "$prove_status" != "PASS" ]; then
+    echo "PROVE chain: engine prove $task status=$prove_status — overriding to FAIL"
+    fail_count=$((fail_count + 1))
+  fi
+fi
 [ "$fail_count" -eq 0 ]

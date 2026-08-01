@@ -1,0 +1,115 @@
+{
+  "schema_version": "1.0",
+  "task_id": "T-074",
+  "command": "engine prove T-074 --execute",
+  "timestamp": "2026-08-01T05:59:49Z",
+  "status": "PASS",
+  "code_fingerprint": "sha256:c50685cb8d49dcdb32d188edd075a465e5b9aff564fad14ade5ed645b7f382e2",
+  "assertions_fingerprint": "sha256:c745b598a273ea466d4c6c289e3b1c4ce3ececf46879b47484e56df5190060fb",
+  "summary": {
+    "total": 8,
+    "passed": 8,
+    "failed": 0,
+    "timed_out": 0
+  },
+  "results": [
+    {
+      "id": "A-01",
+      "category": "syntax",
+      "command": "bash -n engine/scripts/engine-prove.sh",
+      "status": "PASS",
+      "exit_code": 0,
+      "expect_exit": 0,
+      "duration_ms": 113,
+      "output_fingerprint": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "output_truncated": ""
+    },
+    {
+      "id": "A-02",
+      "category": "syntax",
+      "command": "bash -n tests/workstream/test_prove_execute.sh",
+      "status": "PASS",
+      "exit_code": 0,
+      "expect_exit": 0,
+      "duration_ms": 113,
+      "output_fingerprint": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "output_truncated": ""
+    },
+    {
+      "id": "A-03",
+      "category": "regression",
+      "command": "bash tests/workstream/test_prove_infer.sh",
+      "status": "PASS",
+      "exit_code": 0,
+      "expect_exit": 0,
+      "duration_ms": 17583,
+      "output_fingerprint": "sha256:f66efa8de548d9055deedbfd3591b40f24ace4af7e125d5f8479b3f1e247bd22",
+      "output_truncated": "=== test_prove_infer.sh ===\n\n--- S1: single .sh file modified → package with diff/symbols/fingerprint ---\n  PASS: S1 infer exits 0 (exit 0)\n  PASS: S1 prove-package.md exists\n  PASS: S1 has code_fingerprint\n  PASS: S1 has diff content\n  PASS: S1 has hunk symbols\n  PASS: S1 has syntax checks\n  PASS: S1 has anti-tautology rules\n  PASS: S1 has output schema\n\n--- S2: only .md changed → NO-OP package ---\n  PASS: S2 infer exits 0 (exit 0)\n  PASS: S2 marked NO-OP\n\n--- S3: multiple code files → all in p"
+    },
+    {
+      "id": "A-04",
+      "category": "regression",
+      "command": "bash tests/workstream/test_prove_execute.sh",
+      "status": "PASS",
+      "exit_code": 0,
+      "expect_exit": 0,
+      "duration_ms": 80960,
+      "output_fingerprint": "sha256:cbacc3a577d33c715a9e0617aeca68083fe2d9e1f2b10e4076ad8581ca277531",
+      "output_truncated": "=== test_prove_execute.sh ===\n\n--- S1: all assertions pass → exit 0, PROVE.json PASS ---\n  PASS: S1 execute exits 0 (exit 0)\n  PASS: S1 PROVE.json exists\n  PASS: S1 status PASS\n\n--- S2: assertion expects wrong exit code → FAIL ---\n  PASS: S2 execute exits 1 (exit 1)\n  PASS: S2 status FAIL\n\n--- S3: command contains rm → E_SAFETY ---\n  PASS: S3 execute exits 1 (exit 1)\n  PASS: S3 E_SAFETY\n\n--- S4: command is 'true' → E_SAFETY tautology ---\n  PASS: S4 execute exits 1 (exit 1)\n  PASS: S4 tautology d"
+    },
+    {
+      "id": "A-05",
+      "category": "invariant",
+      "command": "grep -q 'cd \"$ROOT\"' engine/scripts/engine-prove.sh",
+      "status": "PASS",
+      "exit_code": 0,
+      "expect_exit": 0,
+      "duration_ms": 94,
+      "output_fingerprint": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "output_truncated": ""
+    },
+    {
+      "id": "A-06",
+      "category": "invariant",
+      "command": "python3 -c \"import json; d=json.load(open('engine/prove/config.json')); assert isinstance(d['defaults']['blocked_commands'], list) and len(d['defaults']['blocked_commands'])>0\"",
+      "status": "PASS",
+      "exit_code": 0,
+      "expect_exit": 0,
+      "duration_ms": 379,
+      "output_fingerprint": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "output_truncated": ""
+    },
+    {
+      "id": "A-07",
+      "category": "invariant",
+      "command": "python3 -c \"import json; d=json.load(open('engine/prove/prove-assertions.schema.json')); assert 'task_id' in d['required'] and 'assertions' in d['required'] and d['properties']['assertions']['items'][",
+      "status": "PASS",
+      "exit_code": 0,
+      "expect_exit": 0,
+      "duration_ms": 381,
+      "output_fingerprint": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "output_truncated": ""
+    },
+    {
+      "id": "A-08",
+      "category": "invariant",
+      "command": "diff engine/scripts/engine-prove.sh plugin/engine/scripts/engine-prove.sh && diff engine/scripts/engine-prove.ps1 plugin/engine/scripts/engine-prove.ps1",
+      "status": "PASS",
+      "exit_code": 0,
+      "expect_exit": 0,
+      "duration_ms": 344,
+      "output_fingerprint": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "output_truncated": ""
+    }
+  ],
+  "gate": {
+    "decision": "PASS",
+    "rule": "ALL assertions must pass; any FAIL or TIMEOUT = gate FAIL"
+  },
+  "write_provenance": {
+    "writer": "engine-prove",
+    "commit": "",
+    "timestamp": "2026-08-01T05:59:49Z",
+    "argv": "engine prove T-074 --execute"
+  }
+}

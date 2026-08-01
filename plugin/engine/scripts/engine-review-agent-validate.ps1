@@ -235,6 +235,13 @@ try {
     $data.write_provenance | Add-Member -NotePropertyName 'validated_at' -NotePropertyValue $validatedAt -Force
     $data | ConvertTo-Json -Depth 10 -Compress | Set-Content $reviewFile -Encoding UTF8
 
+    # === 7b. Cross-model detection (v6.23.0, T-076) ===
+    $validatorModel = if ($env:ENGINE_MODEL_ID) { $env:ENGINE_MODEL_ID } else { '' }
+    $reviewerModel = ''
+    if ($data.reviewer -and $data.reviewer.model) { $reviewerModel = $data.reviewer.model }
+    if (-not $reviewerModel -and $data.write_provenance.PSObject.Properties['model_id']) { $reviewerModel = $data.write_provenance.model_id }
+    $crossModel = ($validatorModel -and $reviewerModel -and $validatorModel -ne $reviewerModel)
+
     # === 8. Update REVIEW.json ===
     $reviewJson = Join-Path $evidenceDir 'REVIEW.json'
     $totalFindings = 0; $totalStrengths = 0
@@ -252,6 +259,7 @@ try {
             foreach ($e in @($data.dimensions.$dim.entries)) { $agentDim.findings_count[$e.severity]++ }
         }
         $review.dimensions | Add-Member -NotePropertyName 'agent_review' -NotePropertyValue $agentDim -Force
+        $review | Add-Member -NotePropertyName 'cross_model' -NotePropertyValue $crossModel -Force
         if ($agentStatus -eq 'block') { $review.status = 'block' }
         $review | ConvertTo-Json -Depth 10 -Compress | Set-Content $reviewJson -Encoding UTF8
     } else {
@@ -261,9 +269,9 @@ try {
             foreach ($e in @($data.dimensions.$dim.entries)) { $newCounts[$e.severity]++ }
         }
         $newReview = @{
-            task = $Task; timestamp = $validatedAt; status = $agentStatus
+            task = $Task; timestamp = $validatedAt; status = $agentStatus; cross_model = $crossModel
             dimensions = @{ agent_review = @{ status = $agentStatus; findings_count = $newCounts; protocol_version = 'v6.22.0' } }
-            write_provenance = @{ writer = 'engine-review-agent-validate'; commit = $headCommit; timestamp = $validatedAt; argv = "engine review-agent $Task --validate"; pipeline_version = 'v6.22.0' }
+            write_provenance = @{ writer = 'engine-review-agent-validate'; model_id = $validatorModel; commit = $headCommit; timestamp = $validatedAt; argv = "engine review-agent $Task --validate"; pipeline_version = 'v6.22.0' }
         }
         $newReview | ConvertTo-Json -Depth 10 -Compress | Set-Content $reviewJson -Encoding UTF8
     }

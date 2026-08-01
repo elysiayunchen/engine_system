@@ -595,8 +595,79 @@ print('true' if cats and all(c == 'syntax' for c in cats) else 'false')
     echo "[engine-prove] WARN syntax-only: all assertions are syntax checks. Consider adding regression/invariant assertions for deeper coverage." >&2
   fi
 
+  # 5c. AC cross-anchoring: verify assertions cover task card AC verify commands
+  local task_file="$ENGINE_DIR/tasks/$task_id.md"
+  local ac_coverage="OK"
+  if [ -f "$task_file" ]; then
+    ac_coverage=$(TASK_FILE="$task_file" ASSERTIONS_FILE="$assertions_file" "$PY" -c "
+import os, re, json
+
+task_file = os.environ['TASK_FILE']
+assertions_file = os.environ['ASSERTIONS_FILE']
+
+# Extract AC verify commands from task card
+with open(task_file, encoding='utf-8') as f:
+    content = f.read()
+
+# Find all verify: commands (multiple formats)
+verify_cmds = re.findall(r'verify:\s*(.+)', content)
+if not verify_cmds:
+    print('OK')  # No ACs declared, nothing to cross-check
+    raise SystemExit(0)
+
+# Extract file references from AC verify commands
+ac_files = set()
+for cmd in verify_cmds:
+    # Match path-like tokens (word/word.ext patterns)
+    for m in re.finditer(r'[\w./-]+\.\w+', cmd):
+        ac_files.add(m.group(0))
+    # Also match bare filenames referenced in grep/test commands
+    for m in re.finditer(r'(?:grep|cat|bash|source)\s+[\w./-]*?([\w-]+\.\w+)', cmd):
+        ac_files.add(m.group(1))
+
+if not ac_files:
+    print('OK')  # ACs exist but reference no files, skip
+    raise SystemExit(0)
+
+# Extract file references from prove assertions
+with open(assertions_file, encoding='utf-8') as f:
+    data = json.load(f)
+
+assertion_files = set()
+for a in data.get('assertions', []):
+    cmd = a.get('command', '')
+    for m in re.finditer(r'[\w./-]+\.\w+', cmd):
+        assertion_files.add(m.group(0))
+
+# Compute coverage: what fraction of AC-referenced files appear in assertions
+covered = ac_files & assertion_files
+# Also check basename matches
+ac_basenames = {os.path.basename(f) for f in ac_files}
+assertion_basenames = {os.path.basename(f) for f in assertion_files}
+covered_basenames = ac_basenames & assertion_basenames
+
+total_ac = len(ac_basenames)
+covered_count = len(covered_basenames)
+ratio = covered_count / total_ac if total_ac > 0 else 1.0
+
+if ratio == 0:
+    print('FAIL')
+elif ratio < 0.5:
+    print('WARN')
+else:
+    print('OK')
+" 2>/dev/null || echo "OK")
+
+    if [ "$ac_coverage" = "FAIL" ]; then
+      echo "[engine-prove] FAIL ac-coverage: prove assertions have ZERO overlap with task card AC verify commands." >&2
+      gate="FAIL"
+    elif [ "$ac_coverage" = "WARN" ]; then
+      echo "[engine-prove] WARN ac-coverage: prove assertions cover <50% of files referenced in AC verify commands." >&2
+    fi
+  fi
+
   # 6. Write PROVE.json evidence
-  RESULTS_JSON="$results_json" GATE="$gate" TASK_ID="$task_id" FP="$current_fp" PROVE_FILE="$prove_json" "$PY" -c "
+  RESULTS_JSON="$results_json" GATE="$gate" TASK_ID="$task_id" FP="$current_fp" PROVE_FILE="$prove_json" AC_COVERAGE="$ac_coverage" MODEL_ID="${ENGINE_MODEL_ID:-}" "$PY" -c "
 import json, os, hashlib
 from datetime import datetime, timezone
 
@@ -605,6 +676,8 @@ gate = os.environ['GATE']
 task_id = os.environ['TASK_ID']
 fp = os.environ['FP']
 prove_file = os.environ['PROVE_FILE']
+ac_coverage = os.environ.get('AC_COVERAGE', 'OK')
+model_id = os.environ.get('MODEL_ID', '')
 
 # Compute assertions fingerprint
 assertions_file = prove_file.replace('PROVE.json', 'prove-assertions.json')
@@ -621,6 +694,7 @@ evidence = {
     'status': gate,
     'code_fingerprint': fp,
     'assertions_fingerprint': af_hash,
+    'ac_coverage': ac_coverage,
     'summary': {
         'total': results['total'],
         'passed': results['passed'],
@@ -634,6 +708,7 @@ evidence = {
     },
     'write_provenance': {
         'writer': 'engine-prove',
+        'model_id': model_id,
         'commit': os.environ.get('PROVE_HEAD_COMMIT', ''),
         'timestamp': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
         'argv': f'engine prove {task_id} --execute'

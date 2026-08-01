@@ -682,6 +682,72 @@ print('true' if cats and all(c == 'syntax' for c in cats) else 'false')
         [Console]::Error.WriteLine("[engine-prove] WARN syntax-only: all assertions are syntax checks. Consider adding regression/invariant assertions for deeper coverage.")
     }
 
+    # 5c. AC cross-anchoring: verify assertions cover task card AC verify commands
+    $taskFile = Join-Path $ENGINE_DIR "tasks/$TaskId.md"
+    $acCoverage = 'OK'
+    if (Test-Path $taskFile) {
+        $env:TASK_FILE = $taskFile
+        $env:ASSERTIONS_FILE = $assertionsFile
+        $acCoverage = & $PY -c @"
+import os, re, json
+
+task_file = os.environ['TASK_FILE']
+assertions_file = os.environ['ASSERTIONS_FILE']
+
+with open(task_file, encoding='utf-8') as f:
+    content = f.read()
+
+verify_cmds = re.findall(r'verify:\s*(.+)', content)
+if not verify_cmds:
+    print('OK')
+    raise SystemExit(0)
+
+ac_files = set()
+for cmd in verify_cmds:
+    for m in re.finditer(r'[\w./-]+\.\w+', cmd):
+        ac_files.add(m.group(0))
+    for m in re.finditer(r'(?:grep|cat|bash|source)\s+[\w./-]*?([\w-]+\.\w+)', cmd):
+        ac_files.add(m.group(1))
+
+if not ac_files:
+    print('OK')
+    raise SystemExit(0)
+
+with open(assertions_file, encoding='utf-8') as f:
+    data = json.load(f)
+
+assertion_files = set()
+for a in data.get('assertions', []):
+    cmd = a.get('command', '')
+    for m in re.finditer(r'[\w./-]+\.\w+', cmd):
+        assertion_files.add(m.group(0))
+
+ac_basenames = {os.path.basename(f) for f in ac_files}
+assertion_basenames = {os.path.basename(f) for f in assertion_files}
+covered_basenames = ac_basenames & assertion_basenames
+
+total_ac = len(ac_basenames)
+covered_count = len(covered_basenames)
+ratio = covered_count / total_ac if total_ac > 0 else 1.0
+
+if ratio == 0:
+    print('FAIL')
+elif ratio < 0.5:
+    print('WARN')
+else:
+    print('OK')
+"@ 2>$null
+        if ($LASTEXITCODE -ne 0 -or -not $acCoverage) { $acCoverage = 'OK' }
+        $acCoverage = $acCoverage.Trim()
+
+        if ($acCoverage -eq 'FAIL') {
+            [Console]::Error.WriteLine("[engine-prove] FAIL ac-coverage: prove assertions have ZERO overlap with task card AC verify commands.")
+            $gate = 'FAIL'
+        } elseif ($acCoverage -eq 'WARN') {
+            [Console]::Error.WriteLine("[engine-prove] WARN ac-coverage: prove assertions cover <50% of files referenced in AC verify commands.")
+        }
+    }
+
     # 6. Write PROVE.json evidence
     $env:RESULTS_JSON = $resultsJson
     $env:GATE = $gate
@@ -689,6 +755,8 @@ print('true' if cats and all(c == 'syntax' for c in cats) else 'false')
     $env:FP = $currentFp
     $env:PROVE_FILE = $proveJson
     $env:PROVE_HEAD_COMMIT = $script:PROVE_HEAD_COMMIT
+    $env:AC_COVERAGE = $acCoverage
+    $env:MODEL_ID = if ($env:ENGINE_MODEL_ID) { $env:ENGINE_MODEL_ID } else { '' }
     & $PY -c @"
 import json, os, hashlib
 from datetime import datetime, timezone
@@ -698,6 +766,8 @@ gate = os.environ['GATE']
 task_id = os.environ['TASK_ID']
 fp = os.environ['FP']
 prove_file = os.environ['PROVE_FILE']
+ac_coverage = os.environ.get('AC_COVERAGE', 'OK')
+model_id = os.environ.get('MODEL_ID', '')
 
 # Compute assertions fingerprint
 assertions_file = prove_file.replace('PROVE.json', 'prove-assertions.json')
@@ -714,6 +784,7 @@ evidence = {
     'status': gate,
     'code_fingerprint': fp,
     'assertions_fingerprint': af_hash,
+    'ac_coverage': ac_coverage,
     'summary': {
         'total': results['total'],
         'passed': results['passed'],
@@ -727,6 +798,7 @@ evidence = {
     },
     'write_provenance': {
         'writer': 'engine-prove',
+        'model_id': model_id,
         'commit': os.environ.get('PROVE_HEAD_COMMIT', ''),
         'timestamp': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
         'argv': f'engine prove {task_id} --execute'

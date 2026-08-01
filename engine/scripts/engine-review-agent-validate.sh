@@ -393,6 +393,7 @@ head_commit="$(git -C "$ROOT" rev-parse HEAD 2>/dev/null || echo unknown)"
 
 REVIEW_FILE="$review_file" REVIEW_JSON="$review_json" EVIDENCE_DIR="$evidence_dir" \
   TASK="$task" VALIDATED_AT="$validated_at" HEAD_COMMIT="$head_commit" \
+  MODEL_ID="${ENGINE_MODEL_ID:-}" \
 "$PY" << 'PYEOF'
 import json, os, hashlib
 from datetime import datetime, timezone
@@ -403,6 +404,7 @@ evidence_dir = os.environ['EVIDENCE_DIR']
 task = os.environ['TASK']
 validated_at = os.environ['VALIDATED_AT']
 head_commit = os.environ['HEAD_COMMIT']
+validator_model = os.environ.get('MODEL_ID', '')
 
 # --- 6. 追加 validated_by 到 AGENT-REVIEW.json ---
 with open(review_file, encoding='utf-8') as f:
@@ -412,6 +414,14 @@ data['write_provenance']['validated_at'] = validated_at
 with open(review_file, 'w', encoding='utf-8') as f:
     json.dump(data, f, separators=(',',':'), ensure_ascii=False)
     f.write('\n')
+
+# --- 6b. Cross-model detection (v6.23.0, T-076) ---
+reviewer_model = ''
+if isinstance(data.get('reviewer'), dict):
+    reviewer_model = data['reviewer'].get('model', '')
+if not reviewer_model:
+    reviewer_model = data.get('write_provenance', {}).get('model_id', '')
+cross_model = bool(validator_model and reviewer_model and validator_model != reviewer_model)
 
 # --- 7. 更新 REVIEW.json(追加 agent_review 维度) ---
 agent_status = data.get('status', 'pass')
@@ -430,6 +440,7 @@ if os.path.isfile(review_json):
         'findings_count': counts,
         'protocol_version': 'v6.22.0'
     }
+    review['cross_model'] = cross_model
     if agent_status == 'block':
         review['status'] = 'block'
 else:
@@ -437,6 +448,7 @@ else:
         'task': task,
         'timestamp': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
         'status': agent_status,
+        'cross_model': cross_model,
         'dimensions': {
             'agent_review': {
                 'status': agent_status,
@@ -446,6 +458,7 @@ else:
         },
         'write_provenance': {
             'writer': 'engine-review-agent-validate',
+            'model_id': validator_model,
             'commit': head_commit,
             'timestamp': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
             'argv': f'engine review-agent {task} --validate',

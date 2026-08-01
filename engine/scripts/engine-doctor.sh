@@ -1446,9 +1446,17 @@ check_review_evidence() {
     head_commit="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
 
     [ "$prov_writer" = "engine-review" ] || warn "$tid review evidence writer=$prov_writer (expected engine-review)"
+    # D-040 (issue #28): stale 判定改为 ancestor-of-HEAD。正常 Coordinator closeout
+    # 会在 review 之后提交 evidence/任务卡/CONTEXT/HANDOFF/ENGINE_MAP/胶囊,合法推进 HEAD;
+    # review commit 仍为 HEAD 祖先即有效,只有被 rebase 掉/分叉/未知 commit 才报 stale。
+    # git merge-base 置于 if 条件内,非祖先返回非零不触发 set -e;git 不可用/commit 空 → fail-open 回退 WARN。
     if [ "$prov_commit" != "$head_commit" ]; then
-      warn "$tid stale review evidence (commit=$prov_commit HEAD=$head_commit)"
-      echo "  human: Task $tid review evidence is stale. Re-run 'engine review $tid' against current HEAD."
+      if command -v git >/dev/null 2>&1 && [ -n "$prov_commit" ] && git merge-base --is-ancestor "$prov_commit" HEAD 2>/dev/null; then
+        : # review commit 仍可从 HEAD 可达(closeout 合法推进)→ 非 stale
+      else
+        warn "$tid stale review evidence (commit=$prov_commit HEAD=$head_commit)"
+        echo "  human: Task $tid review evidence is stale. Re-run 'engine review $tid' against current HEAD."
+      fi
     fi
     case "$prov_argv" in
       "engine review $tid") : ;;

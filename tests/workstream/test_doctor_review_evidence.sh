@@ -10,12 +10,13 @@ ok()  { echo "  PASS $1"; PASS=$((PASS+1)); }
 bad() { echo "  FAIL $1"; FAIL=$((FAIL+1)); }
 
 # --- Extracted doctor logic (mirrors spec §3.3 check_review_evidence) ---
-# Args: <task_id> <evidence_dir> <head_status_done> <head_commit>
+# Args: <task_id> <evidence_dir> <head_status_done> <head_commit> <is_ancestor>
 #   head_status_done: "yes" = HEAD 已 done (历史, WARN); "no" = 新 done (FAIL)
+#   is_ancestor: "yes" = prov_commit 为 HEAD 祖先 (D-040: closeout 合法推进, 非 stale)
 # Returns: 0 = pass, 1 = warn (returns warn code), 2 = fail
 # Outputs: "PASS" / "WARN: msg" / "FAIL: msg"
 check_review_evidence_one() {
-  local task_id="$1" evidence_dir="$2" head_status_done="$3" head_commit="$4"
+  local task_id="$1" evidence_dir="$2" head_status_done="$3" head_commit="$4" is_ancestor="${5:-no}"
   local review_file="$evidence_dir/REVIEW.json"
 
   if [ ! -f "$review_file" ]; then
@@ -39,8 +40,13 @@ check_review_evidence_one() {
     return 1
   fi
   if [ "$prov_commit" != "$head_commit" ]; then
-    echo "WARN: $task_id stale review evidence (commit=$prov_commit HEAD=$head_commit)"
-    return 1
+    # D-040 (issue #28): ancestor-of-HEAD 语义 — review commit 仍为 HEAD 祖先即有效
+    if [ "$is_ancestor" = "yes" ]; then
+      : # closeout 合法推进 HEAD,非 stale,继续后续校验
+    else
+      echo "WARN: $task_id stale review evidence (commit=$prov_commit HEAD=$head_commit)"
+      return 1
+    fi
   fi
   if [ "$prov_argv" != "engine review $task_id" ]; then
     echo "WARN: $task_id review evidence argv mismatch: $prov_argv"
@@ -108,6 +114,51 @@ write_ev "$TMPDIR/T-OK/REVIEW.json" '{"status":"pass","tool_unavailable":false,"
 result=$(check_review_evidence_one "T-OK" "$TMPDIR/T-OK" "no" "$HEAD")
 rc=$?
 if [ "$rc" -eq 0 ] && echo "$result" | grep -q "PASS: T-OK review evidence ok"; then ok "S5 PASS clean evidence"; else bad "S5 should PASS (rc=$rc): $result"; fi
+
+# --- D-040 (issue #28): ancestor-of-HEAD stale 语义 ---
+OLD_COMMIT="1111111111111111111111111111111111111111"
+
+# S6: prov_commit != HEAD 但为 HEAD 祖先(closeout 合法推进)→ 非 stale, PASS
+echo "S6: ancestor provenance (closeout advanced HEAD) -> PASS not stale"
+write_ev "$TMPDIR/T-ANC/REVIEW.json" '{"status":"pass","tool_unavailable":false,"write_provenance":{"writer":"engine-review","commit":"'"$OLD_COMMIT"'","argv":"engine review T-ANC"}}'
+result=$(check_review_evidence_one "T-ANC" "$TMPDIR/T-ANC" "no" "$HEAD" "yes")
+rc=$?
+if [ "$rc" -eq 0 ] && echo "$result" | grep -q "PASS: T-ANC review evidence ok"; then ok "S6 PASS ancestor provenance not stale"; else bad "S6 should PASS (rc=$rc): $result"; fi
+
+# S7: prov_commit != HEAD 且非祖先(分叉/rebase 掉)→ WARN stale
+echo "S7: non-ancestor provenance -> WARN stale"
+write_ev "$TMPDIR/T-DIV/REVIEW.json" '{"status":"pass","tool_unavailable":false,"write_provenance":{"writer":"engine-review","commit":"'"$OLD_COMMIT"'","argv":"engine review T-DIV"}}'
+result=$(check_review_evidence_one "T-DIV" "$TMPDIR/T-DIV" "no" "$HEAD" "no")
+rc=$?
+if [ "$rc" -eq 1 ] && echo "$result" | grep -q "WARN: T-DIV stale review evidence"; then ok "S7 WARN non-ancestor stale"; else bad "S7 should WARN stale (rc=$rc): $result"; fi
+
+# S8: 真实 git 仓库验证 git merge-base --is-ancestor 对 closeout 模式的行为
+echo "S8: real-git ancestor semantics"
+if command -v git >/dev/null 2>&1; then
+  GREPO="$TMPDIR/repo"; mkdir -p "$GREPO"
+  (
+    cd "$GREPO" || exit 1
+    git init -q . || exit 1
+    git config user.email t@t.t; git config user.name t
+    echo a > f.txt; git add f.txt; git commit -qm "review commit" || exit 1
+    REVIEW_SHA="$(git rev-parse HEAD)"
+    echo b >> f.txt; git add f.txt; git commit -qm "closeout commit" || exit 1  # HEAD 合法推进
+    git merge-base --is-ancestor "$REVIEW_SHA" HEAD 2>/dev/null && exit 0 || exit 10
+  ); anc_rc=$?
+  if [ "$anc_rc" -eq 0 ]; then ok "S8a review commit is ancestor of advanced HEAD (not stale)"; else bad "S8a ancestor check failed (rc=$anc_rc)"; fi
+  (
+    cd "$GREPO" || exit 1
+    INIT_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
+    git checkout -q --orphan diverged || exit 1
+    echo c > g.txt; git add g.txt; git commit -qm "diverged commit" || exit 1
+    DIV_SHA="$(git rev-parse HEAD)"
+    git checkout -q "$INIT_BRANCH" || exit 1
+    git merge-base --is-ancestor "$DIV_SHA" HEAD 2>/dev/null && exit 0 || exit 10
+  ); div_rc=$?
+  if [ "$div_rc" -ne 0 ]; then ok "S8b diverged commit is NOT ancestor of HEAD (stale)"; else bad "S8b diverged commit unexpectedly is ancestor"; fi
+else
+  echo "  SKIP git not available"
+fi
 
 echo ""
 echo "=========================================="

@@ -1799,7 +1799,18 @@ function Test-ReviewEvidence {
       Write-Warn "$tid review evidence writer=$($review.write_provenance.writer) (expected engine-review)"
     }
     if ($review.write_provenance.commit -ne $headCommit) {
-      Write-Warn "$tid stale review evidence (commit=$($review.write_provenance.commit) HEAD=$headCommit)"
+      # D-040 (issue #28): stale 判定改为 ancestor-of-HEAD。正常 Coordinator closeout
+      # 会在 review 之后提交 evidence/任务卡/CONTEXT/HANDOFF/ENGINE_MAP/胶囊,合法推进 HEAD;
+      # review commit 仍为 HEAD 祖先即有效,只有被 rebase 掉/分叉/未知 commit 才报 stale。
+      $provCommit = $review.write_provenance.commit
+      $isAncestor = $false
+      if ($provCommit) {
+        git merge-base --is-ancestor $provCommit HEAD 2>$null
+        if ($LASTEXITCODE -eq 0) { $isAncestor = $true }
+      }
+      if (-not $isAncestor) {
+        Write-Warn "$tid stale review evidence (commit=$($review.write_provenance.commit) HEAD=$headCommit)"
+      }
     }
     if ($review.write_provenance.argv -ne "engine review $tid") {
       Write-Warn "$tid review evidence argv mismatch: $($review.write_provenance.argv)"

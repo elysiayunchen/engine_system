@@ -4,6 +4,7 @@ param(
   [Parameter(Position=0)][string]$Command = "help",
   [Parameter(Position=1)][string]$Task = "",
   [Parameter(Position=2)][string]$Agent = "",
+  [Parameter(Position=3, ValueFromRemainingArguments=$true)][string[]]$RemainingArgs = @(),
   [switch]$CheckOnly,
   [switch]$NoMigrate,
   [switch]$Print,
@@ -632,14 +633,18 @@ switch ($Command) {
     $verifyScript = Join-Path $PWD.Path "engine\scripts\engine-verify.ps1"
     $preflightFlag = $false
     $noCovFlag = $false
-    foreach ($a in $args) {
+    $verifyArgs = @()
+    if ($Agent -and $Agent.StartsWith('--')) { $verifyArgs += $Agent }
+    $verifyArgs += $args
+    $verifyArgs += $RemainingArgs
+    foreach ($a in $verifyArgs) {
       switch ("$a".ToLowerInvariant()) {
         '--preflight' { $preflightFlag = $true }
         '--no-cov' { $noCovFlag = $true }
       }
     }
     $entrypoint = "engine verify $Task"
-    foreach ($a in $args) { $entrypoint += " $a" }
+    foreach ($a in $verifyArgs) { $entrypoint += " $a" }
     $oldEntrypoint = $env:ENGINE_CLI_ENTRYPOINT
     $env:ENGINE_CLI_ENTRYPOINT = $entrypoint
     try {
@@ -665,11 +670,15 @@ switch ($Command) {
     }
     $preflightScript = Join-Path $PWD.Path "engine\scripts\engine-verify.ps1"
     $noCovFlag = $false
-    foreach ($a in $args) {
+    $preflightArgs = @()
+    if ($Agent -and $Agent.StartsWith('--')) { $preflightArgs += $Agent }
+    $preflightArgs += $args
+    $preflightArgs += $RemainingArgs
+    foreach ($a in $preflightArgs) {
       if ("$a".ToLowerInvariant() -eq '--no-cov') { $noCovFlag = $true }
     }
     $entrypoint = "engine acceptance-preflight $Task"
-    foreach ($a in $args) { $entrypoint += " $a" }
+    foreach ($a in $preflightArgs) { $entrypoint += " $a" }
     $oldEntrypoint = $env:ENGINE_CLI_ENTRYPOINT
     $env:ENGINE_CLI_ENTRYPOINT = $entrypoint
     try {
@@ -693,7 +702,9 @@ switch ($Command) {
     }
     $gateScript = Join-Path $PWD.Path "engine\scripts\engine-gate.ps1"
     $gateArgs = @()
+    if ($Agent -and $Agent.StartsWith('--')) { $gateArgs += "$Agent" }
     foreach ($a in $args) { $gateArgs += "$a" }
+    foreach ($a in $RemainingArgs) { $gateArgs += "$a" }
     $entrypoint = "engine gate $Task"
     foreach ($a in $gateArgs) { $entrypoint += " $a" }
     $oldEntrypoint = $env:ENGINE_CLI_ENTRYPOINT
@@ -716,9 +727,11 @@ switch ($Command) {
       Write-Error "Usage: engine prove T-NNN --infer|--execute"
       exit 2
     }
-    $proveMode = ""
-    if ($Agent -and $Agent.StartsWith('--')) { $proveMode = $Agent }
-    elseif ($args.Count -gt 0) { $proveMode = "$($args[0])" }
+    $proveArgs = @()
+    if ($Agent -and $Agent.StartsWith('--')) { $proveArgs += "$Agent" }
+    foreach ($a in $args) { $proveArgs += "$a" }
+    foreach ($a in $RemainingArgs) { $proveArgs += "$a" }
+    $proveMode = if ($proveArgs.Count -gt 0) { "$($proveArgs[0])" } else { "" }
     if ($proveMode -notin @('--infer', '--execute')) {
       Write-Error "Usage: engine prove T-NNN --infer|--execute"
       exit 2
@@ -746,7 +759,9 @@ switch ($Command) {
     }
     $closeScript = Join-Path $PWD.Path "engine\scripts\engine-close.ps1"
     $closeArgs = @()
+    if ($Agent -and $Agent.StartsWith('--')) { $closeArgs += "$Agent" }
     foreach ($a in $args) { $closeArgs += "$a" }
+    foreach ($a in $RemainingArgs) { $closeArgs += "$a" }
     $entrypoint = "engine close $Task"
     foreach ($a in $closeArgs) { $entrypoint += " $a" }
     $oldEntrypoint = $env:ENGINE_CLI_ENTRYPOINT
@@ -782,6 +797,7 @@ switch ($Command) {
     if ($Task) { $raArgs += $Task }
     if ($Agent) { $raArgs += $Agent }
     foreach ($a in $args) { $raArgs += "$a" }
+    foreach ($a in $RemainingArgs) { $raArgs += "$a" }
     $raScript = Join-Path $PWD.Path "engine\scripts\engine-review-agent.ps1"
     & $raScript @raArgs
     exit $LASTEXITCODE
@@ -802,10 +818,13 @@ switch ($Command) {
     # v6.11.0 (D-029/T-036) AC-8: support both -Kind (PS native) and --kind/--print (bash compat) via $args scan
     $effectiveKind = $Kind
     $effectivePrint = $Print
-    for ($i = 0; $i -lt $args.Count; $i++) {
-      $a = "$($args[$i])"
+    $workstreamArgs = @()
+    $workstreamArgs += $args
+    $workstreamArgs += $RemainingArgs
+    for ($i = 0; $i -lt $workstreamArgs.Count; $i++) {
+      $a = "$($workstreamArgs[$i])"
       if ($a -match '^--kind=(.+)$') { $effectiveKind = $Matches[1] }
-      elseif ($a -eq '--kind') { $i++; if ($i -lt $args.Count) { $effectiveKind = "$($args[$i])" } }
+      elseif ($a -eq '--kind') { $i++; if ($i -lt $workstreamArgs.Count) { $effectiveKind = "$($workstreamArgs[$i])" } }
       elseif ($a -eq '--print') { $effectivePrint = $true }
     }
     New-Workstream -Root $PWD.Path -TaskId $Task -AgentId $Agent -Kind $effectiveKind -Emit:$effectivePrint
@@ -817,7 +836,11 @@ switch ($Command) {
     }
     # v6.11.0 (D-029/T-036) AC-9: support both -Force (PS native) and --force (bash compat) via $args scan
     $effectiveForce = $Force
-    foreach ($a in $args) {
+    $forceArgs = @()
+    if ($Agent -and $Agent.StartsWith('--')) { $forceArgs += "$Agent" }
+    $forceArgs += $args
+    $forceArgs += $RemainingArgs
+    foreach ($a in $forceArgs) {
       $aStr = "$a"
       if ($aStr -eq '--force' -or $aStr -eq '-f') { $effectiveForce = $true }
     }
@@ -830,10 +853,13 @@ switch ($Command) {
     }
     # v6.11.0 (D-029/T-036) AC-10: session-id passed as positional $Task; bash compat via $args scan
     $effectiveSid = $Task
-    for ($i = 0; $i -lt $args.Count; $i++) {
-      $aStr = "$($args[$i])"
+    $mergeArgs = @()
+    $mergeArgs += $args
+    $mergeArgs += $RemainingArgs
+    for ($i = 0; $i -lt $mergeArgs.Count; $i++) {
+      $aStr = "$($mergeArgs[$i])"
       if ($aStr -match '^--session-id=(.+)$') { $effectiveSid = $Matches[1] }
-      elseif ($aStr -eq '--session-id') { $i++; if ($i -lt $args.Count) { $effectiveSid = "$($args[$i])" } }
+      elseif ($aStr -eq '--session-id') { $i++; if ($i -lt $mergeArgs.Count) { $effectiveSid = "$($mergeArgs[$i])" } }
     }
     Merge-Workstream -Root $PWD.Path -SessionId $effectiveSid
   }
@@ -844,7 +870,10 @@ switch ($Command) {
     }
     # v6.11.0 (D-029/T-036) AC-17: action passed as positional $Task; default = "on"
     $effectiveAction = if ($Task) { $Task } else { "on" }
-    foreach ($a in $args) {
+    $multiSessionArgs = @()
+    $multiSessionArgs += $args
+    $multiSessionArgs += $RemainingArgs
+    foreach ($a in $multiSessionArgs) {
       $aStr = "$a"
       if ($aStr -eq 'on' -or $aStr -eq 'enable' -or $aStr -eq 'off' -or $aStr -eq 'disable' -or $aStr -eq 'status') {
         $effectiveAction = $aStr

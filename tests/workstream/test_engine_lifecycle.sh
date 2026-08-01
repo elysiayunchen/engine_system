@@ -176,6 +176,12 @@ check_mirror engine/scripts/engine-prove.sh plugin/engine/scripts/engine-prove.s
 check_mirror engine/scripts/engine-prove.ps1 plugin/engine/scripts/engine-prove.ps1
 check_mirror engine/scripts/engine-close.sh plugin/engine/scripts/engine-close.sh
 check_mirror engine/scripts/engine-close.ps1 plugin/engine/scripts/engine-close.ps1
+check_mirror engine/scripts/githooks/pre-commit plugin/engine/scripts/githooks/pre-commit
+if grep -Eq 'engine/workstreams/\[\^/\]\+/\(\[\^/\]\+/\)\?\[\^/\]\+/' "$ROOT_REPO/engine/scripts/githooks/pre-commit"; then
+  ok "pre-commit accepts canonical worker shard layout"
+else
+  bad "pre-commit accepts canonical worker shard layout"
+fi
 
 if command -v pwsh >/dev/null 2>&1; then
   pwsh -NoProfile -ExecutionPolicy Bypass -File "$HERE/test_engine_lifecycle.ps1" > "$TMP_ROOT/ps.out" 2>&1

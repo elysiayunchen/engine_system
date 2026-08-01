@@ -160,18 +160,20 @@ try {
   # --run 模式
   if ($runMode) {
     Write-Host "[engine-gate] Running pending gates for $task..."
+    $psExe = (Get-Command pwsh -ErrorAction SilentlyContinue).Source
+    if (-not $psExe) { $psExe = (Get-Command powershell -ErrorAction SilentlyContinue).Source }
     $acFiles = Get-ChildItem (Join-Path $ENGINE_DIR "evidence\$task\AC-*.json") -ErrorAction SilentlyContinue
     if (-not $acFiles) {
       Write-Host "[engine-gate] Running: engine verify $task"
       $verifyCli = Join-Path $ROOT "engine\bin\engine.ps1"
-      $verifyScript = Join-Path $ENGINE_DIR "scripts\engine-verify.sh"
-      if (Test-Path $verifyCli) { & $verifyCli verify $task 2>&1 | Out-Host }
-      elseif (Test-Path $verifyScript) { bash $verifyScript $task 2>&1 | Out-Host }
+      $verifyScript = Join-Path $ENGINE_DIR "scripts\engine-verify.ps1"
+      if ($psExe -and (Test-Path $verifyCli)) { & $psExe -NoProfile -ExecutionPolicy Bypass -File $verifyCli verify $task 2>&1 | Out-Host }
+      elseif ($psExe -and (Test-Path $verifyScript)) { & $psExe -NoProfile -ExecutionPolicy Bypass -File $verifyScript -Task $task 2>&1 | Out-Host }
     }
     if ($hasCode -and -not (Test-Path (Join-Path $ENGINE_DIR "review\evidence\$task\REVIEW.json"))) {
       Write-Host "[engine-gate] Running: engine review $task"
-      $reviewScript = Join-Path $ENGINE_DIR "scripts\engine-review-pipeline.sh"
-      if (Test-Path $reviewScript) { bash $reviewScript $task 2>&1 | Out-Host }
+      $reviewScript = Join-Path $ENGINE_DIR "scripts\engine-review-pipeline.ps1"
+      if ($psExe -and (Test-Path $reviewScript)) { & $psExe -NoProfile -ExecutionPolicy Bypass -File $reviewScript $task 2>&1 | Out-Host }
     }
     if ($hasCode -and -not (Test-Path (Join-Path $ENGINE_DIR "review\evidence\$task\AGENT-REVIEW.json"))) {
       Write-Host "[engine-gate] Manual step required:"
@@ -180,10 +182,10 @@ try {
       Write-Host "  3. engine review-agent $task --validate"
     }
     if ($hasCode -and -not (Test-Path (Join-Path $ENGINE_DIR "evidence\$task\PROVE.json"))) {
-      $proveScript = Join-Path $ENGINE_DIR "scripts\engine-prove.sh"
-      if (Test-Path $proveScript) {
+      $proveScript = Join-Path $ENGINE_DIR "scripts\engine-prove.ps1"
+      if ($psExe -and (Test-Path $proveScript)) {
         Write-Host "[engine-gate] Running: engine prove $task --execute"
-        bash $proveScript $task --execute 2>&1 | Out-Host
+        & $psExe -NoProfile -ExecutionPolicy Bypass -File $proveScript -Task $task -Mode --execute 2>&1 | Out-Host
       }
     }
     Write-Host ""

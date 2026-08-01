@@ -3,18 +3,24 @@
 # the closure audit. Workers close into their own shard; coordinators own the
 # final shared-memory and change-capsule closure.
 
-param([Parameter(Position=0)][string]$Task = "")
+param(
+  [Parameter(Position=0)][string]$Task = "",
+  [Parameter(Position=1, ValueFromRemainingArguments=$true)][string[]]$RemainingArgs = @()
+)
 
 $ErrorActionPreference = "Continue"
 $Root = if ($env:CLAUDE_PROJECT_DIR) { $env:CLAUDE_PROJECT_DIR } else { (Get-Location).Path }
 $EngineDir = Join-Path $Root "engine"
 $handoffAgent = if ($env:ENGINE_AGENT_ID) { $env:ENGINE_AGENT_ID } else { "" }
 
-for ($i = 0; $i -lt $args.Count; $i++) {
-  $a = "$($args[$i])"
+$closeArgs = @()
+if ($args) { $closeArgs += $args }
+if ($RemainingArgs) { $closeArgs += $RemainingArgs }
+for ($i = 0; $i -lt $closeArgs.Count; $i++) {
+  $a = "$($closeArgs[$i])"
   if ($a -eq '--handoff') {
     $i++
-    if ($i -lt $args.Count) { $handoffAgent = "$($args[$i])" }
+    if ($i -lt $closeArgs.Count) { $handoffAgent = "$($closeArgs[$i])" }
   } elseif ($a -match '^--handoff=(.+)$') {
     $handoffAgent = $Matches[1]
   } else {

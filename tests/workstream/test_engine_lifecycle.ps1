@@ -29,10 +29,13 @@ foreach ($pair in $pairs) {
 
 $bashCli = Get-Content -Raw -Path (Join-Path $Root 'engine/bin/engine')
 $psCli = Get-Content -Raw -Path (Join-Path $Root 'engine/bin/engine.ps1')
+$psGate = Get-Content -Raw -Path (Join-Path $Root 'engine/scripts/engine-gate.ps1')
 Assert-True 'Bash CLI exposes gate, prove, and close' ($bashCli -match '(?m)^  gate\)' -and $bashCli -match '(?m)^  prove\)' -and $bashCli -match '(?m)^  close\)')
 Assert-True 'PowerShell CLI exposes gate, prove, and close' ($psCli -match '"gate"' -and $psCli -match '"prove"' -and $psCli -match '"close"')
+Assert-True 'PowerShell CLI preserves bash-compatible remaining flags' ($psCli -match 'ValueFromRemainingArguments' -and $psCli -match '\$RemainingArgs')
 Assert-True 'PowerShell CLI preserves Doctor exit' ($psCli -match 'doctorExit' -and $psCli -match 'exit \$doctorExit')
 Assert-True 'PowerShell gate provenance is environment-aware' ((Get-Content -Raw -Path (Join-Path $Root 'engine/scripts/engine-gate.ps1')) -match 'ENGINE_CLI_ENTRYPOINT')
+Assert-True 'PowerShell gate runs PowerShell child scripts' ($psGate -match 'engine-prove\.ps1' -and $psGate -match 'ExecutionPolicy Bypass')
 
 Write-Output "=== RESULTS: $pass passed, $fail failed ==="
 if ($fail -ne 0) { exit 1 }

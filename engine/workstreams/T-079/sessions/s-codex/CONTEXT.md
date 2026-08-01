@@ -11,6 +11,8 @@
 - Implemented the agent-neutral lifecycle closure path and public CLI dispatch for gate, prove, and close.
 - Fixed Bash/PowerShell Doctor exit propagation and CLI-vs-direct evidence provenance for verify, gate, and prove.
 - Added fail-closed close checks for verify/gate/doctor, worker handoff, coordinator-owned memory, and task-linked capsules.
+- Fixed the canonical `sessions/<sid>` worker-shard pattern in both pre-commit mirrors.
+- Fixed PowerShell remaining-argument forwarding (`--handoff`, `--kind`, `--run`, `--execute`) and PowerShell gate child invocation so Windows paths are not handed to WSL bash.
 
 ## Changed Paths
 
@@ -22,8 +24,9 @@
 
 ## Evidence
 
-- Lifecycle test: 29 passed, 0 failed.
-- PowerShell parser/static test: 14 passed, 0 failed.
+- Lifecycle test: 31 passed, 0 failed.
+- PowerShell parser/static test: 16 passed, 0 failed.
+- PowerShell `workstream ... --kind session --print`: pass; PowerShell `gate ... --run`: reaches prove without WSL path corruption.
 - Task verify: 6/6 AC passed (preflight and full).
 - Review: PASS.
 - Doctor remains non-zero on repository baseline; coordinator must merge this shard and address shared debt before marking the task done.

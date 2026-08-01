@@ -182,6 +182,11 @@ if grep -Eq 'engine/workstreams/\[\^/\]\+/\(\[\^/\]\+/\)\?\[\^/\]\+/' "$ROOT_REP
 else
   bad "pre-commit accepts canonical worker shard layout"
 fi
+if grep -Fq "r'\\1COMPUTE', content, count=1" "$ROOT_REPO/engine/scripts/githooks/pre-commit"; then
+  ok "pre-commit package hash normalizes only the package header"
+else
+  bad "pre-commit package hash normalizes only the package header"
+fi
 
 if command -v pwsh >/dev/null 2>&1; then
   pwsh -NoProfile -ExecutionPolicy Bypass -File "$HERE/test_engine_lifecycle.ps1" > "$TMP_ROOT/ps.out" 2>&1

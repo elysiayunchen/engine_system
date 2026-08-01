@@ -611,7 +611,7 @@ if [ "$strict_task_mode" -eq 1 ]; then
 import hashlib, re, sys
 with open(sys.argv[1], encoding='utf-8') as f:
     content = f.read()
-normalized = re.sub(r'(> package_sha256: ).*', r'\1COMPUTE', content)
+normalized = re.sub(r'(> package_sha256: ).*', r'\1COMPUTE', content, count=1)
 print(hashlib.sha256(normalized.encode('utf-8')).hexdigest())
 " "$ROOT/$_pkg_file" 2>/dev/null || echo "")"
           if [ -n "$_actual_sha" ] && [ "$_prov_sha" != "$_actual_sha" ]; then

@@ -2,7 +2,7 @@
 
 ## Status
 
-- active — lifecycle closure repair in progress.
+- active — lifecycle closure implementation complete; repository Doctor debt still blocks final close.
 
 ## Findings
 
@@ -20,13 +20,13 @@
 
 - `bash tests/workstream/test_engine_lifecycle.sh`: 31 passed, 0 failed; PowerShell runtime smoke skipped inside Bash because that shell could not resolve `pwsh`.
 - PowerShell parser/lifecycle static test: 17 passed, 0 failed.
-- `bash -n` pass for all changed Bash scripts; `git diff --check` pass.
+- `bash -n` passes for all changed Bash scripts.
 - Existing regressions previously passed: gate CLI 11/11, acceptance preflight 22/22, behavior verification 12/12, pre-commit gate 9/9, seal gate 5/5, evidence provenance 6/6.
 - `bash engine/bin/engine verify T-079 --preflight`: 6/6 AC pass; full verify also passed 6/6.
 - `bash engine/bin/engine gate T-079`: PASS after review, agent review, prove, and verify evidence were generated against the final commit.
-- PowerShell `engine workstream T-079 codex --kind session --print`: pass; PowerShell `engine gate T-079 --run`: reaches prove without WSL path corruption and remains blocked only by missing proof/reviewer evidence.
+- PowerShell `engine workstream T-079 codex --kind session --print`: pass; PowerShell `engine gate T-079 --run`: reaches prove without WSL path corruption and remains blocked only by missing proof/reviewer evidence in the isolated smoke fixture.
 - Lifecycle regression after the provenance-leak fix: 31/31 pass; `engine prove T-079 --execute`: 1/1 pass.
 - `engine close T-079 --handoff codex`: verify exit 0, gate exit 0, Doctor exit 1, worker memory pass, capsule deferred_to_coordinator; final status BLOCK as designed.
-- PowerShell full close reached verify=0, gate=0, Doctor=1; a stale `$LASTEXITCODE` then exposed a worker-shard rc contamination, now fixed by launching workstream as a child PowerShell process. A targeted static assertion covers this path; full PS close remains expensive under the Git Bash/WSL nesting.
-- Final Doctor: 27 failures / 213 warnings, all repository baseline/shared-memory or pre-existing task evidence debt outside this worker's safe write-set.
-- `bash engine/bin/engine doctor`: correctly returns non-zero and exposes 27 failures / 211 warnings in the repository baseline; shared-memory and pre-existing task debt remain coordinator-owned.
+- PowerShell full close reached verify=0, gate=0, Doctor=1; a stale `$LASTEXITCODE` then exposed a worker-shard rc contamination, fixed by launching workstream as a child PowerShell process. The final PowerShell close exits 1 only because Doctor exits 1, with worker memory pass and capsule deferred to the coordinator.
+- Final Bash close Doctor result: 27 failures / 215 warnings, all repository baseline/shared-memory or pre-existing task evidence debt outside this worker's safe write-set.
+- `bash engine/bin/engine doctor` correctly returns non-zero; shared-memory and pre-existing task debt remain coordinator-owned.

@@ -27,14 +27,14 @@
 ## Evidence
 
 - Lifecycle test: 31 passed, 0 failed.
-- PowerShell parser/static test: 16 passed, 0 failed.
+- PowerShell parser/static test: 17 passed, 0 failed.
 - PowerShell `workstream ... --kind session --print`: pass; PowerShell `gate ... --run`: reaches prove without WSL path corruption.
 - Prove regression initially caught the leakage; lifecycle rerun is 31/31 after the fix.
 - PowerShell lifecycle static test is 17/17; full PS close reached all stages but is slow in the mixed Git Bash/WSL environment.
 - Task verify: 6/6 AC passed (preflight and full).
 - Review: PASS.
 - Gate is PASS; close records verify=0, gate=0, Doctor=1, worker memory=pass, capsule=deferred_to_coordinator, so final close is BLOCK only on repository Doctor baseline.
-- Doctor reports 27 failures / 213 warnings; coordinator must merge this shard and address or explicitly track shared debt before marking the task done.
+- Final Bash close Doctor reports 27 failures / 215 warnings; coordinator must merge this shard and address or explicitly track shared debt before marking the task done.
 
 ## Merge Notes
 

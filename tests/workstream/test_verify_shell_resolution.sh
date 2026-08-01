@@ -5,6 +5,8 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 fail() { echo "FAIL: $*" >&2; exit 1; }
 
 grep -Fq 'ensure_powershell_on_path' "$REPO_ROOT/engine/scripts/engine-verify.sh" || fail 'PowerShell resolver missing'
+grep -Fq '[ -f "$dir/pwsh.exe" ]' "$REPO_ROOT/engine/scripts/engine-verify.sh" || fail 'PowerShell resolver must support WSL mounted .exe files'
+grep -Fq 'ENGINE_PWSH_CMD' "$REPO_ROOT/engine/scripts/engine-verify.sh" || fail 'PowerShell resolver must rewrite extensionless pwsh tokens'
 cmp -s "$REPO_ROOT/engine/scripts/engine-verify.sh" "$REPO_ROOT/plugin/engine/scripts/engine-verify.sh" || fail 'verify mirror drift'
 
 # In Windows Git Bash/WSL, pwsh may only be reachable through the mounted

@@ -316,17 +316,36 @@ append_no_cov() {
 # outside the inherited PATH. Resolve that executable before running declared
 # AC commands so Bash close/verify does not turn a valid Windows AC into 127.
 ensure_powershell_on_path() {
-  command -v pwsh >/dev/null 2>&1 && return 0
-  local dir
+  local resolved dir
+  ENGINE_PWSH_CMD=""
+  resolved="$(command -v pwsh 2>/dev/null || true)"
+  if [ -n "$resolved" ]; then
+    # WSL may resolve the Windows .exe but still fail to execute the bare
+    # extensionless token from a nested bash -c. Keep the resolved path and
+    # quote it when rewriting declared commands below.
+    if [[ "$resolved" == *.exe ]]; then
+      ENGINE_PWSH_CMD="\"$resolved\""
+    else
+      ENGINE_PWSH_CMD="pwsh"
+    fi
+    export ENGINE_PWSH_CMD
+    return 0
+  fi
   for dir in \
     "/mnt/c/Program Files/PowerShell"/* \
     "/mnt/c/Program Files (x86)/PowerShell"/*; do
-    if [ -x "$dir/pwsh.exe" ]; then
+    # WSL mounts may expose Windows executables without a Unix executable bit;
+    # file existence is the portable signal for a runnable .exe here.
+    if [ -f "$dir/pwsh.exe" ]; then
       PATH="$dir:$PATH"
       export PATH
+      ENGINE_PWSH_CMD="\"$dir/pwsh.exe\""
+      export ENGINE_PWSH_CMD
       return 0
     fi
   done
+  ENGINE_PWSH_CMD="pwsh"
+  export ENGINE_PWSH_CMD
   return 0
 }
 
@@ -334,6 +353,9 @@ run_verify_command() {
   local command="$1" output_file="$2" verify_timeout rc=0
   verify_timeout="${ENGINE_VERIFY_TIMEOUT:-120}"
   ensure_powershell_on_path
+  if [ "${ENGINE_PWSH_CMD:-pwsh}" != "pwsh" ]; then
+    command="${command//pwsh/${ENGINE_PWSH_CMD}}"
+  fi
   if command -v timeout >/dev/null 2>&1; then
     ( cd "$ROOT" && ENGINE_VERIFY_RECURSE_GUARD="$task" timeout "$verify_timeout" bash -c "$command" ) </dev/null >"$output_file" 2>&1 || rc=$?
   else

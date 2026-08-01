@@ -7,6 +7,8 @@ function Assert-Contains([string]$Path, [string]$Needle) {
 }
 
 Assert-Contains (Join-Path $repoRoot 'engine\scripts\engine-verify.sh') 'ensure_powershell_on_path'
+Assert-Contains (Join-Path $repoRoot 'engine\scripts\engine-verify.sh') '[ -f "$dir/pwsh.exe" ]'
+Assert-Contains (Join-Path $repoRoot 'engine\scripts\engine-verify.sh') 'ENGINE_PWSH_CMD'
 $left = (Get-FileHash (Join-Path $repoRoot 'engine\scripts\engine-verify.sh') -Algorithm SHA256).Hash
 $right = (Get-FileHash (Join-Path $repoRoot 'plugin\engine\scripts\engine-verify.sh') -Algorithm SHA256).Hash
 if ($left -ne $right) { throw 'Verify Bash mirrors differ' }

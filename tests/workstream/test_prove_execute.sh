@@ -196,6 +196,56 @@ OUT7=$(CLAUDE_PROJECT_DIR="$S7" bash engine/scripts/engine-prove.sh T-001 --exec
 assert_exit "S7 execute exits 1" 1 $RC7
 assert_contains "S7 E_SCHEMA" "$OUT7" "E_SCHEMA\|rationale"
 
+# --- S8: lock file blocks concurrent execution ---
+echo ""
+echo "--- S8: existing lock file → exit 1 ---"
+S8="$TMPDIR_TEST/s8"
+FP8=$(setup_execute_env "$S8")
+make_assertions "$S8" "$FP8" \
+  '{"id":"A-01","category":"syntax","command":"bash -n src/app.sh","expect_exit":0,"timeout_s":10,"rationale":"Verify app.sh syntax is valid after the change","revert_would_fail":false}'
+# Create a lock file with our own PID (which is alive)
+echo "$$" > "$S8/engine/evidence/T-001/.prove-lock"
+
+OUT8=$(CLAUDE_PROJECT_DIR="$S8" bash engine/scripts/engine-prove.sh T-001 --execute 2>&1); RC8=$?
+assert_exit "S8 execute exits 1 (locked)" 1 $RC8
+assert_contains "S8 mentions lock" "$OUT8" "another execute\|lock"
+
+# --- S9: all-syntax → WARN ---
+echo ""
+echo "--- S9: all assertions syntax-only → WARN message ---"
+S9="$TMPDIR_TEST/s9"
+FP9=$(setup_execute_env "$S9")
+make_assertions "$S9" "$FP9" \
+  '{"id":"A-01","category":"syntax","command":"bash -n src/app.sh","expect_exit":0,"timeout_s":10,"rationale":"Verify app.sh syntax is valid after the change","revert_would_fail":false}'
+
+OUT9=$(CLAUDE_PROJECT_DIR="$S9" bash engine/scripts/engine-prove.sh T-001 --execute 2>&1); RC9=$?
+assert_exit "S9 execute exits 0" 0 $RC9
+assert_contains "S9 syntax-only WARN" "$OUT9" "syntax-only\|WARN"
+
+# --- S10: expanded tautology (bash -c "true") ---
+echo ""
+echo "--- S10: bash -c true → E_SAFETY tautology ---"
+S10="$TMPDIR_TEST/s10"
+FP10=$(setup_execute_env "$S10")
+make_assertions "$S10" "$FP10" \
+  '{"id":"A-01","category":"invariant","command":"bash -c \"true\"","expect_exit":0,"timeout_s":10,"rationale":"This is a disguised tautology using bash -c wrapper","revert_would_fail":true}'
+
+OUT10=$(CLAUDE_PROJECT_DIR="$S10" bash engine/scripts/engine-prove.sh T-001 --execute 2>&1); RC10=$?
+assert_exit "S10 execute exits 1" 1 $RC10
+assert_contains "S10 tautology detected" "$OUT10" "tautolog\|E_SAFETY"
+
+# --- S11: WRITE-SET relevance (command references WRITE-SET file not in diff) ---
+echo ""
+echo "--- S11: command references WRITE-SET file → passes relevance ---"
+S11="$TMPDIR_TEST/s11"
+FP11=$(setup_execute_env "$S11")
+make_assertions "$S11" "$FP11" \
+  '{"id":"A-01","category":"regression","command":"grep -q v2 src/app.sh","expect_exit":0,"timeout_s":10,"rationale":"Verify the v2 change is present in app.sh after modification","revert_would_fail":false}'
+
+OUT11=$(CLAUDE_PROJECT_DIR="$S11" bash engine/scripts/engine-prove.sh T-001 --execute 2>&1); RC11=$?
+assert_exit "S11 execute exits 0" 0 $RC11
+assert_contains "S11 status PASS" "$(cat "$S11/engine/evidence/T-001/PROVE.json" 2>/dev/null)" '"status": "PASS"'
+
 # --- Summary ---
 echo ""
 echo "=== RESULTS: $PASS passed, $FAIL failed ==="

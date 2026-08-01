@@ -279,7 +279,13 @@ while IFS=$'\t' read -r ac_id verify_cmd; do
   # v6.10.0 (T-035): set ENGINE_VERIFY_RECURSE_GUARD=<task> so any AC verify
   # that recursively invokes engine-verify for the SAME task exits 0 immediately
   # (no infinite loop). Other task IDs (e.g. test fixtures) run normally.
-  ( cd "$ROOT" && ENGINE_VERIFY_RECURSE_GUARD="$task" eval "$verify_cmd" ) </dev/null >"$tmp_out" 2>&1 || rc=$?
+  # v6.23.0 (T-075): timeout wrapper prevents hung verify commands (default 120s)
+  local verify_timeout="${ENGINE_VERIFY_TIMEOUT:-120}"
+  if command -v timeout >/dev/null 2>&1; then
+    ( cd "$ROOT" && ENGINE_VERIFY_RECURSE_GUARD="$task" timeout "$verify_timeout" bash -c "$verify_cmd" ) </dev/null >"$tmp_out" 2>&1 || rc=$?
+  else
+    ( cd "$ROOT" && ENGINE_VERIFY_RECURSE_GUARD="$task" eval "$verify_cmd" ) </dev/null >"$tmp_out" 2>&1 || rc=$?
+  fi
   rc=${rc:-0}
   fp="$(sha256sum "$tmp_out" | cut -d' ' -f1)"
   if [ "$rc" -eq 0 ]; then

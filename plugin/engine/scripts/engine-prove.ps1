@@ -201,20 +201,30 @@ No assertions needed.
         exit 0
     }
 
-    # Compute code fingerprint (sha256 of concatenated diffs)
+    # Compute code fingerprint (sha256 of concatenated diffs + WRITE-SET file contents)
     $env:DIFF_BASE = $script:PROVE_DIFF_BASE
     $env:DIFF_FILES = $script:PROVE_DIFF_FILES
+    $env:WRITE_SET = $script:PROVE_WRITE_SET
     $codeFingerprint = & $PY -c @"
 import hashlib, subprocess, os
 diff_base = os.environ['DIFF_BASE']
-files = os.environ['DIFF_FILES'].split()
+diff_files = os.environ['DIFF_FILES'].split()
+write_set = os.environ.get('WRITE_SET', '').split()
+all_files = list(dict.fromkeys(diff_files + write_set))
 content = ''
-for f in files:
+for f in all_files:
     try:
         out = subprocess.check_output(['git', 'diff', diff_base + '..HEAD', '--', f], stderr=subprocess.DEVNULL)
-        content += out.decode('utf-8', errors='replace')
+        text = out.decode('utf-8', errors='replace')
+        if text.strip():
+            content += text
+        elif os.path.isfile(f):
+            with open(f, 'rb') as fh:
+                content += fh.read().decode('utf-8', errors='replace')
     except:
-        pass
+        if os.path.isfile(f):
+            with open(f, 'rb') as fh:
+                content += fh.read().decode('utf-8', errors='replace')
 print('sha256:' + hashlib.sha256(content.encode('utf-8')).hexdigest())
 "@ 2>$null
     if ($LASTEXITCODE -ne 0 -or -not $codeFingerprint) {
@@ -302,6 +312,9 @@ $($script:PROVE_TASK_GOAL)
 
 ## WRITE-SET (code files in diff)
 $writeSetSection
+
+## WRITE-SET (full, from task card)
+$($script:PROVE_WRITE_SET -split '\s+' | Where-Object { $_ } | ForEach-Object { "- $_" } | Out-String)
 
 ## Hunk Symbols (modified functions/classes)
 $hunkSection
@@ -444,17 +457,27 @@ if errors:
 
     $env:DIFF_BASE = $script:PROVE_DIFF_BASE
     $env:DIFF_FILES = $script:PROVE_DIFF_FILES
+    $env:WRITE_SET = $script:PROVE_WRITE_SET
     $currentFp = & $PY -c @"
 import hashlib, subprocess, os
 diff_base = os.environ['DIFF_BASE']
-files = os.environ['DIFF_FILES'].split()
+diff_files = os.environ['DIFF_FILES'].split()
+write_set = os.environ.get('WRITE_SET', '').split()
+all_files = list(dict.fromkeys(diff_files + write_set))
 content = ''
-for f in files:
+for f in all_files:
     try:
         out = subprocess.check_output(['git', 'diff', diff_base + '..HEAD', '--', f], stderr=subprocess.DEVNULL)
-        content += out.decode('utf-8', errors='replace')
+        text = out.decode('utf-8', errors='replace')
+        if text.strip():
+            content += text
+        elif os.path.isfile(f):
+            with open(f, 'rb') as fh:
+                content += fh.read().decode('utf-8', errors='replace')
     except:
-        pass
+        if os.path.isfile(f):
+            with open(f, 'rb') as fh:
+                content += fh.read().decode('utf-8', errors='replace')
 print('sha256:' + hashlib.sha256(content.encode('utf-8')).hexdigest())
 "@ 2>$null
     if ($LASTEXITCODE -ne 0 -or -not $currentFp) {
@@ -644,7 +667,20 @@ print(json.dumps({'total': total, 'passed': passed, 'failed': failed, 'timed_out
     if ($LASTEXITCODE -ne 0 -or -not $timedOut) { $timedOut = '0' }
     $timedOut = $timedOut.Trim()
 
-    $gate = if ([int]$failed -gt 0 -or [int]$timedOut -gt 0) { 'FAIL' } else { 'PASS' }
+    $gate = if ([int]$failed -gt 0 -or [int]$timedOut -gt 0 -or [int]$total -eq 0) { 'FAIL' } else { 'PASS' }
+
+    # 5b. Quality warning: all-syntax-only coverage
+    $env:ASSERTIONS_FILE = $assertionsFile
+    $syntaxOnly = & $PY -c @"
+import json, os
+with open(os.environ['ASSERTIONS_FILE'], encoding='utf-8') as f:
+    data = json.load(f)
+cats = [a.get('category') for a in data.get('assertions', [])]
+print('true' if cats and all(c == 'syntax' for c in cats) else 'false')
+"@ 2>$null
+    if ($syntaxOnly -and $syntaxOnly.Trim() -eq 'true') {
+        [Console]::Error.WriteLine("[engine-prove] WARN syntax-only: all assertions are syntax checks. Consider adding regression/invariant assertions for deeper coverage.")
+    }
 
     # 6. Write PROVE.json evidence
     $env:RESULTS_JSON = $resultsJson

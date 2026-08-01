@@ -1950,6 +1950,69 @@ if [[ -d "$ENGINE_DIR/agents" ]]; then
   done < <(find "$ENGINE_DIR/agents" -maxdepth 1 -type f -name '*.md' 2>/dev/null)
 fi
 
+# v6.23.0 (T-075): prove subsystem health check
+check_prove_health() {
+  local prove_dir="$ENGINE_DIR/prove"
+  local scripts_dir="$ENGINE_DIR/scripts"
+
+  # Scripts exist
+  if [[ -f "$scripts_dir/engine-prove.sh" ]]; then
+    pass "prove script exists: engine/scripts/engine-prove.sh"
+  else
+    warn "prove script missing: engine/scripts/engine-prove.sh"
+    echo "  human: The prove script is missing. Run 'engine sync' or restore from plugin mirror."
+  fi
+  if [[ -f "$scripts_dir/engine-prove.ps1" ]]; then
+    pass "prove ps1 mirror exists: engine/scripts/engine-prove.ps1"
+  else
+    warn "prove ps1 mirror missing: engine/scripts/engine-prove.ps1"
+  fi
+
+  # Config valid
+  if [[ -f "$prove_dir/config.json" ]]; then
+    if command -v python3 >/dev/null 2>&1; then
+      if python3 -c "import json; json.load(open('$prove_dir/config.json'))" 2>/dev/null; then
+        pass "prove config.json is valid JSON"
+      else
+        fail "prove config.json is invalid JSON"
+        echo "  human: engine/prove/config.json has a JSON syntax error. Fix it manually."
+      fi
+    elif command -v python >/dev/null 2>&1; then
+      if python -c "import json; json.load(open('$prove_dir/config.json'))" 2>/dev/null; then
+        pass "prove config.json is valid JSON"
+      else
+        fail "prove config.json is invalid JSON"
+        echo "  human: engine/prove/config.json has a JSON syntax error. Fix it manually."
+      fi
+    fi
+  else
+    warn "prove config missing: engine/prove/config.json"
+    echo "  human: The prove config is missing. Prove will use built-in defaults."
+  fi
+
+  # Schema valid
+  if [[ -f "$prove_dir/prove-assertions.schema.json" ]]; then
+    if command -v python3 >/dev/null 2>&1; then
+      if python3 -c "import json; json.load(open('$prove_dir/prove-assertions.schema.json'))" 2>/dev/null; then
+        pass "prove schema is valid JSON"
+      else
+        fail "prove schema is invalid JSON"
+        echo "  human: engine/prove/prove-assertions.schema.json has a JSON syntax error."
+      fi
+    elif command -v python >/dev/null 2>&1; then
+      if python -c "import json; json.load(open('$prove_dir/prove-assertions.schema.json'))" 2>/dev/null; then
+        pass "prove schema is valid JSON"
+      else
+        fail "prove schema is invalid JSON"
+        echo "  human: engine/prove/prove-assertions.schema.json has a JSON syntax error."
+      fi
+    fi
+  else
+    warn "prove schema missing: engine/prove/prove-assertions.schema.json"
+  fi
+}
+
+check_prove_health
 check_context_semantics
 check_handoff_semantics
 check_handoff_history_cap

@@ -156,19 +156,28 @@ EOF
     exit 0
   fi
 
-  # Compute code fingerprint (sha256 of concatenated diffs)
+  # Compute code fingerprint (sha256 of concatenated diffs + WRITE-SET file contents)
   local code_fingerprint
-  code_fingerprint=$(DIFF_BASE="$PROVE_DIFF_BASE" DIFF_FILES="$PROVE_DIFF_FILES" "$PY" -c "
+  code_fingerprint=$(DIFF_BASE="$PROVE_DIFF_BASE" DIFF_FILES="$PROVE_DIFF_FILES" WRITE_SET="$PROVE_WRITE_SET" "$PY" -c "
 import hashlib, subprocess, os
 diff_base = os.environ['DIFF_BASE']
-files = os.environ['DIFF_FILES'].split()
+diff_files = os.environ['DIFF_FILES'].split()
+write_set = os.environ.get('WRITE_SET', '').split()
+all_files = list(dict.fromkeys(diff_files + write_set))  # dedupe, preserve order
 content = ''
-for f in files:
+for f in all_files:
     try:
         out = subprocess.check_output(['git', 'diff', diff_base + '..HEAD', '--', f], stderr=subprocess.DEVNULL)
-        content += out.decode('utf-8', errors='replace')
+        text = out.decode('utf-8', errors='replace')
+        if text.strip():
+            content += text
+        elif os.path.isfile(f):
+            with open(f, 'rb') as fh:
+                content += fh.read().decode('utf-8', errors='replace')
     except:
-        pass
+        if os.path.isfile(f):
+            with open(f, 'rb') as fh:
+                content += fh.read().decode('utf-8', errors='replace')
 print('sha256:' + hashlib.sha256(content.encode('utf-8')).hexdigest())
 " 2>/dev/null || echo "sha256:0000000000000000000000000000000000000000000000000000000000000000")
 
@@ -235,6 +244,9 @@ $PROVE_TASK_GOAL
 ## WRITE-SET (code files in diff)
 $(for f in $PROVE_DIFF_FILES; do echo "- $f"; done)
 
+## WRITE-SET (full, from task card)
+$(for f in $PROVE_WRITE_SET; do echo "- $f"; done)
+
 ## Hunk Symbols (modified functions/classes)
 $(echo "$hunk_symbols" | sed 's/^/- /' | head -20)
 
@@ -296,6 +308,22 @@ phase_execute() {
   local evidence_dir="$ENGINE_DIR/evidence/$task_id"
   local assertions_file="$evidence_dir/prove-assertions.json"
   local prove_json="$evidence_dir/PROVE.json"
+  local lock_file="$evidence_dir/.prove-lock"
+
+  # 0. Concurrent execution lock
+  mkdir -p "$evidence_dir"
+  if [ -f "$lock_file" ]; then
+    local lock_pid
+    lock_pid=$(cat "$lock_file" 2>/dev/null || echo "")
+    if [ -n "$lock_pid" ] && kill -0 "$lock_pid" 2>/dev/null; then
+      echo "[engine-prove] FAIL: another execute is running (pid $lock_pid). Wait or remove $lock_file" >&2
+      exit 1
+    fi
+    # Stale lock — remove
+    rm -f "$lock_file"
+  fi
+  echo "$$" > "$lock_file"
+  trap 'rm -f "$lock_file"' EXIT
 
   # 1. Check assertions file exists
   if [ ! -f "$assertions_file" ]; then
@@ -370,17 +398,26 @@ if errors:
   # 3. Staleness guard: recompute fingerprint and compare
   extract_diff_context "$task_id"
   local current_fp
-  current_fp=$(DIFF_BASE="$PROVE_DIFF_BASE" DIFF_FILES="$PROVE_DIFF_FILES" "$PY" -c "
+  current_fp=$(DIFF_BASE="$PROVE_DIFF_BASE" DIFF_FILES="$PROVE_DIFF_FILES" WRITE_SET="$PROVE_WRITE_SET" "$PY" -c "
 import hashlib, subprocess, os
 diff_base = os.environ['DIFF_BASE']
-files = os.environ['DIFF_FILES'].split()
+diff_files = os.environ['DIFF_FILES'].split()
+write_set = os.environ.get('WRITE_SET', '').split()
+all_files = list(dict.fromkeys(diff_files + write_set))
 content = ''
-for f in files:
+for f in all_files:
     try:
         out = subprocess.check_output(['git', 'diff', diff_base + '..HEAD', '--', f], stderr=subprocess.DEVNULL)
-        content += out.decode('utf-8', errors='replace')
+        text = out.decode('utf-8', errors='replace')
+        if text.strip():
+            content += text
+        elif os.path.isfile(f):
+            with open(f, 'rb') as fh:
+                content += fh.read().decode('utf-8', errors='replace')
     except:
-        pass
+        if os.path.isfile(f):
+            with open(f, 'rb') as fh:
+                content += fh.read().decode('utf-8', errors='replace')
 print('sha256:' + hashlib.sha256(content.encode('utf-8')).hexdigest())
 " 2>/dev/null || echo "sha256:0000000000000000000000000000000000000000000000000000000000000000")
 
@@ -543,6 +580,19 @@ print(json.dumps({'total': total, 'passed': passed, 'failed': failed, 'timed_out
     gate="FAIL"
   else
     gate="PASS"
+  fi
+
+  # 5b. Quality warning: all-syntax-only coverage
+  local syntax_only
+  syntax_only=$(ASSERTIONS_FILE="$assertions_file" "$PY" -c "
+import json, os
+with open(os.environ['ASSERTIONS_FILE'], encoding='utf-8') as f:
+    data = json.load(f)
+cats = [a.get('category') for a in data.get('assertions', [])]
+print('true' if cats and all(c == 'syntax' for c in cats) else 'false')
+" 2>/dev/null || echo "false")
+  if [ "$syntax_only" = "true" ]; then
+    echo "[engine-prove] WARN syntax-only: all assertions are syntax checks. Consider adding regression/invariant assertions for deeper coverage." >&2
   fi
 
   # 6. Write PROVE.json evidence

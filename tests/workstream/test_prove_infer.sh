@@ -151,6 +151,48 @@ assert_contains "S3 has util.sh" "$PKG3" "util.sh"
 assert_contains "S3 has helper.py" "$PKG3" "helper.py"
 assert_contains "S3 has python syntax check" "$PKG3" "py_compile"
 
+# --- S4: WRITE-SET file not in diff → still in fingerprint ---
+echo ""
+echo "--- S4: WRITE-SET includes extra file → fingerprint covers it ---"
+S4="$TMPDIR_TEST/s4"
+setup_repo "$S4"
+
+cat > engine/tasks/T-004.md << 'EOF'
+# T-004: WRITE-SET broader than diff
+status: active
+## GOAL
+Test fingerprint coverage
+## WRITE-SET
+- src/main.sh
+- src/config.json
+EOF
+git add -A && git commit -qm "task card"
+
+# Only modify main.sh; config.json exists but is unchanged (pre-committed)
+echo '{"key":"value"}' > src/config.json
+git add -A && git commit -qm "config"
+echo '#!/usr/bin/env bash' > src/main.sh
+echo 'echo "main"' >> src/main.sh
+git add -A && git commit -qm "main"
+
+OUT4=$(CLAUDE_PROJECT_DIR="$S4" bash engine/scripts/engine-prove.sh T-004 --infer 2>&1); RC4=$?
+assert_exit "S4 infer exits 0" 0 $RC4
+PKG4=$(cat "$S4/engine/evidence/T-004/prove-package.md" 2>/dev/null || echo "")
+assert_contains "S4 has fingerprint" "$PKG4" "code_fingerprint: sha256:"
+assert_contains "S4 has main.sh in diff" "$PKG4" "main.sh"
+# config.json is in WRITE-SET so fingerprint includes it (different from diff-only)
+assert_contains "S4 WRITE-SET listed" "$PKG4" "config.json"
+
+# --- S5: task card not found → exit 1 ---
+echo ""
+echo "--- S5: missing task card → exit 1 ---"
+S5="$TMPDIR_TEST/s5"
+setup_repo "$S5"
+
+OUT5=$(CLAUDE_PROJECT_DIR="$S5" bash engine/scripts/engine-prove.sh T-999 --infer 2>&1); RC5=$?
+assert_exit "S5 infer exits 1" 1 $RC5
+assert_contains "S5 error message" "$OUT5" "not found\|Error"
+
 # --- Summary ---
 echo ""
 echo "=== RESULTS: $PASS passed, $FAIL failed ==="

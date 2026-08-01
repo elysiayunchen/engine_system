@@ -2038,6 +2038,79 @@ foreach ($anchor in @("AGENTS.md", "CLAUDE.md")) {
   }
 }
 
+
+# v6.25.0 (T-086/O1): ShellCheck high-reliability rule subset (grep-based lint).
+function Check-ScriptLint {
+  $scriptsDir = Join-Path $engineDir "scripts"
+  if (-not (Test-Path $scriptsDir)) { return }
+
+  $lintHits = 0
+  $shFiles = Get-ChildItem -Path $scriptsDir -Filter "*.sh" -File -ErrorAction SilentlyContinue
+  foreach ($file in $shFiles) {
+    $fname = $file.Name
+    $lines = Get-Content -Path $file.FullName -Encoding UTF8 -ErrorAction SilentlyContinue
+    if (-not $lines) { continue }
+
+    # SC2148: missing shebang
+    if ($lines.Count -gt 0 -and $lines[0] -notmatch '^#!') {
+      Write-Warn "lint SC2148 ($fname`:1): missing shebang"
+      $lintHits++
+    }
+
+    $lineNo = 0
+    foreach ($line in $lines) {
+      $lineNo++
+      if ($line -match '^\s*#') { continue }
+      if ($line -match '^\s*$') { continue }
+
+      # SC2155: local/export var=$(cmd)
+      if ($line -match '^\s*(local|export)\s+[A-Za-z_][A-Za-z_0-9]*=\$\(') {
+        Write-Warn "lint SC2155 ($fname`:$lineNo): declare and assign separately to mask return values"
+        $lintHits++
+      }
+
+      # SC2164: cd without error handling
+      if ($line -match '^\s*cd\s') {
+        if ($line -notmatch '\|\|' -and $line -notmatch '&&' -and $line -notmatch ';' -and $line -notmatch 'pushd') {
+          Write-Warn "lint SC2164 ($fname`:$lineNo): cd without error handling (add || exit)"
+          $lintHits++
+        }
+      }
+
+      # SC2162: read without -r
+      if ($line -match '^\s*read\s') {
+        if ($line -notmatch ' -r' -and $line -notmatch 'IFS=') {
+          Write-Warn "lint SC2162 ($fname`:$lineNo): read without -r mangles backslashes"
+          $lintHits++
+        }
+      }
+
+      # SC2006: backtick command substitution
+      $backtickCount = ($line.ToCharArray() | Where-Object { $_ -eq '`' } | Measure-Object).Count
+      if ($backtickCount -ge 2) {
+        Write-Warn "lint SC2006 ($fname`:$lineNo): use dollar-paren instead of backticks"
+        $lintHits++
+      }
+
+      # SC2230: which command
+      if ($line -match '^\s*which\s' -or $line -match '\$\(which ') {
+        Write-Warn "lint SC2230 ($fname`:$lineNo): use command -v instead of which"
+        $lintHits++
+      }
+
+      # SC2002: useless use of cat
+      if ($line -match '^\s*cat\s.*\|\s*[a-z]') {
+        Write-Warn "lint SC2002 ($fname`:$lineNo): useless use of cat (redirect instead)"
+        $lintHits++
+      }
+    }
+  }
+
+  if ($lintHits -eq 0) {
+    Write-Pass "script lint: no ShellCheck-pattern violations in engine/scripts/*.sh"
+  }
+}
+
 if ($registeredNames -notcontains "ENGINE_DOCTOR.md") {
   Write-Warn "ENGINE_DOCTOR.md is not registered in ENGINE_MAP section 1"
   Write-Output "  human: The ENGINE_DOCTOR.md file is not listed in the ENGINE_MAP file registry. Add it to section 1 so the system can track it."
@@ -2081,6 +2154,9 @@ foreach ($cli in @("engine", "engine.ps1", "engine.cmd")) {
     Write-Output "  human: The CLI entry point 'engine/bin/$cli' is missing. Run 'engine sync' to restore bundled CLI shims from the engine package."
   }
 }
+
+# v6.25.0 (T-086/O1): script lint (ShellCheck-pattern subset)
+Check-ScriptLint
 
 Write-Host ""
 Write-Host "Engine Doctor: $failCount failure(s), $warnCount warning(s)"

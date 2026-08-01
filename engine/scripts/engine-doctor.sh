@@ -148,15 +148,47 @@ warn() {
 # v6.12.1 (issue #11 C-1): anchored card-status predicates. Unanchored
 # 'status:.*active' greps also match prose that merely QUOTES the pattern -
 # a card documenting the bug pins itself active (self-referential lock).
+# Cache the anchored status once per card: Doctor applies these predicates in
+# many full-task scans, and spawning grep for every predicate is prohibitively
+# slow under Windows Git Bash.
+declare -A _doctor_card_status_cache=()
+doctor_load_card_status_cache() {
+  local file status
+  [ -d "$ENGINE_DIR/tasks" ] || return 0
+  while IFS='|' read -r file status; do
+    [ -n "$file" ] || continue
+    _doctor_card_status_cache["$file"]="$status"
+  done < <(
+    grep -H -E -o '^[[:space:]]*(>[[:space:]]*)?status:[[:space:]]*(active|paused|done)([[:space:]]|$)' \
+      "$ENGINE_DIR"/tasks/T-*.md 2>/dev/null |
+      sed -E 's/^(.*):[[:space:]]*(>[[:space:]]*)?status:[[:space:]]*([^[:space:]]+).*/\1|\3/'
+  )
+}
+doctor_card_status() {
+  local file="$1" line status=""
+  if [[ -n "${_doctor_card_status_cache[$file]+present}" ]]; then
+    printf '%s' "${_doctor_card_status_cache[$file]}"
+    return 0
+  fi
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    if [[ "$line" =~ ^[[:space:]]*(>[[:space:]]*)?status:[[:space:]]*([^[:space:]]+) ]]; then
+      status="${BASH_REMATCH[2]}"
+      break
+    fi
+  done < "$file"
+  _doctor_card_status_cache["$file"]="$status"
+  printf '%s' "$status"
+}
 card_status_active() {
-  grep -Eq '^[[:space:]]*(>[[:space:]]*)?status:[[:space:]]*active' "$1" 2>/dev/null
+  [[ "$(doctor_card_status "$1")" == "active" ]]
 }
 card_status_paused() {
-  grep -Eq '^[[:space:]]*(>[[:space:]]*)?status:[[:space:]]*paused' "$1" 2>/dev/null
+  [[ "$(doctor_card_status "$1")" == "paused" ]]
 }
 card_status_done() {
-  grep -Eq '^[[:space:]]*(>[[:space:]]*)?status:[[:space:]]*done' "$1" 2>/dev/null
+  [[ "$(doctor_card_status "$1")" == "done" ]]
 }
+doctor_load_card_status_cache
 
 # v6.12.1 (issue #11 B-2): unified task-card field parser, same three formats
 # as the pre-commit hook (T-043): inline `FIELD: a,b`, markdown `## FIELD`
@@ -289,7 +321,8 @@ package_mode() {
 
 if $PACKAGE_MODE; then
   package_mode
-  printf '\nEngine Doctor: %s failure(s), %s warning(s)\n' "$fail_count" "$warn_count"
+
+printf '\nEngine Doctor: %s failure(s), %s warning(s)\n' "$fail_count" "$warn_count"
   if [[ "$fail_count" -gt 0 ]]; then
     exit 1
   fi
@@ -478,7 +511,8 @@ check_context_semantics() {
       echo "  human: CONTEXT.md is missing the '$label' row in its status panel. Add a table row for '$label' with current information."
       continue
     fi
-    value="$(printf '%s' "$row" | awk -F'|' '{print $3}' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+    IFS='|' read -ra row_cols <<< "$row"
+    value="$(trim "${row_cols[2]-}")"
     if [[ -z "$value" || "$value" =~ ^\[.*\]$ || "$value" == "TBD" || "$value" == "TODO" ]]; then
       warn "CONTEXT.md status row '$label' is placeholder or empty"
       echo "  human: The '$label' row in CONTEXT.md has no real value (placeholder or empty). Fill in the actual status."
@@ -670,7 +704,7 @@ check_inventory_bidirectional() {
       # cols[0] is empty (leading `|`), cols[1]=Feature, cols[2]=Entry file, ...
       local entry_file=""
       if [ "${#cols[@]}" -ge 3 ]; then
-        entry_file="$(printf '%s' "${cols[2]}" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+        entry_file="$(trim "${cols[2]}")"
       fi
       [ -z "$entry_file" ] && continue
       # Skip placeholders / glob patterns.
@@ -790,7 +824,7 @@ check_inventory_api_uniqueness() {
       # cols[3] = Public API (0=empty, 1=Feature, 2=Entry, 3=Public API)
       local api=""
       if [ "${#cols[@]}" -ge 4 ]; then
-        api="$(printf '%s' "${cols[3]}" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+        api="$(trim "${cols[3]}")"
       fi
       [ -z "$api" ] && continue
       [[ "$api" == \[*\]* ]] && continue
@@ -868,7 +902,7 @@ check_writeset_budget() {
     local IFS_save="$IFS"
     IFS=','
     for ws_path in $write_set_line; do
-      ws_path="$(printf '%s' "$ws_path" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+      ws_path="$(trim "$ws_path")"
       [ -z "$ws_path" ] && continue
       # Skip globs.
       [[ "$ws_path" == *"*"* ]] && continue
@@ -954,7 +988,7 @@ check_task_granularity() {
       local IFS_save="$IFS"
       IFS=','
       for p in $write_set_line; do
-        p="$(printf '%s' "$p" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+        p="$(trim "$p")"
         [ -z "$p" ] && continue
         # De-dup mirror pairs: strip "plugin/" prefix for comparison.
         local canonical="$p"
@@ -1043,7 +1077,7 @@ check_depends_on() {
     IFS=','
     local upstream
     for upstream in $depends_line; do
-      upstream="$(printf '%s' "$upstream" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+      upstream="$(trim "$upstream")"
       [ -z "$upstream" ] && continue
       # Validate format T-NNN.
       [[ "$upstream" =~ ^T-[0-9]+$ ]] || continue
@@ -1357,15 +1391,22 @@ check_contract_debt() {
 # will upgrade the evidence shape.
 evidence_has_pass() {
   local content="${1:-}"
-  printf '%s\n' "$content" | grep -Eiq '"status"[[:space:]]*:[[:space:]]*"pass"' && return 0
-  printf '%s\n' "$content" | grep -Eiq '"status"[[:space:]]*:' && return 1
-  printf '%s\n' "$content" | grep -Eiq '"verdict"[[:space:]]*:[[:space:]]*"pass"'
+  local lowered="${content,,}"
+  local status_pass_re='"status"[[:space:]]*:[[:space:]]*"pass"'
+  local status_re='"status"[[:space:]]*:'
+  local verdict_pass_re='"verdict"[[:space:]]*:[[:space:]]*"pass"'
+  [[ "$lowered" =~ $status_pass_re ]] && return 0
+  [[ "$lowered" =~ $status_re ]] && return 1
+  [[ "$lowered" =~ $verdict_pass_re ]]
 }
 
 evidence_is_legacy_verdict() {
   local content="${1:-}"
-  printf '%s\n' "$content" | grep -Eiq '"verdict"[[:space:]]*:[[:space:]]*"pass"' || return 1
-  ! printf '%s\n' "$content" | grep -Eiq '"status"[[:space:]]*:'
+  local lowered="${content,,}"
+  local verdict_pass_re='"verdict"[[:space:]]*:[[:space:]]*"pass"'
+  local status_re='"status"[[:space:]]*:'
+  [[ "$lowered" =~ $verdict_pass_re ]] || return 1
+  ! [[ "$lowered" =~ $status_re ]]
 }
 
 check_task_card_done_evidence() {
@@ -1377,22 +1418,24 @@ check_task_card_done_evidence() {
     [[ "$f" == *.spec.md ]] && continue
     card_status_done "$f" || continue
     done_count=$((done_count + 1))
-    local tid; tid="$(basename "$f" .md)"
+    local tid; tid="${f##*/}"; tid="${tid%.md}"
     local ev_dir="$ENGINE_DIR/evidence/$tid"
-    if grep -qi 'exempt' "$f" 2>/dev/null; then
+    local card_content; card_content="$(<"$f")"
+    if [[ "${card_content,,}" == *exempt* ]]; then
       exempt_count=$((exempt_count + 1))
       continue
     fi
-    local ac_ids ac_count missing ac ev
-    ac_ids="$(parse_ac_declarations "$f" | cut -f1)"
-    ac_count="$(printf '%s\n' "$ac_ids" | sed '/^$/d' | wc -l | tr -d ' ')"
+    local ac_records ac_count=0 missing ac verify_cmd ev ev_content
+    ac_records="$(parse_ac_declarations "$f")"
     missing=""
-    for ac in $ac_ids; do
+    while IFS=$'\t' read -r ac verify_cmd || [ -n "$ac" ]; do
+      [ -n "$ac" ] || continue
+      ac_count=$((ac_count + 1))
       ev="$ev_dir/$ac.json"
       if [ ! -f "$ev" ]; then
         missing="${missing}${missing:+,}$ac"
       else
-        ev_content="$(cat "$ev" 2>/dev/null || true)"
+        ev_content="$(<"$ev")"
         if ! evidence_has_pass "$ev_content"; then
           missing="${missing}${missing:+,}$ac"
         elif evidence_is_legacy_verdict "$ev_content"; then
@@ -1400,7 +1443,7 @@ check_task_card_done_evidence() {
           echo "  human: Evidence for $tid/$ac uses the legacy verdict=PASS field. It is accepted for compatibility; re-run engine verify to upgrade it to status=pass."
         fi
       fi
-    done
+    done <<< "$ac_records"
     if [ "$ac_count" -gt 0 ] 2>/dev/null && [ -z "$missing" ]; then
       verified_count=$((verified_count + 1))
     elif command -v git >/dev/null 2>&1 && git cat-file -e "HEAD:engine/tasks/$tid.md" 2>/dev/null; then
@@ -2019,6 +2062,87 @@ check_plan_acceptance_evidence() {
   done < "$plan_tmp"
 }
 
+# v6.25.0 (T-086/O1): ShellCheck high-reliability rule subset as grep-based lint.
+# Internalized from ShellCheck (GPL) — only rules with near-zero false-positive
+# grep patterns. WARN-level; does not block gate. Runs on engine/scripts/*.sh.
+check_script_lint() {
+  local scripts_dir="$ENGINE_DIR/scripts"
+  [ -d "$scripts_dir" ] || return 0
+
+  local lint_hits=0
+  local f line_no line
+
+  for f in "$scripts_dir"/*.sh; do
+    [ -f "$f" ] || continue
+    local fname; fname="$(basename "$f")"
+
+    # SC2148: missing shebang on line 1
+    local first_line
+    first_line="$(head -1 "$f")"
+    if [[ "$first_line" != "#!"* ]]; then
+      warn "lint SC2148 ($fname:1): missing shebang"
+      lint_hits=$((lint_hits + 1))
+    fi
+
+    # Line-by-line checks (skip comments and blank lines)
+    line_no=0
+    while IFS= read -r line || [ -n "$line" ]; do
+      line_no=$((line_no + 1))
+      # Skip comments, blank lines, shebang
+      [[ "$line" =~ ^[[:space:]]*# ]] && continue
+      [[ -z "${line// /}" ]] && continue
+
+      # SC2155: local/export var=$(cmd) — declare and assign separately
+      if [[ "$line" =~ ^[[:space:]]*(local|export)[[:space:]]+[A-Za-z_][A-Za-z_0-9]*=\$\( ]]; then
+        warn "lint SC2155 ($fname:$line_no): declare and assign separately to mask return values"
+        lint_hits=$((lint_hits + 1))
+      fi
+
+      # SC2164: cd without || exit / || return / || true / && / ;
+      if [[ "$line" =~ ^[[:space:]]*cd[[:space:]] ]]; then
+        if [[ "$line" != *"||"* && "$line" != *"&&"* && "$line" != *";"* && "$line" != *"pushd"* ]]; then
+          warn "lint SC2164 ($fname:$line_no): cd without error handling (add || exit)"
+          lint_hits=$((lint_hits + 1))
+        fi
+      fi
+
+      # SC2162: read without -r flag
+      if [[ "$line" =~ ^[[:space:]]*read[[:space:]] ]]; then
+        if [[ "$line" != *" -r"* && "$line" != *"read -r"* && "$line" != *"IFS="* ]]; then
+          warn "lint SC2162 ($fname:$line_no): read without -r mangles backslashes"
+          lint_hits=$((lint_hits + 1))
+        fi
+      fi
+
+      # SC2006: backtick command substitution (use $(...) instead)
+      if [[ "$line" == *'`'*'`'* ]]; then
+        # Exclude lines that are purely comments (already skipped) or inside heredocs
+        warn "lint SC2006 ($fname:$line_no): use \$(...) instead of backticks"
+        lint_hits=$((lint_hits + 1))
+      fi
+
+      # SC2230: which command (use command -v / type -P)
+      if [[ "$line" =~ ^[[:space:]]*which[[:space:]] || "$line" == *'$(which '* || "$line" == *'`which '* ]]; then
+        warn "lint SC2230 ($fname:$line_no): use 'command -v' instead of 'which'"
+        lint_hits=$((lint_hits + 1))
+      fi
+
+      # SC2002: useless use of cat (cat file | cmd)
+      if [[ "$line" =~ ^[[:space:]]*cat[[:space:]].*\|[[:space:]]*[a-z] ]]; then
+        warn "lint SC2002 ($fname:$line_no): useless use of cat (redirect instead)"
+        lint_hits=$((lint_hits + 1))
+      fi
+
+    done < "$f"
+  done
+
+  if [ "$lint_hits" -eq 0 ]; then
+    pass "script lint: no ShellCheck-pattern violations in engine/scripts/*.sh"
+  fi
+}
+
+
+
 while IFS= read -r path; do
   rel="${path#"$ROOT/"}"
   if [[ "$rel" == engine/README.md || "$rel" == engine/README.zh.md ]]; then
@@ -2323,6 +2447,10 @@ for cli in engine engine.ps1 engine.cmd; do
     echo "  human: The CLI entry point 'engine/bin/$cli' is missing. Run 'engine sync' to restore bundled CLI shims."
   fi
 done
+
+
+# v6.25.0 (T-086/O1): script lint (ShellCheck-pattern subset)
+check_script_lint
 
 printf '\nEngine Doctor: %s failure(s), %s warning(s)\n' "$fail_count" "$warn_count"
 if [[ "$fail_count" -gt 0 ]]; then

@@ -1445,7 +1445,10 @@ check_review_evidence() {
     prov_argv="$(grep -oE '"argv":"[^"]*"' "$review_file" | head -1 | sed 's/"argv":"//;s/"//')"
     head_commit="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
 
-    [ "$prov_writer" = "engine-review" ] || warn "$tid review evidence writer=$prov_writer (expected engine-review)"
+    case "$prov_writer" in
+      engine-review|engine-review-from-receipt) : ;;
+      *) warn "$tid review evidence writer=$prov_writer (expected engine-review or engine-review-from-receipt)" ;;
+    esac
     # D-040 (issue #28): stale 判定改为 ancestor-of-HEAD。正常 Coordinator closeout
     # 会在 review 之后提交 evidence/任务卡/CONTEXT/HANDOFF/ENGINE_MAP/胶囊,合法推进 HEAD;
     # review commit 仍为 HEAD 祖先即有效,只有被 rebase 掉/分叉/未知 commit 才报 stale。
@@ -1460,6 +1463,7 @@ check_review_evidence() {
     fi
     case "$prov_argv" in
       "engine review $tid") : ;;
+      "engine review $tid --from-receipt "*) : ;;
       *) warn "$tid review evidence argv mismatch: $prov_argv" ;;
     esac
 
@@ -2148,6 +2152,29 @@ check_review_evidence
 check_review_config_protected
 check_agent_review_evidence
 check_gate_registry
+
+# v6.26.0 (T-085): capsule heat check
+check_capsule_heat() {
+  local capsule_dir="$ENGINE_DIR/changes"
+  [ -d "$capsule_dir" ] || return 0
+  local f heat related_dec
+  for f in "$capsule_dir"/CHANGE-*.md; do
+    [ -f "$f" ] || continue
+    # Parse META header heat field
+    heat="$(sed -n '/^-----META-START-----/,/^-----META-END-----/{s/^heat:[[:space:]]*//p}' "$f" 2>/dev/null | head -1)"
+    [ -n "$heat" ] || continue
+    case "$heat" in *[!0-9]*) continue ;; esac
+    related_dec="$(sed -n '/^-----META-START-----/,/^-----META-END-----/{s/^related-decisions:[[:space:]]*//p}' "$f" 2>/dev/null | head -1)"
+    local cname
+    cname="$(basename "$f")"
+    if [ "$heat" -ge 5 ]; then
+      warn "capsule $cname heat=$heat: high-frequency change area, consider extracting to formal decision or PITFALLS"
+    elif [ "$heat" -ge 3 ] && [ -z "$related_dec" ]; then
+      warn "capsule $cname heat=$heat with no related-decisions: multiple changes without decision record"
+    fi
+  done
+}
+check_capsule_heat
 
 # ── Project-custom checks (engine/checks/) ──
 # Each project may place executable check-*.sh (FAIL on non-zero) or warn-*.sh

@@ -29,6 +29,7 @@ Usage:
   engine prove T-NNN --infer|--execute   Infer or execute proof assertions
   engine close T-NNN [--handoff AGENT]   Run verify → gate → doctor and record closure evidence
   engine review T-NNN  Run post-task code review (semgrep + eslint) for a task card
+  engine review T-NNN --from-receipt AGENT  Convert workstream reviewer receipt to REVIEW.json
   engine review-agent T-NNN --package   Package review context for agent code review
   engine review-agent T-NNN --validate  Validate agent-produced AGENT-REVIEW.json
   engine doctor         Run engine health check
@@ -772,13 +773,23 @@ case "${1:-help}" in
     fi
     task="${2:-}"
     if [ -z "$task" ]; then
-      echo "Usage: engine review T-NNN" >&2
+      echo "Usage: engine review T-NNN [--from-receipt AGENT]" >&2
       echo "  Run post-task code review (semgrep + eslint) for a task card." >&2
+      echo "  --from-receipt AGENT: convert workstream reviewer receipt to REVIEW.json." >&2
       echo "  Must be run after 'engine verify T-NNN' passes." >&2
       echo "  Exit codes: 0=pass | 1=block(critical/high findings) | 2=usage error" >&2
       exit 2
     fi
-    bash "$PWD/engine/scripts/engine-review.sh" "$task"
+    if [ "${3:-}" = "--from-receipt" ]; then
+      agent_id="${4:-}"
+      if [ -z "$agent_id" ]; then
+        echo "Usage: engine review T-NNN --from-receipt AGENT" >&2
+        exit 2
+      fi
+      bash "$PWD/engine/scripts/engine-review-from-receipt.sh" "$task" "$agent_id"
+    else
+      bash "$PWD/engine/scripts/engine-review.sh" "$task"
+    fi
     ;;
   review-agent)
     if [ ! -d "$PWD/engine" ]; then

@@ -1445,7 +1445,10 @@ check_review_evidence() {
     prov_argv="$(grep -oE '"argv":"[^"]*"' "$review_file" | head -1 | sed 's/"argv":"//;s/"//')"
     head_commit="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
 
-    [ "$prov_writer" = "engine-review" ] || warn "$tid review evidence writer=$prov_writer (expected engine-review)"
+    case "$prov_writer" in
+      engine-review|engine-review-from-receipt) : ;;
+      *) warn "$tid review evidence writer=$prov_writer (expected engine-review or engine-review-from-receipt)" ;;
+    esac
     # D-040 (issue #28): stale 判定改为 ancestor-of-HEAD。正常 Coordinator closeout
     # 会在 review 之后提交 evidence/任务卡/CONTEXT/HANDOFF/ENGINE_MAP/胶囊,合法推进 HEAD;
     # review commit 仍为 HEAD 祖先即有效,只有被 rebase 掉/分叉/未知 commit 才报 stale。
@@ -1460,6 +1463,7 @@ check_review_evidence() {
     fi
     case "$prov_argv" in
       "engine review $tid") : ;;
+      "engine review $tid --from-receipt "*) : ;;
       *) warn "$tid review evidence argv mismatch: $prov_argv" ;;
     esac
 

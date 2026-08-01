@@ -40,6 +40,7 @@ Usage:
   engine prove T-NNN --infer|--execute   Infer or execute proof assertions
   engine close T-NNN [--handoff AGENT]   Run verify -> gate -> doctor and record closure evidence
   engine review T-NNN  Run post-task code review (semgrep + eslint) for a task card
+  engine review T-NNN --from-receipt AGENT  Convert workstream reviewer receipt to REVIEW.json
   engine review-agent T-NNN --package   Package review context for external agent review
   engine review-agent T-NNN --validate  Validate agent-produced AGENT-REVIEW.json
   engine doctor         Run engine health check
@@ -784,8 +785,13 @@ switch ($Command) {
       Write-Error "Usage: engine review T-NNN`n  Run post-task code review (semgrep + eslint) for a task card.`n  Must be run after 'engine verify T-NNN' passes.`n  Exit codes: 0=pass | 1=block(critical/high findings) | 2=usage error"
       exit 2
     }
-    $reviewScript = Join-Path $PWD.Path "engine\scripts\engine-review.ps1"
-    & $reviewScript -Task $Task
+    if ($RemainingArgs.Count -ge 2 -and $RemainingArgs[0] -eq "--from-receipt") {
+      $receiptScript = Join-Path $PWD.Path "engine\scripts\engine-review-from-receipt.ps1"
+      & $receiptScript -Task $Task -AgentId $RemainingArgs[1]
+    } else {
+      $reviewScript = Join-Path $PWD.Path "engine\scripts\engine-review.ps1"
+      & $reviewScript -Task $Task
+    }
   }
   "review-agent" {
     if (-not (Test-Path "engine")) {

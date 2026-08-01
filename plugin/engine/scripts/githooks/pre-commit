@@ -652,18 +652,20 @@ print(hashlib.sha256(normalized.encode('utf-8')).hexdigest())
         fi
       fi
     else
-      # --- REVIEW.json (v6.20.0, T-070) ---
+      # --- REVIEW.json (v6.20.0, T-070; v6.24.0 D-041 from-receipt) ---
       _prov_argv="$(printf '%s\n' "$_content" | grep -oE '"argv":"[^"]*"' | head -1 | sed 's/"argv":"//;s/"//')"
-      if [ "$_prov_writer" != "engine-review" ]; then
-        printf '\n[Engine System] review evidence %s invalid writer: %s\n' "$file" "$_prov_writer" >&2
-        IFS="$old_ifs"; exit 1
-      fi
+      case "$_prov_writer" in
+        engine-review|engine-review-from-receipt) : ;;
+        *) printf '\n[Engine System] review evidence %s invalid writer: %s\n' "$file" "$_prov_writer" >&2
+           IFS="$old_ifs"; exit 1 ;;
+      esac
       if [ "$_prov_commit" != "$_head_commit" ]; then
         printf '\n[Engine System] review evidence %s stale: commit=%s HEAD=%s\n' "$file" "$_prov_commit" "$_head_commit" >&2
         IFS="$old_ifs"; exit 1
       fi
       case "$_prov_argv" in
         "engine review $_tid") : ;;
+        "engine review $_tid --from-receipt "*) : ;;
         *) printf '\n[Engine System] review evidence %s argv mismatch: %s\n' "$file" "$_prov_argv" >&2
            IFS="$old_ifs"; exit 1 ;;
       esac

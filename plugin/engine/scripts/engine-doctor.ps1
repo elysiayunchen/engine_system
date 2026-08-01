@@ -1795,8 +1795,8 @@ function Test-ReviewEvidence {
 
     $review = Get-Content $reviewFile -Raw | ConvertFrom-Json
     $headCommit = git rev-parse HEAD 2>$null
-    if ($review.write_provenance.writer -ne "engine-review") {
-      Write-Warn "$tid review evidence writer=$($review.write_provenance.writer) (expected engine-review)"
+    if ($review.write_provenance.writer -notin @("engine-review","engine-review-from-receipt")) {
+      Write-Warn "$tid review evidence writer=$($review.write_provenance.writer) (expected engine-review or engine-review-from-receipt)"
     }
     if ($review.write_provenance.commit -ne $headCommit) {
       # D-040 (issue #28): stale 判定改为 ancestor-of-HEAD。正常 Coordinator closeout
@@ -1812,7 +1812,7 @@ function Test-ReviewEvidence {
         Write-Warn "$tid stale review evidence (commit=$($review.write_provenance.commit) HEAD=$headCommit)"
       }
     }
-    if ($review.write_provenance.argv -ne "engine review $tid") {
+    if ($review.write_provenance.argv -ne "engine review $tid" -and $review.write_provenance.argv -notlike "engine review $tid --from-receipt *") {
       Write-Warn "$tid review evidence argv mismatch: $($review.write_provenance.argv)"
     }
     if ($review.tool_unavailable -eq $true) {

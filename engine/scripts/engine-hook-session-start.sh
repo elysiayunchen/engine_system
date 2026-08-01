@@ -78,6 +78,66 @@ $guard_id GOAL: $(printf '%.200s' "$guard_goal")"
   if [ -x "$canvas_script" ] || [ -f "$canvas_script" ]; then
     bash "$canvas_script" --guard 2>/dev/null || true
   fi
+  # v6.26.0 (T-085): drift detection (4 signals, advisory only, <50ms)
+  if [ "$guard_count" -gt 0 ]; then
+    _drift_score=0
+    _drift_reasons=""
+    # Extract user prompt from payload
+    _drift_prompt="$(printf '%s' "$guard_payload" | sed -n 's/.*"prompt"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)"
+    [ -n "$_drift_prompt" ] || _drift_prompt="$(printf '%s' "$guard_payload" | sed -n 's/.*"user_prompt"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)"
+    if [ -n "$_drift_prompt" ]; then
+      # Signal 1 (+3): prompt mentions non-active T-NNN
+      _drift_mentions="$(printf '%s' "$_drift_prompt" | grep -oE 'T-[0-9]{3}' | sort -u)"
+      if [ -n "$_drift_mentions" ]; then
+        while IFS= read -r _dm; do
+          [ -n "$_dm" ] || continue
+          case ",$guard_ids," in
+            *"$_dm"*) : ;; # active, fine
+            *) _drift_score=$((_drift_score + 3)); _drift_reasons="${_drift_reasons:+$_drift_reasons; }mentions $_dm (not active)" ;;
+          esac
+        done <<< "$_drift_mentions"
+      fi
+      # Signal 2 (+2): zero keyword overlap with GOAL (bag-of-words >=4 chars)
+      _drift_goal_words="$(printf '%s' "${guard_goals:-}" | grep -oE '[A-Za-z_]{4,}' | tr 'A-Z' 'a-z' | sort -u)"
+      _drift_prompt_words="$(printf '%s' "$_drift_prompt" | grep -oE '[A-Za-z_]{4,}' | tr 'A-Z' 'a-z' | sort -u)"
+      if [ -n "$_drift_goal_words" ] && [ -n "$_drift_prompt_words" ]; then
+        _drift_overlap="$(comm -12 <(printf '%s' "$_drift_goal_words") <(printf '%s' "$_drift_prompt_words") 2>/dev/null | head -1)"
+        if [ -z "$_drift_overlap" ]; then
+          _drift_score=$((_drift_score + 2)); _drift_reasons="${_drift_reasons:+$_drift_reasons; }zero GOAL keyword overlap"
+        fi
+      fi
+    fi
+    # Signal 3 (+1): session-card affinity mismatch
+    if [ -n "${guard_key:-}" ] && [ -f "$ENGINE_DIR/.cache/sessions/${guard_key}.card" ]; then
+      _drift_affinity="$(cat "$ENGINE_DIR/.cache/sessions/${guard_key}.card" 2>/dev/null | head -1)"
+      if [ -n "$_drift_affinity" ]; then
+        case ",$guard_ids," in
+          *"$_drift_affinity"*) : ;;
+          *) _drift_score=$((_drift_score + 1)); _drift_reasons="${_drift_reasons:+$_drift_reasons; }session affinity $_drift_affinity no longer active" ;;
+        esac
+      fi
+    fi
+    # Signal 4 (+1): active card mtime >4h
+    _drift_now_epoch="$(date +%s 2>/dev/null || echo 0)"
+    if [ "$_drift_now_epoch" -gt 0 ]; then
+      for f in "$ENGINE_DIR"/tasks/T-*.md; do
+        [ -f "$f" ] || continue
+        grep -Eq '^[[:space:]]*(>[[:space:]]*)?status:[[:space:]]*active' "$f" 2>/dev/null || continue
+        _drift_mtime="$(stat -c %Y "$f" 2>/dev/null || stat -f %m "$f" 2>/dev/null || echo "$_drift_now_epoch")"
+        _drift_age_h=$(( (_drift_now_epoch - _drift_mtime) / 3600 ))
+        if [ "$_drift_age_h" -gt 4 ]; then
+          _drift_score=$((_drift_score + 1)); _drift_reasons="${_drift_reasons:+$_drift_reasons; }card $(basename "$f" .md) stale ${_drift_age_h}h"
+          break
+        fi
+      done
+    fi
+    # Output advisory
+    if [ "$_drift_score" -ge 3 ]; then
+      echo "[Engine Guard] DRIFT ADVISORY (score=$_drift_score): $_drift_reasons"
+    elif [ "$_drift_score" -ge 1 ]; then
+      echo "[Engine Guard] drift-hint: $_drift_reasons"
+    fi
+  fi
   exit 0
 fi
 

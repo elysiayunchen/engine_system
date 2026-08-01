@@ -1,6 +1,6 @@
 # ENGINE_MAP — 引擎索引
 
-> Engine System (engine_system) · Revision: 45 · Last updated: 2026-08-01 (v6.25.0)
+> Engine System (engine_system) · Revision: 45 · Last updated: 2026-08-01 (v6.26.0)
 > ⚠️ MVP dogfood 实例（精简版）。完整 v5.5 注册表（§1.1 / §1.2 / §2 / §3 / 预算）待 `/engine-reconcile` 或 `/engine-init` 补全。
 
 ## §0 Profile & Read-Gate
@@ -54,7 +54,7 @@ path-glob → domain 路由表。机读源:`engine/domains/federation.json`;Sess
 
 ## §4 完整性与新鲜度
 
-- 全局 revision：45
+- 全局 revision：46
 
 ### 里程碑状态
 
@@ -79,7 +79,7 @@ path-glob → domain 路由表。机读源:`engine/domains/federation.json`;Sess
 | v6.12.3 (T-051) dist-stale pre-commit 门禁 | ✅ | v6.12.2 发版时直编编译产物 `ENGINE_FILE_SYSTEM_v5.md` 未跑 `compile.sh` 导致 CI Doctor `contract dist is not compile(src)` FAIL → CI/Release 双红 + re-tag,本版加前置防线:pre-commit hook 检测 staged 含 `contract/src/**` 或 6 个 dist 文件之一时,运行 `ENGINE_COMPILE_OUT=/tmp/xxx bash contract/compile.sh` 编译到临时目录,diff 6 个 dist 文件的工作树版本与编译输出。任一不匹配 → FAIL,消息提示 `bash contract/compile.sh`。无契约文件 staged → 跳过(零开销)。compile.sh 自身失败 → WARN(fail-open)。测试 `tests/workstream/test_precommit_dist_stale.sh` 5 场景 PASS。 |
 | v6.13.0 (T-052) .engineignore 旁路通道 | ✅ | issue #17:非产品路径(跨 agent 锚点 GEMINI.md/AGENTS.md、engine 工具自身、项目 config)被 task-card union gating 拦截,要么建 throwaway 卡,要么 `--no-verify` 绕过。本版加 `.engineignore`(gitignore 风格)旁路:pre-commit hook 加 `is_engineignored()`(读 `$ROOT/.engineignore`,复用 `match_any_glob`,strip trailing `/**`,纯 shell 零子进程)+ `union_not_all_forbidden()`(命中 .engineignore 跳 WRITE-SET 检查,但不跳 FORBIDDEN——纠正 issue #17 提案设计错误)。旁路范围仅 no-card + union WRITE-SET 两块;protected-path/dist-stale 独立路径不受影响。`.engineignore` 入 rules.json protected_paths(需 covering decision D-036);Doctor `check_engineignore` 对 product 路径 WARN。`engine/skeleton/.engineignore` 模板供 engine-init。测试 7 场景 10 断言 PASS。 |
 | v6.18.0 (T-066) 防漂移 P1 — 证据多锚 + drift-check | ✅ | D-038a/b 实施:evidence schema 升级为多锚(output_fingerprint + code_fingerprint via `git ls-files -s` + write_set_snapshot + verified_against_commit + write_provenance + MANIFEST.json 聚合 hash)。新增 `engine-drift-check.{sh,ps1}` 三步顺序校验(完整性自证 → WRITE-SET 二阶 → 代码指纹)。pre-commit 加 provenance gate(writer=engine-verify + commit=HEAD + argv 匹配;手动需 evidence-manual-edit 标注)。rules.json 加 `engine/evidence/**` + `engine-drift-check.*` protected_paths。engine-doctor 集成 drift-check。plugin 镜像 byte-identical(7 脚本)。测试:drift-check 5 场景 + provenance 6 场景。 |
-| v6.25.0 (T-082) TDAI P0 集成 — 任务画布 + 失败模式提取 | ✅ | engine-canvas.{sh,ps1} 证据派生 Mermaid(零 LLM/零持久化); SessionStart 注入 + Guard 摘要; 失败模式自动提取(S5/S12/S13/S18) → PITFALLS Auto-detected(cksum 去重, fail-open); pre-commit EXIT trap 信号写入。PS1 镜像 + plugin byte-identical + manifest 71 项。测试 30 断言 ALL PASS。 |
+| v6.26.0 (T-082) TDAI P0 集成 — 任务画布 + 失败模式提取 | ✅ | engine-canvas.{sh,ps1} 证据派生 Mermaid(零 LLM/零持久化); SessionStart 注入 + Guard 摘要; 失败模式自动提取(S5/S12/S13/S18) → PITFALLS Auto-detected(cksum 去重, fail-open); pre-commit EXIT trap 信号写入。PS1 镜像 + plugin byte-identical + manifest 71 项。测试 30 断言 ALL PASS。 |
 | v6.19.0 (T-067) 防漂移 P2 — 状态面板视图化 + 信任分级注入 | ✅ | D-038c/d 实施:CONTEXT.md 状态面板从「权威声明」降级为「派生视图」(双写过渡期 v6.19.0~v6.20.0,旧静态段保留并标 `<!-- legacy: status-panel -->`,新 "Derived Status" 段由 engine context 实时重算 git tag + engine/VERSION + 最近 done 卡 evidence 信任级)。`engine-context.{sh,ps1}` 新增 `render_derived_status()` 输出 [T1]/[T2 legacy]/[T2 declared-only]/[T3 unverified] 信任标签(T1=code_fingerprint + verified_against_commit=HEAD/ancestor + tag/VERSION 一致;T2 分档 legacy-evidence/declared-only/stale;T3=待验证)。`engine-doctor.{sh,ps1}` 新增 `check_derived_status` 校验 legacy 标注 + tag/VERSION 一致性 + stale panel(双写过渡期 WARN 不 FAIL)。plugin 镜像 byte-identical(4 脚本)。测试 test_derived_status.sh 6 场景 9/9 PASS。 |
 | v6.21.0 (T-071) Review P2 — agent-reviewer 语义审查 | ✅ | 两原子命令(--package 打包审查上下文 / --validate 校验 agent 产出)。5 维固定审查(correctness/design/consistency/readability/completeness) + 3 参数化静态挑战 + 反橡皮图章(E_SHALLOW) + provenance 回显模型(package_sha256 COMPUTE 归一化 + head_commit echo)。config.json agent_review 段(opt-in)。ps1 行为镜像(非 byte-identical)。60 断言全绿(CLI 12 + package 19 + validate 16 + config 4 + mirror 9)。 |
 | N1-N5 | ✅ | 全部达成 |

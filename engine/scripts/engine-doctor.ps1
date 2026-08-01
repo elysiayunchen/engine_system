@@ -1835,6 +1835,54 @@ function Test-ReviewConfigProtected {
   }
 }
 
+# v6.26.0: capsule heat check. Scans engine/changes/CHANGE-*.md META headers
+# for a numeric "heat:" field. High heat indicates a frequently-changed area
+# that may deserve a formal decision or PITFALLS entry. Heat >= 3 without a
+# related-decisions record suggests undocumented repeated changes.
+function Test-CapsuleHeat {
+  try {
+    $changesDir = Join-Path $engineDir "changes"
+    if (-not (Test-Path $changesDir)) { return }
+    $capsules = @(Get-ChildItem -Path $changesDir -File -Filter "CHANGE-*.md" -ErrorAction SilentlyContinue)
+    if ($capsules.Count -eq 0) { return }
+
+    foreach ($capsule in $capsules) {
+      $content = Get-Content -Raw -Path $capsule.FullName -Encoding UTF8 -ErrorAction SilentlyContinue
+      if (-not $content) { continue }
+
+      # Parse META header between -----META-START----- and -----META-END-----.
+      $metaMatch = [regex]::Match($content, '(?s)-----META-START-----(.+?)-----META-END-----')
+      if (-not $metaMatch.Success) { continue }
+      $metaBlock = $metaMatch.Groups[1].Value
+
+      # Extract "heat:" field (must be numeric, skip if not).
+      $heatMatch = [regex]::Match($metaBlock, '(?m)^\s*heat:\s*(.+)$')
+      if (-not $heatMatch.Success) { continue }
+      $heatRaw = $heatMatch.Groups[1].Value.Trim()
+      if ($heatRaw -notmatch '^\d+$') { continue }
+      $heat = [int]$heatRaw
+
+      # Extract "related-decisions:" field.
+      $relatedDecisions = ""
+      $rdMatch = [regex]::Match($metaBlock, '(?m)^\s*related-decisions:\s*(.*)$')
+      if ($rdMatch.Success) { $relatedDecisions = $rdMatch.Groups[1].Value.Trim() }
+
+      # heat >= 5 -> WARN high-frequency change area.
+      if ($heat -ge 5) {
+        Write-Warn "$($capsule.Name) has heat=$heat - high-frequency change area, consider extracting to formal decision or PITFALLS"
+        Write-Output "  human: Change capsule '$($capsule.Name)' has a heat score of $heat (>=5), indicating this area is changed very frequently. Consider extracting the recurring pattern into a formal decision (engine/decisions/) or a PITFALLS entry to reduce repeated churn."
+      }
+      # heat >= 3 AND related-decisions empty -> WARN multiple changes without decision record.
+      elseif ($heat -ge 3 -and [string]::IsNullOrEmpty($relatedDecisions)) {
+        Write-Warn "$($capsule.Name) has heat=$heat but no related-decisions - multiple changes without decision record"
+        Write-Output "  human: Change capsule '$($capsule.Name)' has a heat score of $heat (>=3) but no related-decisions field in its META header. Multiple changes to this area should be backed by a decision record. Add 'related-decisions: D-NNN' to the META block or create a decision."
+      }
+    }
+  } catch {
+    # Fail-open: capsule heat check must never block the doctor run.
+  }
+}
+
 if (Test-Path $engineDir) {
   Get-ChildItem -Path $engineDir -File -Filter "*.md" | ForEach-Object {
     $rel = "engine/$($_.Name)"
@@ -1906,6 +1954,7 @@ Test-WriteSetBudget
 Test-TaskGranularity
 Test-DependsOn
 Test-WarnDoneGate
+Test-CapsuleHeat
 Test-PitfallsSemantics
 Test-SprintSemantics
 Test-ChangeCapsuleSemantics

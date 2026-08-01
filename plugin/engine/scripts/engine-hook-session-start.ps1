@@ -100,6 +100,97 @@ if ($Mode -eq '--guard') {
   if (Test-Path $canvasScript) {
     try { & pwsh -NoProfile -File $canvasScript --guard 2>$null } catch {}
   }
+
+  # v6.26.0: drift detection - score-based advisory mirroring bash twin.
+  # Fail-open: entire block wrapped in try/catch, never throws.
+  try {
+    # Extract user prompt from guard payload JSON ("prompt" or "user_prompt" field).
+    $driftPrompt = ""
+    if ($guardPayload) {
+      try {
+        $gpObj = $guardPayload | ConvertFrom-Json -ErrorAction Stop
+        if ($gpObj.prompt) { $driftPrompt = [string]$gpObj.prompt }
+        elseif ($gpObj.user_prompt) { $driftPrompt = [string]$gpObj.user_prompt }
+      } catch {
+        # Fallback: regex extraction if JSON parse fails.
+        if ($guardPayload -match '"(?:user_)?prompt"\s*:\s*"([^"]*)"') { $driftPrompt = $Matches[1] }
+      }
+    }
+
+    if ($driftPrompt) {
+      $driftScore = 0
+      $driftReasons = @()
+
+      # Signal 1 (+3): prompt mentions a T-NNN that is NOT in the active guard_ids.
+      $promptTaskRefs = [regex]::Matches($driftPrompt, 'T-\d{3,}') | ForEach-Object { $_.Value } | Sort-Object -Unique
+      foreach ($ref in $promptTaskRefs) {
+        if ($guardIds -notcontains $ref) {
+          $driftScore += 3
+          $driftReasons += "prompt references $ref which is not active"
+          break
+        }
+      }
+
+      # Signal 2 (+2): zero keyword overlap (words >=4 chars, case-insensitive) between prompt and GOAL text.
+      $goalText = ($guardGoals -join ' ')
+      if ($goalText) {
+        $promptWords = [regex]::Matches($driftPrompt.ToLower(), '[a-z0-9_]{4,}') | ForEach-Object { $_.Value } | Sort-Object -Unique
+        $goalWords = [regex]::Matches($goalText.ToLower(), '[a-z0-9_]{4,}') | ForEach-Object { $_.Value } | Sort-Object -Unique
+        $overlap = @($promptWords | Where-Object { $goalWords -contains $_ })
+        if ($overlap.Count -eq 0) {
+          $driftScore += 2
+          $driftReasons += "zero keyword overlap between prompt and active GOAL"
+        }
+      }
+
+      # Signal 3 (+1): session-card affinity file (.cache/sessions/<key>.card) references a non-active task.
+      if ($guardSid) {
+        $cardKey = (($guardSid + "-main") -replace '[^A-Za-z0-9._-]', '_')
+        if ($cardKey.Length -gt 64) { $cardKey = $cardKey.Substring(0, 64) }
+        $cardFile = Join-Path $EngineDir (".cache\sessions\" + $cardKey + ".card")
+        if (Test-Path $cardFile) {
+          $cardContent = Get-Content -Raw -Path $cardFile -Encoding UTF8 -ErrorAction SilentlyContinue
+          if ($cardContent) {
+            $cardTaskRefs = [regex]::Matches($cardContent, 'T-\d{3,}') | ForEach-Object { $_.Value } | Sort-Object -Unique
+            foreach ($ctRef in $cardTaskRefs) {
+              if ($guardIds -notcontains $ctRef) {
+                $driftScore += 1
+                $driftReasons += "session affinity card references non-active $ctRef"
+                break
+              }
+            }
+          }
+        }
+      }
+
+      # Signal 4 (+1): active card file last-write-time > 4 hours ago.
+      if ($guardIds.Count -gt 0) {
+        $staleThreshold = [DateTime]::UtcNow.AddHours(-4)
+        foreach ($gid in $guardIds) {
+          $cardPath = Join-Path $EngineDir ("tasks\" + $gid + ".md")
+          if (Test-Path $cardPath) {
+            $cardMtime = (Get-Item $cardPath -ErrorAction SilentlyContinue).LastWriteTimeUtc
+            if ($cardMtime -lt $staleThreshold) {
+              $driftScore += 1
+              $driftReasons += "active card $gid last modified >4h ago"
+              break
+            }
+          }
+        }
+      }
+
+      # Output based on score.
+      if ($driftScore -ge 3) {
+        Write-Output ("[Engine Guard] DRIFT ADVISORY (score=$driftScore): " + ($driftReasons -join '; '))
+      } elseif ($driftScore -ge 1) {
+        Write-Output ("[Engine Guard] drift-hint: " + ($driftReasons -join '; '))
+      }
+      # score 0 -> silent
+    }
+  } catch {
+    # Fail-open: drift detection must never block or throw.
+  }
+
   exit 0
 }
 

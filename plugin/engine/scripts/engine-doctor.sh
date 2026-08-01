@@ -649,7 +649,11 @@ check_inventory_bidirectional() {
 
   # (a) INVENTORY→code: Entry file paths must exist.
   local inv_to_code_violations=0
-  local entry_paths_seen=""
+  # Keep membership checks in-process. Re-piping the complete inventory text
+  # through grep for every done-task path is prohibitively expensive under
+  # Windows Git Bash and can make Doctor appear hung without changing the
+  # bidirectional validation semantics.
+  declare -A entry_paths_seen_map=()
   for inv in "${inventory_files[@]}"; do
     # Parse table rows: | Feature | Entry file | Public API | Status | Last verified |
     # Skip header rows (|---|) and lines starting with `#` or `>`.
@@ -681,7 +685,7 @@ check_inventory_bidirectional() {
           warn "INVENTORY→code: $inv references '$entry_file' (grace period, cv=$contract_version < 6.8.0)"
         fi
       else
-        entry_paths_seen="$entry_paths_seen$entry_file"$'\n'
+        entry_paths_seen_map["$entry_file"]=1
       fi
     done < "$inv"
   done
@@ -714,7 +718,7 @@ check_inventory_bidirectional() {
         [[ "$ws_path" == "AGENTS.md" ]] && continue
         [[ "$ws_path" == ".github/"* ]] && continue
         # Check if this path appears in any INVENTORY entry column.
-        if ! printf '%s' "$entry_paths_seen" | grep -qF "$ws_path"; then
+        if [[ -z "${entry_paths_seen_map[$ws_path]+present}" ]]; then
           code_to_inv_violations=$((code_to_inv_violations + 1))
           if [ "$violation_is_fail" -eq 1 ]; then
             fail "code→INVENTORY: $tid touched '$ws_path' but no INVENTORY row references it"
@@ -2152,6 +2156,29 @@ check_review_evidence
 check_review_config_protected
 check_agent_review_evidence
 check_gate_registry
+
+# v6.26.0 (T-085): capsule heat check
+check_capsule_heat() {
+  local capsule_dir="$ENGINE_DIR/changes"
+  [ -d "$capsule_dir" ] || return 0
+  local f heat related_dec
+  for f in "$capsule_dir"/CHANGE-*.md; do
+    [ -f "$f" ] || continue
+    # Parse META header heat field
+    heat="$(sed -n '/^-----META-START-----/,/^-----META-END-----/{s/^heat:[[:space:]]*//p}' "$f" 2>/dev/null | head -1)"
+    [ -n "$heat" ] || continue
+    case "$heat" in *[!0-9]*) continue ;; esac
+    related_dec="$(sed -n '/^-----META-START-----/,/^-----META-END-----/{s/^related-decisions:[[:space:]]*//p}' "$f" 2>/dev/null | head -1)"
+    local cname
+    cname="$(basename "$f")"
+    if [ "$heat" -ge 5 ]; then
+      warn "capsule $cname heat=$heat: high-frequency change area, consider extracting to formal decision or PITFALLS"
+    elif [ "$heat" -ge 3 ] && [ -z "$related_dec" ]; then
+      warn "capsule $cname heat=$heat with no related-decisions: multiple changes without decision record"
+    fi
+  done
+}
+check_capsule_heat
 
 # ── Project-custom checks (engine/checks/) ──
 # Each project may place executable check-*.sh (FAIL on non-zero) or warn-*.sh

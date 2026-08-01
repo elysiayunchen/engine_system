@@ -1,5 +1,13 @@
 # Changelog
 
+## v6.26.0 (2026-08-01) — TDAI P1 集成: 漂移检测 + 胶囊 heat(T-085)
+
+- Guard 漂移检测: 4 信号评分(非 active T-NNN +3 / GOAL 零关键词重叠 +2 / session 亲和性 +1 / card stale >4h +1), score>=3 DRIFT ADVISORY, 1-2 drift-hint, 0 静默
+- 变更胶囊 META header: heat/created/updated/related-decisions/related-tasks/domain
+- Doctor check_capsule_heat: heat>=5 WARN 高频变更 / heat>=3 无决策 WARN
+- PS1 行为镜像 + plugin byte-identical
+- 测试: drift 9 + capsule_heat 6 = 15 断言 ALL PASS
+
 ## v6.25.0 (2026-08-01) — TDAI P0 集成: 任务画布 + 失败模式提取(T-082)
 
 - 新增 engine-canvas.{sh,ps1}: 从 evidence 实时派生 Mermaid 任务状态画布(零 LLM, 零持久化, view not state)

@@ -649,7 +649,11 @@ check_inventory_bidirectional() {
 
   # (a) INVENTORY→code: Entry file paths must exist.
   local inv_to_code_violations=0
-  local entry_paths_seen=""
+  # Keep membership checks in-process. Re-piping the complete inventory text
+  # through grep for every done-task path is prohibitively expensive under
+  # Windows Git Bash and can make Doctor appear hung without changing the
+  # bidirectional validation semantics.
+  declare -A entry_paths_seen_map=()
   for inv in "${inventory_files[@]}"; do
     # Parse table rows: | Feature | Entry file | Public API | Status | Last verified |
     # Skip header rows (|---|) and lines starting with `#` or `>`.
@@ -681,7 +685,7 @@ check_inventory_bidirectional() {
           warn "INVENTORY→code: $inv references '$entry_file' (grace period, cv=$contract_version < 6.8.0)"
         fi
       else
-        entry_paths_seen="$entry_paths_seen$entry_file"$'\n'
+        entry_paths_seen_map["$entry_file"]=1
       fi
     done < "$inv"
   done
@@ -714,7 +718,7 @@ check_inventory_bidirectional() {
         [[ "$ws_path" == "AGENTS.md" ]] && continue
         [[ "$ws_path" == ".github/"* ]] && continue
         # Check if this path appears in any INVENTORY entry column.
-        if ! printf '%s' "$entry_paths_seen" | grep -qF "$ws_path"; then
+        if [[ -z "${entry_paths_seen_map[$ws_path]+present}" ]]; then
           code_to_inv_violations=$((code_to_inv_violations + 1))
           if [ "$violation_is_fail" -eq 1 ]; then
             fail "code→INVENTORY: $tid touched '$ws_path' but no INVENTORY row references it"

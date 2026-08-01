@@ -1,0 +1,14 @@
+{
+  "task": "T-085",
+  "timestamp": "2026-08-01T20:15:36Z",
+  "status": "done",
+  "verify": "8/8 AC PASS",
+  "gate": "pass",
+  "doctor": "0 failure",
+  "write_provenance": {
+    "writer": "engine-close",
+    "commit": "HEAD",
+    "timestamp": "2026-08-01T20:15:36Z",
+    "argv": "engine close T-085"
+  }
+}

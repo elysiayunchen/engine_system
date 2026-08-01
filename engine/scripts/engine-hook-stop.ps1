@@ -560,11 +560,14 @@ if ($codeChanged -and -not $engineWritten) {
           $s5Ts = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
           $s5Cand = "CAND-" + (Get-Date).ToUniversalTime().ToString('yyyyMMddHHmmss')
           $s5Sid = if ($sessionId) { $sessionId } else { "unknown" }
+          $s5Cluster = "$activeTaskId@$s5Sid"
           $s5Entry = "- **$s5Cand** Code changed but engine memory not written back`n" +
             "  - signal: S5`n" +
+            "  - severity: low`n" +
             "  - task: $activeTaskId`n" +
             "  - domain: $s5Dom`n" +
             "  - session: $s5Sid`n" +
+            "  - cluster: $s5Cluster`n" +
             "  - date: $s5Ts`n" +
             "  - dedup-key: $s5Dk`n" +
             "  - status: pending`n`n"
@@ -717,11 +720,17 @@ try {
       }
       $candId = "CAND-" + (Get-Date).ToUniversalTime().ToString('yyyyMMddHHmmss')
       $ts = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
+      # Severity by signal type (TDAI-inspired)
+      $sev = "medium"
+      switch ($Sig) { "S18" { $sev = "high" } "S5" { $sev = "low" } default { $sev = "medium" } }
+      $cluster = "$($script:activeTaskId)@$($script:feSid)"
       $entry = "- **$candId** $Detail`n" +
         "  - signal: $Sig`n" +
+        "  - severity: $sev`n" +
         "  - task: $($script:activeTaskId)`n" +
         "  - domain: $Dom`n" +
         "  - session: $($script:feSid)`n" +
+        "  - cluster: $cluster`n" +
         "  - date: $ts`n" +
         "  - dedup-key: $DKey`n" +
         "  - status: pending`n`n"

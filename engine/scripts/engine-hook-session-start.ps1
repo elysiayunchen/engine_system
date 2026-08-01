@@ -15,6 +15,9 @@ $Root = $env:CLAUDE_PROJECT_DIR
 if (-not $Root) { $Root = $PWD.Path }
 $EngineDir = Join-Path $Root "engine"
 
+# v6.26.1: Injection budget (TDAI mmdMaxTokenRatio=0.2 inspired)
+$InjectLineBudget = if ($env:ENGINE_INJECT_BUDGET) { [int]$env:ENGINE_INJECT_BUDGET } else { 500 }
+
 if (-not (Test-Path $EngineDir)) {
   Write-Output "[Engine System] engine/ was not found. Run /engine-init to create the project memory layer."
   exit 0
@@ -266,7 +269,7 @@ if (Test-Path $tasksDir) {
     if ($activeCount -le 3) {
       Write-Output ("---- Target: active task card (" + $tf.BaseName + ") ----")
       Write-Output "WARNING: every project path, including engine/*, must be inside SOME active card's WRITE-SET; this card's FORBIDDEN blocks on touch."
-      Get-Content $tf.FullName | ForEach-Object { Write-Output $_ }
+      Get-Content $tf.FullName -TotalCount 80 | ForEach-Object { Write-Output $_ }
       Write-Output ""
     } else {
       Write-Output ("---- Additional active card: " + $tf.BaseName + " (read engine/tasks/" + $tf.BaseName + ".md) ----")
@@ -467,8 +470,15 @@ if (Test-Path $tasksDir) {
   }
 }
 
+# v6.26.1: budget guard - skip optional enrichment if mandatory sections already large
+$injectEstimate = 0
+if (Test-Path (Join-Path $ROOT "runtime-law.md")) { $injectEstimate += 40 }
+if (Test-Path (Join-Path $EngineDir "CONTEXT.md")) { $injectEstimate += 50 }
+if ($activeTask) { $injectEstimate += ($activeCount * 80) }
+$injectEstimate += 20  # HANDOFF + dashboard + headers
+
 # v6 S2: L2 domain assembly - pull CONTEXT+PITFALLS for each domain in the task card's domain field (budget-bounded).
-if ($activeTask -and (Test-Path $FedFile)) {
+if ($activeTask -and (Test-Path $FedFile) -and ($injectEstimate -lt $InjectLineBudget)) {
   $taskContent = Get-Content -Raw -Path $activeTask -Encoding UTF8
   $taskDomainsL2 = ""
   foreach ($line in ($taskContent -split "`n")) {
@@ -492,6 +502,8 @@ if ($activeTask -and (Test-Path $FedFile)) {
   }
 }
 
+# v6.26.1: budget guard
+if ($injectEstimate -lt $InjectLineBudget) {
 # "Wait for your call" queue: proposed decisions.
 $decisionsDir = Join-Path $EngineDir "decisions"
 $proposedFound = $false
@@ -516,6 +528,8 @@ if (Test-Path $PendingFile) {
   Get-Content $PendingFile | ForEach-Object { Write-Output $_ }
   Write-Output ""
 }
+}  # end budget guard (proposed decisions)
+
 
 # v6 auto update check: 24h cache, fail-open (network failure silently skips, never blocks session).
 # Safety: read-only remote VERSION, no engine memory writes, no code touches. Non-blocking hint.

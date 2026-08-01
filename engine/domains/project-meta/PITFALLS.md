@@ -9,6 +9,10 @@
 - **P003 无 active 任务卡时回退 v5.6 行为**:门禁不要求任务卡存在;兼容存量项目。来源:S1 向后兼容设计。
 - **P004 决策 scope 用 glob,逗号分隔**:pre-commit 用 `case` 模式匹配校验 scope 覆盖。来源:S1 pre-commit。
 
+- **P005 AC 必须用 Format 1 单行格式**:`AC: AC-N desc | verify: cmd`;多行缩进格式(`AC-N:\n  verify:`)不被 engine-verify 解析→0 pass。来源:T-082 verify 跑出 0/7。
+- **P006 Edit 工具改 engine/scripts/*.ps1 产生 CRLF→LF 假 churn**:Edit 工具输出 LF;engine/scripts/*.ps1 是 CRLF→git diff 全文标红。解法:Python 二进制补丁(显式 `\r\n` 拼接)。注意 engine/bin/engine.ps1 是 LF,可直接 Edit。来源:T-084/T-085 多次。
+- **P007 engine close 大仓超时(>10min doctor 遍历)**:手动收尾流程=python 写 CLOSE.json(status done + verify/gate 摘要)+sed 标卡 done+git add evidence;verify/gate 须先独立 PASS。来源:T-082/T-085 close。
+
 ## 检索配方
 
 ```bash

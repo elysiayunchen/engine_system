@@ -13,6 +13,11 @@
 - **P007 改 live hook 必须先改非 live 副本再原子换入**:settings.json 指向 plugin/ 副本;直接 Edit 该文件时,第一刀(如函数改名)落盘后 hook 立即以半改状态执行,可能自坏并拦截后续一切 Edit(自锁)。解法:改 root 副本,完工后 `cp` 整体换入;Bash 工具不受 PreToolUse 逐路径拦截,可作恢复通道。来源:T-048 实测自锁。
 - **P008 无 BOM .ps1 的中文注释在 GBK 机器上会吞括号**:PS 5.1 按系统码页读无 BOM 文件;GBK 双字节解码可把注释外的 `{`/`}` 吞进乱码对,且是否引爆取决于字节对齐——上游任何 ASCII 编辑都可能改变对齐引爆预存雷(CI Windows-1252 单字节不受影响,本地中文 Windows 才炸)。解法:含非 ASCII 的 .ps1 一律带 UTF-8 BOM(T-038 先例);新增字符串字面量 ASCII-only(T-047)。来源:T-048 engine.ps1 三副本实测。
 
+- **P009 Python sed `\1` backreference 变 0x01 控制字符**:Python 普通字符串 `'\\1'` 在替换模板中被解释为八转义→输出 \x01;必须用 `chr(92)+'1'` 拼接或改用 index-based 行插入(不含 backref 的 anchor)。来源:T-082/T-085 canvas/stop/session-start 四处踩中。
+- **P010 Stop hook ~L510 早退截断末尾逻辑**:`code_changed=1 && engine_written=0` 在约 L510 触发 block+`exit 0`,早于文件末尾。任何"会话结束时必须执行"的逻辑(如失败模式提取)须内联到该 exit 之前,不能放文件尾。来源:T-082 S5 信号丢失。
+- **P011 gate has_code 仅检查 WRITE-SET 字符串扩展名**:路径带注解 `(new)`/`[added]`、是目录、或 glob 模式时,`.${p##*.}` 解析失败→has_code=0→review/prove 全 SKIP。修复:v6.26.1 增加 Python filesystem fallback(磁盘展开+注解剥离)。来源:T-085 后续审查。
+- **P012 PS1 补丁 brace-counting 被单行块干扰**:`if (...) { $x = 1; break }` 一行内含 `{`+`}`,朴素计数器净零→把后续 `}` 误判为外层闭合。解法:用结构锚点(如 `# 3.` section marker)定位,不依赖纯计数。来源:gate.ps1 fallback 插入错位。
+
 ## 检索配方
 
 ```bash
@@ -21,6 +26,8 @@ rg "decision:block|decision:warn" plugin/engine/scripts/      # 门禁裁决
 rg "contract-version" plugin/engine/scripts/                  # 契约版本标记
 rg "Write-Output|echo " plugin/engine/scripts/engine-hook-stop.ps1 engine/scripts/engine-hook-stop.sh  # 双实现对照
 rg "set \+H|normalize_version" engine/scripts/ engine/bin/    # histexpand 防御 / 版本归一化
+rg "has_code|write_set_paths" engine/scripts/engine-gate.sh   # 代码检测逻辑
+rg "_fe_append_candidate" engine/scripts/engine-hook-stop.sh  # 失败模式提取
 ```
 
 ## Auto-detected (pending review)

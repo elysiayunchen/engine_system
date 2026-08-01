@@ -10,6 +10,10 @@ doctor="$REPO_ROOT/engine/scripts/engine-doctor.sh"
 doctor_plugin="$REPO_ROOT/plugin/engine/scripts/engine-doctor.sh"
 verify="$REPO_ROOT/engine/scripts/engine-verify.sh"
 verify_plugin="$REPO_ROOT/plugin/engine/scripts/engine-verify.sh"
+drift_sh="$REPO_ROOT/engine/scripts/engine-drift-check.sh"
+drift_plugin_sh="$REPO_ROOT/plugin/engine/scripts/engine-drift-check.sh"
+drift_ps="$REPO_ROOT/engine/scripts/engine-drift-check.ps1"
+drift_plugin_ps="$REPO_ROOT/plugin/engine/scripts/engine-drift-check.ps1"
 
 for row in \
   'engine/scripts/engine-review-agent.sh' \
@@ -48,7 +52,14 @@ done
 
 contains "$doctor" 'Prefer an existing project-root path'
 contains "$doctor" '-e "$ROOT/$file"'
+contains "$doctor" 'if out="$(bash "$script" 2>&1)"; then'
+contains "$drift_sh" 'historical_snapshot=0'
+contains "$drift_sh" 'legacy evidence provenance.commit mismatch'
+contains "$drift_ps" '$historicalSnapshot = $false'
+contains "$drift_ps" 'array membership rather than HashSet constructors'
 cmp -s "$doctor" "$doctor_plugin" || fail 'Doctor Bash mirrors differ'
 cmp -s "$verify" "$verify_plugin" || fail 'Verify Bash mirrors differ'
+cmp -s "$drift_sh" "$drift_plugin_sh" || fail 'Drift Bash mirrors differ'
+cmp -s "$drift_ps" "$drift_plugin_ps" || fail 'Drift PowerShell mirrors differ'
 
 echo 'PASS test_doctor_health_regressions.sh'

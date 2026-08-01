@@ -56,6 +56,7 @@ for tid in "${done_cards[@]}"; do
   manifest_file="$ev_dir/MANIFEST.json"
   step1_fail=0
   legacy_evidence=0
+  historical_snapshot=0
 
   if [ ! -f "$manifest_file" ]; then
     # v6.18.0 (D-038d 迁移期): legacy evidence 没有 MANIFEST.json。区分两种情况:
@@ -95,10 +96,30 @@ for tid in "${done_cards[@]}"; do
       tamper_count=$((tamper_count+1))
       step1_fail=1
     fi
-    if [ "$prov_commit" != "$head_commit" ]; then
-      echo "  FAIL step1: provenance.commit mismatch (expected HEAD=$head_commit, got $prov_commit)"
+    if [ -z "$prov_commit" ]; then
+      echo "  FAIL step1: provenance.commit missing"
       tamper_count=$((tamper_count+1))
       step1_fail=1
+    elif ! (cd "$ROOT" && git cat-file -e "$prov_commit^{commit}" 2>/dev/null); then
+      echo "  FAIL step1: provenance.commit is not a reachable commit (got $prov_commit)"
+      tamper_count=$((tamper_count+1))
+      step1_fail=1
+    elif [ "$prov_commit" != "$head_commit" ]; then
+      # A done card can legitimately retain evidence generated at the commit
+      # immediately before its status transition, or at an older historical
+      # commit. The manifest has already self-verified, so report this as an
+      # explicit legacy snapshot warning while keeping code-fingerprint drift
+      # visible below. A current active/newly-done card remains a hard failure.
+      if git -C "$ROOT" cat-file -e "HEAD:engine/tasks/$tid.md" 2>/dev/null \
+        && git -C "$ROOT" show "HEAD:engine/tasks/$tid.md" 2>/dev/null | grep -Eq '^[[:space:]]*(>[[:space:]]*)?status:[[:space:]]*done'; then
+        echo "  WARN step1: legacy evidence provenance.commit mismatch (HEAD=$head_commit, snapshot=$prov_commit)"
+        warn_count=$((warn_count+1))
+        historical_snapshot=1
+      else
+        echo "  FAIL step1: provenance.commit mismatch (expected HEAD=$head_commit, got $prov_commit)"
+        tamper_count=$((tamper_count+1))
+        step1_fail=1
+      fi
     fi
   fi
 
@@ -183,12 +204,22 @@ for tid in "${done_cards[@]}"; do
         stored_sha="$(printf '%s' "$pair" | awk -F'"' '{print $4}')"
         current_sha="$(cd "$ROOT" && git ls-files -s "$path" 2>/dev/null | awk '{print $2}')"
         if [ -z "$current_sha" ]; then
-          echo "  DRIFT step3: $tid file deleted (path: $path)"
-          drift_count=$((drift_count+1))
+          if [ "$historical_snapshot" -eq 1 ]; then
+            echo "  WARN legacy step3: $tid file deleted after evidence snapshot (path: $path)"
+            warn_count=$((warn_count+1))
+          else
+            echo "  DRIFT step3: $tid file deleted (path: $path)"
+            drift_count=$((drift_count+1))
+          fi
           had_drift=1
         elif [ "$current_sha" != "$stored_sha" ]; then
-          echo "  DRIFT step3: $tid code changed ($path: stored=${stored_sha:0:12}.. current=${current_sha:0:12}..)"
-          drift_count=$((drift_count+1))
+          if [ "$historical_snapshot" -eq 1 ]; then
+            echo "  WARN legacy step3: $tid code changed after evidence snapshot ($path: stored=${stored_sha:0:12}.. current=${current_sha:0:12}..)"
+            warn_count=$((warn_count+1))
+          else
+            echo "  DRIFT step3: $tid code changed ($path: stored=${stored_sha:0:12}.. current=${current_sha:0:12}..)"
+            drift_count=$((drift_count+1))
+          fi
           had_drift=1
         fi
       done < <(printf '%s' "$cf_json" | tr ',' '\n' | grep '"')

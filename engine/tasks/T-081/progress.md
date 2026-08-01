@@ -12,7 +12,7 @@
 - [x] AC-2 progress anchors and T-078 archive
 - [x] AC-3 domain INVENTORY coverage
 - [x] AC-4 Bash verify PowerShell resolution
-- [ ] AC-5 historical evidence integrity
+- [x] AC-5 historical evidence integrity (valid historical snapshots now warn; tamper remains hard-fail)
 - [ ] AC-6 T-078 lifecycle evidence
 - [ ] AC-7 full Doctor zero failures
 

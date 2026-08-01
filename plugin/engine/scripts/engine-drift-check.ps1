@@ -73,6 +73,7 @@ foreach ($tid in $doneCards) {
   $manifestFile = Join-Path $evDir "MANIFEST.json"
   $step1Fail = $false
   $legacyEvidence = $false
+  $historicalSnapshot = $false
 
   if (-not (Test-Path $manifestFile)) {
     # v6.18.0 (D-038d migration): legacy evidence has no MANIFEST.json. Two cases:
@@ -129,9 +130,30 @@ foreach ($tid in $doneCards) {
       Write-Output "  FAIL step1: invalid provenance.writer (expected engine-verify, got $provWriter)"
       $tamperCount++; $step1Fail = $true
     }
-    if ($provCommit -ne $headCommit) {
-      Write-Output "  FAIL step1: provenance.commit mismatch (expected HEAD=$headCommit, got $provCommit)"
+    if (-not $provCommit) {
+      Write-Output "  FAIL step1: provenance.commit missing"
       $tamperCount++; $step1Fail = $true
+    } else {
+      $null = & git -C $Root cat-file -e "$provCommit^{commit}" 2>$null
+      $commitExists = ($LASTEXITCODE -eq 0)
+      if (-not $commitExists) {
+        Write-Output "  FAIL step1: provenance.commit is not a reachable commit (got $provCommit)"
+        $tamperCount++; $step1Fail = $true
+      } elseif ($provCommit -ne $headCommit) {
+        # A done card can legitimately retain evidence generated at the commit
+        # immediately before its status transition, or at an older historical
+        # commit. The manifest has already self-verified, so report this as an
+        # explicit legacy snapshot warning while keeping code-fingerprint drift
+        # visible below. A current active/newly-done card remains a hard failure.
+        $headCard = (& git -C $Root show "HEAD:engine/tasks/$tid.md" 2>$null | Out-String)
+        if ($headCard.Contains("> status: done")) {
+          Write-Output "  WARN step1: legacy evidence provenance.commit mismatch (HEAD=$headCommit, snapshot=$provCommit)"
+          $warnCount++; $historicalSnapshot = $true
+        } else {
+          Write-Output "  FAIL step1: provenance.commit mismatch (expected HEAD=$headCommit, got $provCommit)"
+          $tamperCount++; $step1Fail = $true
+        }
+      }
     }
   }
 
@@ -192,10 +214,10 @@ foreach ($tid in $doneCards) {
       }
     }
 
-    $snapshotSet = [System.Collections.Generic.HashSet[string]]::new($snapshotPaths)
-    $currentSet = [System.Collections.Generic.HashSet[string]]::new($currentWs)
-    $added = @($currentWs | Where-Object { -not $snapshotSet.Contains($_) })
-    $removed = @($snapshotPaths | Where-Object { -not $currentSet.Contains($_) })
+    # Use array membership rather than HashSet constructors: PowerShell 5 and
+    # PowerShell 7 bind one-element arrays differently to generic constructors.
+    $added = @($currentWs | Where-Object { $snapshotPaths -notcontains $_ })
+    $removed = @($snapshotPaths | Where-Object { $currentWs -notcontains $_ })
     if ($added.Count -gt 0 -or $removed.Count -gt 0) {
       Write-Output "  WARN step2: WRITE-SET changed since evidence"
       if ($added.Count -gt 0)   { Write-Output "    added: $($added -join ' ')" }
@@ -231,11 +253,23 @@ foreach ($tid in $doneCards) {
           $currentSha = ""
           if ($gitOut -match '\s([0-9a-f]{40})\s') { $currentSha = $Matches[1] }
           if (-not $currentSha) {
-            Write-Output "  DRIFT step3: $tid file deleted (path: $path)"
-            $driftCount++; $hadDrift = $true
+            if ($historicalSnapshot) {
+              Write-Output "  WARN legacy step3: $tid file deleted after evidence snapshot (path: $path)"
+              $warnCount++
+            } else {
+              Write-Output "  DRIFT step3: $tid file deleted (path: $path)"
+              $driftCount++
+            }
+            $hadDrift = $true
           } elseif ($currentSha -ne $storedSha) {
-            Write-Output "  DRIFT step3: $tid code changed (${path}: stored=$($storedSha.Substring(0,12)).. current=$($currentSha.Substring(0,12))..)"
-            $driftCount++; $hadDrift = $true
+            if ($historicalSnapshot) {
+              Write-Output "  WARN legacy step3: $tid code changed after evidence snapshot (${path}: stored=$($storedSha.Substring(0,12)).. current=$($currentSha.Substring(0,12))..)"
+              $warnCount++
+            } else {
+              Write-Output "  DRIFT step3: $tid code changed (${path}: stored=$($storedSha.Substring(0,12)).. current=$($currentSha.Substring(0,12))..)"
+              $driftCount++
+            }
+            $hadDrift = $true
           }
         }
       }

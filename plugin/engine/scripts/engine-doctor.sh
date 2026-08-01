@@ -1652,8 +1652,11 @@ check_drift() {
     return 0
   fi
   local out rc
-  out="$(bash "$script" 2>&1)" || true
-  rc=$?
+  if out="$(bash "$script" 2>&1)"; then
+    rc=0
+  else
+    rc=$?
+  fi
   echo "$out" | sed 's/^/  /'
   if [ "$rc" -ne 0 ]; then
     fail "drift-check detected tamper or drift (see above)"

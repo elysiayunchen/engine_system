@@ -55,9 +55,13 @@ param([string]$Root)
 $failureCount = 0
 
 Get-ChildItem -Path $Root -Recurse -File -Include *.ps1 | ForEach-Object {
+  # Windows PowerShell 5 defaults to the system code page when ParseFile reads
+  # UTF-8 scripts without a BOM. Read the source explicitly as UTF-8 first so
+  # compatibility checks validate PowerShell syntax rather than mojibake.
+  $source = Get-Content -LiteralPath $_.FullName -Raw -Encoding UTF8
   $tokens = $null
   $errors = $null
-  [System.Management.Automation.Language.Parser]::ParseFile($_.FullName, [ref]$tokens, [ref]$errors) | Out-Null
+  [System.Management.Automation.Language.Parser]::ParseInput($source, [ref]$tokens, [ref]$errors) | Out-Null
   if ($errors.Count -gt 0) {
     $failureCount++
     Write-Host "FAIL $($_.FullName)"

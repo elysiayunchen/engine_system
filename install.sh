@@ -259,6 +259,8 @@ FILES=(
   "engine/scripts/engine-review.ps1:engine/scripts/engine-review.ps1:true"
   "engine/scripts/engine-review-pipeline.sh:engine/scripts/engine-review-pipeline.sh:true"
   "engine/scripts/engine-review-pipeline.ps1:engine/scripts/engine-review-pipeline.ps1:true"
+  "engine/scripts/engine-review-from-receipt.sh:engine/scripts/engine-review-from-receipt.sh:true"
+  "engine/scripts/engine-review-from-receipt.ps1:engine/scripts/engine-review-from-receipt.ps1:true"
   "engine/scripts/engine-review-agent-package.sh:engine/scripts/engine-review-agent-package.sh:true"
   "engine/scripts/engine-review-agent-package.ps1:engine/scripts/engine-review-agent-package.ps1:true"
   "engine/scripts/engine-review-agent-validate.sh:engine/scripts/engine-review-agent-validate.sh:true"

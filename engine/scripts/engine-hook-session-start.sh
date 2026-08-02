@@ -16,11 +16,21 @@ log_error() { echo "[engine-hook-session-start] ERROR: $*" >&2; }
 ROOT="${CLAUDE_PROJECT_DIR:-$PWD}"
 ENGINE_DIR="$ROOT/engine"
 
-# v6.26.1: Injection budget (TDAI mmdMaxTokenRatio=0.2 inspired)
-# ~500 lines approx 40K chars approx 20% of 200K context window
-INJECT_LINE_BUDGET=${ENGINE_INJECT_BUDGET:-500}
+# v6.27.0 (T-088): keep the emitted snapshot inside the N1 hard line budget.
+# The hook assembles several optional sections, so buffer stdout and enforce
+# the limit once at process exit instead of allowing a new section to bypass it.
+INJECT_LINE_BUDGET=${ENGINE_INJECT_BUDGET:-400}
+case "$INJECT_LINE_BUDGET" in
+  ''|*[!0-9]*) INJECT_LINE_BUDGET=400 ;;
+esac
+_hook_output_file="$(mktemp "${TMPDIR:-/tmp}/engine-session-start.XXXXXX" 2>/dev/null || true)"
+if [ -n "$_hook_output_file" ]; then
+  exec 3>&1
+  exec >"$_hook_output_file"
+  trap '_hook_status=$?; head -n "$INJECT_LINE_BUDGET" "$_hook_output_file" >&3 2>/dev/null || true; rm -f "$_hook_output_file" 2>/dev/null || true; exec 3>&-; exit "$_hook_status"' EXIT
+fi
 # v6.25.0 (T-086/O6): token-based budget (more precise than line count).
-# Formula: ASCII bytes/4 + CJK chars*1.5. Default 40000 tokens ≈ 500 lines mixed.
+# Formula: ASCII bytes/4 + CJK chars*1.5. Default 40000 tokens bounds optional enrichment.
 INJECT_TOKEN_BUDGET=${ENGINE_INJECT_TOKEN_BUDGET:-40000}
 
 # estimate_tokens FILE — pure-bash token estimate (no tiktoken dependency).

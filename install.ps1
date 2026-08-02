@@ -222,6 +222,22 @@ $FILES = @(
   @{ src = "engine/scripts/engine-review.ps1";          dest = "engine\scripts\engine-review.ps1";          protect = $true }
   @{ src = "engine/scripts/engine-review-pipeline.sh";  dest = "engine\scripts\engine-review-pipeline.sh";  protect = $true }
   @{ src = "engine/scripts/engine-review-pipeline.ps1"; dest = "engine\scripts\engine-review-pipeline.ps1"; protect = $true }
+  @{ src = "engine/scripts/engine-review-from-receipt.sh";  dest = "engine\scripts\engine-review-from-receipt.sh";  protect = $true }
+  @{ src = "engine/scripts/engine-review-from-receipt.ps1"; dest = "engine\scripts\engine-review-from-receipt.ps1"; protect = $true }
+  @{ src = "engine/scripts/engine-review-agent-package.sh";  dest = "engine\scripts\engine-review-agent-package.sh";  protect = $true }
+  @{ src = "engine/scripts/engine-review-agent-package.ps1"; dest = "engine\scripts\engine-review-agent-package.ps1"; protect = $true }
+  @{ src = "engine/scripts/engine-review-agent-validate.sh";  dest = "engine\scripts\engine-review-agent-validate.sh";  protect = $true }
+  @{ src = "engine/scripts/engine-review-agent-validate.ps1"; dest = "engine\scripts\engine-review-agent-validate.ps1"; protect = $true }
+  @{ src = "engine/scripts/engine-review-agent.sh";  dest = "engine\scripts\engine-review-agent.sh";  protect = $true }
+  @{ src = "engine/scripts/engine-review-agent.ps1"; dest = "engine\scripts\engine-review-agent.ps1"; protect = $true }
+  @{ src = "engine/scripts/engine-prove.sh";  dest = "engine\scripts\engine-prove.sh";  protect = $true }
+  @{ src = "engine/scripts/engine-prove.ps1"; dest = "engine\scripts\engine-prove.ps1"; protect = $true }
+  @{ src = "engine/prove/config.json"; dest = "engine\prove\config.json"; protect = $false }
+  @{ src = "engine/prove/prove-assertions.schema.json"; dest = "engine\prove\prove-assertions.schema.json"; protect = $false }
+  @{ src = "engine/scripts/engine-gate.sh";  dest = "engine\scripts\engine-gate.sh";  protect = $true }
+  @{ src = "engine/scripts/engine-gate.ps1"; dest = "engine\scripts\engine-gate.ps1"; protect = $true }
+  @{ src = "engine/gate/config.json"; dest = "engine\gate\config.json"; protect = $false }
+  @{ src = "engine/review/config.json"; dest = "engine\review\config.json"; protect = $false }
   @{ src = "engine/scripts/githooks/pre-commit";   dest = "engine\scripts\githooks\pre-commit";   protect = $true }
   @{ src = "bin/engine";                            dest = "engine\bin\engine";                            protect = $true }
   @{ src = "bin/engine.ps1";                        dest = "engine\bin\engine.ps1";                        protect = $true }

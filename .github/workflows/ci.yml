@@ -12,6 +12,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Doctor validates provenance against historical evidence.  A shallow
+          # clone hides those commits and makes a healthy repository fail CI.
+          fetch-depth: 0
 
       - name: Run check.sh
         run: bash scripts/check.sh
@@ -21,6 +25,9 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Keep the Windows job's drift/provenance view identical to Linux.
+          fetch-depth: 0
 
       - name: Run check.ps1
         shell: pwsh

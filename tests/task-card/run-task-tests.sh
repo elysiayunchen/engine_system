@@ -306,7 +306,10 @@ mkdir -p "$r/engine/evidence/T-001"
 # fixture uses manual-edit path since it's constructed by hand, not by
 # engine-verify.
 printf '{"ac":"AC-1","status":"pass","evidence-manual-edit":true}\n' > "$r/engine/evidence/T-001/AC-1.json"
-git -C "$r" add engine/evidence/T-001/AC-1.json
+cat > "$r/engine/evidence/T-001/GATE.json" <<GATE_EOF
+{"task":"T-001","status":"pass","write_provenance":{"writer":"engine-gate","commit":"$(git -C "$r" rev-parse HEAD)"}}
+GATE_EOF
+git -C "$r" add engine/evidence/T-001/AC-1.json engine/evidence/T-001/GATE.json
 run_pc "strict-done-all-pass-evidence" "$r" 0
 
 echo ""

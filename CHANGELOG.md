@@ -1,5 +1,13 @@
 # Changelog
 
+## v6.27.0 (2026-08-02) — CI 健康检查与分发一致性(T-088)
+
+- 修复 Linux/Windows CI shallow checkout 导致历史 provenance evidence 不可达的问题
+- 对齐 install.sh、install.ps1 与 plugin manifest 的 86 个分发路径，并补齐 review-agent/prove 配置
+- 修复 done 任务卡测试缺少 GATE provenance fixture、SessionStart 超过 N1 400 行预算的问题
+- 修正 Windows PowerShell 兼容性检查对无 BOM UTF-8 脚本的误报
+- 补齐 active/paused 任务卡 progress 锚点，Doctor/manifest 检查通过
+
 ## v6.26.1 (2026-08-02) — Issue #30 任务卡解析与生命周期分发一致性
 
 - 新增共享任务卡解析器，并统一 verify/gate/review/close/Doctor/hook/pre-commit 的 AC 与 WRITE-SET 解析

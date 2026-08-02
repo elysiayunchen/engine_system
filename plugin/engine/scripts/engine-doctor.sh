@@ -12,11 +12,13 @@ PACKAGE_MODE=false
 # catch-all treated any argument as ROOT, so a typo like --quiet became
 # ROOT="--quiet" and doctor reported "ENGINE_MAP.md is missing" instead
 # of "no such flag".
+FULL_MODE=false
 for arg in "$@"; do
   case "$arg" in
     --package-mode) PACKAGE_MODE=true ;;
+    --full) FULL_MODE=true ;;
     --*)
-      echo "Error: unknown flag '$arg' (known: --package-mode; a path argument sets ROOT)" >&2
+      echo "Error: unknown flag '$arg' (known: --package-mode, --full; a path argument sets ROOT)" >&2
       exit 2
       ;;
     *) ROOT="$arg" ;;
@@ -28,6 +30,24 @@ MAP="$ENGINE_DIR/ENGINE_MAP.md"
 
 fail_count=0
 warn_count=0
+
+# v6.25.0 (T-086/B6): incremental mode — skip expensive checks if HEAD unchanged.
+# Use --full to force a complete run. Cache lives at engine/.cache/doctor-last-run.
+_doctor_cache_dir="$ENGINE_DIR/.cache"
+_doctor_cache_file="$_doctor_cache_dir/doctor-last-run"
+_current_head="$(git -C "$ROOT" rev-parse HEAD 2>/dev/null || echo none)"
+if [ "$FULL_MODE" = false ] && [ -f "$_doctor_cache_file" ]; then
+  _cached_head="$(head -1 "$_doctor_cache_file" 2>/dev/null || echo '')"
+  if [ "$_cached_head" = "$_current_head" ] && [ "$_current_head" != "none" ]; then
+    _cached_summary="$(sed -n '2p' "$_doctor_cache_file" 2>/dev/null || echo '')"
+    echo "[engine-doctor] incremental: HEAD unchanged ($_current_head), using cached result."
+    echo "[engine-doctor] cached: $_cached_summary"
+    echo "  (use 'engine doctor --full' to force a complete re-check)"
+    # Exit with cached status
+    _cached_fails="$(printf '%s' "$_cached_summary" | grep -oE '[0-9]+ failure' | grep -oE '[0-9]+' || echo 0)"
+    [ "${_cached_fails:-0}" -gt 0 ] && exit 1 || exit 0
+  fi
+fi
 
 # parse_ac_declarations: Extract (ac_id, verify_cmd) pairs from a task card.
 # Supports 4 AC declaration formats (D-037 / v6.17.0):
@@ -2451,6 +2471,10 @@ done
 
 # v6.25.0 (T-086/O1): script lint (ShellCheck-pattern subset)
 check_script_lint
+
+# v6.25.0 (B6): save state for incremental mode
+mkdir -p "$_doctor_cache_dir" 2>/dev/null || true
+printf '%s\n%s failure(s), %s warning(s)\n' "$_current_head" "$fail_count" "$warn_count" > "$_doctor_cache_file" 2>/dev/null || true
 
 printf '\nEngine Doctor: %s failure(s), %s warning(s)\n' "$fail_count" "$warn_count"
 if [[ "$fail_count" -gt 0 ]]; then

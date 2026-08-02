@@ -18,6 +18,20 @@ $EngineDir = Join-Path $Root "engine"
 # v6.26.1: Injection budget (TDAI mmdMaxTokenRatio=0.2 inspired)
 $InjectLineBudget = if ($env:ENGINE_INJECT_BUDGET) { [int]$env:ENGINE_INJECT_BUDGET } else { 500 }
 
+# v6.25.0 (T-086/O6): token-based budget (more precise than line count).
+$InjectTokenBudget = if ($env:ENGINE_INJECT_TOKEN_BUDGET) { [int]$env:ENGINE_INJECT_TOKEN_BUDGET } else { 40000 }
+
+function Estimate-Tokens([string]$FilePath) {
+  if (-not (Test-Path $FilePath)) { return 0 }
+  $bytes = (Get-Item $FilePath).Length
+  $content = Get-Content -Raw -Path $FilePath -Encoding UTF8 -ErrorAction SilentlyContinue
+  if (-not $content) { return [int]($bytes / 4) }
+  $chars = $content.Length
+  # ASCII-dominant: chars >= 75% of bytes -> bytes/4; CJK-heavy: chars*1.5
+  if ($chars -ge [int]($bytes * 3 / 4)) { return [int]($bytes / 4) }
+  else { return [int]($chars * 3 / 2) }
+}
+
 if (-not (Test-Path $EngineDir)) {
   Write-Output "[Engine System] engine/ was not found. Run /engine-init to create the project memory layer."
   exit 0
@@ -471,14 +485,13 @@ if (Test-Path $tasksDir) {
 }
 
 # v6.26.1: budget guard - skip optional enrichment if mandatory sections already large
-$injectEstimate = 0
-if (Test-Path (Join-Path $ROOT "runtime-law.md")) { $injectEstimate += 40 }
-if (Test-Path (Join-Path $EngineDir "CONTEXT.md")) { $injectEstimate += 50 }
-if ($activeTask) { $injectEstimate += ($activeCount * 80) }
-$injectEstimate += 20  # HANDOFF + dashboard + headers
+$injectEstimate = 200  # HANDOFF + dashboard + headers (~200 tokens fixed overhead)
+if (Test-Path (Join-Path $ROOT "runtime-law.md")) { $injectEstimate += (Estimate-Tokens (Join-Path $ROOT "runtime-law.md")) }
+if (Test-Path (Join-Path $EngineDir "CONTEXT.md")) { $injectEstimate += (Estimate-Tokens (Join-Path $EngineDir "CONTEXT.md")) }
+if ($activeTask) { $injectEstimate += ($activeCount * 320) }  # ~320 tokens per active card avg
 
 # v6 S2: L2 domain assembly - pull CONTEXT+PITFALLS for each domain in the task card's domain field (budget-bounded).
-if ($activeTask -and (Test-Path $FedFile) -and ($injectEstimate -lt $InjectLineBudget)) {
+if ($activeTask -and (Test-Path $FedFile) -and ($injectEstimate -lt $InjectTokenBudget)) {
   $taskContent = Get-Content -Raw -Path $activeTask -Encoding UTF8
   $taskDomainsL2 = ""
   foreach ($line in ($taskContent -split "`n")) {
@@ -503,7 +516,7 @@ if ($activeTask -and (Test-Path $FedFile) -and ($injectEstimate -lt $InjectLineB
 }
 
 # v6.26.1: budget guard
-if ($injectEstimate -lt $InjectLineBudget) {
+if ($injectEstimate -lt $InjectTokenBudget) {
 # "Wait for your call" queue: proposed decisions.
 $decisionsDir = Join-Path $EngineDir "decisions"
 $proposedFound = $false

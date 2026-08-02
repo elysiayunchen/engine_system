@@ -1,6 +1,7 @@
 param(
   [string]$Root = (Get-Location).Path,
-  [switch]$PackageMode
+  [switch]$PackageMode,
+  [switch]$Full
 )
 
 $ErrorActionPreference = "Stop"
@@ -16,6 +17,22 @@ $engineDir = Join-Path $Root "engine"
 $map = Join-Path $engineDir "ENGINE_MAP.md"
 $failCount = 0
 $warnCount = 0
+
+# v6.25.0 (T-086/B6): incremental mode — skip if HEAD unchanged.
+$doctorCacheDir = Join-Path $engineDir '.cache'
+$doctorCacheFile = Join-Path $doctorCacheDir 'doctor-last-run'
+$currentHead = & git -C $Root rev-parse HEAD 2>$null
+if (-not $currentHead) { $currentHead = 'none' }
+if (-not $Full -and (Test-Path $doctorCacheFile)) {
+  $cacheLines = Get-Content -Path $doctorCacheFile -Encoding UTF8 -ErrorAction SilentlyContinue
+  if ($cacheLines -and $cacheLines.Count -ge 2 -and $cacheLines[0] -eq $currentHead -and $currentHead -ne 'none') {
+    Write-Host "[engine-doctor] incremental: HEAD unchanged ($currentHead), using cached result."
+    Write-Host "[engine-doctor] cached: $($cacheLines[1])"
+    Write-Host "  (use 'engine doctor --full' to force a complete re-check)"
+    if ($cacheLines[1] -match '([0-9]+) failure' -and [int]$Matches[1] -gt 0) { exit 1 }
+    exit 0
+  }
+}
 
 function Write-Fail([string]$Message) {
   $script:failCount++
@@ -300,7 +317,11 @@ function Test-PackageMode {
 if ($PackageMode) {
   Test-PackageMode
   Write-Host ""
-  Write-Host "Engine Doctor: $failCount failure(s), $warnCount warning(s)"
+  # v6.25.0 (B6): save state for incremental mode
+if (-not (Test-Path $doctorCacheDir)) { New-Item -ItemType Directory -Path $doctorCacheDir -Force | Out-Null }
+Set-Content -Path $doctorCacheFile -Value "$currentHead`n$failCount failure(s), $warnCount warning(s)" -Encoding UTF8 -ErrorAction SilentlyContinue
+
+Write-Host "Engine Doctor: $failCount failure(s), $warnCount warning(s)"
   if ($failCount -gt 0) { exit 1 }
   exit 0
 }

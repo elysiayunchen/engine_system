@@ -19,6 +19,26 @@ ENGINE_DIR="$ROOT/engine"
 # v6.26.1: Injection budget (TDAI mmdMaxTokenRatio=0.2 inspired)
 # ~500 lines approx 40K chars approx 20% of 200K context window
 INJECT_LINE_BUDGET=${ENGINE_INJECT_BUDGET:-500}
+# v6.25.0 (T-086/O6): token-based budget (more precise than line count).
+# Formula: ASCII bytes/4 + CJK chars*1.5. Default 40000 tokens ≈ 500 lines mixed.
+INJECT_TOKEN_BUDGET=${ENGINE_INJECT_TOKEN_BUDGET:-40000}
+
+# estimate_tokens FILE — pure-bash token estimate (no tiktoken dependency).
+# Uses wc -c for bytes, wc -m for chars; CJK ≈ (chars - ascii_words) * 1.5.
+estimate_tokens() {
+  local file="$1"
+  [ -f "$file" ] || { echo 0; return; }
+  local bytes chars
+  bytes=$(wc -c < "$file" 2>/dev/null || echo 0)
+  chars=$(wc -m < "$file" 2>/dev/null || echo "$bytes")
+  # If chars ≈ bytes, content is ASCII-dominant → bytes/4
+  # If chars << bytes, multi-byte (CJK) → chars*1.5
+  if [ "$chars" -ge "$((bytes * 3 / 4))" ] 2>/dev/null; then
+    echo $(( bytes / 4 ))
+  else
+    echo $(( chars * 3 / 2 ))
+  fi
+}
 MODE="${1:-full}"
 
 if [ ! -d "$ENGINE_DIR" ]; then
@@ -363,19 +383,19 @@ for f in "$ENGINE_DIR"/tasks/T-*.md; do
 done
 
 # v6.26.1: budget guard - skip optional enrichment if mandatory sections already large
-_inject_estimate=20  # HANDOFF + dashboard + headers (fixed overhead)
-[ -f "$ROOT/runtime-law.md" ] && _inject_estimate=$((_inject_estimate + $(wc -l < "$ROOT/runtime-law.md" 2>/dev/null || echo 40)))
-[ -f "$ENGINE_DIR/CONTEXT.md" ] && _inject_estimate=$((_inject_estimate + $(wc -l < "$ENGINE_DIR/CONTEXT.md" 2>/dev/null || echo 50)))
+_inject_estimate=200  # HANDOFF + dashboard + headers (fixed overhead, ~200 tokens)
+[ -f "$ROOT/runtime-law.md" ] && _inject_estimate=$((_inject_estimate + $(estimate_tokens "$ROOT/runtime-law.md")))
+[ -f "$ENGINE_DIR/CONTEXT.md" ] && _inject_estimate=$((_inject_estimate + $(estimate_tokens "$ENGINE_DIR/CONTEXT.md")))
 if [ -n "${active_task:-}" ]; then
   for _bcard in "$ENGINE_DIR"/tasks/T-*.md; do
     [ -f "$_bcard" ] || continue
     grep -Eq '^[[:space:]]*(>[[:space:]]*)?status:[[:space:]]*active' "$_bcard" 2>/dev/null || continue
-    _inject_estimate=$((_inject_estimate + $(wc -l < "$_bcard" 2>/dev/null || echo 80)))
+    _inject_estimate=$((_inject_estimate + $(estimate_tokens "$_bcard")))
   done
 fi
 
 # v6 S2: L2 所属域装配——按 active 任务卡 domain 拉取对应域的 CONTEXT+PITFALLS(各受预算约束)。
-if [ -n "$active_task" ] && [ -f "$fed" ] && [ "$_inject_estimate" -lt "$INJECT_LINE_BUDGET" ]; then
+if [ -n "$active_task" ] && [ -f "$fed" ] && [ "$_inject_estimate" -lt "$INJECT_TOKEN_BUDGET" ]; then
   task_domains_l2="$(grep '^>.*domain:' "$active_task" 2>/dev/null | head -1 | sed 's/.*domain:[[:space:]]*//' | sed 's/|.*//' | tr -d ' ')"
   if [ -n "$task_domains_l2" ]; then
     saved_IFS="$IFS"; IFS=','
@@ -395,7 +415,7 @@ if [ -n "$active_task" ] && [ -f "$fed" ] && [ "$_inject_estimate" -lt "$INJECT_
 fi
 
 # v6.26.1: budget guard
-if [ "$_inject_estimate" -lt "$INJECT_LINE_BUDGET" ]; then
+if [ "$_inject_estimate" -lt "$INJECT_TOKEN_BUDGET" ]; then
 # 「等你拍板」队列:proposed 决策,提示架构师需要拍板。
 proposed_count=0
 for f in "$ENGINE_DIR"/decisions/D-*.md; do

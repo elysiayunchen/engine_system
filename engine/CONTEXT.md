@@ -11,7 +11,7 @@
 |------|------|
 | 构建 | ✅ 正常（纯 markdown + shell 脚本，无构建步骤） |
 | 上次完成 | **T-081 Engine Doctor 跨 shell 健康收口**：修复 root/plugin 的 Bash↔PowerShell 路径与行尾兼容、verify/close/prove 的 MANIFEST 时序、证明链 self-tamper、Doctor worktree 缓存指纹、历史 evidence 分级和 Doctor 性能/索引缺口；完成 9/9 verify、review、agent-review、prove(4/4)、gate、close，Doctor 0 failure。 |
-| 进行中 | **T-069、T-080、T-084** 仍在维护中；**T-082、T-085、T-086 已 done**。已知债：旧卡/旧 evidence、tag/VERSION、CLI-LEAN 长度与孤儿 shard 仍为可见 warning，不阻断当前任务。 |
+| 进行中 | **T-069 Review pipeline 收口中**：正式 verify 19/19 PASS；发现并修复 PowerShell pipeline 未生成 SECURITY/QUALITY 及完整 REVIEW schema 的跨 Shell 缺口，root/plugin 已同步；待重新生成最终 review/prove/gate/close 证据。T-080/T-084 仍在维护中；T-082/T-085/T-086 已 done。 |
 | 阻塞 | 无。 |
 
 ## 当前假设 / 决策（本轮拍板）

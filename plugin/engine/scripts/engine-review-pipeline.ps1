@@ -133,35 +133,48 @@ try {
   $toolUnavailable = $false
   $semgrepAvailable = $false
   $eslintAvailable = $false
+  $semgrepVersion = ""
+  $eslintVersion = ""
+  $securityFindings = @()
+  $qualityFindings = @()
 
   if (Get-Command semgrep -ErrorAction SilentlyContinue) {
     $semgrepAvailable = $true
+    $semgrepVersion = (semgrep --version 2>$null | Select-Object -First 1)
     if ($diffFiles.Count -gt 0) {
       $semgrepOut = semgrep --json --config=auto $diffFiles 2>$null
       if (-not $semgrepOut) {
         $securityStatus = "skipped"; $toolUnavailable = $true; $semgrepAvailable = $false
       } else {
-        $semgrepData = $semgrepOut | ConvertFrom-Json
-        $secFindings = @()
-        foreach ($r in $semgrepData.results) {
-          $sev = $r.extra.metadata.impact
-          $conf = $r.extra.confidence
+        $semgrepData = ($semgrepOut -join [Environment]::NewLine) | ConvertFrom-Json
+        foreach ($r in @($semgrepData.results)) {
+          $extra = $r.extra
+          $metadata = $extra.metadata
+          $sev = [string]$metadata.impact
+          if (-not $sev) { $sev = [string]$extra.severity }
+          $rawSeverity = [string]$extra.severity
+          $conf = [string]$extra.confidence
           $mapped = "medium"
           if ($sev -eq "ERROR" -or $r.extra.severity -eq "ERROR") {
             if ($conf -in @("high","medium","")) { $mapped = "critical" } else { $mapped = "high" }
           } elseif ($sev -eq "WARNING") { $mapped = "high" }
-          $secFindings += @{
-            id = "semgrep-$($r.check_id.Replace('.','-'))-$($r.path):$($r.start.line):$($r.start.col)"
+          $rule = [string]$r.check_id
+          if (-not $rule) { $rule = "unknown" }
+          $path = ([string]$r.path).Replace('\','/')
+          $securityFindings += @{
+            id = "semgrep-$($rule.Replace('.','-'))-${path}:$($r.start.line):$($r.start.col)"
             severity = $mapped
-            file = $r.path
+            file = $path
             line = $r.start.line
             col = $r.start.col
-            rule = $r.check_id
-            message = $r.extra.message
+            rule = $rule
+            message = $extra.message
             tool = "semgrep"
+            tool_severity_raw = $rawSeverity
+            tool_confidence = $conf
           }
         }
-        if ($secFindings | Where-Object { $_.severity -in @("critical","high") }) { $securityStatus = "block" }
+        if (@($securityFindings | Where-Object { $_.severity -in @("critical","high") }).Count -gt 0) { $securityStatus = "block" }
       }
     }
   } else {
@@ -170,30 +183,38 @@ try {
 
   if (Get-Command eslint -ErrorAction SilentlyContinue) {
     $eslintAvailable = $true
+    $eslintVersion = (eslint --version 2>$null | Select-Object -First 1)
     $jsFiles = $diffFiles | Where-Object { $_ -match '\.(js|ts)$' }
     if ($jsFiles) {
       $eslintOut = eslint --format=json $jsFiles 2>$null
       if (-not $eslintOut) {
         $qualityStatus = "skipped"; $toolUnavailable = $true; $eslintAvailable = $false
       } else {
-        $eslintData = $eslintOut | ConvertFrom-Json
-        $qualFindings = @()
-        foreach ($f in $eslintData) {
-          foreach ($m in $f.messages) {
+        $eslintData = ($eslintOut -join [Environment]::NewLine) | ConvertFrom-Json
+        $rootForPaths = ([System.IO.Path]::GetFullPath($ROOT)).Replace('\','/').TrimEnd('/')
+        foreach ($f in @($eslintData)) {
+          foreach ($m in @($f.messages)) {
             $mapped = if ($m.severity -eq 2) { "high" } elseif ($m.severity -eq 1) { "medium" } else { "low" }
-            $qualFindings += @{
-              id = "eslint-$($m.ruleId)-$($f.filePath):$($m.line):$($m.column)"
+            $path = ([string]$f.filePath).Replace('\','/')
+            if ($rootForPaths -and $path.StartsWith("$rootForPaths/", [System.StringComparison]::OrdinalIgnoreCase)) {
+              $path = $path.Substring($rootForPaths.Length + 1)
+            }
+            $rule = [string]$m.ruleId
+            if (-not $rule) { $rule = "unknown" }
+            $qualityFindings += @{
+              id = "eslint-$rule-${path}:$($m.line):$($m.column)"
               severity = $mapped
-              file = $f.filePath
+              file = $path
               line = $m.line
               col = $m.column
-              rule = $m.ruleId
+              rule = $rule
               message = $m.message
               tool = "eslint"
+              tool_severity_raw = [string]$m.severity
             }
           }
         }
-        if ($qualFindings | Where-Object { $_.severity -in @("critical","high") }) { $qualityStatus = "block" }
+        if (@($qualityFindings | Where-Object { $_.severity -in @("critical","high") }).Count -gt 0) { $qualityStatus = "block" }
       }
     } else {
       $qualityStatus = "no_tool_for_language"
@@ -209,6 +230,82 @@ try {
   if (-not (Test-Path $evidenceDir)) { New-Item -ItemType Directory -Path $evidenceDir | Out-Null }
   $timestamp = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
 
+  # Keep the PowerShell evidence schema aligned with the Bash writer. The
+  # satellite files are written before REVIEW.json so the manifest hash covers
+  # exactly the same inputs on both shells.
+  $securityCounts = [ordered]@{ critical = 0; high = 0; medium = 0; low = 0 }
+  foreach ($finding in @($securityFindings)) {
+    $severity = [string]$finding.severity
+    if ($securityCounts.Contains($severity)) { $securityCounts[$severity]++ }
+  }
+  $qualityCounts = [ordered]@{ critical = 0; high = 0; medium = 0; low = 0 }
+  foreach ($finding in @($qualityFindings)) {
+    $severity = [string]$finding.severity
+    if ($qualityCounts.Contains($severity)) { $qualityCounts[$severity]++ }
+  }
+
+  $securityEvidence = [ordered]@{
+    dimension = "security"
+    tool = "semgrep"
+    status = $securityStatus
+  }
+  if ($securityStatus -eq "skipped") {
+    $securityEvidence.reason = "tool_unavailable"
+    $securityEvidence.tool_available = $semgrepAvailable
+    $securityEvidence.detection_command = "command -v semgrep"
+    $securityEvidence.detection_exit_code = if ($semgrepAvailable) { 0 } else { 1 }
+  } else {
+    $securityEvidence.tool_version = $semgrepVersion
+    $securityEvidence.findings = @($securityFindings)
+    $securityEvidence.findings_count = $securityCounts
+  }
+  $securityEvidence | ConvertTo-Json -Depth 20 -Compress | Set-Content -LiteralPath (Join-Path $evidenceDir "SECURITY.json") -Encoding UTF8
+
+  $qualityEvidence = [ordered]@{
+    dimension = "quality"
+    tool = "eslint"
+    status = $qualityStatus
+  }
+  if ($qualityStatus -eq "skipped") {
+    $qualityEvidence.reason = "tool_unavailable"
+    $qualityEvidence.tool_available = $eslintAvailable
+    $qualityEvidence.detection_command = "command -v eslint"
+    $qualityEvidence.detection_exit_code = if ($eslintAvailable) { 0 } else { 1 }
+  } else {
+    $qualityEvidence.tool_version = $eslintVersion
+    $qualityEvidence.findings = @($qualityFindings)
+    $qualityEvidence.findings_count = $qualityCounts
+  }
+  $qualityEvidence | ConvertTo-Json -Depth 20 -Compress | Set-Content -LiteralPath (Join-Path $evidenceDir "QUALITY.json") -Encoding UTF8
+
+  $manifestHash = [System.Security.Cryptography.SHA256]::Create()
+  $manifestStream = New-Object System.IO.MemoryStream
+  try {
+    $manifestFiles = @(Get-ChildItem -LiteralPath $evidenceDir -File | Where-Object { $_.Extension -eq '.json' -and $_.Name -ne 'REVIEW.json' } | Sort-Object Name)
+    foreach ($manifestFile in $manifestFiles) {
+      $bytes = [System.IO.File]::ReadAllBytes($manifestFile.FullName)
+      $manifestStream.Write($bytes, 0, $bytes.Length)
+    }
+    $evidenceManifestSha256 = ([BitConverter]::ToString($manifestHash.ComputeHash($manifestStream.ToArray())) -replace '-', '').ToLowerInvariant()
+  } finally {
+    $manifestStream.Dispose()
+    $manifestHash.Dispose()
+  }
+
+  $codeFingerprint = [ordered]@{}
+  foreach ($f in @($diffFiles)) {
+    $sha = (git rev-parse "HEAD:$f" 2>$null | Select-Object -First 1)
+    if ($sha) { $codeFingerprint[$f] = ([string]$sha).Trim() }
+  }
+  $configDefaults = if ($config -and $config.defaults) { $config.defaults } else { [ordered]@{} }
+  $configOverrides = if ($config -and $config.overrides) { $config.overrides } else { [ordered]@{} }
+  $configLayers = [ordered]@{
+    l0_defaults = $configDefaults
+    l1_project = [ordered]@{ overrides = $configOverrides }
+    l2_task = [ordered]@{ severity_threshold = $severityThreshold }
+  }
+  $toolVersions = [ordered]@{ semgrep = $semgrepVersion; eslint = $eslintVersion }
+
   $review = @{
     task = $task
     timestamp = $timestamp
@@ -217,12 +314,13 @@ try {
       strategy = "task_first_commit"
       base_commit = $taskFirstCommit
       head_commit = $headCommit
-      files_reviewed = $diffFiles
+      files_reviewed = @($diffFiles)
+      files_skipped = @($writeSetFiles | Where-Object { -not ($codeFiles -contains $_) })
       diff_empty = ($diffFiles.Count -eq 0)
     }
     dimensions = @{
-      security = @{ status = $securityStatus }
-      quality = @{ status = $qualityStatus }
+      security = @{ status = $securityStatus; findings_count = $securityCounts; tool_version = $semgrepVersion }
+      quality = @{ status = $qualityStatus; findings_count = $qualityCounts; tool_version = $eslintVersion }
     }
     severity_threshold = $severityThreshold
     tool_unavailable = $toolUnavailable
@@ -230,6 +328,10 @@ try {
       semgrep = @{ available = $semgrepAvailable; detection_command = "command -v semgrep"; detection_exit_code = if ($semgrepAvailable) { 0 } else { 1 } }
       eslint = @{ available = $eslintAvailable; detection_command = "command -v eslint"; detection_exit_code = if ($eslintAvailable) { 0 } else { 1 } }
     }
+    config_layers = $configLayers
+    tool_versions = $toolVersions
+    code_fingerprint = $codeFingerprint
+    evidence_manifest_sha256 = $evidenceManifestSha256
     write_provenance = @{
       writer = "engine-review"
       commit = $headCommit

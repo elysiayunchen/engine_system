@@ -4,8 +4,8 @@
 
 ## 立即恢复点
 
-当前恢复点（2026-08-02）：T-081 已完成：PowerShell drift-check 使用 Ordinal 顺序与 Bash manifest 一致；Git Bash 下 Windows Python 通过 argv 接收 POSIX 路径；Doctor 脚本统一 LF；Doctor 缓存改为 HEAD+worktree 指纹；verify/close/prove 在各生命周期写入点刷新 MANIFEST；drift 只接受 engine-verify/engine-prove 两类受控 writer。正式 close 已记录 verify 9/9、prove 4/4、Gate PASS、Doctor 0 failure，任务卡已标记 done；独立 drift-check 为 tamper=0、drift=0、warn=0，313 条历史/维护 warning 保留可见。T-086 progress 已归档并补齐 INVENTORY。当前 active 卡为 T-069/T-080/T-084；T-082/T-085/T-086 已 done。下一步：治理 legacy evidence、tag/VERSION、CLI-LEAN 长度与孤儿 shard 等非阻断债务。
-下一步: push main + tag v6.26.0;doctor ps1 review 对等债;E_INDEPENDENCE 升级;ps1 自动对等校验
+当前恢复点（2026-08-02）：T-069 Review pipeline 正在收口：Bash 回归与正式 verify 均为 19/19 PASS；独立审查发现 PowerShell pipeline 只写 REVIEW.json，缺少与 Bash 对齐的 SECURITY/QUALITY、findings、tool_versions、config_layers、code_fingerprint、evidence_manifest_sha256 字段，已在 root/plugin 两份 `engine-review-pipeline.ps1` 修复并完成 PowerShell 实跑与镜像校验。代码修复尚未提交，下一步先通过 pre-commit，再在新 HEAD 上重跑 review-agent package/validate、prove、gate、close。T-080/T-084 并行改动保持不动。
+下一步: 完成 T-069 的最终 review/prove/gate/close，提交后再治理 legacy evidence、tag/VERSION、CLI-LEAN 长度与孤儿 shard。
 
 > Phase 1 = 通用化核心(prompt 抽离 / CLI 扩展 / 快速安装 / agent 检测——D-017 原文口径;实施细化与「薄壳」口径修正见 D-018)。v6.2 = 多 agent 通信层(engine context + DevComm Rule 扩展)。
 

@@ -34,3 +34,58 @@ rg "_fe_append_candidate" engine/scripts/engine-hook-stop.sh  # 失败模式提�
 
 <!-- Stop hook 自动追加的失败模式候选。人工 review 后提升为正式条目或删除。-->
 
+
+### P013 — doctor 有3处 summary printf, 补丁 rfind 定位最后一处
+
+- **严重程度：** 中
+- **类别：** 补丁定位
+- **状态：** 已修复
+- **你能观察到的现象：** 补丁插入 check_script_lint 调用到 package_mode 块内(函数未定义), 静默无效无报错
+- **错误做法：** 用 str.replace() 匹配第一个 summary printf 出现位置
+- **正确做法：** 用 rfind() 定位最后一处 summary printf 再插入
+- **触发条件：** engine-doctor.sh 有 package_mode 分支, 内含2处相同 printf + 末尾1处
+- **验证方式：** `grep -n "check_script_lint" engine-doctor.sh` 确认调用在函数定义之后
+
+### P014 — Python f-string 与 PS1 ${var} 冲突
+
+- **严重程度：** 中
+- **类别：** 代码生成
+- **状态：** 已修复
+- **你能观察到的现象：** NameError: name 'fname' is not defined — Python 解析 ${fname} 为变量
+- **错误做法：** 用 f-string 生成含 PowerShell ${var} 语法的代码
+- **正确做法：** 用普通三引号字符串(非 f-string)生成 PS1 代码
+- **触发条件：** Python 补丁脚本生成 PS1 内容时
+- **验证方式：** 补丁脚本执行无 NameError
+
+### P015 — bash printf '---\n...' 被解析为选项
+
+- **严重程度：** 低
+- **类别：** bash 语法
+- **状态：** 已修复
+- **你能观察到的现象：** printf: --: invalid option
+- **错误做法：** printf '---\nProvenance: ...' (格式串以 - 开头)
+- **正确做法：** printf '%s\n' "---" 或 printf -- '---\n...'
+- **触发条件：** 格式串以 --- 开头时 bash printf 误判为选项
+- **验证方式：** 胶囊文件包含 --- 分隔行
+
+### P016 — PS1 param 块补丁混合行尾(CRLF/LF)导致解析失败
+
+- **严重程度：** 中
+- **类别：** 补丁定位
+- **状态：** 已修复
+- **你能观察到的现象：** Missing argument in parameter list at line 2
+- **错误做法：** 在 CRLF 文件中用 LF 行插入新 param, 产生混合行尾; 或用通用 regex 匹配 param 块时切断 (Get-Location).Path 表达式
+- **正确做法：** 匹配时考虑混合行尾(\r\n 和 \n 共存); 插入时统一用文件主行尾
+- **触发条件：** engine/scripts/*.ps1 是 CRLF, Python 补丁用 \n 拼接
+- **验证方式：** PowerShell Parser::ParseFile 零错误
+
+### P017 — case 模式中含 << 触发 heredoc 解析
+
+- **严重程度：** 低
+- **类别：** bash 语法
+- **状态：** 已修复
+- **你能观察到的现象：** syntax error near unexpected token `<<'
+- **错误做法：** case "$line" in *cat\ <<*) — bash 将 << 解析为 heredoc 操作符
+- **正确做法：** 用 if [[ "$line" == *"<<"* ]] 替代 case 模式匹配含 << 的字符串
+- **触发条件：** case 模式中包含重定向操作符字符
+- **验证方式：** bash -n 通过

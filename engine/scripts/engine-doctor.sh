@@ -32,15 +32,31 @@ fail_count=0
 warn_count=0
 
 # v6.25.0 (T-086/B6): incremental mode — skip expensive checks if HEAD unchanged.
+# v6.26.1 (T-081): HEAD alone is insufficient while verify/close and parallel
+# workers update evidence in the worktree. Include tracked diffs and untracked
+# files in the cache key so a cached failure/pass cannot survive a real change.
 # Use --full to force a complete run. Cache lives at engine/.cache/doctor-last-run.
 _doctor_cache_dir="$ENGINE_DIR/.cache"
 _doctor_cache_file="$_doctor_cache_dir/doctor-last-run"
 _current_head="$(git -C "$ROOT" rev-parse HEAD 2>/dev/null || echo none)"
+_doctor_worktree_fingerprint() {
+  {
+    git -C "$ROOT" diff --no-ext-diff --binary HEAD -- . 2>/dev/null || true
+    while IFS= read -r -d '' _untracked; do
+      [ -f "$ROOT/$_untracked" ] || continue
+      printf 'untracked:%s\n' "$_untracked"
+      sha256sum "$ROOT/$_untracked" 2>/dev/null || true
+    done < <(git -C "$ROOT" ls-files --others --exclude-standard -z 2>/dev/null || true)
+  } | sha256sum | cut -d' ' -f1
+}
+_doctor_worktree_fp="$(_doctor_worktree_fingerprint)"
 if [ "$FULL_MODE" = false ] && [ -f "$_doctor_cache_file" ]; then
   _cached_head="$(head -1 "$_doctor_cache_file" 2>/dev/null || echo '')"
-  if [ "$_cached_head" = "$_current_head" ] && [ "$_current_head" != "none" ]; then
+  _cached_worktree_fp="$(sed -n '3p' "$_doctor_cache_file" 2>/dev/null || echo '')"
+  if [ "$_cached_head" = "$_current_head" ] && [ "$_current_head" != "none" ] &&
+     [ -n "$_cached_worktree_fp" ] && [ "$_cached_worktree_fp" = "$_doctor_worktree_fp" ]; then
     _cached_summary="$(sed -n '2p' "$_doctor_cache_file" 2>/dev/null || echo '')"
-    echo "[engine-doctor] incremental: HEAD unchanged ($_current_head), using cached result."
+    echo "[engine-doctor] incremental: HEAD/worktree unchanged ($_current_head), using cached result."
     echo "[engine-doctor] cached: $_cached_summary"
     echo "  (use 'engine doctor --full' to force a complete re-check)"
     # Exit with cached status
@@ -2135,10 +2151,16 @@ check_script_lint() {
       fi
 
       # SC2006: backtick command substitution (use $(...) instead)
+      # Skip echo/printf lines (backticks as literal content, not substitution)
       if [[ "$line" == *'`'*'`'* ]]; then
-        # Exclude lines that are purely comments (already skipped) or inside heredocs
-        warn "lint SC2006 ($fname:$line_no): use \$(...) instead of backticks"
-        lint_hits=$((lint_hits + 1))
+        if [[ "$line" =~ ^[[:space:]]*(echo|printf)[[:space:]] ]]; then
+          : # backticks in output content, not command substitution
+        elif [[ "$line" == *"<<"* ]]; then
+          : # heredoc marker line, skip
+        else
+          warn "lint SC2006 ($fname:$line_no): use \$(...) instead of backticks"
+          lint_hits=$((lint_hits + 1))
+        fi
       fi
 
       # SC2230: which command (use command -v / type -P)
@@ -2472,9 +2494,10 @@ done
 # v6.25.0 (T-086/O1): script lint (ShellCheck-pattern subset)
 check_script_lint
 
-# v6.25.0 (B6): save state for incremental mode
+# v6.26.1 (T-081): save HEAD + worktree fingerprint for incremental mode.
 mkdir -p "$_doctor_cache_dir" 2>/dev/null || true
-printf '%s\n%s failure(s), %s warning(s)\n' "$_current_head" "$fail_count" "$warn_count" > "$_doctor_cache_file" 2>/dev/null || true
+printf '%s\n%s failure(s), %s warning(s)\n%s\n' \
+  "$_current_head" "$fail_count" "$warn_count" "$_doctor_worktree_fp" > "$_doctor_cache_file" 2>/dev/null || true
 
 printf '\nEngine Doctor: %s failure(s), %s warning(s)\n' "$fail_count" "$warn_count"
 if [[ "$fail_count" -gt 0 ]]; then

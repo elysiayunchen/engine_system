@@ -220,29 +220,51 @@ echo "$out" | grep -q "SKIP step2" || bad "S4 missing step2 SKIP"
 echo "$out" | grep -q "SKIP step3" || bad "S4 missing step3 SKIP"
 
 # =============================================================================
-# S5: provenance.commit != HEAD -> exit 1, step1 FAIL
+# S5: unreachable provenance on a completed historical card -> WARN, no FAIL
 # =============================================================================
 setup_s5() { :; }
 setup_repo setup_s5
 HEAD_SHA="$(cd "$ROOT" && git rev-parse HEAD)"
 BLOB_SHA="$(blob_sha_of src/foo.py)"
-# Use a fake commit sha that is NOT HEAD
+# Use a commit sha that is not present in this clone.
 FAKE_COMMIT="0000000000000000000000000000000000000001"
 write_evidence "{\"src/foo.py\":\"$BLOB_SHA\"}" "$FAKE_COMMIT" "engine-verify"
 write_manifest "$FAKE_COMMIT"
-echo "S5: provenance.commit != HEAD -> exit 1"
+echo "S5: unreachable historical provenance -> exit 0 with WARN"
 if [ "${DEBUG:-0}" = "1" ]; then
   out="$(run_check_debug 2>&1)"; rc=$?
   echo "$out"
 else
   out="$(run_check 2>&1)"; rc=$?
 fi
-if [ "$rc" -eq 1 ]; then
-  ok "S5 exit 1"
+if [ "$rc" -eq 0 ]; then
+  ok "S5 exit 0"
 else
-  bad "S5 expected exit 1 got $rc"
+  bad "S5 expected exit 0 got $rc"
 fi
-echo "$out" | grep -q "provenance.commit mismatch" || bad "S5 missing commit mismatch message"
+echo "$out" | grep -q "legacy evidence provenance.commit mismatch" || bad "S5 missing legacy commit warning"
+
+# =============================================================================
+# S6: missing provenance remains a hard failure for a completed card
+# =============================================================================
+setup_s6() { :; }
+setup_repo setup_s6
+HEAD_SHA="$(cd "$ROOT" && git rev-parse HEAD)"
+BLOB_SHA="$(blob_sha_of src/foo.py)"
+cat > "$ROOT/engine/evidence/T-999/AC-1.json" <<JSON
+{"ac":"AC-1","verify":"true","status":"pass","exit":0,"output_fingerprint":"sha256:abc","code_fingerprint":{"src/foo.py":"$BLOB_SHA"},"write_set_snapshot":["src/foo.py"],"verified_against_commit":"$HEAD_SHA","timestamp":"2026-07-30T00:00:00Z"}
+JSON
+write_manifest "$HEAD_SHA"
+# The drift checker reads provenance from MANIFEST.json; remove the writer
+# field there while retaining a self-consistent file aggregate.
+sed -i 's/"writer":"engine-verify",//' "$ROOT/engine/evidence/T-999/MANIFEST.json"
+echo "S6: missing provenance -> exit 1"
+if out="$(run_check 2>&1)"; rc=$?; [ "$rc" -eq 1 ]; then
+  ok "S6 exit 1"
+else
+  bad "S6 expected exit 1 got $rc"
+fi
+echo "$out" | grep -q "invalid provenance.writer" || bad "S6 missing provenance writer failure"
 
 echo ""
 echo "=========================================="

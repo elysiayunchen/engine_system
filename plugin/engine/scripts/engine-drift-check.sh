@@ -190,9 +190,19 @@ for tid in "${done_cards[@]}"; do
       tamper_count=$((tamper_count+1))
       step1_fail=1
     elif ! git_commit_exists "$prov_commit"; then
-      echo "  FAIL step1: provenance.commit mismatch (not a reachable commit; got $prov_commit)"
-      tamper_count=$((tamper_count+1))
-      step1_fail=1
+      # Old done cards may point at commits from short-lived worker branches
+      # that are no longer advertised by the remote. That is historical
+      # provenance loss, not evidence mutation; keep it visible as T2 WARN.
+      # A card that was not done in HEAD remains a hard failure.
+      if head_task_was_done "$tid"; then
+        echo "  WARN step1: legacy evidence provenance.commit mismatch (unreachable historical commit; got $prov_commit)"
+        warn_count=$((warn_count+1))
+        historical_snapshot=1
+      else
+        echo "  FAIL step1: provenance.commit mismatch (not a reachable commit; got $prov_commit)"
+        tamper_count=$((tamper_count+1))
+        step1_fail=1
+      fi
     elif [ "$prov_commit" != "$head_commit" ]; then
       # A done card can legitimately retain evidence generated at the commit
       # immediately before its status transition, or at an older historical

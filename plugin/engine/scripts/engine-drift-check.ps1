@@ -153,8 +153,18 @@ foreach ($tid in $doneCards) {
       $null = & git -C $Root cat-file -e "$provCommit^{commit}" 2>$null
       $commitExists = ($LASTEXITCODE -eq 0)
       if (-not $commitExists) {
-        Write-Output "  FAIL step1: provenance.commit mismatch (not a reachable commit; got $provCommit)"
-        $tamperCount++; $step1Fail = $true
+        # Old done cards may point at commits from short-lived worker branches
+        # that are no longer advertised by the remote. That is historical
+        # provenance loss, not evidence mutation; keep it visible as T2 WARN.
+        # A card that was not done in HEAD remains a hard failure.
+        $headCard = (& git -C $Root show "HEAD:engine/tasks/$tid.md" 2>$null | Out-String)
+        if ($headCard -match '(?m)^\s*(>\s*)?status:\s*done(\s|$)') {
+          Write-Output "  WARN step1: legacy evidence provenance.commit mismatch (unreachable historical commit; got $provCommit)"
+          $warnCount++; $historicalSnapshot = $true
+        } else {
+          Write-Output "  FAIL step1: provenance.commit mismatch (not a reachable commit; got $provCommit)"
+          $tamperCount++; $step1Fail = $true
+        }
       } elseif ($provCommit -ne $headCommit) {
         # A done card can legitimately retain evidence generated at the commit
         # immediately before its status transition, or at an older historical

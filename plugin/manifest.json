@@ -69,7 +69,7 @@
     { "src": "engine/scripts/engine-review.sh", "sha256": "71cfdac5f151cf5b60bda541bc604635746da956911434c86178a496b02050cf", "dest": "engine/scripts/engine-review.sh", "protect": true },
     { "src": "engine/scripts/engine-review.ps1", "sha256": "3317ce588c7522242a46828c554fb4d238d5ed81276c67b94ece75beb05d980a", "dest": "engine/scripts/engine-review.ps1", "protect": true },
     { "src": "engine/scripts/engine-review-pipeline.sh", "sha256": "eeb8d927f12e2a34730f04997dc587ad27be9637e657cb427081d13aea67d8cc", "dest": "engine/scripts/engine-review-pipeline.sh", "protect": true },
-    { "src": "engine/scripts/engine-review-pipeline.ps1", "sha256": "08ee42155bbad11da5e8a42fc629c201c23de5f1aec8565f42d77983618e98ef", "dest": "engine/scripts/engine-review-pipeline.ps1", "protect": true },
+    { "src": "engine/scripts/engine-review-pipeline.ps1", "sha256": "51f0094a4c7178a2039acb5f0266827965264942f8d92b1b49fc973a9aad1ab4", "dest": "engine/scripts/engine-review-pipeline.ps1", "protect": true },
     { "src": "engine/scripts/engine-review-agent-package.sh", "sha256": "57b2b366220de080b3e145e3a48cb8d5f23bb24de678c652a7521ed37e6d3163", "dest": "engine/scripts/engine-review-agent-package.sh", "protect": true },
     { "src": "engine/scripts/engine-review-agent-package.ps1", "sha256": "a1ffec1a4eacb07c5eb9da3960a037b4b9b19ff8cf8341bc973e08252f0ec34a", "dest": "engine/scripts/engine-review-agent-package.ps1", "protect": true },
     { "src": "engine/scripts/engine-review-agent-validate.sh", "sha256": "2b9799db8145535a16551b2b033cd7b5fa080a256c517d9f6529e04475405004", "dest": "engine/scripts/engine-review-agent-validate.sh", "protect": true },

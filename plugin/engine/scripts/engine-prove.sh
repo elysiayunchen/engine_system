@@ -307,6 +307,31 @@ PKGEOF
   echo "[engine-prove] Next: agent reads package, writes prove-assertions.json"
 }
 
+# v6.26.1 (T-081): prove assertions are agent-written evidence. Refresh the
+# task manifest before assertions execute so a Doctor assertion cannot mistake
+# the newly written prove-assertions.json for tampering. Refresh again after
+# PROVE.json is written so standalone prove leaves a self-consistent snapshot.
+refresh_evidence_manifest() {
+  local ev_dir="$1" commit="$2"
+  local manifest_content="" fname fhash
+  while IFS= read -r fname; do
+    [ -n "$fname" ] || continue
+    fhash="$(sha256sum "$ev_dir/$fname" | cut -d' ' -f1)"
+    manifest_content+="${fname}:${fhash}"$'\n'
+  done < <(cd "$ev_dir" && find . -maxdepth 1 -type f \( -name '*.json' -o -name 'checkpoint.md' \) ! -name 'MANIFEST.json' -printf '%f\n' 2>/dev/null | LC_ALL=C sort)
+  local manifest_hash="$(printf '%s' "$manifest_content" | sha256sum | cut -d' ' -f1)"
+  local files_json="{" first=1
+  while IFS=: read -r fname fhash; do
+    [ -n "$fname" ] || continue
+    [ "$first" = "1" ] || files_json+=",";
+    files_json+="\"$fname\":\"$fhash\""
+    first=0
+  done <<< "$manifest_content"
+  files_json+="}"
+  printf '{"evidence_manifest_sha256":"sha256:%s","generated":"%s","writer":"engine-prove","commit":"%s","files":%s}\n' \
+    "$manifest_hash" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$commit" "$files_json" > "$ev_dir/MANIFEST.json"
+}
+
 # === Phase 2: --execute ===
 phase_execute() {
   local task_id="$1"
@@ -498,6 +523,7 @@ if errors:
 " || exit 1
 
   # 5. Execute assertions
+  refresh_evidence_manifest "$evidence_dir" "$(git -C "$ROOT" rev-parse HEAD 2>/dev/null || echo unknown)"
   echo "[engine-prove] $task_id: executing assertions..."
 
   local results_json
@@ -724,6 +750,8 @@ evidence = {
 with open(prove_file, 'w', encoding='utf-8', newline='\n') as f:
     json.dump(evidence, f, indent=2, ensure_ascii=False)
 "
+
+  refresh_evidence_manifest "$evidence_dir" "$(git -C "$ROOT" rev-parse HEAD 2>/dev/null || echo unknown)"
 
   # 7. Report + exit
   echo "[engine-prove] $task_id: $gate ($passed/$total passed, $failed failed, $timed_out timed out)"

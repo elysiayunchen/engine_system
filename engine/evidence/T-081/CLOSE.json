@@ -1,19 +1,19 @@
 {
   "task": "T-081",
-  "timestamp": "2026-08-01T16:25:49Z",
-  "status": "block",
+  "timestamp": "2026-08-02T10:02:46Z",
+  "status": "pass",
   "stages": {
     "verify": {
-      "status": "fail",
-      "exit": 1
+      "status": "pass",
+      "exit": 0
     },
     "gate": {
-      "status": "fail",
-      "exit": 1
+      "status": "pass",
+      "exit": 0
     },
     "doctor": {
-      "status": "fail",
-      "exit": 1
+      "status": "pass",
+      "exit": 0
     }
   },
   "memory": {
@@ -28,8 +28,8 @@
   },
   "write_provenance": {
     "writer": "engine-close",
-    "commit": "dd907c521153bea4ee1ea05c5406aa45d6279e4d",
-    "timestamp": "2026-08-01T16:25:49Z",
+    "commit": "c1050987377c694563d82aa79117360b7c82c7a8",
+    "timestamp": "2026-08-02T10:02:46Z",
     "argv": "engine close T-081"
   }
 }

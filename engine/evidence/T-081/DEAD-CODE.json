@@ -1,0 +1,12 @@
+{
+  "task": "T-081",
+  "timestamp": "2026-08-02T10:15:03Z",
+  "exempt_all": false,
+  "exempt_reason": null,
+  "linter": "grep-fallback",
+  "entries": [],
+  "summary": {
+    "warn_count": 0,
+    "exempt_count": 0
+  }
+}

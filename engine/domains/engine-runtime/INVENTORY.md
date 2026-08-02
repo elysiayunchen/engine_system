@@ -98,3 +98,8 @@
 | Doctor health regression test ps1 | tests/workstream/test_doctor_health_regressions.ps1 | Test-DoctorHealthRegressions() | stable | 2026-08-01 |
 | verify shell resolution test | tests/workstream/test_verify_shell_resolution.sh | test_verify_shell_resolution() | stable | 2026-08-01 |
 | verify shell resolution test ps1 | tests/workstream/test_verify_shell_resolution.ps1 | Test-VerifyShellResolution() | stable | 2026-08-01 |
+| 根级 engine-init 命令 | .claude/commands/engine-init.md | engine_init_cmd_root() | stable | 2026-08-01 |
+| TDAI Mermaid 任务画布测试 | tests/workstream/test_canvas.sh | test_canvas_tdai() | stable | 2026-08-01 |
+| TDAI 失败模式提取测试 | tests/workstream/test_failure_extract.sh | test_failure_extract_tdai() | stable | 2026-08-01 |
+| TDAI 漂移检测测试 | tests/workstream/test_drift_detect.sh | test_drift_detect_tdai() | stable | 2026-08-01 |
+| TDAI 变更胶囊 heat 测试 | tests/workstream/test_capsule_heat.sh | test_capsule_heat_tdai() | stable | 2026-08-01 |

@@ -1,8 +1,10 @@
-# T-081 progress
+# T-081 progress (archived)
+
+> status: done | owner: coordinator-codex | completed: 2026-08-02
 
 ## Goal
 
-收口 Engine Doctor 全仓失败与 Windows/WSL 跨 shell 生命周期缺口，并修复 done task verify 的 MANIFEST 时序缺口。
+收口 Engine Doctor 全仓失败与 Windows/WSL 跨 shell 生命周期缺口，并修复 verify/close/prove 写证据的 MANIFEST 时序、Doctor 缓存指纹和 proof self-tamper 缺口。
 
 ## Checkpoint
 
@@ -14,9 +16,12 @@
 - [x] AC-6 T-078 lifecycle evidence (verify/review/agent-review/prove/gate/close recorded)
 - [x] AC-7 full Doctor zero failures (Bash Doctor exit 0; legacy warnings remain explicit)
 - [x] AC-8 verify refreshes MANIFEST before a Doctor AC
+- [x] AC-9 close refreshes MANIFEST after Gate and CLOSE writers
+- [x] Doctor cache invalidates on tracked/untracked worktree changes, not only HEAD
+- [x] prove refreshes MANIFEST before Doctor assertions and after PROVE.json; drift accepts only verify/prove writers
 
 ## Next
 
-None. T-081 completed 8/8 verify, review, agent-review, prove, gate, close, and Doctor with zero hard failures.
+T-081 completed 9/9 verify, review, agent-review, prove (4/4), gate, close, and Doctor with zero hard failures. Bash close re-ran verify/gate/Doctor and recorded CLOSE.json with status=pass. The final independent drift check reported tamper=0, drift=0, warn=0; Doctor retained 313 non-blocking legacy/maintenance warnings.
 
 > Archived by T-081 so the done card no longer retains a live progress file.

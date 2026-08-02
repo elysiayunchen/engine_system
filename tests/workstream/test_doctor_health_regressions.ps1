@@ -46,12 +46,20 @@ Assert-Contains (Join-Path $repoRoot 'engine\scripts\engine-doctor.sh') 'json_fi
 Assert-Contains (Join-Path $repoRoot 'engine\scripts\engine-doctor.sh') 'sys.argv[1]'
 Assert-Contains (Join-Path $repoRoot 'engine\scripts\engine-verify.sh') 'ensure_powershell_on_path'
 Assert-Contains (Join-Path $repoRoot 'engine\scripts\engine-verify.sh') 'refresh evidence written by preceding ACs'
+Assert-Contains (Join-Path $repoRoot 'engine\scripts\engine-verify.sh') 'ENGINE_VERIFY_ACTIVE_TASK'
+Assert-Contains (Join-Path $repoRoot 'engine\scripts\engine-verify.sh') 'ENGINE_VERIFY_RECURSE_STACK'
+Assert-Contains (Join-Path $repoRoot 'engine\scripts\engine-verify.sh') 'engine/review/evidence/*'
+Assert-Contains (Join-Path $repoRoot 'engine\scripts\engine-verify.ps1') 'invalidate stale later-AC snapshots'
 Assert-Contains (Join-Path $repoRoot 'engine\scripts\engine-close.sh') 'refresh_evidence_manifest'
+Assert-Contains (Join-Path $repoRoot 'engine\scripts\engine-close.sh') 'The stage'"'"'s exit code must be independent of display I/O.'
+Assert-Contains (Join-Path $repoRoot 'engine\scripts\engine-doctor.sh') 'GATE registry deferred during active verification'
 Assert-Contains (Join-Path $repoRoot 'engine\scripts\engine-close.ps1') 'Refresh-EvidenceManifest'
+Assert-Contains (Join-Path $repoRoot 'engine\scripts\engine-close.ps1') 'ConvertTo-Json -Depth 8 -Compress'
 Assert-Contains (Join-Path $repoRoot 'engine\scripts\engine-drift-check.sh') 'historical_snapshot=0'
 Assert-Contains (Join-Path $repoRoot 'engine\scripts\engine-drift-check.ps1') '$historicalSnapshot = $false'
 Assert-Contains (Join-Path $repoRoot 'engine\scripts\engine-drift-check.ps1') 'array membership rather than HashSet constructors'
 Assert-Contains (Join-Path $repoRoot 'engine\scripts\engine-drift-check.ps1') 'StringComparer]::Ordinal'
+Assert-Contains (Join-Path $repoRoot 'engine\scripts\engine-drift-check.ps1') "Contains('*')"
 $driftPsHash = (Get-FileHash (Join-Path $repoRoot 'engine\scripts\engine-drift-check.ps1') -Algorithm SHA256).Hash
 $driftPsPluginHash = (Get-FileHash (Join-Path $repoRoot 'plugin\engine\scripts\engine-drift-check.ps1') -Algorithm SHA256).Hash
 if ($driftPsHash -ne $driftPsPluginHash) { throw 'Drift PowerShell mirrors differ' }

@@ -34,3 +34,7 @@
 | Prove execution regression | tests/workstream/test_prove_execute.sh | test_prove_execute_sh() | stable | 2026-08-01 |
 | Acceptance preflight regression(sh) | tests/workstream/test_acceptance_preflight.sh | test_acceptance_preflight_sh() | stable | 2026-08-01 |
 | Acceptance preflight regression(ps1) | tests/workstream/test_acceptance_preflight.ps1 | test_acceptance_preflight_ps1() | stable | 2026-08-01 |
+| T-086 capsule generation regression | tests/workstream/test_close_capsule_gen.sh | test_close_capsule_gen_sh() | stable | 2026-08-02 |
+| T-086 Doctor lint regression | tests/workstream/test_doctor_script_lint.sh | test_doctor_script_lint_sh() | stable | 2026-08-02 |
+| OSS pattern internalization plan | docs/oss-internalization-plan.md | read_oss_internalization_plan() | stable | 2026-08-02 |
+| 编译产物 rules.json | rules.json | generated_rules_json() | stable | 2026-08-01 |

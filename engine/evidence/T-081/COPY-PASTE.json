@@ -1,0 +1,8 @@
+{
+  "task": "T-081",
+  "timestamp": "2026-08-02T10:15:03Z",
+  "tool": "jscpd",
+  "jscpd_available": false,
+  "duplications": [],
+  "warn_count": 0
+}

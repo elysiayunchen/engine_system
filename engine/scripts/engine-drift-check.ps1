@@ -25,7 +25,7 @@ $EngineDir = Join-Path $Root "engine"
 function Test-EngineMetadata {
   param([string]$Path)
   $metaPatterns = @(
-    'engine/tasks/', 'engine/decisions/', 'engine/changes/', 'engine/evidence/',
+    'engine/tasks/', 'engine/decisions/', 'engine/changes/', 'engine/evidence/', 'engine/review/evidence/',
     'engine/domains/', 'engine/archive/', 'engine/CONTEXT.md', 'engine/HANDOFF.md',
     'engine/ENGINE_MAP.md', 'engine/handoff-archive-', 'VERSION', 'engine/VERSION',
     'plugin/VERSION', 'plugin/manifest.json', 'CHANGELOG.md'
@@ -36,7 +36,7 @@ function Test-EngineMetadata {
   return $false
 }
 
-# Collect done cards (status:done in the > header line, line-start anchored)
+# Collect done cards (same optional frontmatter marker and anchor as Doctor)
 $taskDir = Join-Path $EngineDir "tasks"
 $doneCards = @()
 if (Test-Path $taskDir) {
@@ -45,7 +45,7 @@ if (Test-Path $taskDir) {
     if ($Task -and ($tid -ne $Task)) { return }
     $firstLines = Get-Content -Path $_.FullName -Encoding UTF8 -TotalCount 5
     foreach ($ln in $firstLines) {
-      if ($ln -match '^>.*status:\s*done') { $doneCards += $tid; break }
+      if ($ln -match '^\s*(>\s*)?status:\s*done(\s|$)') { $doneCards += $tid; break }
     }
   }
 }
@@ -82,7 +82,9 @@ foreach ($tid in $doneCards) {
     $acFilesForLegacy = Get-ChildItem -Path $evDir -Filter "AC-*.json" -File -ErrorAction SilentlyContinue | Sort-Object Name
     $firstAcForLegacy = if ($acFilesForLegacy.Count -gt 0) { $acFilesForLegacy[0].FullName } else { "" }
     $isLegacy = $false
-    if ($firstAcForLegacy -and (Test-Path $firstAcForLegacy)) {
+    if (-not $firstAcForLegacy) {
+      $isLegacy = $true
+    } elseif (Test-Path $firstAcForLegacy) {
       $firstEvRawLegacy = Get-Content -Path $firstAcForLegacy -Raw -Encoding UTF8
       if ($firstEvRawLegacy -notmatch '"write_provenance"') { $isLegacy = $true }
     }
@@ -138,8 +140,10 @@ foreach ($tid in $doneCards) {
     if ($manifestRaw -match '"writer":"([^"]*)"') { $provWriter = $Matches[1] }
     $provCommit = ""
     if ($manifestRaw -match '"commit":"([^"]*)"') { $provCommit = $Matches[1] }
-    if ($provWriter -ne "engine-verify") {
-      Write-Output "  FAIL step1: invalid provenance.writer (expected engine-verify, got $provWriter)"
+    # Verify and prove both write the task manifest during their lifecycle
+    # stages; accept only these two engine-owned writers.
+    if ($provWriter -ne "engine-verify" -and $provWriter -ne "engine-prove") {
+      Write-Output "  FAIL step1: invalid provenance.writer (expected engine-verify or engine-prove, got $provWriter)"
       $tamperCount++; $step1Fail = $true
     }
     if (-not $provCommit) {
@@ -149,7 +153,7 @@ foreach ($tid in $doneCards) {
       $null = & git -C $Root cat-file -e "$provCommit^{commit}" 2>$null
       $commitExists = ($LASTEXITCODE -eq 0)
       if (-not $commitExists) {
-        Write-Output "  FAIL step1: provenance.commit is not a reachable commit (got $provCommit)"
+        Write-Output "  FAIL step1: provenance.commit mismatch (not a reachable commit; got $provCommit)"
         $tamperCount++; $step1Fail = $true
       } elseif ($provCommit -ne $headCommit) {
         # A done card can legitimately retain evidence generated at the commit
@@ -158,7 +162,7 @@ foreach ($tid in $doneCards) {
         # explicit legacy snapshot warning while keeping code-fingerprint drift
         # visible below. A current active/newly-done card remains a hard failure.
         $headCard = (& git -C $Root show "HEAD:engine/tasks/$tid.md" 2>$null | Out-String)
-        if ($headCard.Contains("> status: done")) {
+        if ($headCard -match '(?m)^\s*(>\s*)?status:\s*done(\s|$)') {
           Write-Output "  WARN step1: legacy evidence provenance.commit mismatch (HEAD=$headCommit, snapshot=$provCommit)"
           $warnCount++; $historicalSnapshot = $true
         } else {
@@ -219,6 +223,7 @@ foreach ($tid in $doneCards) {
         if ($line -match '^-\s+(.+)') {
           $path = $Matches[1].Trim()
           if (Test-EngineMetadata -Path $path) { continue }
+          if ($path.Contains('*') -or $path.Contains('?')) { continue }
           $fullPath = Join-Path $Root $path
           if (-not (Test-Path $fullPath -PathType Leaf)) { continue }
           $currentWs += $path
@@ -261,6 +266,7 @@ foreach ($tid in $doneCards) {
         if ($pair -match '"([^"]*)":"([^"]*)"') {
           $path = $Matches[1]
           $storedSha = $Matches[2]
+          if ($path.Contains('*') -or $path.Contains('?')) { continue }
           $gitOut = & git -C $Root ls-files -s $path 2>$null
           $currentSha = ""
           if ($gitOut -match '\s([0-9a-f]{40})\s') { $currentSha = $Matches[1] }

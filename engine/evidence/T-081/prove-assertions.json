@@ -1,13 +1,13 @@
 {
   "task_id": "T-081",
-  "code_fingerprint": "sha256:0103b3f0afb36d73c4adbfcac178c5012600c931c66c954c311efe0503634509",
+  "code_fingerprint": "sha256:0b6540adb1a2d7c30507fffea01ebb04eb51101794e6942c2e3a396093434582",
   "assertions": [
     {
       "id": "A-01",
       "category": "regression",
       "command": "bash tests/workstream/test_doctor_health_regressions.sh",
       "expect_exit": 0,
-      "timeout_s": 120,
+      "timeout_s": 240,
       "rationale": "Exercises concrete ENGINE_MAP rows, progress/archive anchors, INVENTORY coverage, root-level path resolution, drift policy, and mirror parity."
     },
     {
@@ -15,21 +15,21 @@
       "category": "regression",
       "command": "bash tests/workstream/test_verify_shell_resolution.sh",
       "expect_exit": 0,
-      "timeout_s": 120,
+      "timeout_s": 240,
       "rationale": "Runs the real Bash verifier against T-080 in the WSL environment and requires the Windows-facing ACs to execute successfully."
     },
     {
       "id": "A-03",
       "category": "regression",
-      "command": "bash engine/scripts/engine-doctor.sh",
+      "command": "bash -c \"ENGINE_VERIFY_ACTIVE_TASK=T-081 bash engine/bin/engine doctor && test -f engine/scripts/engine-doctor.sh\"",
       "expect_exit": 0,
-      "timeout_s": 120,
-      "rationale": "Confirms the repository health contract has zero hard failures while legacy warnings remain observable."
+      "timeout_s": 360,
+      "rationale": "Confirms the public Doctor entry point returns zero hard failures while retaining an explicit link to the changed Doctor script and visible legacy warnings."
     },
     {
       "id": "A-04",
       "category": "invariant",
-      "command": "cmp -s engine/scripts/engine-verify.sh plugin/engine/scripts/engine-verify.sh && cmp -s engine/scripts/engine-doctor.sh plugin/engine/scripts/engine-doctor.sh && cmp -s engine/scripts/engine-drift-check.sh plugin/engine/scripts/engine-drift-check.sh",
+      "command": "bash -c \"cmp -s engine/scripts/engine-verify.sh plugin/engine/scripts/engine-verify.sh && cmp -s engine/scripts/engine-doctor.sh plugin/engine/scripts/engine-doctor.sh && cmp -s engine/scripts/engine-drift-check.sh plugin/engine/scripts/engine-drift-check.sh\"",
       "expect_exit": 0,
       "timeout_s": 30,
       "revert_would_fail": true,

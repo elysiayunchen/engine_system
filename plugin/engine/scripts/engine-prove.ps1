@@ -374,6 +374,28 @@ Write engine/evidence/$TaskId/prove-assertions.json:
     Write-Output "[engine-prove] Next: agent reads package, writes prove-assertions.json"
 }
 
+# v6.26.1 (T-081): prove assertions are agent-written evidence. Refresh the
+# task manifest before assertions execute so a Doctor assertion cannot mistake
+# the newly written prove-assertions.json for tampering. Refresh again after
+# PROVE.json is written so standalone prove leaves a self-consistent snapshot.
+function Refresh-EvidenceManifest {
+    param([string]$EvDir, [string]$Commit)
+    $files = @(Get-ChildItem -Path $EvDir -File | Where-Object { $_.Name -ne 'MANIFEST.json' -and ($_.Name -like '*.json' -or $_.Name -eq 'checkpoint.md') } | Sort-Object Name)
+    $manifestContent = ""
+    $filesDict = @{}
+    foreach ($f in $files) {
+        $h = (Get-FileHash -LiteralPath $f.FullName -Algorithm SHA256).Hash.ToLower()
+        $manifestContent += "$($f.Name):$h`n"
+        $filesDict[$f.Name] = $h
+    }
+    $sha = [Security.Cryptography.SHA256]::Create()
+    $manifestHash = (([BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($manifestContent))) -replace '-', '').ToLower())
+    $sha.Dispose()
+    $filesJson = '{' + (($filesDict.Keys | Sort-Object | ForEach-Object { '"' + $_ + '":"' + $filesDict[$_] + '"' }) -join ',') + '}'
+    $json = '{"evidence_manifest_sha256":"sha256:' + $manifestHash + '","generated":"' + (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ') + '","writer":"engine-prove","commit":"' + $Commit + '","files":' + $filesJson + '}'
+    $json | Set-Content -LiteralPath (Join-Path $EvDir 'MANIFEST.json') -Encoding UTF8
+}
+
 # === Phase 2: --execute ===
 function Invoke-PhaseExecute {
     param([string]$TaskId)
@@ -568,6 +590,9 @@ if errors:
     if ($LASTEXITCODE -ne 0) { exit 1 }
 
     # 5. Execute assertions
+    $proveHead = & git -C $ROOT rev-parse HEAD 2>$null
+    if (-not $proveHead) { $proveHead = 'unknown' }
+    Refresh-EvidenceManifest -EvDir $evidenceDir -Commit $proveHead
     Write-Output "[engine-prove] ${TaskId}: executing assertions..."
 
     $env:ASSERTIONS_FILE = $assertionsFile
@@ -816,6 +841,8 @@ with open(prove_file, 'w', encoding='utf-8', newline='\n') as f:
         [Console]::Error.WriteLine("[engine-prove] error writing PROVE.json")
         exit 1
     }
+
+    Refresh-EvidenceManifest -EvDir $evidenceDir -Commit $proveHead
 
     # 7. Report + exit
     Write-Output "[engine-prove] ${TaskId}: $gate ($passed/$total passed, $failed failed, $timedOut timed out)"

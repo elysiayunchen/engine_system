@@ -40,6 +40,7 @@ new_fixture() {
   git -C "$d" config core.autocrlf false
   cp "$ROOT_REPO/engine/bin/engine" "$d/engine/bin/engine"
   cp "$ROOT_REPO/engine/scripts/engine-gate.sh" "$d/engine/scripts/engine-gate.sh"
+  cp "$ROOT_REPO/engine/scripts/engine-task-card.sh" "$d/engine/scripts/engine-task-card.sh"
   cp "$ROOT_REPO/engine/scripts/engine-verify.sh" "$d/engine/scripts/engine-verify.sh"
   cp "$ROOT_REPO/engine/scripts/engine-prove.sh" "$d/engine/scripts/engine-prove.sh"
   cp "$ROOT_REPO/engine/scripts/engine-close.sh" "$d/engine/scripts/engine-close.sh"
@@ -67,8 +68,7 @@ write_card() {
 # T-001 lifecycle fixture
 > status: active | lane: test
 
-## WRITE-SET
-- docs/guide.md
+WRITE-SET: docs/guide.md
 
 ## FORBIDDEN
 

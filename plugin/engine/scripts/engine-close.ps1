@@ -11,6 +11,8 @@ param(
 $ErrorActionPreference = "Continue"
 $Root = if ($env:CLAUDE_PROJECT_DIR) { $env:CLAUDE_PROJECT_DIR } else { (Get-Location).Path }
 $EngineDir = Join-Path $Root "engine"
+$taskCardLibrary = Join-Path $PSScriptRoot "engine-task-card.ps1"
+if (Test-Path -LiteralPath $taskCardLibrary -PathType Leaf) { . $taskCardLibrary }
 $handoffAgent = if ($env:ENGINE_AGENT_ID) { $env:ENGINE_AGENT_ID } else { "" }
 
 $closeArgs = @()
@@ -232,10 +234,19 @@ function Generate-Capsule {
 $capsuleStatus = 'not_required'
 $capsulePath = ''
 $taskText = Get-Content -Raw -Path $taskFile -Encoding UTF8
-$writeSetText = ''
-$writeSetMatch = [regex]::Match($taskText, '(?ms)^##\s+WRITE-SET\s*$([\s\S]*?)(?=^##\s+|\z)')
-if ($writeSetMatch.Success) { $writeSetText = $writeSetMatch.Groups[1].Value }
-if ($writeSetText -match '(?m)^-\s+.*\.(sh|ps1|py|js|ts|go|rs|java|c|cpp|rb|php)\s*$') {
+$writeSetFiles = @()
+if (Get-Command Get-TaskCardPatterns -ErrorAction SilentlyContinue) {
+  $writeSetFiles = @(Get-TaskCardPatterns -Path $taskFile -Field 'WRITE-SET')
+} else {
+  $writeSetMatch = [regex]::Match($taskText, '(?ms)^##\s+WRITE-SET\s*$([\s\S]*?)(?=^##\s+|\z)')
+  if ($writeSetMatch.Success) {
+    $writeSetFiles = @($writeSetMatch.Groups[1].Value -split "`n" | Where-Object { $_.Trim().StartsWith('- ') } | ForEach-Object { $_.Trim().Substring(2).Trim() })
+  }
+}
+if (@($writeSetFiles | Where-Object {
+  $clean = ($_ -replace '\s*[\(\[].*$', '').Trim()
+  $clean -match '\.(sh|ps1|py|js|ts|go|rs|java|c|cpp|rb|php)$'
+}).Count -gt 0) {
   $capsuleStatus = 'block'
   $changesDir = Join-Path $EngineDir 'changes'
   if (Test-Path $changesDir) {

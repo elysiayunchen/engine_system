@@ -11,6 +11,8 @@ $ErrorActionPreference = "Stop"
 $ROOT = $env:CLAUDE_PROJECT_DIR
 if (-not $ROOT) { $ROOT = (Get-Location).Path }
 $ENGINE_DIR = Join-Path $ROOT "engine"
+$taskCardLibrary = Join-Path $PSScriptRoot "engine-task-card.ps1"
+if (Test-Path -LiteralPath $taskCardLibrary -PathType Leaf) { . $taskCardLibrary }
 $task = $args[0]
 
 if (-not $task) {
@@ -75,13 +77,17 @@ try {
   # 2. WRITE-SET 解析
   $taskContent = Get-Content $taskFile -Raw
   $writeSetFiles = @()
-  $inWriteSet = $false
-  foreach ($line in $taskContent -split "`n") {
-    if ($line -match '^## WRITE-SET') { $inWriteSet = $true; continue }
-    if ($line -match '^## ') { $inWriteSet = $false; continue }
-    if ($inWriteSet -and $line -match '^- ') {
-      $f = ($line -replace '^- ','' -replace ' *#.*','').Trim()
-      if ($f) { $writeSetFiles += $f }
+  if (Get-Command Get-TaskCardPatterns -ErrorAction SilentlyContinue) {
+    $writeSetFiles = @(Get-TaskCardPatterns -Path $taskFile -Field 'WRITE-SET')
+  } else {
+    $inWriteSet = $false
+    foreach ($line in $taskContent -split "`n") {
+      if ($line -match '^##\s+WRITE-SET') { $inWriteSet = $true; continue }
+      if ($line -match '^##\s+') { $inWriteSet = $false; continue }
+      if ($inWriteSet -and $line -match '^- ') {
+        $f = (($line -replace '^- ','') -replace ' *#.*').Trim()
+        if ($f) { $writeSetFiles += $f }
+      }
     }
   }
   if ($writeSetFiles.Count -eq 0) {

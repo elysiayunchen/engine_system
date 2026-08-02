@@ -24,7 +24,25 @@ fi
 
 ROOT="${CLAUDE_PROJECT_DIR:-$PWD}"
 ENGINE_DIR="$ROOT/engine"
+task_card_script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "$task_card_script_dir/engine-task-card.sh" ]; then
+  # shellcheck source=/dev/null
+  . "$task_card_script_dir/engine-task-card.sh"
+fi
 task="${1:-}"
+
+# Git Bash may invoke the native Windows Python, which cannot open MSYS
+# `/e/...` paths. Keep shell paths for Bash, but pass Python portable
+# drive-qualified paths whenever cygpath is available.
+python_path() {
+  if command -v cygpath >/dev/null 2>&1; then
+    cygpath -m "$1"
+  else
+    printf '%s' "$1"
+  fi
+}
+python_root="$(python_path "$ROOT")"
+export ENGINE_REVIEW_PY_ROOT="$python_root"
 
 if [ -z "$task" ]; then
   echo "[engine-review-pipeline] Usage: engine-review-pipeline T-NNN" >&2
@@ -57,10 +75,11 @@ fi
 # 1. 读 config.json(L0 defaults + L1 overrides 合并)—— C11 用 $PY 解析
 #    L1 overrides 逐字段覆盖 L0 defaults(N4 修复:原版只读 defaults,忽略 overrides)
 config_file="$ENGINE_DIR/review/config.json"
+python_config_file="$(python_path "$config_file")"
 config_data=$("$PY" -c "
 import json, sys
 try:
-    with open('$config_file') as f:
+    with open('$python_config_file') as f:
         cfg = json.load(f)
 except:
     cfg = {}
@@ -94,11 +113,15 @@ print(json.dumps(d.get('dimensions',['security','quality'])))
 ")
 
 # 2. 解析 WRITE-SET(从任务卡)
-write_set_files=$(awk '
+if declare -F task_card_parse_patterns >/dev/null 2>&1; then
+  write_set_files="$(task_card_parse_patterns WRITE-SET "$task_file" | tr '\n' ' ')"
+else
+  write_set_files=$(awk '
   /^## WRITE-SET/{f=1;next}
   /^## /{f=0}
   f && /^- /{sub(/^- /,"");sub(/ *#.*/,"");print}
 ' "$task_file" | tr '\n' ' ')
+fi
 
 # 无 WRITE-SET → FAIL
 if [ -z "$write_set_files" ]; then
@@ -131,7 +154,7 @@ for line in sys.stdin:
     f=line.strip()
     if not f: continue
     _, ext=os.path.splitext(f)
-    if ext in exts and os.path.isfile('$ROOT/'+f):
+    if ext in exts and os.path.isfile('$python_root/'+f):
         out.append(f)
 print(' '.join(out))
 ")
@@ -297,6 +320,7 @@ if command -v eslint >/dev/null 2>&1; then
     else
       quality_findings_json=$(printf '%s' "$eslint_output" | "$PY" -c '
 import json,sys
+import os
 try: data=json.load(sys.stdin)
 except: data=[]
 findings=[]
@@ -307,8 +331,9 @@ for f in data:
         elif sev==1: mapped="medium"
         else: mapped="low"
         p=f.get("filePath","").replace("\\","/")
-        # 相对路径
-        if p.startswith("$ROOT/"): p=p[len("$ROOT/"):]
+        # 相对路径 (the root is passed as a normalized environment path)
+        root=os.environ.get("ENGINE_REVIEW_PY_ROOT","").replace("\\","/").rstrip("/")
+        if root and p.startswith(root+"/"): p=p[len(root)+1:]
         line=m.get("line",0)
         col=m.get("column",0)
         rule=m.get("ruleId","") or "unknown"
@@ -346,6 +371,7 @@ fi
 # 9. 汇总 REVIEW.json + SECURITY.json + QUALITY.json
 evidence_dir="$ENGINE_DIR/review/evidence/$task"
 mkdir -p "$evidence_dir"
+python_evidence_dir="$(python_path "$evidence_dir")"
 
 overall_status="pass"
 [ "$security_status" = "block" ] && overall_status="block"
@@ -417,7 +443,7 @@ fi
 # evidence_manifest_sha256(含 SECURITY + QUALITY,排除 REVIEW 自身;对照 §8-2)
 evidence_manifest_sha256=$("$PY" -c "
 import hashlib,json,os
-evidence_dir='$evidence_dir'
+evidence_dir='$python_evidence_dir'
 files=sorted([f for f in os.listdir(evidence_dir) if f.endswith('.json') and f!='REVIEW.json'])
 h=hashlib.sha256()
 for fname in files:
@@ -436,7 +462,7 @@ print(json.dumps({'semgrep':'$semgrep_version','eslint':'$eslint_version'},separ
 config_layers_json=$("$PY" -c "
 import json
 try:
-    with open('$config_file') as f:
+    with open('$python_config_file') as f:
         cfg = json.load(f)
 except:
     cfg = {}

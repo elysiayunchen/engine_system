@@ -27,6 +27,11 @@ done
 
 ENGINE_DIR="$ROOT/engine"
 MAP="$ENGINE_DIR/ENGINE_MAP.md"
+task_card_script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "$task_card_script_dir/engine-task-card.sh" ]; then
+  # shellcheck source=/dev/null
+  . "$task_card_script_dir/engine-task-card.sh"
+fi
 
 fail_count=0
 warn_count=0
@@ -75,6 +80,10 @@ fi
 # AC id regex: AC-[A-Za-z]*[0-9]+(\.[0-9]+)* (v6.12.1 A-3).
 # Separators: | verify: / |verify: / → verify: / →verify: / line-start verify:
 parse_ac_declarations() {
+  if declare -F task_card_parse_ac_declarations >/dev/null 2>&1; then
+    task_card_parse_ac_declarations "$@"
+    return 0
+  fi
   local file="$1"
   local line ac_id verify_cmd verify_rest
   local section_ac="" pending_ac=""
@@ -231,6 +240,10 @@ doctor_load_card_status_cache
 # section list, YAML frontmatter multi-line list. The old inline-only grep
 # meant the code->INVENTORY check never evaluated a single section-list card.
 doctor_parse_task_patterns() {
+  if declare -F task_card_parse_patterns >/dev/null 2>&1; then
+    task_card_parse_patterns "$1" "$2" | paste -sd, -
+    return 0
+  fi
   local _field="$1" _file="$2" _inline
   _inline="$(grep "^${_field}:" "$_file" 2>/dev/null | head -1 | sed "s/^${_field}:[[:space:]]*//;s/\r$//")"
   if [ -n "$_inline" ]; then
@@ -1506,6 +1519,7 @@ check_review_evidence() {
     [[ "$f" == *.spec.md ]] && continue
     card_status_done "$f" || continue
     local tid; tid="$(basename "$f" .md)"
+    task_card_has_code "$ROOT" "$f" || continue
     local review_file="$ENGINE_DIR/review/evidence/$tid/REVIEW.json"
 
     if [ ! -f "$review_file" ]; then
@@ -1626,6 +1640,7 @@ print('true' if ar.get('enabled', False) else 'false')
     [[ "$f" == *.spec.md ]] && continue
     card_status_done "$f" || continue
     local tid; tid="$(basename "$f" .md)"
+    task_card_has_code "$ROOT" "$f" || continue
 
     # 判断此卡是否需要 agent review: config enabled 或 L2 override
     local needs_agent_review=false
@@ -1686,6 +1701,12 @@ print('true' if ar.get('enabled', False) else 'false')
 check_gate_registry() {
   local tasks_dir="$ENGINE_DIR/tasks"
   [ -d "$tasks_dir" ] || return 0
+  # A done task's own AC may invoke Doctor (for example AC-7). During that
+  # nested verification, its previous GATE.json is necessarily transitional:
+  # verify is rebuilding AC evidence and gate has not yet been rerun. Defer
+  # only this task's registry verdict; a standalone Doctor still fails on a
+  # block/missing gate, and all other done tasks remain enforced.
+  local active_verify_task="${ENGINE_VERIFY_ACTIVE_TASK:-}"
   # Determine contract-version
   local cv=""
   for _marker in "$ROOT/AGENTS.md" "$ENGINE_DIR/SYSTEM.md" "$ENGINE_DIR/ENGINE_DOCTOR.md"; do
@@ -1706,6 +1727,11 @@ check_gate_registry() {
     [[ "$f" == *.spec.md ]] && continue
     card_status_done "$f" || continue
     local tid; tid="$(basename "$f" .md)"
+    if [ -n "$active_verify_task" ] && [ "$active_verify_task" = "$tid" ]; then
+      warn "done task $tid GATE registry deferred during active verification"
+      echo "  human: Doctor is running inside 'engine verify $tid'; the task's prior GATE.json is transitional until verify and gate finish."
+      continue
+    fi
     local gate_file="$ENGINE_DIR/evidence/$tid/GATE.json"
 
     if [ ! -f "$gate_file" ]; then

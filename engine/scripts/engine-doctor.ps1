@@ -14,19 +14,43 @@ if ($Root -like '--*') {
   exit 2
 }
 $engineDir = Join-Path $Root "engine"
+$taskCardLibrary = Join-Path $PSScriptRoot "engine-task-card.ps1"
+if (Test-Path -LiteralPath $taskCardLibrary -PathType Leaf) { . $taskCardLibrary }
 $map = Join-Path $engineDir "ENGINE_MAP.md"
 $failCount = 0
 $warnCount = 0
 
 # v6.25.0 (T-086/B6): incremental mode — skip if HEAD unchanged.
+# v6.26.1 (T-081): HEAD alone is insufficient while verify/close and parallel
+# workers update evidence in the worktree. Include tracked diffs and untracked
+# files in the cache key so a cached failure/pass cannot survive a real change.
 $doctorCacheDir = Join-Path $engineDir '.cache'
 $doctorCacheFile = Join-Path $doctorCacheDir 'doctor-last-run'
 $currentHead = & git -C $Root rev-parse HEAD 2>$null
 if (-not $currentHead) { $currentHead = 'none' }
+
+function Get-DoctorWorktreeFingerprint {
+  $parts = New-Object System.Collections.Generic.List[string]
+  $diff = @(& git -C $Root diff --no-ext-diff --binary HEAD -- . 2>$null)
+  if ($diff.Count -gt 0) { [void]$parts.Add(($diff -join "`n")) }
+  foreach ($relative in @(& git -C $Root ls-files --others --exclude-standard 2>$null)) {
+    if ([string]::IsNullOrWhiteSpace($relative)) { continue }
+    $path = Join-Path $Root $relative
+    if (Test-Path -LiteralPath $path -PathType Leaf) {
+      $hash = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant()
+      [void]$parts.Add("untracked:$relative`n$hash")
+    }
+  }
+  $payload = [Text.Encoding]::UTF8.GetBytes(($parts -join "`n"))
+  $sha = [Security.Cryptography.SHA256]::Create()
+  return (([BitConverter]::ToString($sha.ComputeHash($payload))) -replace '-', '').ToLowerInvariant()
+}
+
+$doctorWorktreeFingerprint = Get-DoctorWorktreeFingerprint
 if (-not $Full -and (Test-Path $doctorCacheFile)) {
   $cacheLines = Get-Content -Path $doctorCacheFile -Encoding UTF8 -ErrorAction SilentlyContinue
-  if ($cacheLines -and $cacheLines.Count -ge 2 -and $cacheLines[0] -eq $currentHead -and $currentHead -ne 'none') {
-    Write-Host "[engine-doctor] incremental: HEAD unchanged ($currentHead), using cached result."
+  if ($cacheLines -and $cacheLines.Count -ge 3 -and $cacheLines[0] -eq $currentHead -and $cacheLines[2] -eq $doctorWorktreeFingerprint -and $currentHead -ne 'none') {
+    Write-Host "[engine-doctor] incremental: HEAD/worktree unchanged ($currentHead), using cached result."
     Write-Host "[engine-doctor] cached: $($cacheLines[1])"
     Write-Host "  (use 'engine doctor --full' to force a complete re-check)"
     if ($cacheLines[1] -match '([0-9]+) failure' -and [int]$Matches[1] -gt 0) { exit 1 }
@@ -64,6 +88,9 @@ function Trim-Cell([string]$Value) {
 # Separators: | verify: / |verify: / -> verify: / ->verify: / line-start verify:
 function Parse-AcDeclarations {
   param([string]$Path)
+  if (Get-Command Get-TaskCardAcDeclarations -ErrorAction SilentlyContinue) {
+    return @(Get-TaskCardAcDeclarations -Path $Path)
+  }
   $results = @()
   if (-not (Test-Path $Path)) { return $results }
   $sepArrow = [string][char]0x2192
@@ -145,6 +172,9 @@ function Test-CardStatus([string]$Content, [string]$Status) {
 # as the pre-commit hook (T-043): inline "FIELD: a,b", markdown "## FIELD"
 # section list, YAML frontmatter multi-line list. Returns comma-joined string.
 function Get-TaskPatterns([string]$Content, [string]$Field) {
+  if (Get-Command Get-TaskCardPatterns -ErrorAction SilentlyContinue) {
+    return (@(Get-TaskCardPatterns -Content $Content -Field $Field) -join ',')
+  }
   if (-not $Content) { return "" }
   $inlineMatch = [regex]::Match($Content, ('(?m)^' + [regex]::Escape($Field) + ':\s*(.+)$'))
   if ($inlineMatch.Success) { return $inlineMatch.Groups[1].Value.TrimEnd() }
@@ -317,9 +347,9 @@ function Test-PackageMode {
 if ($PackageMode) {
   Test-PackageMode
   Write-Host ""
-  # v6.25.0 (B6): save state for incremental mode
+  # v6.26.1 (T-081): save HEAD + worktree fingerprint for incremental mode.
 if (-not (Test-Path $doctorCacheDir)) { New-Item -ItemType Directory -Path $doctorCacheDir -Force | Out-Null }
-Set-Content -Path $doctorCacheFile -Value "$currentHead`n$failCount failure(s), $warnCount warning(s)" -Encoding UTF8 -ErrorAction SilentlyContinue
+Set-Content -Path $doctorCacheFile -Value @($currentHead, "$failCount failure(s), $warnCount warning(s)", $doctorWorktreeFingerprint) -Encoding UTF8 -ErrorAction SilentlyContinue
 
 Write-Host "Engine Doctor: $failCount failure(s), $warnCount warning(s)"
   if ($failCount -gt 0) { exit 1 }
@@ -1801,6 +1831,8 @@ function Test-ReviewEvidence {
     if ($f -like "*.spec.md") { return }
     $content = Get-Content $f -Raw
     if ($content -notmatch '(?m)^\s*(>\s*)?status:\s*done') { return }
+    if ((Get-Command Test-TaskCardHasCode -ErrorAction SilentlyContinue) -and
+        -not (Test-TaskCardHasCode -Root $Root -Path $f)) { return }
     $tid = $_.BaseName
     $reviewFile = Join-Path $engineDir "review\evidence\$tid\REVIEW.json"
 
@@ -2180,6 +2212,10 @@ foreach ($cli in @("engine", "engine.ps1", "engine.cmd")) {
 Check-ScriptLint
 
 Write-Host ""
+# v6.26.1 (T-081): save normal-mode results too; the cache key includes the
+# worktree fingerprint so later verify/close writes force a fresh Doctor run.
+if (-not (Test-Path $doctorCacheDir)) { New-Item -ItemType Directory -Path $doctorCacheDir -Force | Out-Null }
+Set-Content -Path $doctorCacheFile -Value @($currentHead, "$failCount failure(s), $warnCount warning(s)", $doctorWorktreeFingerprint) -Encoding UTF8 -ErrorAction SilentlyContinue
 Write-Host "Engine Doctor: $failCount failure(s), $warnCount warning(s)"
 if ($failCount -gt 0) { exit 1 }
 exit 0

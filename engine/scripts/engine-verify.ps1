@@ -19,20 +19,24 @@ trap { [Console]::Error.WriteLine("[engine-verify] error: $_"); exit 1 }
 $Root = $env:CLAUDE_PROJECT_DIR
 if (-not $Root) { $Root = $PWD.Path }
 $EngineDir = Join-Path $Root "engine"
+$taskCardLibrary = Join-Path $PSScriptRoot "engine-task-card.ps1"
+if (Test-Path -LiteralPath $taskCardLibrary -PathType Leaf) { . $taskCardLibrary }
 
 if (-not $Task) {
   [Console]::Error.WriteLine("Usage: engine verify T-NNN")
   exit 2
 }
 
-# v6.10.0 (D-028/T-035): recursion guard. An AC verify command may itself
-# invoke `pwsh -File engine/scripts/engine-verify.ps1 -Task T-NNN` (e.g.
-# T-035 AC-2 dogfood). Without a guard, that would infinitely recurse (each
-# call re-iterates ACs and re-spawns the recursive call). The guard env var
-# carries the task ID being verified by the outer call; a recursive
-# invocation for the SAME task exits 0 immediately. Other task IDs (e.g.
-# behavior-verify test fixtures) run normally.
+# v6.10.0/v6.26.1 (D-028/T-035, T-081): recursion guard. An AC verify command
+# may invoke another task verifier (for example T-081 AC-4 -> T-080, whose
+# AC-4 dogfoods T-080 again). A single guard ID only protects same-task
+# recursion; the stack protects cross-task cycles while allowing one nested
+# verifier for a different task.
 # Dead-code evidence (DEAD-CODE.json) is written by the outer (first) call only.
+if ($env:ENGINE_VERIFY_RECURSE_STACK) {
+  $verifyStack = @($env:ENGINE_VERIFY_RECURSE_STACK -split ':')
+  if ($verifyStack -contains $Task) { exit 0 }
+}
 if ($env:ENGINE_VERIFY_RECURSE_GUARD -and ($env:ENGINE_VERIFY_RECURSE_GUARD -eq $Task)) {
   exit 0
 }
@@ -111,6 +115,9 @@ if (-not $bashExe) {
 # Separators: | verify: / |verify: / -> verify: / ->verify: / line-start verify:
 function Parse-AcDeclarations {
   param([string]$Path)
+  if (Get-Command Get-TaskCardAcDeclarations -ErrorAction SilentlyContinue) {
+    return @(Get-TaskCardAcDeclarations -Path $Path)
+  }
   $results = @()
   if (-not (Test-Path $Path)) { return $results }
   $sepArrow = [string][char]0x2192
@@ -184,7 +191,7 @@ function Parse-AcDeclarations {
 function Test-EngineMetadata {
   param([string]$Path)
   $metaPatterns = @(
-    'engine/tasks/', 'engine/decisions/', 'engine/changes/', 'engine/evidence/',
+    'engine/tasks/', 'engine/decisions/', 'engine/changes/', 'engine/evidence/', 'engine/review/evidence/',
     'engine/domains/', 'engine/archive/', 'engine/CONTEXT.md', 'engine/HANDOFF.md',
     'engine/ENGINE_MAP.md', 'engine/handoff-archive-', 'VERSION', 'engine/VERSION',
     'plugin/VERSION', 'plugin/manifest.json', 'CHANGELOG.md'
@@ -199,19 +206,24 @@ function Collect-CodeFingerprint {
   param([string]$TaskFile, [string]$Root)
   $codeFingerprint = @{}
   $wsSnapshot = @()
-  $content = Get-Content -Path $TaskFile -Encoding UTF8
-  $inWs = $false
-  foreach ($line in $content) {
-    if ($line -match '^## WRITE-SET') { $inWs = $true; continue }
-    if ($line -match '^## ') { if ($inWs) { break } else { continue } }
-    if (-not $inWs) { continue }
-    if ($line -match '^-\s+(.+)') {
-      $path = $Matches[1].Trim()
-      if (Test-EngineMetadata -Path $path) { continue }
-      $fullPath = Join-Path $Root $path
-      if (-not (Test-Path $fullPath -PathType Leaf)) { continue }
-      $wsSnapshot += $path
+  if (Get-Command Get-TaskCardPatterns -ErrorAction SilentlyContinue) {
+    $writeSetPaths = @(Get-TaskCardPatterns -Path $TaskFile -Field 'WRITE-SET')
+  } else {
+    $content = Get-Content -Path $TaskFile -Encoding UTF8
+    $inWs = $false
+    $writeSetPaths = @()
+    foreach ($line in $content) {
+      if ($line -match '^##\s+WRITE-SET') { $inWs = $true; continue }
+      if ($line -match '^##\s+') { if ($inWs) { break } else { continue } }
+      if ($inWs -and $line -match '^\s*-\s+(.+)') { $writeSetPaths += $Matches[1].Trim() }
     }
+  }
+  foreach ($path in $writeSetPaths) {
+    $path = ($path -replace '\s*[\(\[].*$', '').Trim()
+    if (Test-EngineMetadata -Path $path) { continue }
+    $fullPath = Join-Path $Root $path
+    if (-not (Test-Path $fullPath -PathType Leaf)) { continue }
+    $wsSnapshot += $path
   }
   $missing = @()
   foreach ($path in $wsSnapshot) {
@@ -324,8 +336,14 @@ function Invoke-VerifyCommand {
   $output = ''
   $exitCode = 1
   Push-Location $Root
+  $oldGuard = $env:ENGINE_VERIFY_RECURSE_GUARD
+  $oldStack = $env:ENGINE_VERIFY_RECURSE_STACK
+  $oldActive = $env:ENGINE_VERIFY_ACTIVE_TASK
   try {
     $env:ENGINE_VERIFY_RECURSE_GUARD = $TaskId
+    if ($oldStack) { $env:ENGINE_VERIFY_RECURSE_STACK = "$oldStack`:$TaskId" }
+    else { $env:ENGINE_VERIFY_RECURSE_STACK = $TaskId }
+    $env:ENGINE_VERIFY_ACTIVE_TASK = $TaskId
     try {
       if ($BashExe) {
         $output = & $BashExe -lc $Command 2>&1 | Out-String
@@ -340,7 +358,9 @@ function Invoke-VerifyCommand {
       $exitCode = 1
     }
   } finally {
-    [Environment]::SetEnvironmentVariable('ENGINE_VERIFY_RECURSE_GUARD', $null, 'Process')
+    if ($null -eq $oldGuard) { [Environment]::SetEnvironmentVariable('ENGINE_VERIFY_RECURSE_GUARD', $null, 'Process') } else { $env:ENGINE_VERIFY_RECURSE_GUARD = $oldGuard }
+    if ($null -eq $oldStack) { [Environment]::SetEnvironmentVariable('ENGINE_VERIFY_RECURSE_STACK', $null, 'Process') } else { $env:ENGINE_VERIFY_RECURSE_STACK = $oldStack }
+    if ($null -eq $oldActive) { [Environment]::SetEnvironmentVariable('ENGINE_VERIFY_ACTIVE_TASK', $null, 'Process') } else { $env:ENGINE_VERIFY_ACTIVE_TASK = $oldActive }
     Pop-Location
   }
   return [PSCustomObject]@{ Output = [string]$output; ExitCode = [int]$exitCode }
@@ -386,6 +406,14 @@ if ($Preflight) {
   $cfResult = Collect-CodeFingerprint -TaskFile $taskFile -Root $Root
   $codeFpJson = Build-CodeFingerprintJson -Hash $cfResult.CodeFingerprint
   $wsSnapJson = Build-WsSnapshotJson -Arr $cfResult.WsSnapshot
+}
+
+# v6.24.2 (T-081): invalidate stale later-AC snapshots before a done-card
+# rerun reaches an earlier Doctor AC. Only AC records are regenerated; keep
+# non-AC lifecycle evidence in place.
+if (-not $Preflight) {
+  Get-ChildItem -Path $evidenceDir -Filter 'AC-*.json' -File -ErrorAction SilentlyContinue |
+    Remove-Item -Force -ErrorAction SilentlyContinue
 }
 
 foreach ($ac in (Parse-AcDeclarations -Path $taskFile)) {
@@ -552,7 +580,9 @@ function Invoke-DeadCodeDetection {
   $content = Get-Content -Raw -Path $TaskFile -Encoding UTF8 -ErrorAction SilentlyContinue
   if (-not $content) { return }
   $writeSetLine = ""
-  if ($content -match '(?m)^WRITE-SET:\s*(.*)$') { $writeSetLine = $Matches[1].Trim() }
+  if (Get-Command Get-TaskCardPatterns -ErrorAction SilentlyContinue) {
+    $writeSetLine = (@(Get-TaskCardPatterns -Path $TaskFile -Field 'WRITE-SET') -join ',')
+  } elseif ($content -match '(?m)^WRITE-SET:\s*(.*)$') { $writeSetLine = $Matches[1].Trim() }
   if ([string]::IsNullOrEmpty($writeSetLine)) { return }
 
   $shFiles = @()

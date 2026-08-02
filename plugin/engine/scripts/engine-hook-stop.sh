@@ -13,6 +13,10 @@ log_error() { echo "[engine-hook-stop] ERROR: $*" >&2; }
 
 ROOT="${CLAUDE_PROJECT_DIR:-$PWD}"
 ENGINE_DIR="$ROOT/engine"
+if [ -f "$ENGINE_DIR/scripts/engine-task-card.sh" ]; then
+  # shellcheck source=/dev/null
+  . "$ENGINE_DIR/scripts/engine-task-card.sh"
+fi
 MODE="${1:-stop}"
 payload="$(cat 2>/dev/null || true)"
 
@@ -101,6 +105,10 @@ find_closing_tasks() {
 # Before this, a card written only in the frontmatter (spec) format was
 # rejected by the hook with "no readable WRITE-SET", pausing all writes.
 parse_task_patterns() {
+  if declare -F task_card_parse_patterns >/dev/null 2>&1; then
+    task_card_parse_patterns "$1" "$2" | paste -sd, -
+    return 0
+  fi
   local field="$1" file="$2" inline
   inline="$(grep "^${field}:" "$file" 2>/dev/null | head -1 | sed "s/^${field}:[[:space:]]*//;s/\r$//")"
   if [ -n "$inline" ]; then

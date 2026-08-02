@@ -13,6 +13,11 @@ on_error() { echo "[engine-verify] error on line $1 (${BASH_SOURCE[0]})" >&2; ex
 trap 'on_error ${LINENO}' ERR
 ROOT="${CLAUDE_PROJECT_DIR:-$PWD}"
 ENGINE_DIR="$ROOT/engine"
+task_card_script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "$task_card_script_dir/engine-task-card.sh" ]; then
+  # shellcheck source=/dev/null
+  . "$task_card_script_dir/engine-task-card.sh"
+fi
 task="${1:-}"
 preflight=0
 force_no_cov=0
@@ -28,13 +33,16 @@ if [ -z "$task" ]; then
   exit 2
 fi
 
-# v6.10.0 (D-028/T-035): recursion guard. An AC verify command may itself
-# invoke `bash engine/scripts/engine-verify.sh T-NNN` (e.g. T-035 AC-2 dogfood).
-# Without a guard, that would infinitely recurse (each call re-iterates ACs and
-# re-spawns the recursive call). The guard env var carries the task ID being
-# verified by the outer call; a recursive invocation for the SAME task exits 0
-# immediately. Other task IDs (e.g. behavior-verify test fixtures) run normally.
+# v6.10.0/v6.26.1 (D-028/T-035, T-081): recursion guard. An AC verify command
+# may invoke another task verifier (for example T-081 AC-4 -> T-080, whose
+# AC-4 dogfoods T-080 again). A single guard ID only protects same-task
+# recursion; the stack protects cross-task cycles while allowing one nested
+# verifier for a different task.
 # Dead-code evidence (DEAD-CODE.json) is written by the outer (first) call only.
+verify_stack="${ENGINE_VERIFY_RECURSE_STACK:-}"
+case ":$verify_stack:" in
+  *":$1:"*) exit 0 ;;
+esac
 if [ -n "${ENGINE_VERIFY_RECURSE_GUARD:-}" ] && [ "${ENGINE_VERIFY_RECURSE_GUARD:-}" = "$1" ]; then
   exit 0
 fi
@@ -69,6 +77,10 @@ empty_fp_pass=0
 # AC id regex: AC-[A-Za-z]*[0-9]+(\.[0-9]+)* (v6.12.1 A-3).
 # Separators: | verify: / |verify: / → verify: / →verify: / line-start verify:
 parse_ac_declarations() {
+  if declare -F task_card_parse_ac_declarations >/dev/null 2>&1; then
+    task_card_parse_ac_declarations "$@"
+    return 0
+  fi
   local file="$1"
   local line ac_id verify_cmd verify_rest
   local section_ac="" pending_ac=""
@@ -161,7 +173,7 @@ parse_ac_declarations() {
 # is_engine_metadata: 判断路径是否 engine 元数据(排除出 code_fingerprint)
 is_engine_metadata() {
   case "$1" in
-    engine/tasks/*|engine/decisions/*|engine/changes/*|engine/evidence/*|engine/domains/*|engine/archive/*) return 0 ;;
+    engine/tasks/*|engine/decisions/*|engine/changes/*|engine/evidence/*|engine/review/evidence/*|engine/domains/*|engine/archive/*) return 0 ;;
     engine/CONTEXT.md|engine/HANDOFF.md|engine/ENGINE_MAP.md|engine/handoff-archive-*) return 0 ;;
     VERSION|engine/VERSION|plugin/VERSION|plugin/manifest.json|CHANGELOG.md) return 0 ;;
     *) return 1 ;;
@@ -174,20 +186,23 @@ declare -A code_fingerprint=()
 declare -A code_fp_files=()
 ws_snapshot=()
 collect_code_fingerprint() {
-  local file="$1" in_ws=0 line path blob_sha
-  while IFS= read -r line || [ -n "$line" ]; do
-    case "$line" in
-      "## WRITE-SET") in_ws=1; continue ;;
-      "## "*) [ "$in_ws" = "1" ] && break ;;
-    esac
-    [ "$in_ws" = "1" ] || continue
-    [[ "$line" =~ ^-[[:space:]]+([^[:space:]].+) ]] || continue
-    path="${BASH_REMATCH[1]}"
+  local file="$1" path blob_sha
+  local write_set_lines=""
+  if declare -F task_card_parse_patterns >/dev/null 2>&1; then
+    write_set_lines="$(task_card_parse_patterns WRITE-SET "$file")"
+  else
+    write_set_lines="$(awk '/^##[[:space:]]+WRITE-SET[[:space:]]*$/{on=1;next} on&&/^##[[:space:]]+/{on=0} on&&/^[[:space:]]*-[[:space:]]+/{sub(/^[[:space:]]*-[[:space:]]+/,"");print}' "$file")"
+  fi
+  while IFS= read -r path; do
+    path="${path%%(*}"
+    path="${path%%\[*}"
+    path="${path%"${path##*[![:space:]]}"}"
+    [ -n "$path" ] || continue
     is_engine_metadata "$path" && continue
     [ -f "$ROOT/$path" ] || continue
     code_fp_files["$path"]=1
     ws_snapshot+=("$path")
-  done < "$file"
+  done <<< "$write_set_lines"
   local missing=()
   for path in "${!code_fp_files[@]}"; do
     blob_sha="$(cd "$ROOT" && git ls-files -s "$path" 2>/dev/null | awk '{print $2}')"
@@ -351,15 +366,21 @@ ensure_powershell_on_path() {
 
 run_verify_command() {
   local command="$1" output_file="$2" verify_timeout rc=0
+  local next_verify_stack="${ENGINE_VERIFY_RECURSE_STACK:-}"
+  if [ -n "$next_verify_stack" ]; then
+    next_verify_stack="$next_verify_stack:$task"
+  else
+    next_verify_stack="$task"
+  fi
   verify_timeout="${ENGINE_VERIFY_TIMEOUT:-120}"
   ensure_powershell_on_path
   if [ "${ENGINE_PWSH_CMD:-pwsh}" != "pwsh" ]; then
     command="${command//pwsh/${ENGINE_PWSH_CMD}}"
   fi
   if command -v timeout >/dev/null 2>&1; then
-    ( cd "$ROOT" && ENGINE_VERIFY_RECURSE_GUARD="$task" timeout "$verify_timeout" bash -c "$command" ) </dev/null >"$output_file" 2>&1 || rc=$?
+    ( cd "$ROOT" && ENGINE_VERIFY_RECURSE_GUARD="$task" ENGINE_VERIFY_RECURSE_STACK="$next_verify_stack" ENGINE_VERIFY_ACTIVE_TASK="$task" timeout "$verify_timeout" bash -c "$command" ) </dev/null >"$output_file" 2>&1 || rc=$?
   else
-    ( cd "$ROOT" && ENGINE_VERIFY_RECURSE_GUARD="$task" eval "$command" ) </dev/null >"$output_file" 2>&1 || rc=$?
+    ( cd "$ROOT" && ENGINE_VERIFY_RECURSE_GUARD="$task" ENGINE_VERIFY_RECURSE_STACK="$next_verify_stack" ENGINE_VERIFY_ACTIVE_TASK="$task" eval "$command" ) </dev/null >"$output_file" 2>&1 || rc=$?
   fi
   return "${rc:-0}"
 }
@@ -407,6 +428,15 @@ fi
 code_fp_json="$(build_code_fingerprint_json)"
 ws_snap_json="$(build_ws_snapshot_json)"
 
+# v6.24.2 (T-081): invalidate stale later-AC snapshots. A rerun of a done
+# card must not let an old later AC snapshot fail an earlier Doctor AC before
+# that later AC is rewritten. AC
+# evidence is regenerated as one set by this verifier; remove only the old
+# AC records up front, while preserving non-AC lifecycle evidence.
+if [ "$preflight" -eq 0 ]; then
+  find "$evidence_dir" -maxdepth 1 -type f -name 'AC-*.json' -delete 2>/dev/null || true
+fi
+
 while IFS=$'\t' read -r ac_id verify_cmd; do
   [ -n "$ac_id" ] || continue
   if [ -z "$verify_cmd" ]; then
@@ -428,6 +458,12 @@ while IFS=$'\t' read -r ac_id verify_cmd; do
       echo "WARN suspicious verify (self-referential evidence path): $ac_id" ;;
   esac
   tmp_out="$(mktemp)"
+  # v6.24.1 (T-081): refresh evidence written by preceding ACs before running
+  # the next command. This keeps a done task's Doctor AC from observing a
+  # transient MANIFEST mismatch while verify is rewriting AC evidence.
+  if [ "$preflight" -eq 0 ]; then
+    write_evidence_manifest "$evidence_dir" "$verified_commit"
+  fi
   rc=0
   # v6.9.0 (T-034): redirect stdin from /dev/null so verify commands that
   # spawn subshells reading stdin (e.g. `bash scripts/check.sh` in AC-10)
@@ -583,7 +619,11 @@ detect_dead_code() {
 
   # Collect WRITE-SET-touched .sh / .ps1 files (concrete paths only, skip globs).
   local write_set_line
-  write_set_line="$(grep '^WRITE-SET:' "$task_file" 2>/dev/null | head -1 | sed 's/^WRITE-SET:[[:space:]]*//' || true)"
+  if declare -F task_card_parse_patterns >/dev/null 2>&1; then
+    write_set_line="$(task_card_parse_patterns WRITE-SET "$task_file" | tr '\n' ',')"
+  else
+    write_set_line="$(grep '^WRITE-SET:' "$task_file" 2>/dev/null | head -1 | sed 's/^WRITE-SET:[[:space:]]*//' || true)"
+  fi
   [ -z "$write_set_line" ] && return 0
 
   local -a sh_files=()

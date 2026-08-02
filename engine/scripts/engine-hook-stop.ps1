@@ -8,6 +8,8 @@ trap { Write-Warning "[engine-hook-stop.ps1] error: $_"; continue }
 $Root = $env:CLAUDE_PROJECT_DIR
 if (-not $Root) { $Root = $PWD.Path }
 $EngineDir = Join-Path $Root "engine"
+$taskCardLibrary = Join-Path $PSScriptRoot "engine-task-card.ps1"
+if (Test-Path -LiteralPath $taskCardLibrary -PathType Leaf) { . $taskCardLibrary }
 $payload = $input | Out-String
 
 if ($payload -match '"stop_hook_active"\s*:\s*true') { exit 0 }
@@ -92,6 +94,9 @@ function Find-ClosingTasks {
 # the pre-commit parser from T-043): inline `WRITE-SET: a,b`, markdown section
 # `## WRITE-SET` list, and YAML frontmatter multi-line `write-set:` list.
 function Get-TaskPatterns([string]$Field, [string]$TaskContent) {
+  if (Get-Command Get-TaskCardPatterns -ErrorAction SilentlyContinue) {
+    return (@(Get-TaskCardPatterns -Content $TaskContent -Field $Field) -join ',')
+  }
   $lines = $TaskContent -split "`n"
   foreach ($lineRaw in $lines) {
     $line = $lineRaw.TrimEnd("`r")

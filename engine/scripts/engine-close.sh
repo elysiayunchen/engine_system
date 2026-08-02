@@ -9,6 +9,11 @@ set -u -o pipefail
 
 ROOT="${CLAUDE_PROJECT_DIR:-$PWD}"
 ENGINE_DIR="$ROOT/engine"
+task_card_script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "$task_card_script_dir/engine-task-card.sh" ]; then
+  # shellcheck source=/dev/null
+  . "$task_card_script_dir/engine-task-card.sh"
+fi
 task="${1:-}"
 shift || true
 handoff_agent="${ENGINE_AGENT_ID:-}"
@@ -56,8 +61,13 @@ run_stage() {
   local tmp rc
   tmp="$(mktemp)"
   echo "[engine-close] running: $label"
-  "$@" 2>&1 | tee "$tmp"
-  rc="${PIPESTATUS[0]}"
+  # Capture the stage before replaying its output. Piping the child directly
+  # through tee lets an external log consumer closing early send SIGPIPE back
+  # into the stage (notably Doctor's long report), turning a real exit 0 into
+  # a false exit 141. The stage's exit code must be independent of display I/O.
+  "$@" >"$tmp" 2>&1
+  rc="$?"
+  cat "$tmp" || true
   printf -v "${label}_rc" '%s' "$rc"
   rm -f "$tmp"
 }
@@ -221,16 +231,23 @@ generate_capsule() {
 capsule_status="not_required"
 capsule_path=""
 write_set_code=0
+if declare -F task_card_parse_patterns >/dev/null 2>&1; then
+  write_set_paths="$(task_card_parse_patterns WRITE-SET "$task_file")"
+else
+  write_set_paths="$(awk '
+    /^##[[:space:]]+WRITE-SET[[:space:]]*$/ { on=1; next }
+    on && /^##[[:space:]]+/ { on=0 }
+    on && /^-[[:space:]]+/ { sub(/^-[[:space:]]+/, ""); print }
+  ' "$task_file" 2>/dev/null)"
+fi
 while IFS= read -r write_path; do
+  write_path="${write_path%%(*}"
+  write_path="${write_path%%\[*}"
   if [[ "$write_path" =~ \.(sh|ps1|py|js|ts|go|rs|java|c|cpp|rb|php)$ ]]; then
     write_set_code=1
     break
   fi
-done < <(awk '
-  /^##[[:space:]]+WRITE-SET[[:space:]]*$/ { on=1; next }
-  on && /^##[[:space:]]+/ { on=0 }
-  on && /^-[[:space:]]+/ { sub(/^-[[:space:]]+/, ""); print }
-' "$task_file" 2>/dev/null)
+done <<< "$write_set_paths"
 if [ "$write_set_code" -eq 1 ]; then
   capsule_status="block"
   while IFS= read -r f; do

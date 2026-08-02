@@ -15,6 +15,8 @@ $ErrorActionPreference = "Stop"
 $ROOT = $env:CLAUDE_PROJECT_DIR
 if (-not $ROOT) { $ROOT = (Get-Location).Path }
 $ENGINE_DIR = Join-Path $ROOT "engine"
+$taskCardLibrary = Join-Path $PSScriptRoot "engine-task-card.ps1"
+if (Test-Path -LiteralPath $taskCardLibrary -PathType Leaf) { . $taskCardLibrary }
 
 $task = ""
 $runMode = $false
@@ -71,24 +73,25 @@ try {
   # 2. 判断 WRITE-SET 是否含代码文件
   $taskContent = Get-Content $taskFile -Raw -Encoding UTF8
   $hasCode = $false
-  $wsMatch = [regex]::Match($taskContent, '(?m)^## WRITE-SET\s*\n([\s\S]*?)(?=^## |\Z)')
-  if ($wsMatch.Success) {
-    foreach ($line in $wsMatch.Groups[1].Value -split "`n") {
-      $line = $line.Trim()
-      if ($line.StartsWith("- ")) {
-        $p = $line.Substring(2).Trim()
-        $ext = [System.IO.Path]::GetExtension($p)
-        if ($codeExtensions -contains $ext) { $hasCode = $true; break }
-      }
+  $writeSetPaths = @()
+  if (Get-Command Get-TaskCardPatterns -ErrorAction SilentlyContinue) {
+    $writeSetPaths = @(Get-TaskCardPatterns -Path $taskFile -Field 'WRITE-SET')
+  } else {
+    $wsMatch = [regex]::Match($taskContent, '(?ms)^##\s+WRITE-SET\s*$([\s\S]*?)(?=^##\s+|\z)')
+    if ($wsMatch.Success) {
+      $writeSetPaths = @($wsMatch.Groups[1].Value -split "`n" | Where-Object { $_.Trim().StartsWith('- ') } | ForEach-Object { $_.Trim().Substring(2).Trim() })
     }
+  }
+  foreach ($p in $writeSetPaths) {
+    $p = ($p -replace '\s*[\(\[].*$', '').Trim()
+    $ext = [System.IO.Path]::GetExtension($p)
+    if ($codeExtensions -contains $ext) { $hasCode = $true; break }
   }
 
   # Fallback: expand WRITE-SET paths on disk (covers new files, dirs, globs, annotations)
-  if (-not $hasCode -and $wsMatch.Success) {
-    foreach ($line in $wsMatch.Groups[1].Value -split "`n") {
-      $line = $line.Trim()
-      if (-not $line.StartsWith("- ")) { continue }
-      $p = $line.Substring(2).Trim()
+  if (-not $hasCode) {
+    foreach ($p in $writeSetPaths) {
+      $p = $p.Trim()
       # Strip annotations: (new), [added], etc.
       $p = $p -replace "\s*[\(\[].*$", ""
       $full = Join-Path $ROOT $p
@@ -131,7 +134,11 @@ try {
 
   # 3. 门禁检查函数
   function Check-Verify {
-    $acCount = ([regex]::Matches($taskContent, '(?m)(^AC-|^AC:.*AC-)')).Count
+    if (Get-Command Get-TaskCardAcDeclarations -ErrorAction SilentlyContinue) {
+      $acCount = @(Get-TaskCardAcDeclarations -Path $taskFile).Count
+    } else {
+      $acCount = ([regex]::Matches($taskContent, '(?m)(^AC-|^AC:.*AC-)')).Count
+    }
     if ($acCount -eq 0) { return @{status="pass"; detail="0/0 AC (no ACs declared)"; fix=""} }
     $passCount = 0
     $acFiles = Get-ChildItem (Join-Path $ENGINE_DIR "evidence\$task\AC-*.json") -ErrorAction SilentlyContinue

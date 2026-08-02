@@ -27,6 +27,13 @@ fi
 
 ROOT="${CLAUDE_PROJECT_DIR:-$PWD}"
 ENGINE_DIR="$ROOT/engine"
+task_card_script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "$task_card_script_dir/engine-task-card.sh" ]; then
+  # Shared AC/WRITE-SET grammar.  The fallback below keeps older copied test
+  # fixtures executable while they migrate to the distributed helper.
+  # shellcheck source=/dev/null
+  . "$task_card_script_dir/engine-task-card.sh"
+fi
 task=""
 run_mode=0
 
@@ -96,7 +103,10 @@ docs_only_skip=$(echo "$config_data" | "$PY" -c "import json,sys; print(' '.join
 
 # 2. 判断 WRITE-SET 是否含代码文件
 has_code=0
-write_set_paths=$("$PY" -c "
+if declare -F task_card_parse_patterns >/dev/null 2>&1; then
+  write_set_paths="$(task_card_parse_patterns WRITE-SET "$task_file" | tr ',' '\n')"
+else
+  write_set_paths=$("$PY" -c "
 import sys, re
 with open(sys.argv[1], encoding='utf-8') as f:
     content = f.read()
@@ -107,9 +117,15 @@ if m:
         if line.startswith('- '):
             print(line[2:].strip())
 " "$task_file")
+fi
 
 # Fast path: check path string extensions directly
-for p in $write_set_paths; do
+while IFS= read -r p; do
+  p="${p%%(*}"
+  p="${p%%\[*}"
+  p="${p%"${p##*[![:space:]]}"}"
+  p="${p#"${p%%[![:space:]]*}"}"
+  [ -n "$p" ] || continue
   ext=".${p##*.}"
   for ce in $code_extensions; do
     if [ "$ext" = "$ce" ]; then
@@ -117,7 +133,7 @@ for p in $write_set_paths; do
       break 2
     fi
   done
-done
+done <<< "$write_set_paths"
 
 # Fallback: expand WRITE-SET paths on disk (covers new files, dirs, globs, annotations)
 if [ "$has_code" -eq 0 ] && [ -n "$write_set_paths" ]; then
@@ -163,8 +179,12 @@ fail_count=0
 check_verify() {
   local evidence_dir="$ENGINE_DIR/evidence/$task"
   local ac_count=0 pass_count=0
-  # 计算 AC 数量 (supports: "AC-N ..." at line start, or "AC: AC-N ..." format)
-  ac_count=$(grep -cE '(^AC-|^AC:.*AC-)' "$task_file" 2>/dev/null || true)
+  # 计算 AC 数量 with the same four-format parser used by verify.
+  if declare -F task_card_parse_ac_declarations >/dev/null 2>&1; then
+    ac_count=$(task_card_parse_ac_declarations "$task_file" | awk 'NF {n++} END {print n+0}')
+  else
+    ac_count=$(grep -cE '(^AC-|^AC:.*AC-)' "$task_file" 2>/dev/null || true)
+  fi
   [ -z "$ac_count" ] && ac_count=0
   if [ "$ac_count" -eq 0 ]; then
     echo "pass|0/0 AC (no ACs declared)|"

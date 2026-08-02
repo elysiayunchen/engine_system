@@ -1,5 +1,12 @@
 # Changelog
 
+## v6.26.1 (2026-08-02) — Issue #30 任务卡解析与生命周期分发一致性
+
+- 新增共享任务卡解析器，并统一 verify/gate/review/close/Doctor/hook/pre-commit 的 AC 与 WRITE-SET 解析
+- 修复 `engine close` 未进入安装包分发的问题，补齐 Bash/PowerShell 与 plugin 镜像
+- 修复 section AC 计数、inline WRITE-SET 支持，以及 docs-only 任务的 gate/Doctor review 策略一致性
+- Issue #30 专项、生命周期与回归测试通过
+
 ## v6.26.0 (2026-08-01) — TDAI P1 集成: 漂移检测 + 胶囊 heat(T-085)
 
 - Guard 漂移检测: 4 信号评分(非 active T-NNN +3 / GOAL 零关键词重叠 +2 / session 亲和性 +1 / card stale >4h +1), score>=3 DRIFT ADVISORY, 1-2 drift-hint, 0 静默

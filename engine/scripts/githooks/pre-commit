@@ -14,6 +14,10 @@ fi
 ROOT="${CLAUDE_PROJECT_DIR:-$PWD}"
 ENGINE_DIR="$ROOT/engine"
 TAB="$(printf '\t')"
+if [ -f "$ENGINE_DIR/scripts/engine-task-card.sh" ]; then
+  # shellcheck source=/dev/null
+  . "$ENGINE_DIR/scripts/engine-task-card.sh"
+fi
 
 # v6.25.0 (T-082): failure signal write (for Stop hook failure mode extraction)
 _block_signal="S6-precommit"
@@ -43,6 +47,10 @@ staged="$(git diff --cached --name-only -z 2>/dev/null | tr '\0' '\n')"
 # AC id regex: AC-[A-Za-z]*[0-9]+(\.[0-9]+)* (v6.12.1 A-3).
 # Separators: | verify: / |verify: / → verify: / →verify: / line-start verify:
 parse_ac_declarations() {
+  if declare -F task_card_parse_ac_declarations >/dev/null 2>&1; then
+    task_card_parse_ac_declarations "$@"
+    return 0
+  fi
   local file="$1"
   local line ac_id verify_cmd verify_rest
   local section_ac="" pending_ac=""
@@ -197,6 +205,10 @@ if [ "$strict_task_mode" -eq 1 ] && [ -f "$ENGINE_DIR/.cache/bypass-detected" ];
 fi
 
 parse_task_patterns() {
+  if declare -F task_card_parse_patterns >/dev/null 2>&1; then
+    task_card_parse_patterns "$1" "$2" | paste -sd, -
+    return 0
+  fi
   _field="$1"; _file="$2"
   _inline="$(grep "^${_field}:" "$_file" 2>/dev/null | head -1 | sed "s/^${_field}:[[:space:]]*//;s/\r$//")"
   if [ -n "$_inline" ]; then
